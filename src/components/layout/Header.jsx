@@ -1,17 +1,20 @@
 import React from 'react';
-import { Scale } from 'lucide-react';
+import logoMetrica from '../../assets/logoMetrica2.png';
 
 export function Header() {
   return (
-    <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+    <header className="sticky top-0 z-20 backdrop-blur-lg bg-[#141414]/20 border-b border-gray-700/50 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
-          <div className="flex items-center">
-            <Scale className="h-8 w-8 text-primary-600" />
-            <h1 className="ml-3 text-xl font-bold text-gray-900">RIM <span className="text-gray-500 font-normal">| Registro de Balanzas</span></h1>
+        <div className="flex justify-between gap-4 h-20 items-center">
+          <div className="flex items-center flex-shrink-0">
+            <img 
+              src={logoMetrica} 
+              alt="Métrica LTDA" 
+              className="h-10 w-auto sm:h-12 md:h-14 object-contain transition-all duration-300"
+            />
           </div>
-          <div className="text-sm text-gray-500 hidden sm:block">
-            Sistema de Gestión de Entregas
+          <div className="text-xs sm:text-sm md:text-base text-gray-300 font-medium text-right">
+            RIM Recepción de Instrumentos de Pesaje
           </div>
         </div>
       </div>

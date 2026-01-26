@@ -44,7 +44,7 @@ export function ImageUpload({ maxFiles = 5, onFilesChange, files = [], error }) 
 
   return (
     <div className="w-full">
-       <label className="block text-sm font-medium text-gray-700 mb-2">
+       <label className="block text-sm font-medium text-gray-300 mb-2">
         Evidencias Fotográficas (Máx {maxFiles})
       </label>
 
@@ -53,15 +53,15 @@ export function ImageUpload({ maxFiles = 5, onFilesChange, files = [], error }) 
             {...getRootProps()}
             className={cn(
             "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
-            isDragActive ? "border-primary-500 bg-primary-50" : "border-gray-300 hover:border-primary-500 hover:bg-gray-50",
-            error && "border-red-500 bg-red-50"
+            isDragActive ? "border-primary-500 bg-primary-900/20" : "border-gray-600 hover:border-primary-500 hover:bg-[#1e1e1e]",
+            error && "border-red-500 bg-red-900/20"
             )}
         >
             <input {...getInputProps()} />
             <div className="flex flex-col items-center justify-center space-y-2">
-                <Upload className="h-8 w-8 text-gray-400" />
-                <p className="text-sm text-gray-600">
-                    <span className="font-semibold text-primary-600">Click para subir</span> o arrastra imágenes aquí
+                <Upload className="h-8 w-8 text-gray-500" />
+                <p className="text-sm text-gray-300">
+                    <span className="font-semibold text-primary-400">Click para subir</span> o arrastra imágenes aquí
                 </p>
                 <p className="text-xs text-gray-500">PNG, JPG hasta 5MB</p>
             </div>
@@ -73,7 +73,7 @@ export function ImageUpload({ maxFiles = 5, onFilesChange, files = [], error }) 
       {files && files.length > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {files.map((file, index) => (
-                <div key={file.name + index} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                <div key={file.name + index} className="relative group aspect-square rounded-lg overflow-hidden bg-[#2a2a2a] border border-gray-700">
                     <img
                         src={file.preview}
                         alt={file.name}

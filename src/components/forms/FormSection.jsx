@@ -1,25 +1,85 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export function FormSection({ title, children, defaultOpen = true, className }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [height, setHeight] = useState(defaultOpen ? 'auto' : '0px');
+  const contentRef = useRef(null);
+
+  // Recalcular altura cuando el contenido cambia
+  useEffect(() => {
+    if (!isOpen || !contentRef.current) return;
+
+    const updateHeight = () => {
+      if (height === 'auto') {
+        // Si ya está en auto, forzar recalculo
+        setHeight(`${contentRef.current.scrollHeight}px`);
+        requestAnimationFrame(() => {
+          setHeight('auto');
+        });
+      }
+    };
+
+    // Observar cambios en el contenido
+    const observer = new MutationObserver(updateHeight);
+    observer.observe(contentRef.current, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true
+    });
+
+    // Observar cambios de tamaño
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(contentRef.current);
+
+    return () => {
+      observer.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [isOpen, height]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHeight(`${contentRef.current.scrollHeight}px`);
+      // Set to auto after animation completes for dynamic content
+      const timer = setTimeout(() => setHeight('auto'), 300);
+      return () => clearTimeout(timer);
+    } else {
+      // First set to actual height, then to 0 to trigger animation
+      setHeight(`${contentRef.current.scrollHeight}px`);
+      setTimeout(() => setHeight('0px'), 10);
+    }
+  }, [isOpen]);
 
   return (
-    <div className={cn("border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden mb-4", className)}>
+    <div className={cn("border border-gray-700 rounded-lg bg-[#1e1e1e] shadow-sm overflow-hidden mb-4", className)}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-6 py-4 flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition-colors"
+        className="w-full px-6 py-4 flex justify-between items-center bg-[#252525] hover:bg-[#2a2a2a] transition-all duration-200"
       >
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        {isOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+        <h3 className="text-lg font-semibold text-gray-100">{title}</h3>
+        <ChevronDown 
+          className={cn(
+            "h-5 w-5 text-gray-400 transition-transform duration-300",
+            isOpen && "rotate-180"
+          )} 
+        />
       </button>
-      {isOpen && (
-        <div className="p-6 border-t border-gray-200">
+      <div 
+        ref={contentRef}
+        style={{ maxHeight: height }}
+        className="transition-all duration-300 ease-in-out overflow-hidden"
+      >
+        <div className={cn(
+          "p-6 border-t border-gray-700 transition-opacity duration-200",
+          isOpen ? "opacity-100" : "opacity-0"
+        )}>
           {children}
         </div>
-      )}
+      </div>
     </div>
   );
 }
