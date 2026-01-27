@@ -55,6 +55,7 @@ function App() {
       damageTypes: {},
       dirtTypes: {},
       affectedAreas: [],
+      inventory: {},
     }
   });
 
@@ -108,6 +109,12 @@ function App() {
     }
   };
 
+  const onError = (errors) => {
+    console.error("=== VALIDATION ERRORS ===");
+    console.error(errors);
+    alert("Hay errores en el formulario. Revisa la consola para más detalles.");
+  };
+
   return (
     <div className="min-h-screen bg-[#141414] pb-12">
       <Header />
@@ -124,7 +131,7 @@ function App() {
             </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-6">
             {/* Información del Técnico y RIM */}
             <div className="bg-[#141414] border-2 border-gray-700/50 rounded-2xl p-8 shadow-2xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">

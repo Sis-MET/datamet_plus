@@ -24,39 +24,39 @@ export const formSchema = z.object({
 
   // Estado del Instrumento - Inventario
   inventory: z.object({
-    indicator: z.enum(['present', 'missing', 'na']),
-    voltageAdapter: z.enum(['present', 'missing', 'na']),
-    powerCable: z.enum(['present', 'missing', 'na']),
-    bracket: z.enum(['present', 'missing', 'na']),
-    column: z.enum(['present', 'missing', 'na']),
-    weighingPan: z.enum(['present', 'missing', 'na']),
-    windShield: z.enum(['present', 'missing', 'na']),
-    structure: z.enum(['present', 'missing', 'na']),
-    loadCells: z.enum(['present', 'missing', 'na']),
+    indicator: z.enum(['present', 'missing', 'na']).optional(),
+    voltageAdapter: z.enum(['present', 'missing', 'na']).optional(),
+    powerCable: z.enum(['present', 'missing', 'na']).optional(),
+    bracket: z.enum(['present', 'missing', 'na']).optional(),
+    column: z.enum(['present', 'missing', 'na']).optional(),
+    weighingPan: z.enum(['present', 'missing', 'na']).optional(),
+    windShield: z.enum(['present', 'missing', 'na']).optional(),
+    structure: z.enum(['present', 'missing', 'na']).optional(),
+    loadCells: z.enum(['present', 'missing', 'na']).optional(),
     loadCellsQty: z.string().optional(),
-    loadCellCable: z.enum(['present', 'missing', 'na']),
-    loadCellConnector: z.enum(['present', 'missing', 'na']),
-    junctionBox: z.enum(['present', 'missing', 'na']),
-    feet: z.enum(['present', 'missing', 'na']),
+    loadCellCable: z.enum(['present', 'missing', 'na']).optional(),
+    loadCellConnector: z.enum(['present', 'missing', 'na']).optional(),
+    junctionBox: z.enum(['present', 'missing', 'na']).optional(),
+    feet: z.enum(['present', 'missing', 'na']).optional(),
     feetQty: z.string().optional(),
-    manual: z.enum(['present', 'missing', 'na']),
-    originalPackaging: z.enum(['present', 'missing', 'na']),
+    manual: z.enum(['present', 'missing', 'na']).optional(),
+    originalPackaging: z.enum(['present', 'missing', 'na']).optional(),
     other: z.string().optional(),
-  }),
+  }).optional(),
   inventoryNotes: z.string().optional(),
 
   // Estado del Instrumento - Daños Físicos
   damageLevel: z.enum(['excellent', 'good', 'fair', 'poor', 'critical'], {
     required_error: 'Seleccione el estado general'
   }).optional(),
-  damageTypes: z.record(z.array(z.string())).optional(), // { 'scratches': ['platform', 'display'], ... }
+  damageTypes: z.object({}).passthrough().optional(), // Permite cualquier estructura de objeto
   damageDescription: z.string().optional(),
 
   // Estado del Instrumento - Limpieza
   cleanlinessLevel: z.enum(['clean', 'light', 'moderate', 'heavy'], {
     required_error: 'Seleccione el nivel de limpieza'
   }).optional(),
-  dirtTypes: z.record(z.array(z.string())).optional(), // { 'dust': ['platform'], ... }
+  dirtTypes: z.object({}).passthrough().optional(), // Permite cualquier estructura de objeto
   affectedAreas: z.array(z.string()).optional(),
   cleanlinessNotes: z.string().optional(),
 
