@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: rimmet-backend
+    ports:
+      - "3000:3000"
+    restart: always # Asegura que el contenedor vuelva a iniciar si falla o la PC se reinicia
+    env_file:
+      - .env
+    # En entornos Windows/Mac, extra_hosts permite que el contenedor resuelva localhost a la red del host
+    # Esto soluciona poder conectarnos al SQL Server 2022 que ya tienes corriendo fuera de las redes virtuales puente de este compose.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
