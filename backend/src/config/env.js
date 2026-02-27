@@ -32,8 +32,8 @@ module.exports = {
     password: process.env.DB_PASSWORD.trim(),
     database: process.env.DB_DATABASE.trim(),
     options: {
-      encrypt: true, // SQL Server 2022 forces encryption by default usually
-      trustServerCertificate: true, // Required to accept the self signed cert
+      encrypt: false,
+      trustServerCertificate: true,
     },
     port: 1433,
     connectionTimeout: 30000,

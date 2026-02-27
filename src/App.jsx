@@ -6,6 +6,8 @@ import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { FormSection } from './components/forms/FormSection';
 import { Input } from './components/ui/Input';
+import { SearchableInput } from './components/ui/SearchableInput';
+import { Select } from './components/ui/Select';
 import { Button } from './components/ui/Button';
 import { RadioGroup } from './components/ui/RadioGroup';
 import { CheckboxGroup } from './components/ui/CheckboxGroup';
@@ -192,10 +194,50 @@ function App() {
                         Datos de la Empresa
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input label="Empresa" {...register('companyName')} error={errors.companyName} required />
+                        <Controller
+                            control={control}
+                            name="companyName"
+                            render={({ field }) => (
+                                <SearchableInput
+                                    label="Empresa"
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    onSelect={(clienteData) => {
+                                        field.onChange(clienteData.cliente);
+                                        // Auto-fill razón social y NIT
+                                        if (clienteData.razonsocial) {
+                                            setValue('companyRazonSocial', clienteData.razonsocial);
+                                        }
+                                        if (clienteData.nit) {
+                                            setValue('taxId', String(clienteData.nit));
+                                        }
+                                    }}
+                                    error={errors.companyName}
+                                    placeholder="Buscar empresa..."
+                                    required
+                                />
+                            )}
+                        />
                         <Input label="Razón Social" {...register('companyRazonSocial')} error={errors.companyRazonSocial} required />
                         <Input label="NIT" {...register('taxId')} error={errors.taxId} required />
-                        <Input label="Ciudad" {...register('city')} error={errors.city} required />
+                        <Select 
+                            label="Departamento" 
+                            {...register('city')} 
+                            error={errors.city} 
+                            placeholder="Seleccione un departamento"
+                            options={[
+                                { value: 'La Paz', label: 'La Paz' },
+                                { value: 'Cochabamba', label: 'Cochabamba' },
+                                { value: 'Santa Cruz', label: 'Santa Cruz' },
+                                { value: 'Oruro', label: 'Oruro' },
+                                { value: 'Potosí', label: 'Potosí' },
+                                { value: 'Tarija', label: 'Tarija' },
+                                { value: 'Chuquisaca', label: 'Chuquisaca' },
+                                { value: 'Beni', label: 'Beni' },
+                                { value: 'Pando', label: 'Pando' },
+                            ]}
+                            required 
+                        />
                         <Input label="Dirección" className="md:col-span-2" {...register('address')} error={errors.address} required />
                     </div>
                 </div>
