@@ -42,7 +42,32 @@ const getAllClientes = async (req, res, next) => {
   }
 };
 
+/**
+ * @route GET /api/clientes/:codigoCliente/plantas
+ * Obtiene las plantas asociadas a un cliente por su codigo_cliente
+ */
+const getPlantasByCliente = async (req, res, next) => {
+  try {
+    const { codigoCliente } = req.params;
+
+    if (!codigoCliente || codigoCliente.trim().length < 1) {
+      return res.status(400).json({ success: false, message: 'El parámetro codigoCliente es requerido' });
+    }
+
+    const plantas = await clientesService.getPlantasByCliente(codigoCliente.trim());
+
+    res.status(200).json({
+      success: true,
+      count: plantas.length,
+      data: plantas
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   searchClientes,
-  getAllClientes
+  getAllClientes,
+  getPlantasByCliente
 };

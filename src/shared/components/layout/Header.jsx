@@ -14,11 +14,11 @@ export function Header({ activeView, onViewChange }) {
     <header className="fixed top-3 left-4 right-4 z-50">
       <div className="max-w-7xl mx-auto">
         <div
-          className="flex items-center justify-between px-5 py-3 rounded-2xl border border-white/10 shadow-2xl shadow-black/40"
+          className="flex items-center justify-between px-5 py-3 rounded-2xl shadow-2xl shadow-black/40"
           style={{
-            background: 'rgba(18, 18, 20, 0.75)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
+            background: 'rgba(18, 18, 20, 0.45)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
           }}
         >
           {/* Logo */}

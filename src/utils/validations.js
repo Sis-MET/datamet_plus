@@ -17,10 +17,14 @@ export const formSchema = z.object({
   companyName: z.string().min(1, 'Empresa requerida'),
   companyRazonSocial: z.string().min(1, 'Razón Social requerida'),
   taxId: z.string().min(1, 'RUT/NIT/Identificación requerido'),
-  address: z.string().min(1, 'Dirección requerida'),
+  address: z.string().optional(),
   phone: z.string().min(7, 'Teléfono válido requerido'),
   email: z.string().email('Email inválido'),
-  city: z.string().min(1, 'Ciudad requerida'),
+  city: z.string().optional(),
+  planta: z.string().optional(),
+  plantaDireccion: z.string().optional(),
+  plantaDepartamento: z.string().optional(),
+  unit: z.string().optional(),
 
   // Estado del Instrumento - Inventario
   inventory: z.object({
@@ -41,7 +45,10 @@ export const formSchema = z.object({
     feetQty: z.string().optional(),
     manual: z.enum(['present', 'missing', 'na']).optional(),
     originalPackaging: z.enum(['present', 'missing', 'na']).optional(),
-    other: z.string().optional(),
+    otherItems: z.array(z.object({
+      name: z.string(),
+      status: z.enum(['present', 'missing', 'na'])
+    })).optional(),
   }).optional(),
   inventoryNotes: z.string().optional(),
 
