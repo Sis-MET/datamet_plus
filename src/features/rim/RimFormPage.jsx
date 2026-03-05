@@ -38,7 +38,7 @@ import { cn } from '../../shared/utils/cn';
 
 import { formSchema } from '../../utils/validations';
 import { fileToBase64 } from '../../utils/files';
-import { generatePDF } from '../../utils/pdfGenerator';
+import { generatePDF } from '../../utils/pdfGenerator.jsx';
 
 const STEPS = [
   { id: 1, title: 'Cliente y Planta', icon: Building2 },
@@ -47,7 +47,7 @@ const STEPS = [
   { id: 4, title: 'Recepción y Entrega', icon: CheckSquare },
 ];
 
-export function RimFormPage() {
+export function RimFormPage({ currentUser }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -74,10 +74,12 @@ export function RimFormPage() {
   }, []);
 
   const [technicianInfo] = useState({
-    name: 'Juan Pérez',
-    area: 'Soporte Técnico',
     timestamp: new Date(),
   });
+
+  // Extraer datos del usuario actual
+  const userFullName = currentUser ? `${currentUser.nombre} ${currentUser.apellido}`.trim() : 'Usuario Desconocido';
+  const userRole = currentUser?.cargo || 'TÉCNICO';
 
   const {
     register,
@@ -97,6 +99,11 @@ export function RimFormPage() {
       affectedAreas: [],
       inventory: {},
     }
+  });
+
+  const { fields: otherFields, append: appendOther, remove: removeOther } = useFieldArray({
+    control,
+    name: 'inventory.otherItems'
   });
 
   // Generar código RIM de forma reactiva (en el panel izquierdo)
@@ -656,8 +663,8 @@ export function RimFormPage() {
                   <User className="h-6 w-6 text-white font-medium" />
                 </div>
                 <div>
-                  <p className="text-xs text-white font-medium uppercase">Técnico</p>
-                  <p className="text-sm font-semibold text-white font-medium">{technicianInfo.name}</p>
+                  <p className="text-xs text-white font-medium uppercase">{userRole}</p>
+                  <p className="text-sm font-semibold text-white font-medium">{userFullName}</p>
                 </div>
               </div>
 

@@ -1,6 +1,6 @@
 import React from 'react';
-import logoMetrica from '../../../assets/logoMetrica2.png';
-import { ClipboardList, CalendarDays, BarChart3 } from 'lucide-react';
+import logoMetrica from '../../../assets/logo_metrica.svg';
+import { ClipboardList, CalendarDays, BarChart3, LogOut, User } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 const NAV_ITEMS = [
@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   // { id: 'reports', label: 'Reportes', icon: BarChart3 }, // próxima fase
 ];
 
-export function Header({ activeView, onViewChange }) {
+export function Header({ activeView, onViewChange, currentUser, onLogout }) {
   return (
     <header className="fixed top-3 left-4 right-4 z-50">
       <div className="max-w-7xl mx-auto">
@@ -49,12 +49,27 @@ export function Header({ activeView, onViewChange }) {
             ))}
           </nav>
 
-          {/* Right side: badge de sesión */}
+          {/* Right side: usuario + logout */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/8">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-              <span className="text-xs text-gray-400 hidden sm:inline font-medium">En línea</span>
-            </div>
+            {currentUser && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/8">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <User className="h-3.5 w-3.5 text-gray-400 hidden sm:block" />
+                <span className="text-xs text-gray-300 hidden sm:inline font-medium">
+                  {currentUser.usuario}
+                </span>
+              </div>
+            )}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Cerrar sesión"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all duration-200"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Salir</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

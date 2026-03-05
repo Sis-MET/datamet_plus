@@ -95,10 +95,10 @@ export const formSchema = z.object({
   // 6.3 Entrega
   deliveryClientSignature: z.string().optional(),
   deliveryResponsibleSignature: z.string().optional(),
-  deliveryClientName: z.string({ required_error: 'Nombre del cliente requerido' }).min(1),
-  deliveryMetricaRepresentative: z.string({ required_error: 'Representante de Métrica requerido' }).min(1),
+  deliveryClientName: z.string().optional(),
+  deliveryMetricaRepresentative: z.string().optional(),
   deliveryDate: z.string().optional(),
-  deliveryLocation: z.string({ required_error: 'Lugar de entrega requerido' }).min(1),
+  deliveryLocation: z.string().optional(),
 
   photos: z.array(z.any()).max(5, 'Máximo 5 fotos').optional(),
 });

@@ -1,39 +1,79 @@
 const { getPool, sql } = require('../config/db');
 const { generateToken } = require('../utils/jwt.utils');
-const { comparePassword } = require('../utils/hash.utils');
+
+// In-memory store para trackear intentos fallidos (usuario -> { attempts: number, lockUntil: timestamp })
+const loginAttemptsMap = new Map();
+const MAX_ATTEMPTS = 3;
+const LOCK_TIME_MS = 60 * 1000; // 60 segundos
 
 /**
- * Función mock para el ejemplo. En la vida útil aquí debes hacer
- * la consulta "SELECT * FROM Users WHERE email = @email"
+ * Autentica un usuario contra la tabla DATA_USERS
+ * @param {string} usuario - Nombre de usuario
+ * @param {string} pass - Contraseña en texto plano
  */
-const loginUser = async (email, password) => {
+const loginUser = async (usuario, pass) => {
   try {
-    const pool = getPool();
-    
-    /* 
-      EJEMPLO REAL CON BD:
-      const result = await pool.request()
-        .input('email', sql.VarChar, email)
-        .query('SELECT Id, Email, PasswordHash, Role FROM Users WHERE Email = @email');
-
-      const user = result.recordset[0];
-      if (!user) throw new Error('Credenciales inválidas');
-      
-      const isMatch = await comparePassword(password, user.PasswordHash);
-      if (!isMatch) throw new Error('Credenciales inválidas');
-      
-      // Construir token
-      const token = generateToken({ id: user.Id, email: user.Email, role: user.Role });
-    */
-
-    // --- Simulación de Auth para no fallar el ejemplo ---
-    // En cuanto tengas la tabla Users en SQL Server, descomenta el código de arriba y quita este
-    if (email === 'admin@rimmet.com' && password === '123456') {
-      const token = generateToken({ id: 1, role: 'admin' });
-      return { user: { id: 1, email, name: 'Admin Demo' }, token };
+    // 1. Check Rate Limit en Memoria
+    const record = loginAttemptsMap.get(usuario);
+    if (record) {
+      if (record.lockUntil && Date.now() < record.lockUntil) {
+        const remainingSecs = Math.ceil((record.lockUntil - Date.now()) / 1000);
+        const error = new Error(`Cuenta bloqueada. Intente nuevamente en ${remainingSecs} segundos`);
+        error.isLocked = true;
+        error.remainingSecs = remainingSecs;
+        throw error;
+      }
+      // Si ya pasó el tiempo de bloqueo, limpiar el registro
+      if (record.lockUntil && Date.now() >= record.lockUntil) {
+        loginAttemptsMap.delete(usuario);
+      }
     }
 
-    throw new Error('Credenciales inválidas (para la prueba usa admin@rimmet.com / 123456)');
+    const pool = getPool();
+
+    const result = await pool.request()
+      .input('usuario', sql.VarChar, usuario)
+      .query('SELECT * FROM DATA_USERS WHERE usuario = @usuario');
+
+    const user = result.recordset[0];
+
+    // Función auxiliar para registrar fallo
+    const handleFailedAttempt = () => {
+      const currentRecord = loginAttemptsMap.get(usuario) || { attempts: 0, lockUntil: null };
+      currentRecord.attempts += 1;
+      
+      if (currentRecord.attempts >= MAX_ATTEMPTS) {
+        currentRecord.lockUntil = Date.now() + LOCK_TIME_MS;
+      }
+      loginAttemptsMap.set(usuario, currentRecord);
+    };
+
+    if (!user) {
+      handleFailedAttempt();
+      throw new Error('Credenciales inválidas');
+    }
+
+    if (user.pass !== pass) {
+      handleFailedAttempt();
+      throw new Error('Credenciales inválidas');
+    }
+
+    // Login exitoso -> limpiar intentos previos
+    loginAttemptsMap.delete(usuario);
+
+    const token = generateToken({ id: user.id || user.usuario, usuario: user.usuario });
+
+    return {
+      user: {
+        usuario: user.usuario,
+        nombre: user.nombre1 || '',
+        apellido: user.apellido1 || '',
+        cargo: user.cargo || '',
+        area: user.area || ''
+      },
+      token
+    };
+
   } catch (error) {
     throw error;
   }

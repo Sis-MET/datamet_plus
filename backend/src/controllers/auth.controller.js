@@ -2,16 +2,17 @@ const authService = require('../services/auth.service');
 
 /**
  * @route POST /api/auth/login
+ * Body: { usuario, pass }
  */
 const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { usuario, pass } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Por favor provea email y password' });
+    if (!usuario || !pass) {
+      return res.status(400).json({ success: false, message: 'Por favor provea usuario y contraseña' });
     }
 
-    const authData = await authService.loginUser(email, password);
+    const authData = await authService.loginUser(usuario, pass);
 
     res.status(200).json({
       success: true,
@@ -20,11 +21,17 @@ const login = async (req, res, next) => {
     });
 
   } catch (error) {
+    if (error.isLocked) {
+      return res.status(429).json({ 
+        success: false, 
+        message: error.message,
+        remainingSecs: error.remainingSecs
+      });
+    }
     if (error.message.includes('Credenciales')) {
       return res.status(401).json({ success: false, message: error.message });
     }
-    // Si es un error no controlado, va al middleware global
-    next(error); 
+    next(error);
   }
 };
 
