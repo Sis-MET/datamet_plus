@@ -762,7 +762,7 @@ export function RimFormPage({ currentUser }) {
               </Button>
             ) : (
               <Button type="submit" isLoading={isLoading} className="bg-green-600 hover:bg-green-500 text-white min-w-[150px]">
-                <Save className="h-4 w-4 mr-2" /> Completar RIM
+                <Save className="h-4 w-4 mr-2" /> Exportar RIM
               </Button>
             )}
           </div>

@@ -29,4 +29,12 @@ const protect = (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+const isAdmin = (req, res, next) => {
+  if (req.user && req.user.acceso === 'SAdministrador') {
+    next();
+  } else {
+    res.status(403).json({ success: false, message: 'Se requieren permisos de SAdministrador para esta acción' });
+  }
+};
+
+module.exports = { protect, isAdmin };

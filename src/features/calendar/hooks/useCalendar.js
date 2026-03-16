@@ -12,24 +12,7 @@ import {
   isToday,
 } from 'date-fns';
 
-// Datos mock — se reemplazarán con llamadas al backend cuando esté listo
-const MOCK_EVENTS = [
-  { id: 1, date: new Date(), title: 'RIM-SON-030326-0900', client: 'ABC S.A.', status: 'pending', type: 'rim' },
-  { id: 2, date: new Date(), title: 'RIM-CAL-030326-1100', client: 'XYZ Ltda.', status: 'in_progress', type: 'calibration' },
-  { id: 3, date: addMonths(new Date(), 0), title: 'RIM-SON-030326-1400', client: 'Tech Corp', status: 'completed', type: 'rim' },
-];
-
-// Agregar un evento 2 días en el futuro
-MOCK_EVENTS.push({
-  id: 4,
-  date: new Date(new Date().setDate(new Date().getDate() + 2)),
-  title: 'RIM-SON-050326-0800',
-  client: 'EMBOL S.A.',
-  status: 'pending',
-  type: 'rim',
-});
-
-export function useCalendar() {
+export function useCalendar(tasks = []) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
 
@@ -39,23 +22,45 @@ export function useCalendar() {
     return eachDayOfInterval({ start, end });
   }, [currentDate]);
 
-  const eventsForDay = (day) =>
-    MOCK_EVENTS.filter(ev => isSameDay(ev.date, day));
+  // Un evento ocurre en 'day' si 'day' está entre fecha_inicio y fecha_fin
+  const eventsForDay = (day) => {
+    return tasks.filter(task => {
+      const dayStart = new Date(day).setHours(0,0,0,0);
+      const taskStart = new Date(task.fecha_inicio).setHours(0,0,0,0);
+      const taskEnd = new Date(task.fecha_fin).setHours(23,59,59,999);
+      return dayStart >= taskStart && dayStart <= taskEnd;
+    }).map(t => ({
+      ...t,
+      // Map properties for UI compatibility
+      title: t.cod_metrica || t.tipo,
+      client: t.cliente,
+      status: t.estado,
+    }));
+  };
 
   const selectedDayEvents = useMemo(
     () => eventsForDay(selectedDay),
-    [selectedDay]
+    [selectedDay, tasks] // depends on tasks array now
   );
 
   const monthStats = useMemo(() => {
-    const monthEvents = MOCK_EVENTS.filter(ev => isSameMonth(ev.date, currentDate));
+    // Tareas del mes seleccionado (si alguna de sus fechas cruza o toca el mes)
+    const currentMonthStart = startOfMonth(currentDate).setHours(0,0,0,0);
+    const currentMonthEnd = endOfMonth(currentDate).setHours(23,59,59,999);
+
+    const monthEvents = tasks.filter(t => {
+      const tStart = new Date(t.fecha_inicio).setHours(0,0,0,0);
+      const tEnd = new Date(t.fecha_fin).setHours(23,59,59,999);
+      return (tStart <= currentMonthEnd && tEnd >= currentMonthStart);
+    });
+
     return {
       total: monthEvents.length,
-      pending: monthEvents.filter(e => e.status === 'pending').length,
-      inProgress: monthEvents.filter(e => e.status === 'in_progress').length,
-      completed: monthEvents.filter(e => e.status === 'completed').length,
+      pending: monthEvents.filter(e => e.estado === 'pendiente').length,
+      inProgress: monthEvents.filter(e => e.estado === 'en_proceso').length,
+      completed: monthEvents.filter(e => e.estado === 'completado').length,
     };
-  }, [currentDate]);
+  }, [currentDate, tasks]);
 
   return {
     currentDate,

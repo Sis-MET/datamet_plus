@@ -61,7 +61,12 @@ const loginUser = async (usuario, pass) => {
     // Login exitoso -> limpiar intentos previos
     loginAttemptsMap.delete(usuario);
 
-    const token = generateToken({ id: user.id || user.usuario, usuario: user.usuario });
+    // Inyectar "acceso" en el payload del token y en la respuesta
+    const token = generateToken({ 
+      id: user.id || user.usuario, 
+      usuario: user.usuario,
+      acceso: user.acceso 
+    });
 
     return {
       user: {
@@ -69,7 +74,8 @@ const loginUser = async (usuario, pass) => {
         nombre: user.nombre1 || '',
         apellido: user.apellido1 || '',
         cargo: user.cargo || '',
-        area: user.area || ''
+        area: user.area || '',
+        acceso: user.acceso || ''
       },
       token
     };

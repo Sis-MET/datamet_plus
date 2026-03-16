@@ -9,3 +9,186 @@
     color: #e5e5e5;
   }
 }
+
+/* ═══════════════════════════════════════════════════
+   GANTT TIMELAPSE CALENDAR
+   ═══════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── Wrapper scrollable ── */
+  .gantt-scroll-container {
+    @apply overflow-x-auto rounded-2xl border border-gray-700/50 shadow-2xl;
+    background: #1a1a1d;
+  }
+
+  /* ── Grid interno ── */
+  .gantt-grid {
+    @apply min-w-max;
+  }
+
+  /* ── Filas (header + data) ── */
+  .gantt-header-row,
+  .gantt-row {
+    @apply flex items-stretch border-b border-gray-700/40;
+  }
+  .gantt-row:last-child {
+    @apply border-b-0;
+  }
+  .gantt-row:hover {
+    background: rgba(255,255,255,0.03);
+    transition: background 0.15s;
+  }
+
+  /* ── Columna sticky de nombre ── */
+  .gantt-name-col {
+    @apply sticky left-0 z-20 flex flex-col justify-center px-4 py-2;
+    min-width: 160px;
+    max-width: 160px;
+    background: #1e1e22;
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* ── Header de la columna de nombre ── */
+  .gantt-name-header {
+    @apply text-xs font-semibold uppercase tracking-widest text-gray-500;
+    min-height: 64px;
+    justify-content: flex-end;
+    padding-bottom: 10px;
+  }
+
+  /* ── Nombre e info del técnico ── */
+  .gantt-tecnico-name {
+    @apply text-sm font-semibold text-gray-100 leading-tight;
+  }
+  .gantt-tecnico-cargo {
+    @apply text-[10px] text-gray-500 leading-tight mt-0.5 truncate;
+  }
+
+  /* ── Celdas de día en el header ── */
+  .gantt-day-header-cell {
+    @apply flex flex-col items-center justify-end px-1 pb-2 gap-0.5 border-r border-gray-700/30 text-gray-500;
+    min-width: 110px;
+    width: 110px;
+    min-height: 64px;
+    transition: background 0.15s;
+  }
+  .gantt-day-header-preview {
+    @apply bg-gradient-to-b from-white/5 to-transparent;
+    flex: 1; /* Llenar espacio restante equitativamente */
+    min-width: 80px;
+    border-right: none;
+    border-left: 1px dashed rgba(255,255,255,0.05);
+  }
+  .gantt-day-header-today {
+    @apply bg-primary-900/30;
+  }
+  .gantt-day-label {
+    @apply text-[10px] font-semibold uppercase tracking-wider;
+  }
+  .gantt-day-number {
+    @apply text-lg font-bold leading-none text-gray-300;
+  }
+  .gantt-day-number-today {
+    @apply text-primary-400;
+  }
+  .gantt-day-month {
+    @apply text-[10px] capitalize text-gray-600;
+  }
+
+  /* ── Celdas de datos ── */
+  .gantt-cell {
+    @apply flex flex-col gap-1 px-1.5 py-1.5 border-r border-gray-700/30;
+    min-width: 110px;
+    width: 110px;
+    min-height: 52px;
+    position: relative;
+  }
+  .gantt-cell-preview {
+    @apply bg-gradient-to-r from-transparent to-black/10;
+    flex: 1; /* Llenar espacio restante */
+    min-width: 80px;
+    border-right: none;
+    border-left: 1px dashed rgba(255,255,255,0.05);
+  }
+  .gantt-cell-empty {
+    /* empty intentional */
+  }
+  .gantt-cell-filled {
+    /* has tasks */
+  }
+  .gantt-cell-today-bg {
+    background: rgba(99, 102, 241, 0.06);
+  }
+
+  /* ── Task chips ── */
+  .gantt-task-chip {
+    @apply w-full text-left rounded-md px-2 py-0.5 text-[10px] font-bold leading-tight
+           transition-all duration-150 cursor-pointer shadow-sm;
+    @apply hover:brightness-110 hover:shadow-md hover:scale-[1.02];
+    word-break: break-word;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .gantt-task-chip-text {
+    @apply block truncate;
+  }
+
+  /* ── Colores por tipo (chip + dot) ── */
+  .gantt-cell-carga        { @apply bg-yellow-500/80  text-yellow-950; }
+  .gantt-cell-capacitacion { @apply bg-amber-400/80   text-amber-950;  }
+  .gantt-cell-calibracion  { @apply bg-green-600/80   text-green-100;  }
+  .gantt-cell-comercial    { @apply bg-orange-500/80  text-orange-100; }
+  .gantt-cell-relevamiento { @apply bg-red-700/80     text-red-100;    }
+  .gantt-cell-instalacion  { @apply bg-blue-600/80    text-blue-100;   }
+  .gantt-cell-yanbal       { @apply bg-pink-600/80    text-pink-100;   }
+  .gantt-cell-retorno      { @apply bg-purple-700/80  text-purple-100; }
+  .gantt-cell-vacacion     { @apply bg-gray-500/80    text-gray-100;   }
+  .gantt-cell-soporte      { @apply bg-cyan-600/80    text-cyan-100;   }
+  .gantt-cell-default      { @apply bg-slate-600/80   text-slate-100;  }
+
+  /* ── Tooltip ── */
+  .gantt-tooltip {
+    @apply absolute z-50 w-52 rounded-xl p-3 shadow-2xl text-xs;
+    @apply bg-[#252528] border border-gray-600/60;
+    top: calc(100% + 4px);
+    left: 0;
+    animation: tooltipFadeIn 0.15s ease;
+  }
+  @keyframes tooltipFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .gantt-tooltip-header {
+    @apply flex items-center justify-between mb-2;
+  }
+  .gantt-tooltip-badge {
+    @apply rounded-md px-2 py-0.5 text-[10px] font-bold;
+  }
+  .gantt-tooltip-close {
+    @apply text-gray-500 hover:text-gray-300 transition-colors ml-1 flex-shrink-0;
+  }
+  .gantt-tooltip-desc {
+    @apply text-gray-200 font-medium mb-2 leading-tight;
+  }
+  .gantt-tooltip-row {
+    @apply flex items-center gap-1.5 text-gray-400 mt-1;
+  }
+
+  /* ── Leyenda ── */
+  .gantt-legend {
+    @apply flex flex-wrap gap-x-4 gap-y-1.5 mt-4 justify-end;
+  }
+  .gantt-legend-item {
+    @apply flex items-center gap-1.5 text-[11px] text-gray-500;
+  }
+  .gantt-legend-dot {
+    @apply w-2.5 h-2.5 rounded-sm flex-shrink-0;
+  }
+
+  /* ── Mock data badge ── */
+  .gantt-mock-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium;
+    @apply bg-amber-500/10 text-amber-400 border border-amber-500/20;
+  }
+}
