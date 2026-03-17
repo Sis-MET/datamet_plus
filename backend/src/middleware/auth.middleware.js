@@ -16,14 +16,14 @@ const protect = (req, res, next) => {
       req.user = decodedInfo;
 
       // 5. Otorgar acceso para continuar
-      next();
+      return next();
     } catch (error) {
       console.error('Error de autenticación JWT:', error.message);
       return res.status(401).json({ success: false, message: 'No autorizado, token inválido o expirado' });
     }
   }
 
-  // 6. Si no hay token, denegar
+  // 6. Si no hay token en el header
   if (!token) {
     return res.status(401).json({ success: false, message: 'No autorizado, no se proveyó token' });
   }

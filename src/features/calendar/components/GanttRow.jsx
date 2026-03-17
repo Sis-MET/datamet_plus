@@ -1,7 +1,7 @@
 import React from 'react';
 import { GanttTaskCell } from './GanttTaskCell';
 
-export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, onTaskClick }) {
+export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, onTaskClick, onTaskDrop }) {
   return (
     <div className="gantt-row">
       {/* Sticky name column */}
@@ -14,20 +14,23 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
 
       {/* Day cells activos */}
       {weekDays.map((day) => {
-        const dayTasks = tasksForCell(tecnico.usuario, day);
+        const dayTasks = tasksForCell(tecnico.id, day);
         return (
           <GanttTaskCell
             key={day.toISOString()}
             tasks={dayTasks}
             isToday={isToday(day)}
+            date={day}
+            resourceId={tecnico.id}
             onTaskClick={onTaskClick}
+            onTaskDrop={onTaskDrop}
           />
         );
       })}
 
       {/* Preview cells (siguiente semana) con efecto glass fadein */}
       {previewDays.map((day, idx) => {
-        const dayTasks = tasksForCell(tecnico.usuario, day);
+        const dayTasks = tasksForCell(tecnico.id, day);
         return (
           <GanttTaskCell
             key={`preview-${day.toISOString()}`}
@@ -35,7 +38,10 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             isToday={false}
             isPreview
             previewOpacity={1 - idx * 0.28}
+            date={day}
+            resourceId={tecnico.id}
             onTaskClick={onTaskClick}
+            onTaskDrop={onTaskDrop}
           />
         );
       })}

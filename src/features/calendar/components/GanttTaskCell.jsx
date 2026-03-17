@@ -1,121 +1,119 @@
-import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { CalendarDays, User, Tag, Building2, X } from 'lucide-react';
+import React from 'react';
 
-// Paleta de colores por tipo de tarea (inspirada en el Excel)
-export const TASK_TYPE_CONFIG = {
-  // Calibración
-  calibracion_tanques: { bg: 'gantt-cell-calibracion', label: '1 Calibración Tanques', short: 'TANQ' },
-  calibracion_balanzas: { bg: 'gantt-cell-calibracion', label: '2 Calibración Balanzas', short: 'BAL' },
-  calibracion_pesas: { bg: 'gantt-cell-calibracion', label: '3 Calibración Pesas', short: 'PESAS' },
-
-  // Soporte Técnico
-  mp_regular: { bg: 'gantt-cell-soporte', label: 'Mantenimiento PR', short: 'MPR' },
-  mp_avanzado: { bg: 'gantt-cell-soporte', label: 'Mantenimiento PA', short: 'MPA' },
-  mantenimiento_regular: { bg: 'gantt-cell-soporte', label: 'Mantenimiento R', short: 'MR' },
-  diagnostico: { bg: 'gantt-cell-soporte', label: 'Diagnostico', short: 'DIAG' },
-  verificaciones: { bg: 'gantt-cell-soporte', label: 'Verificaciones', short: 'VER' },
-  ajustes: { bg: 'gantt-cell-soporte', label: 'Ajustes Met.', short: 'AJUS' },
-
-  // Compartidos
-  relevamiento: { bg: 'gantt-cell-relevamiento', label: 'Relevamiento', short: 'REL' },
-  instalacion:  { bg: 'gantt-cell-instalacion',  label: 'Instalación',  short: 'INST' },
-  visita_comercial: { bg: 'gantt-cell-comercial', label: 'Visita Comercial', short: 'V.COM' },
-
-  // Legacy/Fallbacks
-  carga:        { bg: 'gantt-cell-carga',        label: 'Carga/Cap.',   short: 'CARGA'    },
-  capacitacion: { bg: 'gantt-cell-capacitacion',  label: 'Capacitación', short: 'CAP'      },
-  calibracion:  { bg: 'gantt-cell-calibracion',   label: 'Calibración',  short: 'CALIB'    },
-  comercial:    { bg: 'gantt-cell-comercial',      label: 'V. Comercial', short: 'V.COM'    },
-  yanbal:       { bg: 'gantt-cell-yanbal',          label: 'YANBAL',       short: 'YANBAL'   },
-  retorno:      { bg: 'gantt-cell-retorno',         label: 'Retorno',      short: 'RET'      },
-  vacacion:     { bg: 'gantt-cell-vacacion',        label: 'Vacación',     short: 'VAC'      },
-  soporte:      { bg: 'gantt-cell-soporte',         label: 'Soporte',      short: 'SOPO'     },
-  default:      { bg: 'gantt-cell-default',         label: 'Otro',         short: 'OTRO'     },
-};
-
-function Tooltip({ task, onClose }) {
-  const cfg = TASK_TYPE_CONFIG[task.tipo] || TASK_TYPE_CONFIG.default;
-  return (
-    <div className="gantt-tooltip" role="dialog" aria-label="Detalle de tarea">
-      <div className="gantt-tooltip-header">
-        <span className={`gantt-tooltip-badge ${cfg.bg}`}>{cfg.label}</span>
-        <button onClick={onClose} className="gantt-tooltip-close" aria-label="Cerrar">
-          <X size={12} />
-        </button>
-      </div>
-      <p className="gantt-tooltip-desc">{task.descripcion || task.cod_metrica}</p>
-      <div className="gantt-tooltip-row">
-        <Tag size={11} className="text-gray-400" />
-        <span>{task.cod_metrica}</span>
-      </div>
-      <div className="gantt-tooltip-row">
-        <Building2 size={11} className="text-gray-400" />
-        <span>{task.cliente}</span>
-      </div>
-      <div className="gantt-tooltip-row">
-        <CalendarDays size={11} className="text-gray-400" />
-        <span>
-          {format(new Date(task.fecha_inicio), "d MMM", { locale: es })}
-          {!isSameDate(task.fecha_inicio, task.fecha_fin) &&
-            ` → ${format(new Date(task.fecha_fin), "d MMM", { locale: es })}`}
-        </span>
-      </div>
-      <div className="gantt-tooltip-row">
-        <User size={11} className="text-gray-400" />
-        <span>{task.tecnico_nombre || task.Tecnico}</span>
-      </div>
-    </div>
-  );
-}
-
-function isSameDate(a, b) {
-  const da = new Date(a), db = new Date(b);
-  return da.getFullYear() === db.getFullYear() &&
-         da.getMonth()    === db.getMonth()    &&
-         da.getDate()     === db.getDate();
-}
-
-export function GanttTaskCell({ tasks, isToday: todayFlag, isPreview, previewOpacity, onTaskClick }) {
-  const [activeTask, setActiveTask] = useState(null);
-
+export function GanttTaskCell({ 
+  tasks, 
+  isToday: todayFlag, 
+  isPreview, 
+  previewOpacity, 
+  onTaskClick,
+  onTaskDrop,
+  date,
+  resourceId
+}) {
   const cellStyle = isPreview ? { opacity: previewOpacity } : {};
-  const baseClasses = `gantt-cell ${todayFlag ? 'gantt-cell-today-bg' : ''} ${isPreview ? 'gantt-cell-preview' : ''}`;
+  let baseClasses = `gantt-cell ${todayFlag ? 'gantt-cell-today-bg' : ''} ${isPreview ? 'gantt-cell-preview' : ''}`;
+
+  if (onTaskClick) {
+    baseClasses += ' cursor-pointer hover:bg-white/5 transition-colors';
+  }
+
+  const handleClick = (e) => {
+    if (onTaskClick) {
+      e.stopPropagation();
+      const taskObj = tasks && tasks.length > 0 ? tasks[0] : null;
+      onTaskClick(taskObj, date, resourceId);
+    }
+  };
+
+  // ----- Drag and Drop Handlers -----
+  const handleDragStart = (e, task) => {
+    e.stopPropagation();
+    if (!onTaskDrop) return; // solo si tiene permisos
+    
+    // Convertimos la información relevante a string para pasarla en el Drag Event
+    const dragData = JSON.stringify({ 
+      sourceResource: resourceId,
+      morning: task.morning, 
+      afternoon: task.afternoon, 
+      color: task.color 
+    });
+    e.dataTransfer.setData('application/json', dragData);
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDragOver = (e) => {
+    if (onTaskDrop) {
+      e.preventDefault(); // Necesario para permitir el "Drop"
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  const handleDrop = (e) => {
+    if (onTaskDrop) {
+      e.preventDefault();
+      e.stopPropagation();
+      const rawData = e.dataTransfer.getData('application/json');
+      if (rawData) {
+        try {
+          const sourceTask = JSON.parse(rawData);
+          onTaskDrop(sourceTask, date, resourceId);
+        } catch (err) {
+          console.error('Error parseando drag data', err);
+        }
+      }
+    }
+  };
 
   if (!tasks || tasks.length === 0) {
     return (
-      <div className={`${baseClasses} gantt-cell-empty`} style={cellStyle} />
+      <div 
+        className={`${baseClasses} gantt-cell-empty relative group`} 
+        style={cellStyle}
+        onClick={handleClick}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        title="Clic para agregar/modificar en este día"
+      >
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[10px] text-gray-500 font-medium">+</span>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className={`${baseClasses} gantt-cell-filled`} style={cellStyle}>
-      {tasks.map((task) => {
-        const cfg = TASK_TYPE_CONFIG[task.tipo] || TASK_TYPE_CONFIG.default;
-        const isInteractive = !!onTaskClick;
-        return (
-          <div
-            key={task.id}
-            className={`gantt-task-chip flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold font-mono text-white shadow-sm ring-1 ring-inset ring-white/10 ${cfg.bg} ${isInteractive ? 'cursor-pointer hover:brightness-110' : ''}`}
-            onClick={(e) => {
-              if (onTaskClick) {
-                e.stopPropagation();
-                onTaskClick(task);
-              }
-            }}
-            onMouseEnter={() => setActiveTask(task)}
-            onMouseLeave={() => setActiveTask(null)}
-            title={task.descripcion || task.cod_metrica}
-          >
-            <span className="gantt-task-chip-text">{task.cod_metrica || cfg.short}</span>
-
-            {activeTask?.id === task.id && (
-              <Tooltip task={task} onClose={() => setActiveTask(null)} />
-            )}
+    <div 
+      className={`${baseClasses} gantt-cell-filled p-[3px]`} 
+      style={cellStyle}
+      onClick={handleClick}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {tasks.map((task) => (
+        <div
+          key={task.id}
+          draggable={!!onTaskDrop}
+          onDragStart={(e) => handleDragStart(e, task)}
+          className="w-full h-[3.25rem] border border-white/10 rounded overflow-hidden text-[10px] text-white shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-white/20 transition-all font-mono tracking-tight"
+          style={{ backgroundColor: task.color || '#37A65F' }}
+          title={task.texto}
+        >
+          {/* Sub-celda MAÑANA */}
+          <div className="flex-1 flex flex-col justify-center px-1 border-b border-white/15 bg-black/15">
+            <div className="flex items-center gap-1">
+              <span className="font-bold opacity-60 text-[8px] uppercase">AM</span>
+              <span className="line-clamp-1 break-words font-semibold leading-tight">{task.morning || '-'}</span>
+            </div>
           </div>
-        );
-      })}
+          {/* Sub-celda TARDE */}
+          <div className="flex-1 flex flex-col justify-center px-1 bg-black/5">
+            <div className="flex items-center gap-1">
+              <span className="font-bold opacity-60 text-[8px] uppercase">PM</span>
+              <span className="line-clamp-1 break-words font-semibold leading-tight">{task.afternoon || '-'}</span>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

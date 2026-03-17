@@ -1,168 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar as CalendarIcon, Save, Trash2, Loader2 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
-import { SearchableInput } from '../../../shared/components/ui/SearchableInput';
-import { TASK_TYPE_CONFIG } from './GanttTaskCell';
-
-const STATE_OPTIONS = [
-  { value: 'pendiente', label: 'Pendiente' },
-  { value: 'en_proceso', label: 'En Proceso' },
-  { value: 'completado', label: 'Completado' }
-];
-
-const TIPO_TRABAJO_POR_AREA = {
-  "Calibración": [
-    { value: 'calibracion_tanques', label: '1 Calibracion de Tanques' },
-    { value: 'calibracion_balanzas', label: '2 Calibracion de Balanzas' },
-    { value: 'calibracion_pesas', label: '3 Calibracion de Pesas' }
-  ],
-  "Soporte Técnico": [
-    { value: 'mp_regular', label: 'Mantenimiento Preventivo Regular' },
-    { value: 'mp_avanzado', label: 'Mantenimiento Preventivo Avanzado' },
-    { value: 'mantenimiento_regular', label: 'Mantenimiento Regular' },
-    { value: 'diagnostico', label: 'Diagnostico' },
-    { value: 'relevamiento', label: 'Relevamiento de Datos' },
-    { value: 'verificaciones', label: 'Verificaciones Internas' },
-    { value: 'ajustes', label: 'Ajustes Metrológicos' },
-    { value: 'instalacion', label: 'Instalacion' }
-  ],
-  "Comercial": [
-    { value: 'visita_comercial', label: 'Visita Comercial' },
-    { value: 'relevamiento', label: 'Relevamiento de Datos' }
-  ]
-};
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import { X, Calendar as CalendarIcon, Save, Trash2, Loader2, User } from 'lucide-react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export function EventFormModal({ 
   isOpen, 
   onClose, 
   onSave, 
-  onDelete, 
   tecnicos, 
-  event = null 
+  event = null,
+  prefilledDate = new Date(),
+  prefilledResource = ''
 }) {
   const [formData, setFormData] = useState({
-    Tecnico: '',
-    fecha_inicio: format(new Date(), 'yyyy-MM-dd'),
-    fecha_fin: format(new Date(), 'yyyy-MM-dd'),
-    tipo: 'calibracion', // default
-    estado: 'pendiente',
-    cod_metrica: '',
-    descripcion: '',
-    cliente: '',
-    codigo_cliente: '',
-    codigo_planta: ''
+    date: format(new Date(), 'yyyy-MM-dd'),
+    resource: '',
+    text: ''
   });
 
-  const [plantas, setPlantas] = useState([]);
-  const [loadingPlantas, setLoadingPlantas] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load existing event data when modal opens
+  // Cargar datos existentes o los preseleccionados cuando el modal se abre
   useEffect(() => {
     if (isOpen) {
       if (event) {
+        // Modo Edición
         setFormData({
-          Tecnico: event.Tecnico || '',
-          fecha_inicio: typeof event.fecha_inicio === 'string' ? event.fecha_inicio.substring(0, 10) : format(new Date(event.fecha_inicio), 'yyyy-MM-dd'),
-          fecha_fin: typeof event.fecha_fin === 'string' ? event.fecha_fin.substring(0, 10) : format(new Date(event.fecha_fin), 'yyyy-MM-dd'),
-          tipo: event.tipo || 'calibracion',
-          estado: event.estado || 'pendiente',
-          cod_metrica: event.cod_metrica || '',
-          descripcion: event.descripcion || '',
-          cliente: event.cliente || '',
-          codigo_cliente: event.codigo_cliente || '',
-          codigo_planta: event.codigo_planta || ''
+          date: format(new Date(event.fecha), 'yyyy-MM-dd'),
+          resource: event.Tecnico || '',
+          text: event.texto || ''
         });
-
-        if (event.codigo_cliente) {
-          fetchPlantas(event.codigo_cliente);
-        }
       } else {
-        const defaultTecnico = tecnicos.length > 0 ? tecnicos[0].usuario : '';
-        const defaultArea = tecnicos.length > 0 ? tecnicos[0].area : 'Calibración';
-        const opcionesIniciales = TIPO_TRABAJO_POR_AREA[defaultArea] || TIPO_TRABAJO_POR_AREA["Calibración"];
-
-        // Reset for new event
+        // Modo Nueva celda
+        const defaultResource = prefilledResource || (tecnicos.length > 0 ? tecnicos[0].id : '');
         setFormData({
-          Tecnico: defaultTecnico,
-          fecha_inicio: format(new Date(), 'yyyy-MM-dd'),
-          fecha_fin: format(new Date(), 'yyyy-MM-dd'),
-          tipo: opcionesIniciales[0].value,
-          estado: 'pendiente',
-          cod_metrica: '',
-          descripcion: '',
-          cliente: '',
-          codigo_cliente: '',
-          codigo_planta: ''
+          date: format(prefilledDate, 'yyyy-MM-dd'),
+          resource: defaultResource,
+          text: ''
         });
-        setPlantas([]);
       }
     }
-  }, [isOpen, event, tecnicos]);
-
-  const fetchPlantas = async (codigoCliente) => {
-    try {
-      setLoadingPlantas(true);
-      const res = await fetch(`${API_BASE}/clientes/${codigoCliente}/plantas`);
-      const json = await res.json();
-      if (json.success) {
-        setPlantas(json.data);
-      }
-    } catch (err) {
-      console.error('Error fetching plantas:', err);
-      setPlantas([]);
-    } finally {
-      setLoadingPlantas(false);
-    }
-  };
+  }, [isOpen, event, tecnicos, prefilledDate, prefilledResource]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // Si cambia el técnico, actualizamos el tipo de trabajo disponible
-    if (name === 'Tecnico') {
-      const selectedTecnico = tecnicos.find(t => t.usuario === value);
-      if (selectedTecnico) {
-        const nuevaArea = selectedTecnico.area;
-        const opciones = TIPO_TRABAJO_POR_AREA[nuevaArea] || TIPO_TRABAJO_POR_AREA["Calibración"];
-        setFormData(prev => ({ ...prev, [name]: value, tipo: opciones[0].value }));
-        return;
-      }
-    }
-
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const selectedTecnicoData = tecnicos.find(t => t.usuario === formData.Tecnico);
-  const areaActual = selectedTecnicoData?.area || 'Calibración';
-  const opcionesTipoTrabajo = TIPO_TRABAJO_POR_AREA[areaActual] || TIPO_TRABAJO_POR_AREA["Calibración"];
-
-  const handleClientSelect = (clientItem) => {
-    setFormData(prev => ({
-      ...prev,
-      cliente: clientItem.razonsocial || clientItem.cliente,
-      codigo_cliente: clientItem.codigo_cliente,
-      codigo_planta: '' // Reset planta on client change
-    }));
-    fetchPlantas(clientItem.codigo_cliente);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // Formatear datos antes de enviar
-      const submissionData = {
-        ...formData,
-        codigo_cliente: formData.codigo_cliente ? parseInt(formData.codigo_cliente, 10) : null,
-        codigo_planta: formData.codigo_planta ? formData.codigo_planta : null,
-        cod_metrica: formData.cod_metrica ? formData.cod_metrica : null,
-        descripcion: formData.descripcion ? formData.descripcion : null
-      };
-
-      await onSave(submissionData, event?.id); // pases ID if editing
+      await onSave(formData.date, formData.resource, formData.text);
       onClose();
     } catch (error) {
       console.error("Error saving event:", error);
@@ -173,14 +62,15 @@ export function EventFormModal({
   };
 
   const handleDelete = async () => {
-    if (window.confirm('¿Está seguro de que desea eliminar esta tarea?')) {
+    if (window.confirm('¿Está seguro de que desea eliminar el texto de esta celda?')) {
       setIsSubmitting(true);
       try {
-        await onDelete(event.id);
+        // En nuestro esquema plano, eliminar significa actualizar con texto vacío
+        await onSave(formData.date, formData.resource, '');
         onClose();
       } catch (error) {
         console.error("Error deleting event:", error);
-        alert("Error al eliminar la tarea");
+        alert("Error al limpiar la celda");
       } finally {
         setIsSubmitting(false);
       }
@@ -189,18 +79,26 @@ export function EventFormModal({
 
   if (!isOpen) return null;
 
+  // Formato bonito de fecha para el Header
+  const dateObj = new Date(formData.date + 'T00:00:00'); // Evitar timezone issues
+  const dateLabel = format(dateObj, "EEEE d 'de' MMMM, yyyy", { locale: es });
+  const dateLabelCapitalized = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-[#1a1a1d] border border-gray-700/50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-[#1a1a1d] border border-gray-700/50 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700/50">
           <div className="flex items-center gap-3">
             <span className="p-2 bg-primary-900/40 text-primary-400 rounded-lg">
               <CalendarIcon className="w-5 h-5" />
             </span>
-            <h2 className="text-lg font-semibold text-gray-100">
-              {event ? 'Editar Tarea' : 'Nueva Tarea'}
-            </h2>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-100">
+                Detalle del Día
+              </h2>
+              <p className="text-xs text-primary-300/80">{dateLabelCapitalized}</p>
+            </div>
           </div>
           <button 
             onClick={onClose}
@@ -210,161 +108,60 @@ export function EventFormModal({
           </button>
         </div>
 
-        {/* Body / Scrollable Form */}
+        {/* Body / Form */}
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-          <form id="event-form" onSubmit={handleSubmit} className="space-y-5">
+          <form id="cell-form" onSubmit={handleSubmit} className="space-y-5">
             
-            {/* Row 1: Tecnico & Fechas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1 md:col-span-1">
-                <label className="text-sm font-medium text-gray-300">Técnico *</label>
-                <select 
-                  name="Tecnico" 
-                  value={formData.Tecnico} 
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2 text-gray-200 focus:ring-2 focus:ring-primary-500 outline-none"
-                >
-                  <option value="" disabled>Seleccione...</option>
-                  {tecnicos.map(t => (
-                    <option key={t.usuario} value={t.usuario}>{t.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Inicio *</label>
-                <input 
-                  type="date" 
-                  name="fecha_inicio" 
-                  value={formData.fecha_inicio} 
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Fin *</label>
-                <input 
-                  type="date" 
-                  name="fecha_fin" 
-                  value={formData.fecha_fin} 
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                />
-              </div>
+            {/* Combo Recursos */}
+            <div className="space-y-1">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
+                <User className="w-4 h-4 text-gray-400" /> Recurso asignado
+              </label>
+              <select 
+                name="resource" 
+                value={formData.resource} 
+                onChange={handleChange}
+                required
+                className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2.5 text-gray-200 focus:ring-2 focus:ring-primary-500 outline-none transition-all font-medium"
+                disabled={!!event} // Si es edición de una celda específica, bloqueamos para no mover la tarea accidentalmente de columna
+              >
+                <option value="" disabled>Seleccione...</option>
+                {tecnicos.map(t => (
+                  <option key={t.id} value={t.id}>{t.nombre} {t.cargo === 'Vehículo' ? '(Vehículo)' : ''}</option>
+                ))}
+              </select>
             </div>
 
-            {/* Row 2: Cliente & Planta */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-700/30 pt-4">
-              <div className="space-y-1 relative">
-                <SearchableInput
-                  label="Cliente"
-                  value={formData.cliente}
-                  onChange={(val) => setFormData(prev => ({...prev, cliente: val}))}
-                  onSelect={handleClientSelect}
-                  placeholder="Buscar cliente..."
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Planta Obra</label>
-                <div className="relative">
-                  <select 
-                    name="codigo_planta" 
-                    value={formData.codigo_planta} 
-                    onChange={handleChange}
-                    disabled={!formData.codigo_cliente || loadingPlantas}
-                    className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2 text-gray-200 focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
-                  >
-                    <option value="">{loadingPlantas ? 'Cargando...' : 'Seleccione (Opcional)'}</option>
-                    {plantas.map(p => (
-                      <option key={p.codigo_planta} value={p.codigo_planta}>
-                        {p.codigo_planta} {p.dir ? `- ${p.dir}` : ''} {p.localidad ? `(${p.localidad})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+            {/* Texto Libre */}
+            <div className="space-y-1 pt-2">
+              <label className="text-sm font-medium text-gray-300">Actividad / Cliente</label>
+              <textarea 
+                name="text" 
+                value={formData.text} 
+                onChange={handleChange}
+                rows={4}
+                required
+                className="w-full bg-[#1e1e1e]/60 border border-gray-600 focus:border-primary-500/50 rounded-lg px-4 py-3 text-gray-200 resize-none font-medium placeholder-gray-600 shadow-inner focus:ring-2 focus:ring-primary-500/20 transition-all leading-relaxed"
+                placeholder="Ej. Viaje a Embol - La Paz - Mantenimiento de cámaras"
+                autoFocus
+              />
+              <p className="text-[11px] text-gray-500 mt-1">Este texto será visible en la cuadrícula principal.</p>
             </div>
-
-            {/* Row 3: Tipo & Estado */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-700/30 pt-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Tipo de Trabajo *</label>
-                <select 
-                  name="tipo" 
-                  value={formData.tipo} 
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2 text-gray-200 focus:ring-2 focus:ring-primary-500 outline-none"
-                >
-                  {opcionesTipoTrabajo.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Estado *</label>
-                <select 
-                  name="estado" 
-                  value={formData.estado} 
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2 text-gray-200 focus:ring-2 focus:ring-primary-500 outline-none"
-                >
-                  {STATE_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Row 4: Referencia (Cod) & Descripción */}
-            <div className="space-y-4 border-t border-gray-700/30 pt-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Código / Referencia</label>
-                <input 
-                  type="text" 
-                  name="cod_metrica" 
-                  value={formData.cod_metrica} 
-                  onChange={handleChange}
-                  placeholder="Ej. C010-C01-161"
-                  className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Descripción / Detalles</label>
-                <textarea 
-                  name="descripcion" 
-                  value={formData.descripcion} 
-                  onChange={handleChange}
-                  rows={2}
-                  className="w-full bg-[#1e1e1e] border border-gray-600 rounded-lg px-3 py-2 text-gray-200 resize-none font-mono text-sm"
-                  placeholder="Detalles del trabajo a realizar..."
-                />
-              </div>
-            </div>
-
           </form>
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-700/50 bg-gray-900/30 flex justify-between items-center">
           <div>
-            {event && (
+            {event && event.texto && (
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={isSubmitting}
-                className="flex items-center gap-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-sm font-medium"
               >
                 <Trash2 className="w-4 h-4" />
-                Eliminar
+                Limpiar celda
               </button>
             )}
           </div>
@@ -379,12 +176,12 @@ export function EventFormModal({
             </button>
             <button
               type="submit"
-              form="event-form"
+              form="cell-form"
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition-colors text-sm font-medium shadow-lg shadow-primary-600/20 disabled:opacity-70"
+              className="flex items-center gap-2 px-5 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition-all text-sm font-medium shadow-lg shadow-primary-600/20 disabled:opacity-70 active:scale-95"
             >
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Guardar Tarea
+              Guardar
             </button>
           </div>
         </div>

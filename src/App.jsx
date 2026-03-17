@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Toaster } from 'sileo';
 import { Header } from './shared/components/layout/Header';
 import { Footer } from './shared/components/layout/Footer';
 import { RimFormPage } from './features/rim/RimFormPage';
@@ -47,21 +48,24 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#141414] pb-12">
-      <Header
-        activeView={activeView}
-        onViewChange={setActiveView}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-      />
+    <>
+      <Toaster position="bottom-right" theme="dark" />
+      <div className="min-h-screen bg-[#141414] pb-12">
+        <Header
+          activeView={activeView}
+          onViewChange={setActiveView}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+        />
 
-      {/* Spacer para compensar el header fixed */}
-      <div className="h-20" />
+        {/* Spacer para compensar el header fixed */}
+        <div className="h-20" />
 
-      {renderView()}
+        {renderView()}
 
-      <Footer />
-    </div>
+        <Footer />
+      </div>
+    </>
   );
 }
 

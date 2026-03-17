@@ -7,7 +7,7 @@ import { GanttLegend } from './components/GanttLegend';
  * Componente presentacional puro: solo renderiza la grilla y la leyenda.
  * Toda la navegación y el título viven en CalendarPage.
  */
-export function GanttPage({ weekDays, previewDays = [], tecnicos, tasksForCell, isToday, onTaskClick }) {
+export function GanttPage({ weekDays, previewDays = [], tecnicos, tasksForCell, isToday, onTaskClick, onTaskDrop }) {
   return (
     <div>
       {/* ── Gantt Grid ── */}
@@ -16,13 +16,14 @@ export function GanttPage({ weekDays, previewDays = [], tecnicos, tasksForCell, 
           <GanttHeader weekDays={weekDays} previewDays={previewDays} isToday={isToday} />
           {tecnicos.map((tecnico) => (
             <GanttRow
-              key={tecnico.usuario}
+              key={tecnico.id}
               tecnico={tecnico}
               weekDays={weekDays}
               previewDays={previewDays}
               tasksForCell={tasksForCell}
               isToday={isToday}
               onTaskClick={onTaskClick}
+              onTaskDrop={onTaskDrop}
             />
           ))}
         </div>

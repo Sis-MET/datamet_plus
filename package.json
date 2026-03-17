@@ -22,6 +22,8 @@
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.71.1",
     "react-signature-canvas": "^1.1.0-alpha.2",
+    "sileo": "^0.1.5",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.3.5"
   },

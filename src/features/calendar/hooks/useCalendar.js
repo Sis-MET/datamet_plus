@@ -22,19 +22,19 @@ export function useCalendar(tasks = []) {
     return eachDayOfInterval({ start, end });
   }, [currentDate]);
 
-  // Un evento ocurre en 'day' si 'day' está entre fecha_inicio y fecha_fin
+  // Un evento ocurre en 'day' si coinciden las fechas (ahora son días discretos, no rangos)
   const eventsForDay = (day) => {
     return tasks.filter(task => {
+      if (!task.fecha) return false;
       const dayStart = new Date(day).setHours(0,0,0,0);
-      const taskStart = new Date(task.fecha_inicio).setHours(0,0,0,0);
-      const taskEnd = new Date(task.fecha_fin).setHours(23,59,59,999);
-      return dayStart >= taskStart && dayStart <= taskEnd;
+      const taskStart = new Date(task.fecha).setHours(0,0,0,0);
+      return dayStart === taskStart;
     }).map(t => ({
       ...t,
-      // Map properties for UI compatibility
-      title: t.cod_metrica || t.tipo,
-      client: t.cliente,
-      status: t.estado,
+      // Map properties for UI compatibility en las vistas mensuales
+      title: t.texto,
+      client: t.Tecnico, // Usamos Técnico como sub-etiqueta en el mes
+      status: 'completado', // Dummy status param for bullet colors
     }));
   };
 
@@ -44,21 +44,21 @@ export function useCalendar(tasks = []) {
   );
 
   const monthStats = useMemo(() => {
-    // Tareas del mes seleccionado (si alguna de sus fechas cruza o toca el mes)
+    // Tareas del mes seleccionado
     const currentMonthStart = startOfMonth(currentDate).setHours(0,0,0,0);
     const currentMonthEnd = endOfMonth(currentDate).setHours(23,59,59,999);
 
     const monthEvents = tasks.filter(t => {
-      const tStart = new Date(t.fecha_inicio).setHours(0,0,0,0);
-      const tEnd = new Date(t.fecha_fin).setHours(23,59,59,999);
-      return (tStart <= currentMonthEnd && tEnd >= currentMonthStart);
+      if (!t.fecha) return false;
+      const tStart = new Date(t.fecha).setHours(0,0,0,0);
+      return (tStart >= currentMonthStart && tStart <= currentMonthEnd);
     });
 
     return {
       total: monthEvents.length,
-      pending: monthEvents.filter(e => e.estado === 'pendiente').length,
-      inProgress: monthEvents.filter(e => e.estado === 'en_proceso').length,
-      completed: monthEvents.filter(e => e.estado === 'completado').length,
+      pending: monthEvents.length, // Todo es "pendiente" o sin estado real ahora
+      inProgress: 0,
+      completed: 0,
     };
   }, [currentDate, tasks]);
 

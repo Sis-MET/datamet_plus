@@ -46,55 +46,20 @@ const getTecnicos = async (req, res, next) => {
 };
 
 /**
- * @route POST /api/calendar/schedule
- * Crea una nueva tarea (solo Admin)
+ * @route POST /api/calendar/cronograma
+ * Construye o actualiza una celda en el cronograma (solo Admin)
  */
-const createEvent = async (req, res, next) => {
+const upsertScheduleCell = async (req, res, next) => {
   try {
     const data = req.body;
     
     // Básica validación de requeridos
-    if (!data.Tecnico || !data.fecha_inicio || !data.fecha_fin || !data.tipo || !data.estado) {
-      return res.status(400).json({ success: false, message: 'Campos requeridos faltantes' });
+    if (!data.date || !data.resource) {
+      return res.status(400).json({ success: false, message: 'La fecha y el recurso son requeridos' });
     }
 
-    const newEvent = await calendarService.createEvent(data);
-    res.status(201).json({ success: true, data: newEvent });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @route PUT /api/calendar/schedule/:id
- * Actualiza una tarea existente (solo Admin)
- */
-const updateEvent = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const data = req.body;
-
-    const updatedEvent = await calendarService.updateEvent(id, data);
-    
-    if (!updatedEvent) {
-      return res.status(404).json({ success: false, message: 'Tarea no encontrada' });
-    }
-
-    res.status(200).json({ success: true, data: updatedEvent });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @route DELETE /api/calendar/schedule/:id
- * Elimina una tarea (solo Admin)
- */
-const deleteEvent = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    await calendarService.deleteEvent(id);
-    res.status(200).json({ success: true, message: 'Tarea eliminada' });
+    const updatedRow = await calendarService.upsertScheduleCell(data);
+    res.status(200).json({ success: true, data: updatedRow });
   } catch (error) {
     next(error);
   }
@@ -103,7 +68,5 @@ const deleteEvent = async (req, res, next) => {
 module.exports = {
   getSchedule,
   getTecnicos,
-  createEvent,
-  updateEvent,
-  deleteEvent
+  upsertScheduleCell
 };

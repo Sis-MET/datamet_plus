@@ -4,13 +4,14 @@ import { es } from 'date-fns/locale';
 import {
   ChevronLeft, ChevronRight, CalendarDays, LayoutList, Loader2, DatabaseZap,
 } from 'lucide-react';
+import { sileo } from 'sileo';
 
 import { useCalendar } from './hooks/useCalendar';
 import { useGantt } from './hooks/useGantt';
 import { CalendarGrid } from './components/CalendarGrid';
 import { StatsBar } from './components/StatsBar';
 import { EventModal } from './components/EventModal';
-import { EventFormModal } from './components/EventFormModal';
+import { CellPopoverForm } from './components/CellPopoverForm';
 import { GanttPage } from './GanttPage';
 
 function parseJwt(token) {
@@ -22,6 +23,10 @@ export function CalendarPage() {
   const [calendarView, setCalendarView] = useState('gantt'); // 'month' | 'gantt'
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  
+  // Guardar la cede de click de la grilla (para nuevas tareas)
+  const [prefilledDate, setPrefilledDate] = useState(new Date());
+  const [prefilledResource, setPrefilledResource] = useState('');
 
   // Determinar permisos del usuario
   const token = localStorage.getItem('rimmet_token');
@@ -39,9 +44,7 @@ export function CalendarPage() {
     loading,
     useMock,
     tasksForCell,
-    createTask,
-    updateTask,
-    deleteTask,
+    upsertScheduleCell,
     nextWeek,
     prevWeek,
     goToCurrentWeek,
@@ -72,16 +75,69 @@ export function CalendarPage() {
   const weekRangeLabel = `${format(weekStart, "d 'de' MMMM", { locale: es })} – ${format(weekEnd, "d 'de' MMMM yyyy", { locale: es })}`;
   const weekRangeCapitalized = weekRangeLabel.charAt(0).toUpperCase() + weekRangeLabel.slice(1);
 
-  const handleOpenForm = (evt = null) => {
+  const handleOpenForm = (evt = null, date = new Date(), resourceId = '') => {
     setEditingEvent(evt);
+    setPrefilledDate(date);
+    setPrefilledResource(resourceId);
     setIsFormOpen(true);
   };
 
-  const handleSaveForm = async (data, id) => {
-    if (id) {
-      await updateTask(id, data);
+  const handleSaveForm = async (date, resource, text) => {
+    try {
+      await upsertScheduleCell(date, resource, text);
+      setIsFormOpen(false);
+      
+      if (!text || (typeof text === 'object' && !text.morning && !text.afternoon) || (typeof text === 'string' && text.trim() === '')) {
+        sileo.success({ description: "Celda limpiada correctamente." });
+      } else {
+        sileo.success({ description: "Actividad guardada correctamente." });
+      }
+    } catch (err) {
+      sileo.error({ description: err.message || "Error al guardar en el calendario" });
+    }
+  };
+
+  const handleTaskDrop = async (sourceTask, targetDate, targetResource) => {
+    if (!sourceTask) return;
+    
+    // Buscar el nombre del técnico para un mensaje más amigable
+    const targetTecnico = tecnicos.find(t => t.id === targetResource);
+    const targetName = targetTecnico ? targetTecnico.nombre : targetResource;
+
+    const executeCopy = async () => {
+      try {
+        // Aseguramos que targetDate sea un objeto Date
+        const dateObj = targetDate instanceof Date ? targetDate : new Date(targetDate);
+        
+        await upsertScheduleCell(dateObj, targetResource, {
+          morning: sourceTask.morning,
+          afternoon: sourceTask.afternoon,
+          color: sourceTask.color
+        });
+        sileo.success({ description: "Actividad copiada correctamente." });
+      } catch (err) {
+        sileo.error({ description: err.message || "Error al copiar la actividad" });
+      }
+    };
+
+    if (sourceTask.sourceResource && sourceTask.sourceResource !== targetResource) {
+      // Diferente técnico: solicitar confirmación
+      sileo.action({
+        title: "¿Copiar a otro técnico?",
+        description: `Vas a copiar esta actividad a ${targetName}. ¿Estás seguro?`,
+        duration: 10000, // Darle 10 segundos para reaccionar
+        button: {
+          title: "Sí, Copiar",
+          onClick: executeCopy
+        },
+        cancelButton: {
+          title: "Cancelar",
+          onClick: () => {}
+        }
+      });
     } else {
-      await createTask(data);
+      // Mismo técnico (diferente día), copiamos directo
+      executeCopy();
     }
   };
 
@@ -222,6 +278,7 @@ export function CalendarPage() {
           tasksForCell={tasksForCell}
           isToday={isTodayGantt}
           onTaskClick={isAdmin ? handleOpenForm : undefined}
+          onTaskDrop={isAdmin ? handleTaskDrop : undefined}
         />
       )}
 
@@ -266,14 +323,14 @@ export function CalendarPage() {
         </>
       )}
 
-      {/* ══ Modal de Formulario (Crear/Editar) ══ */}
-      <EventFormModal
+      {/* ══ Modal Flotante de Formulario (Crear/Editar Celda) ══ */}
+      <CellPopoverForm
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
         onSave={handleSaveForm}
-        onDelete={deleteTask}
-        tecnicos={tecnicos}
         event={editingEvent}
+        prefilledDate={prefilledDate}
+        prefilledResource={prefilledResource}
       />
     </main>
   );
