@@ -20,7 +20,7 @@ function parseJwt(token) {
 }
 
 export function CalendarPage() {
-  const [calendarView, setCalendarView] = useState('gantt'); // 'month' | 'gantt'
+  const [calendarView, setCalendarView] = useState('gantt');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   
@@ -35,7 +35,7 @@ export function CalendarPage() {
 
   // ── Hook vista Gantt ── (Lo cargamos primero para tener las Tasks)
   const {
-    tasks, // <--- Nueva variable extraída
+    tasks, 
     weekStart,
     weekEnd,
     weekDays,
@@ -112,7 +112,8 @@ export function CalendarPage() {
         await upsertScheduleCell(dateObj, targetResource, {
           morning: sourceTask.morning,
           afternoon: sourceTask.afternoon,
-          color: sourceTask.color
+          colorAM: sourceTask.colorAM,
+          colorPM: sourceTask.colorPM
         });
         sileo.success({ description: "Actividad copiada correctamente." });
       } catch (err) {
@@ -121,19 +122,46 @@ export function CalendarPage() {
     };
 
     if (sourceTask.sourceResource && sourceTask.sourceResource !== targetResource) {
-      // Diferente técnico: solicitar confirmación
+      // Diferente técnico: solicitar confirmación usando ReactNode en el description
+      const handleConfirm = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        executeCopy();
+        sileo.clear();
+      };
+
+      const handleCancel = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        sileo.clear();
+      };
+
       sileo.action({
         title: "¿Copiar a otro técnico?",
-        description: `Vas a copiar esta actividad a ${targetName}. ¿Estás seguro?`,
         duration: 10000, // Darle 10 segundos para reaccionar
-        button: {
-          title: "Sí, Copiar",
-          onClick: executeCopy
-        },
-        cancelButton: {
-          title: "Cancelar",
-          onClick: () => {}
-        }
+        description: (
+          <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
+            <span className="text-[13px] text-gray-600 leading-snug">
+              Vas a copiar esta actividad a <strong className="font-semibold text-gray-800">{targetName}</strong>. ¿Estás seguro?
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleConfirm}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="flex-1 py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm"
+              >
+                Sí, Copiar
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="flex-1 py-1.5 px-4 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )
       });
     } else {
       // Mismo técnico (diferente día), copiamos directo
@@ -172,16 +200,7 @@ export function CalendarPage() {
               </span>
             )}
 
-            {/* Botón Nueva Tarea (Solo Admin) */}
-            {isAdmin && (
-              <button
-                onClick={() => handleOpenForm()}
-                className="px-3 py-1.5 text-xs font-medium bg-primary-600/20 text-primary-400 hover:bg-primary-600/30 border border-primary-500/30 rounded-lg transition-all"
-              >
-                + Nueva Tarea
-              </button>
-            )}
-
+            {/* Botón Nueva Tarea (Eliminado) */}
             {/* Spinner (solo Gantt) */}
             {calendarView === 'gantt' && loading && (
               <Loader2 className="h-4 w-4 text-gray-500 animate-spin" />

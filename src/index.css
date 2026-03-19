@@ -17,7 +17,9 @@
 
   /* ── Wrapper scrollable ── */
   .gantt-scroll-container {
-    @apply overflow-x-auto rounded-2xl border border-gray-700/50 shadow-2xl;
+    @apply rounded-2xl border border-gray-700/50 shadow-2xl;
+    overflow: auto;
+    max-height: calc(100vh - 200px);
     background: #1a1a1d;
   }
 
@@ -27,7 +29,11 @@
   }
 
   /* ── Filas (header + data) ── */
-  .gantt-header-row,
+  .gantt-header-row {
+    @apply flex items-stretch border-b border-gray-700/40 sticky top-0 z-30;
+    background-color: #1a1a1d; /* Fondo sólido igual al contenedor */
+  }
+
   .gantt-row {
     @apply flex items-stretch border-b border-gray-700/40;
   }
@@ -41,10 +47,10 @@
 
   /* ── Columna sticky de nombre ── */
   .gantt-name-col {
-    @apply sticky left-0 z-20 flex flex-col justify-center px-4 py-2;
+    @apply flex flex-col justify-center px-4 py-2 sticky left-0 z-20;
     min-width: 160px;
     max-width: 160px;
-    background: #1e1e22;
+    background: #1e1e22; /* Fondo sólido original */
     border-right: 1px solid rgba(255,255,255,0.08);
   }
 

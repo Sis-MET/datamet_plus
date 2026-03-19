@@ -1,4 +1,8 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { cn } from '../../../shared/utils/cn';
 
 export function GanttTaskCell({ 
   tasks, 
@@ -8,8 +12,42 @@ export function GanttTaskCell({
   onTaskClick,
   onTaskDrop,
   date,
-  resourceId
+  resourceId,
+  resourceName
 }) {
+  const [renderTooltip, setRenderTooltip] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState(null);
+  const timeoutRef = useRef(null);
+
+  const handleMouseEnter = (e) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    
+    // Position parsing logic remains same, just set render and then opacity
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isTop = rect.top < 250;
+    
+    setTooltipPos({
+      x: rect.left + rect.width / 2,
+      y: isTop ? rect.bottom + 10 : rect.top - 10,
+      isTop
+    });
+    
+    setRenderTooltip(true);
+    // Un simple frame para que la clase opacity-0 aplique primero, y luego la transición inicie
+    setTimeout(() => {
+       setShowTooltip(true);
+    }, 10);
+  };
+
+  const handleMouseLeave = () => {
+    setShowTooltip(false);
+    timeoutRef.current = setTimeout(() => {
+       setRenderTooltip(false);
+       setTooltipPos(null);
+    }, 200); // Wait for transition duration
+  };
+
   const cellStyle = isPreview ? { opacity: previewOpacity } : {};
   let baseClasses = `gantt-cell ${todayFlag ? 'gantt-cell-today-bg' : ''} ${isPreview ? 'gantt-cell-preview' : ''}`;
 
@@ -35,7 +73,8 @@ export function GanttTaskCell({
       sourceResource: resourceId,
       morning: task.morning, 
       afternoon: task.afternoon, 
-      color: task.color 
+      colorAM: task.colorAM,
+      colorPM: task.colorPM
     });
     e.dataTransfer.setData('application/json', dragData);
     e.dataTransfer.effectAllowed = 'copy';
@@ -64,6 +103,9 @@ export function GanttTaskCell({
     }
   };
 
+  const formattedDateTooltip = date ? format(date, "EEEE, d 'de' MMMM", { locale: es }) : '';
+
+
   if (!tasks || tasks.length === 0) {
     return (
       <div 
@@ -72,7 +114,6 @@ export function GanttTaskCell({
         onClick={handleClick}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        title="Clic para agregar/modificar en este día"
       >
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
           <span className="text-[10px] text-gray-500 font-medium">+</span>
@@ -81,39 +122,108 @@ export function GanttTaskCell({
     );
   }
 
+  const primaryTask = tasks[0];
+
   return (
     <div 
-      className={`${baseClasses} gantt-cell-filled p-[3px]`} 
+      className={`${baseClasses} gantt-cell-filled p-[3px] relative`} 
       style={cellStyle}
       onClick={handleClick}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {tasks.map((task) => (
         <div
           key={task.id}
           draggable={!!onTaskDrop}
           onDragStart={(e) => handleDragStart(e, task)}
-          className="w-full h-[3.25rem] border border-white/10 rounded overflow-hidden text-[10px] text-white shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-white/20 transition-all font-mono tracking-tight"
-          style={{ backgroundColor: task.color || '#37A65F' }}
-          title={task.texto}
+          className="w-full h-[3.25rem] border border-white/10 rounded-lg overflow-hidden text-[10px] text-white shadow-lg flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-white/30 transition-all font-mono tracking-tight animate-fade-in"
         >
           {/* Sub-celda MAÑANA */}
-          <div className="flex-1 flex flex-col justify-center px-1 border-b border-white/15 bg-black/15">
-            <div className="flex items-center gap-1">
-              <span className="font-bold opacity-60 text-[8px] uppercase">AM</span>
-              <span className="line-clamp-1 break-words font-semibold leading-tight">{task.morning || '-'}</span>
+          <div 
+            className="flex-1 flex flex-col justify-center px-1.5 border-b border-white/5 relative group/slot"
+            style={{ backgroundColor: task.colorAM || '#37A65F' }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none opacity-50" />
+            <div className="flex items-center gap-1.5 relative z-10">
+              <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">AM</span>
+              <span className="line-clamp-1 break-words font-bold leading-none">{task.morning || '-'}</span>
             </div>
           </div>
           {/* Sub-celda TARDE */}
-          <div className="flex-1 flex flex-col justify-center px-1 bg-black/5">
-            <div className="flex items-center gap-1">
-              <span className="font-bold opacity-60 text-[8px] uppercase">PM</span>
-              <span className="line-clamp-1 break-words font-semibold leading-tight">{task.afternoon || '-'}</span>
+          <div 
+            className="flex-1 flex flex-col justify-center px-1.5 relative group/slot"
+            style={{ backgroundColor: task.colorPM || task.colorAM || '#37A65F' }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none opacity-30" />
+            <div className="flex items-center gap-1.5 relative z-10">
+              <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">PM</span>
+              <span className="line-clamp-1 break-words font-bold leading-none">{task.afternoon || '-'}</span>
             </div>
           </div>
         </div>
       ))}
+
+      {/* Tooltip Profesional Ultra-Premium portalled to body to escape overflow: hidden */}
+      {renderTooltip && tooltipPos && typeof document !== 'undefined' && createPortal(
+        <div 
+          className={cn(
+            "fixed z-[9999] w-[260px] pointer-events-none transition-all duration-200 ease-out",
+            "backdrop-filter backdrop-blur-xl bg-[#1a1a1d]/75 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-4 ring-1 ring-white/5",
+            tooltipPos.isTop ? "-translate-x-1/2 origin-top" : "-translate-x-1/2 -translate-y-full origin-bottom",
+            showTooltip ? "opacity-100 scale-100 mt-0" : "opacity-0 scale-95",
+            !showTooltip && tooltipPos.isTop ? "-mt-2" : "",
+            !showTooltip && !tooltipPos.isTop ? "mt-2" : ""
+          )}
+          style={{
+            left: tooltipPos.x,
+            top: tooltipPos.y
+          }}
+        >
+           <div className="border-b border-white/10 pb-3 mb-3 flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-primary-400 uppercase tracking-widest leading-none">{resourceName || resourceId}</span>
+              <span className="text-[13px] font-semibold text-gray-100 capitalize leading-tight">{formattedDateTooltip}</span>
+           </div>
+           
+           <div className="space-y-3">
+              <div className="flex gap-3">
+                 <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: primaryTask.colorAM || '#37A65F' }} />
+                 <div className="flex-1">
+                    <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest mb-0.5">Mañana</p>
+                    <p className="text-sm text-white font-medium break-words leading-snug">{primaryTask.morning || '(Sin actividad)'}</p>
+                 </div>
+              </div>
+              
+              <div className="flex gap-3 pt-1">
+                 <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: primaryTask.colorPM || primaryTask.colorAM || '#37A65F' }} />
+                 <div className="flex-1">
+                    <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest mb-0.5">Tarde</p>
+                    <p className="text-sm text-white font-medium break-words leading-snug">{primaryTask.afternoon || '(Sin actividad)'}</p>
+                 </div>
+              </div>
+           </div>
+           
+           {(primaryTask.author || primaryTask.timestampUpdated) && (
+             <div className="mt-4 pt-3 border-t border-white/10">
+               <p className="text-[9px] text-gray-500 font-mono tracking-wide leading-tight">
+                 {primaryTask.author && <span>Actualizado por: <span className="text-gray-300 font-medium">{primaryTask.author}</span><br/></span>}
+                 {primaryTask.timestampUpdated && <span>El {primaryTask.timestampUpdated}</span>}
+               </p>
+             </div>
+           )}
+           
+           {/* Flechita del tooltip orientada según la posición */}
+           <div className={cn(
+             "absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent backdrop-filter backdrop-blur-xl",
+             tooltipPos.isTop 
+               ? "bottom-full border-b-[8px] border-b-[#1a1a1d]/75 mb-[-1px]" 
+               : "top-full border-t-[8px] border-t-[#1a1a1d]/75 mt-[-1px]"
+           )} />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

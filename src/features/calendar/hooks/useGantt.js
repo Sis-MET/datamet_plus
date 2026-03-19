@@ -83,11 +83,14 @@ export function useGantt() {
             const textValue = row[resourceId];
             
             if (textValue && textValue.trim() !== '') {
-              // Extraer particiones: MAÑANA;TARDE;COLOR
+              // Extraer particiones: MAÑANA;TARDE;COLOR_AM;COLOR_PM
               const parts = textValue.split(';');
               const m = parts[0] ? parts[0].trim() : '';
               const a = parts[1] ? parts[1].trim() : '';
-              const c = parts[2] ? parts[2].trim() : '';
+              const cAM = parts[2] ? parts[2].trim() : '';
+              const cPM = parts[3] ? parts[3].trim() : '';
+              const author = parts[4] ? parts[4].trim() : '';
+              const timestampUpdated = parts[5] ? parts[5].trim() : '';
 
               flatTasks.push({
                 id: `${row.id}_${resourceId}`,
@@ -97,7 +100,10 @@ export function useGantt() {
                 texto: textValue, // original
                 morning: m,
                 afternoon: a,
-                color: c || '#37A65F' // default green si no hay
+                colorAM: cAM || '#37A65F', // default green si no hay
+                colorPM: cPM || cAM || '#37A65F', // fallback al primer color o verde
+                author,
+                timestampUpdated
               });
             }
           });
@@ -143,7 +149,17 @@ export function useGantt() {
        if (!payload.morning && !payload.afternoon) {
          textToSave = '';
        } else {
-         textToSave = `${payload.morning || ''};${payload.afternoon || ''};${payload.color || ''}`;
+         // Obtener el autor y timestamp
+         let autor = 'Desconocido';
+         if (token) {
+           try {
+             const payloadToken = JSON.parse(atob(token.split('.')[1]));
+             autor = payloadToken.nombre || payloadToken.usuario || 'Desconocido';
+           } catch (e) {}
+         }
+         const timestamp = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+           
+         textToSave = `${payload.morning || ''};${payload.afternoon || ''};${payload.colorAM || ''};${payload.colorPM || ''};${autor};${timestamp}`;
        }
     }
 

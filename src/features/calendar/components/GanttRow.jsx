@@ -22,6 +22,7 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             isToday={isToday(day)}
             date={day}
             resourceId={tecnico.id}
+            resourceName={tecnico.nombre}
             onTaskClick={onTaskClick}
             onTaskDrop={onTaskDrop}
           />
@@ -40,6 +41,7 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             previewOpacity={1 - idx * 0.28}
             date={day}
             resourceId={tecnico.id}
+            resourceName={tecnico.nombre}
             onTaskClick={onTaskClick}
             onTaskDrop={onTaskDrop}
           />
