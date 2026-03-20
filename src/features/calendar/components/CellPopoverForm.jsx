@@ -19,11 +19,13 @@ export function CellPopoverForm({
   event,
   prefilledDate,
   prefilledResource,
+  takenVehicles = []
 }) {
   const [morning, setMorning] = useState('');
   const [afternoon, setAfternoon] = useState('');
-  const [colorAM, setColorAM] = useState(PRESET_COLORS[1]); 
-  const [colorPM, setColorPM] = useState(PRESET_COLORS[1]); 
+  const [colorAM, setColorAM] = useState(''); 
+  const [colorPM, setColorPM] = useState(''); 
+  const [vehiculo, setVehiculo] = useState('Ninguno');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeColorPicker, setActiveColorPicker] = useState(null);
 
@@ -32,13 +34,15 @@ export function CellPopoverForm({
       if (event) {
         setMorning(event.morning || '');
         setAfternoon(event.afternoon || '');
-        setColorAM(event.colorAM || event.color || PRESET_COLORS[1]);
-        setColorPM(event.colorPM || event.color || PRESET_COLORS[1]);
+        setColorAM(event.colorAM || event.color || '');
+        setColorPM(event.colorPM || event.color || '');
+        setVehiculo(event.vehiculo || 'Ninguno');
       } else {
         setMorning('');
         setAfternoon('');
-        setColorAM(PRESET_COLORS[1]);
-        setColorPM(PRESET_COLORS[1]);
+        setColorAM('');
+        setColorPM('');
+        setVehiculo('Ninguno');
       }
       setActiveColorPicker(null);
     }
@@ -60,6 +64,7 @@ export function CellPopoverForm({
         afternoon: afternoon.trim().toUpperCase(),
         colorAM,
         colorPM,
+        vehiculo,
       });
       // Sileo success is handled by the parent
     } catch (err) {
@@ -73,7 +78,7 @@ export function CellPopoverForm({
     setIsSubmitting(true);
     try {
       // Para limpiar la celda, mandamos campos vacíos
-      await onSave(prefilledDate, prefilledResource, { morning: '', afternoon: '', colorAM: '', colorPM: '' });
+      await onSave(prefilledDate, prefilledResource, { morning: '', afternoon: '', colorAM: '', colorPM: '', vehiculo: 'Ninguno' });
     } finally {
       setIsSubmitting(false);
     }
@@ -104,21 +109,51 @@ export function CellPopoverForm({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
+          {/* Selector de Vehículo */}
+          <div className="space-y-3">
+             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Asignación de Vehículo</label>
+             <select
+               value={vehiculo}
+               onChange={(e) => setVehiculo(e.target.value)}
+               className="w-full bg-[#111111] border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-100 focus:outline-none focus:border-primary-500/50 shadow-inner appearance-none relative"
+             >
+               <option value="Ninguno">Ninguno</option>
+               <option value="Furgón" disabled={takenVehicles.includes('Furgón')}>
+                 {takenVehicles.includes('Furgón') ? 'Furgón (No Disponible)' : 'Furgón'}
+               </option>
+               <option value="Camioneta" disabled={takenVehicles.includes('Camioneta')}>
+                 {takenVehicles.includes('Camioneta') ? 'Camioneta (No Disponible)' : 'Camioneta'}
+               </option>
+               <option value="Vehículo Propio">Vehículo Propio</option>
+             </select>
+          </div>
+
           {/* Turno Mañana */}
-          <div className="space-y-4 pt-2">
+          <div className="space-y-4 pt-2 border-t border-white/5">
             <div className="flex items-center gap-3">
                <div className="flex-1">
                  <div className="flex items-center justify-between mb-2">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mañana</label>
-                    <button
-                      type="button"
-                      onClick={() => { setAfternoon(morning); setColorPM(colorAM); }}
-                      className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-primary-400 bg-primary-500/10 hover:bg-primary-500/20 hover:text-primary-300 transition-colors"
-                      title="Copiar datos a Turno Tarde"
-                    >
-                      <Copy className="w-3 h-3" />
-                      Copiar a Tarde
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setMorning(''); setColorAM(''); }}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                        title="Limpiar Turno Mañana"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Limpiar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAfternoon(morning); setColorPM(colorAM); }}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-primary-400 bg-primary-500/10 hover:bg-primary-500/20 hover:text-primary-300 transition-colors"
+                        title="Copiar datos a Turno Tarde"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copiar a Tarde
+                      </button>
+                    </div>
                  </div>
                  <div className="flex gap-2">
                     {/* Botón para abrir Color Picker */}
@@ -126,11 +161,12 @@ export function CellPopoverForm({
                        <button
                          type="button"
                          onClick={() => setActiveColorPicker(activeColorPicker === 'am' ? null : 'am')}
-                         className="w-11 h-11 rounded-xl border border-white/10 shadow-sm flex items-center justify-center transition-all hover:scale-105 active:scale-95 ring-offset-2 ring-offset-[#111] focus:outline-none focus:ring-2 focus:ring-primary-500"
-                         style={{ backgroundColor: colorAM }}
+                         className="w-11 h-11 rounded-xl border border-white/10 shadow-sm flex items-center justify-center transition-all hover:scale-105 active:scale-95 ring-offset-2 ring-offset-[#111] focus:outline-none focus:ring-2 focus:ring-primary-500 overflow-hidden"
+                         style={{ backgroundColor: colorAM || 'transparent' }}
                          title="Elegir color AM"
                        >
-                         <div className="w-5 h-5 rounded-full border-2 border-white/40 shadow-inner mix-blend-overlay" />
+                         {!colorAM && <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMmEyYTMwIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzYTNjNDIiPjwvcmVjdD4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzNhM2M0MiI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />}
+                         <div className="w-5 h-5 rounded-full border-2 border-white/40 shadow-inner mix-blend-overlay relative z-10" />
                        </button>
 
                        {/* Popover Custom Color Picker AM */}
@@ -140,7 +176,7 @@ export function CellPopoverForm({
                                <span className="text-xs font-semibold text-gray-300">Color AM</span>
                                <button type="button" onClick={() => setActiveColorPicker(null)} className="text-gray-500 hover:text-white"><X size={14}/></button>
                             </div>
-                            <HexColorPicker color={colorAM} onChange={setColorAM} style={{ width: '100%', height: '120px' }} />
+                            <HexColorPicker color={colorAM || PRESET_COLORS[1]} onChange={setColorAM} style={{ width: '100%', height: '120px' }} />
                             <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
                                {PRESET_COLORS.map(c => (
                                  <button
@@ -171,6 +207,15 @@ export function CellPopoverForm({
                <div className="flex-1">
                  <div className="flex items-center justify-between mb-2">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tarde</label>
+                    <button
+                      type="button"
+                      onClick={() => { setAfternoon(''); setColorPM(''); }}
+                      className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                      title="Limpiar Turno Tarde"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Limpiar
+                    </button>
                  </div>
                  <div className="flex gap-2">
                     {/* Botón para abrir Color Picker */}
@@ -178,11 +223,12 @@ export function CellPopoverForm({
                        <button
                          type="button"
                          onClick={() => setActiveColorPicker(activeColorPicker === 'pm' ? null : 'pm')}
-                         className="w-11 h-11 rounded-xl border border-white/10 shadow-sm flex items-center justify-center transition-all hover:scale-105 active:scale-95 ring-offset-2 ring-offset-[#111] focus:outline-none focus:ring-2 focus:ring-primary-500"
-                         style={{ backgroundColor: colorPM }}
+                         className="w-11 h-11 rounded-xl border border-white/10 shadow-sm flex items-center justify-center transition-all hover:scale-105 active:scale-95 ring-offset-2 ring-offset-[#111] focus:outline-none focus:ring-2 focus:ring-primary-500 overflow-hidden"
+                         style={{ backgroundColor: colorPM || 'transparent' }}
                          title="Elegir color PM"
                        >
-                         <div className="w-5 h-5 rounded-full border-2 border-white/40 shadow-inner mix-blend-overlay" />
+                         {!colorPM && <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMmEyYTMwIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzYTNjNDIiPjwvcmVjdD4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzNhM2M0MiI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />}
+                         <div className="w-5 h-5 rounded-full border-2 border-white/40 shadow-inner mix-blend-overlay relative z-10" />
                        </button>
 
                        {/* Popover Custom Color Picker PM */}
@@ -192,7 +238,7 @@ export function CellPopoverForm({
                                <span className="text-xs font-semibold text-gray-300">Color PM</span>
                                <button type="button" onClick={() => setActiveColorPicker(null)} className="text-gray-500 hover:text-white"><X size={14}/></button>
                             </div>
-                            <HexColorPicker color={colorPM} onChange={setColorPM} style={{ width: '100%', height: '120px' }} />
+                            <HexColorPicker color={colorPM || PRESET_COLORS[1]} onChange={setColorPM} style={{ width: '100%', height: '120px' }} />
                             <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
                                {PRESET_COLORS.map(c => (
                                  <button
@@ -220,7 +266,7 @@ export function CellPopoverForm({
           {/* Metadata de Auditoría (Solo Lectura) */}
           {event && (event.author || event.timestampUpdated) && (
             <div className="bg-[#111111]/50 border border-white/5 rounded-lg p-3 mt-2">
-              <p className="text-[10px] text-gray-500 font-mono leading-tight">
+              <p className="text-[12px] text-gray-500 font-mono leading-tight">
                 {event.author && <span>Actualizado por: <span className="text-primary-400/80 font-medium">{event.author}</span><br/></span>}
                 {event.timestampUpdated && <span>El {event.timestampUpdated}</span>}
               </p>
@@ -229,19 +275,15 @@ export function CellPopoverForm({
 
           {/* Footer Actions */}
           <div className="pt-4 flex items-center justify-between border-t border-gray-800">
-            {event ? (
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={isSubmitting}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-500/80 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" />
-                Limpiar
+                Eliminar
               </button>
-            ) : (
-              <div /> // Spacer
-            )}
 
             <button
               type="submit"

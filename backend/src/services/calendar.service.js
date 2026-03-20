@@ -2,34 +2,33 @@ const { getPool, sql } = require('../config/db');
 
 /**
  * Retorna todas las tareas del cronograma en un rango de fechas.
- * @param {string} start - Fecha inicio ISO (YYYY-MM-DD)
- * @param {string} end   - Fecha fin ISO (YYYY-MM-DD)
- * @returns {Promise<Array>}
+ * Extraídas desde la tabla normalizada DATA_SCHEDULE_V2
  */
 const getSchedule = async (start, end) => {
   const pool = getPool();
   
-  // Extraemos los años y meses del rango
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  
-  const startGestion = startDate.getFullYear();
-  const startMes = startDate.getMonth() + 1;
-  const endGestion = endDate.getFullYear();
-  const endMes = endDate.getMonth() + 1;
-
   const result = await pool.request()
-    .input('startGestion', sql.Int, startGestion)
-    .input('startMes', sql.Int, startMes)
-    .input('endGestion', sql.Int, endGestion)
-    .input('endMes', sql.Int, endMes)
+    .input('start', sql.Date, start)
+    .input('end', sql.Date, end)
     .query(`
-      SELECT *
-      FROM data_cronograma
-      WHERE (gestion = @startGestion AND mes >= @startMes)
-         OR (gestion = @endGestion AND mes <= @endMes)
-         OR (gestion > @startGestion AND gestion < @endGestion)
-      ORDER BY gestion, mes, dia
+      SELECT 
+        id,
+        id_usuario,
+        usuario,
+        vehiculo,
+        CONVERT(varchar, fecha, 23) as fecha,
+        manana,
+        tarde,
+        color_am,
+        color_pm,
+        creado_por,
+        CONVERT(varchar, fecha_creacion, 23) as fecha_creacion,
+        CONVERT(varchar, hora_creacion, 8) as hora_creacion,
+        actualizado_por,
+        CONVERT(varchar, fecha_modificacion, 23) as fecha_modificacion,
+        CONVERT(varchar, hora_modificacion, 8) as hora_modificacion
+      FROM DATA_CRONOGRAMA
+      WHERE fecha >= @start AND fecha <= @end
     `);
 
   return result.recordset;
@@ -37,7 +36,6 @@ const getSchedule = async (start, end) => {
 
 /**
  * Retorna todas las columnas válidas para los recursos (Técnicos + Vehículos)
- * Lee dinámicamente desde DATA_USERS y añade furgon/camioneta.
  */
 const getTecnicos = async () => {
   const pool = getPool();
@@ -45,6 +43,7 @@ const getTecnicos = async () => {
   const result = await pool.request()
     .query(`
       SELECT 
+        id as user_id,
         REPLACE(TRIM(ISNULL(nombre1, 'SIN_NOMBRE')), ' ', '_') + '_' + REPLACE(TRIM(ISNULL(apellido1, 'SIN_APELLIDO')), ' ', '_') AS id,
         CONCAT(TRIM(nombre1), ' ', TRIM(apellido1)) AS nombre,
         cargo,
@@ -55,76 +54,110 @@ const getTecnicos = async () => {
     `);
 
   const tecnicos = result.recordset;
-  
-  // Añadimos los vehículos que existen como columnas estáticas extra
-  tecnicos.push({ id: 'FURGON', nombre: 'FURGÓN', cargo: 'Vehículo', area: 'Logística' });
-  tecnicos.push({ id: 'CAMIONETA', nombre: 'CAMIONETA', cargo: 'Vehículo', area: 'Logística' });
-
   return tecnicos;
 };
 
 /**
- * Inserta o actualiza una celda en una fecha específica para una columna específica
- * Esto reemplaza a create/update/delete (delete = mandar string vacío)
+ * Inserta o actualiza un registro en DATA_SCHEDULE_V2 adaptando el payload de Frontend.
  */
 const upsertScheduleCell = async (data) => {
   const pool = getPool();
-  const { date, resource, text } = data; // date => 'YYYY-MM-DD', resource => 'Jhona_Doe', text => 'Embol'
+  const { date, resource, payload } = data; // Payload es estructural JSON ahora
   
-  const d = new Date(date);
-  // Ajuste timezone local a UTC simple
-  const dia = d.getUTCDate();
-  const mes = d.getUTCMonth() + 1;
-  const gestion = d.getUTCFullYear();
-  
-  const diasSemanas = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-  const ndia = diasSemanas[d.getUTCDay()];
-  
-  const mesesNombres = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  const nmes = mesesNombres[mes - 1];
+  let m = payload ? payload.morning : null;
+  let a = payload ? payload.afternoon : null;
+  let cAM = payload ? payload.colorAM : '#10B981';
+  let cPM = payload ? payload.colorPM : '#10B981';
+  let autor = payload ? payload.autor : 'Sistema';
+  let vehiculo_nombre = (payload && payload.vehiculo && payload.vehiculo !== 'Ninguno') ? payload.vehiculo : null;
 
-  // IMPORTANTE: Prevenimos Inyección SQL sanitizando el nombre de la columna. 
-  // Solo se permiten alfanuméricos y guiones bajos (que es el formato de nuestras columnas nombre_apellido)
-  const safeResource = resource.replace(/[^a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ]/g, '');
+  // Buscar en DATA_USERS estricto para el técnico
+  let id_usuario = null;
+  let usuario_nombre = null;
 
-  // Paso 1: Comprobar si existe la fila para el día
-  const checkReq = pool.request()
-    .input('dia', sql.Int, dia)
-    .input('mes', sql.Int, mes)
-    .input('gestion', sql.Int, gestion);
-    
-  let result = await checkReq.query('SELECT id FROM data_cronograma WHERE dia = @dia AND mes = @mes AND gestion = @gestion');
-
-  if (result.recordset.length === 0) {
-    // INSERT si no existe
-    await pool.request()
-      .input('dia', sql.Int, dia)
-      .input('ndia', sql.NVarChar, ndia)
-      .input('mes', sql.Int, mes)
-      .input('nmes', sql.NVarChar, nmes)
-      .input('gestion', sql.Int, gestion)
-      .input('texto', sql.NVarChar, text || null)
-      .query(`
-        INSERT INTO data_cronograma (dia, ndia, mes, nmes, gestion, [${safeResource}])
-        VALUES (@dia, @ndia, @mes, @nmes, @gestion, @texto)
-      `);
-  } else {
-    // UPDATE si ya existe
-    await pool.request()
-      .input('dia', sql.Int, dia)
-      .input('mes', sql.Int, mes)
-      .input('gestion', sql.Int, gestion)
-      .input('texto', sql.NVarChar, text || null)
-      .query(`
-        UPDATE data_cronograma
-        SET [${safeResource}] = @texto
-        WHERE dia = @dia AND mes = @mes AND gestion = @gestion
-      `);
+  const userMatch = await pool.request()
+    .input('res', sql.VarChar, resource)
+    .query(`
+      SELECT id, CONCAT(TRIM(nombre1), ' ', TRIM(apellido1)) as fullname 
+      FROM DATA_USERS 
+      WHERE REPLACE(TRIM(ISNULL(nombre1, 'SIN_NOMBRE')), ' ', '_') + '_' + REPLACE(TRIM(ISNULL(apellido1, 'SIN_APELLIDO')), ' ', '_') = @res
+    `);
+  if (userMatch.recordset.length > 0) {
+      id_usuario = userMatch.recordset[0].id;
+      usuario_nombre = userMatch.recordset[0].fullname;
   }
 
-  // Retornar el registro actualizado (la fila entera)
-  const q2 = await checkReq.query('SELECT * FROM data_cronograma WHERE dia = @dia AND mes = @mes AND gestion = @gestion');
-  return q2.recordset[0];
+  // Comprobar si ya existe fila para esta fecha y este usuario
+  const checkReq = pool.request()
+    .input('fecha', sql.Date, date)
+    .input('id_us', sql.Int, id_usuario);
+
+  const existingRes = await checkReq.query(`SELECT id FROM DATA_CRONOGRAMA WHERE fecha = @fecha AND id_usuario = @id_us`);
+
+  // Validación de Choques de Vehículo (Si pide un vehículo que no es propio)
+  if (vehiculo_nombre && vehiculo_nombre !== 'Vehículo Propio') {
+    const conflictReq = pool.request()
+        .input('veh', sql.VarChar, vehiculo_nombre)
+        .input('f', sql.Date, date);
+        
+    let conflictQuery = `SELECT usuario FROM DATA_CRONOGRAMA WHERE vehiculo = @veh AND fecha = @f`;
+    if (existingRes.recordset.length > 0) {
+        conflictReq.input('self_id', sql.Int, existingRes.recordset[0].id);
+        conflictQuery += ` AND id != @self_id`;
+    }
+    const conflict = await conflictReq.query(conflictQuery);
+    if (conflict.recordset.length > 0) {
+        throw new Error(`El vehículo ${vehiculo_nombre} ya está reservado por ${conflict.recordset[0].usuario || 'otro técnico'} para este día.`);
+    }
+  }
+
+  if (!payload || Object.keys(payload).length === 0) {
+    // Si el payload es explícitamente null, históricamente era DELETE. Ahora preferimos ignorarlo.
+    return { status: 'ignored' };
+  }
+
+  const upsertReq = pool.request()
+    .input('id_us', sql.Int, id_usuario)
+    .input('usr', sql.VarChar, usuario_nombre)
+    .input('veh', sql.VarChar, vehiculo_nombre)
+    .input('f', sql.Date, date)
+    .input('tm', sql.NVarChar, m)
+    .input('tt', sql.NVarChar, a)
+    .input('cam', sql.VarChar, cAM)
+    .input('cpm', sql.VarChar, cPM)
+    .input('autor', sql.VarChar, autor);
+
+  if (existingRes.recordset.length === 0) {
+    // Prevenir inserción de filas basura vacías si aprietan "Guardar" o "Limpiar" en celda nueva
+    if (!m && !a && !vehiculo_nombre) {
+         return { status: 'ignored_empty_insert' };
+    }
+    // INSERT
+    await upsertReq.query(`
+      INSERT INTO DATA_CRONOGRAMA (id_usuario, usuario, vehiculo, fecha, manana, tarde, color_am, color_pm, creado_por, fecha_creacion, hora_creacion)
+      VALUES (@id_us, @usr, @veh, @f, @tm, @tt, @cam, @cpm, @autor,
+        CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
+        CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
+      )
+    `);
+  } else {
+    // UPDATE (Sobreescribirá y mantendrá el registro en blanco para el historial histórico)
+    upsertReq.input('row_id', sql.Int, existingRes.recordset[0].id);
+    await upsertReq.query(`
+      UPDATE DATA_CRONOGRAMA
+      SET manana = @tm,
+          tarde = @tt,
+          color_am = @cam,
+          color_pm = @cpm,
+          vehiculo = @veh,
+          actualizado_por = @autor,
+          fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
+          hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
+      WHERE id = @row_id
+    `);
+  }
+
+  return { status: 'upserted', resource };
 };
 
 module.exports = {

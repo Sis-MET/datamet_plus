@@ -28,6 +28,19 @@
     @apply min-w-max;
   }
 
+  /* ── Separador de Área en el Gantt ── */
+  .gantt-area-separator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 16px;
+    background: #111114;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    min-width: 100%;
+    position: sticky;
+    left: 0;
+  }
+
   /* ── Filas (header + data) ── */
   .gantt-header-row {
     @apply flex items-stretch border-b border-gray-700/40 sticky top-0 z-30;
@@ -197,4 +210,9 @@
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium;
     @apply bg-amber-500/10 text-amber-400 border border-amber-500/20;
   }
+}
+
+/* ── Corrección de Z-Index para Sileo Toasts (Errores) ── */
+.sileo-viewport, [data-sileo-viewport] {
+  z-index: 99999 !important;
 }

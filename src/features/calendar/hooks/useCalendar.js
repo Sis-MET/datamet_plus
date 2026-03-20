@@ -24,18 +24,38 @@ export function useCalendar(tasks = []) {
 
   // Un evento ocurre en 'day' si coinciden las fechas (ahora son días discretos, no rangos)
   const eventsForDay = (day) => {
-    return tasks.filter(task => {
+    const filteredTasks = tasks.filter(task => {
       if (!task.fecha) return false;
       const dayStart = new Date(day).setHours(0,0,0,0);
       const taskStart = new Date(task.fecha).setHours(0,0,0,0);
       return dayStart === taskStart;
-    }).map(t => ({
-      ...t,
-      // Map properties for UI compatibility en las vistas mensuales
-      title: t.texto,
-      client: t.Tecnico, // Usamos Técnico como sub-etiqueta en el mes
-      status: 'completado', // Dummy status param for bullet colors
-    }));
+    });
+
+    const eventsArray = [];
+    filteredTasks.forEach(t => {
+       if (t.morning) {
+         eventsArray.push({
+           ...t,
+           id: `${t.id}-am`,
+           title: t.morning,
+           client: t.Tecnico,
+           status: 'completado',
+           shiftIndicator: 'AM'
+         });
+       }
+       if (t.afternoon) {
+         eventsArray.push({
+           ...t,
+           id: `${t.id}-pm`,
+           title: t.afternoon,
+           client: t.Tecnico,
+           status: 'completado',
+           shiftIndicator: 'PM'
+         });
+       }
+    });
+
+    return eventsArray;
   };
 
   const selectedDayEvents = useMemo(

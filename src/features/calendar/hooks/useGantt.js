@@ -70,44 +70,41 @@ export function useGantt() {
       }
 
       if (scheduleData.success && validTecnicos.length > 0) {
-        // Transformar la tabla plana (filas por día) a un array de celdas "evento"
-        const flatTasks = [];
-        
-        scheduleData.data.forEach(row => {
-          // La fecha se construye a partir de gestion, mes, dia
-          const rowDate = new Date(row.gestion, row.mes - 1, row.dia);
-          
-          // Iteramos todas las columnas válidas de técnicos/vehículos
-          validTecnicos.forEach(tec => {
-            const resourceId = tec.id; // Ej. richard_lopez, FURGON, etc
-            const textValue = row[resourceId];
-            
-            if (textValue && textValue.trim() !== '') {
-              // Extraer particiones: MAÑANA;TARDE;COLOR_AM;COLOR_PM
-              const parts = textValue.split(';');
-              const m = parts[0] ? parts[0].trim() : '';
-              const a = parts[1] ? parts[1].trim() : '';
-              const cAM = parts[2] ? parts[2].trim() : '';
-              const cPM = parts[3] ? parts[3].trim() : '';
-              const author = parts[4] ? parts[4].trim() : '';
-              const timestampUpdated = parts[5] ? parts[5].trim() : '';
+        // Mapear directamente el array normalizado
+        const flatTasks = scheduleData.data.map(row => {
+          let resourceId = '';
+          if (row.id_usuario) {
+            const tec = validTecnicos.find(t => t.user_id === row.id_usuario);
+            resourceId = tec ? tec.id : '';
+          } else if (row.vehiculo) {
+            resourceId = row.vehiculo;
+          }
 
-              flatTasks.push({
-                id: `${row.id}_${resourceId}`,
-                rowId: row.id,
-                Tecnico: resourceId,
-                fecha: rowDate,
-                texto: textValue, // original
-                morning: m,
-                afternoon: a,
-                colorAM: cAM || '#37A65F', // default green si no hay
-                colorPM: cPM || cAM || '#37A65F', // fallback al primer color o verde
-                author,
-                timestampUpdated
-              });
-            }
-          });
-        });
+          if (!resourceId) return null;
+
+          // row.fecha viene como YYYY-MM-DD
+          const rowDate = new Date(row.fecha + 'T12:00:00');
+
+          let formattedTimestamp = '';
+          if (row.fecha_modificacion) {
+             formattedTimestamp = `${row.fecha_modificacion} ${row.hora_modificacion || ''}`.trim();
+          } else if (row.fecha_creacion) {
+             formattedTimestamp = `${row.fecha_creacion} ${row.hora_creacion || ''}`.trim();
+          }
+
+          return {
+            id: `task_${row.id}`,
+            rowId: row.id,
+            Tecnico: resourceId,
+            fecha: rowDate,
+            morning: row.manana || '',
+            afternoon: row.tarde || '',
+            colorAM: row.color_am || '#37A65F',
+            colorPM: row.color_pm || '#37A65F',
+            author: row.actualizado_por || row.creado_por || '',
+            timestampUpdated: formattedTimestamp
+          };
+        }).filter(Boolean);
 
         setTasks(flatTasks);
         setUseMock(false);
@@ -137,46 +134,61 @@ export function useGantt() {
   // Ahora upsertScheduleCell recibe un objeto con morning, afternoon y color en vez de un solo texto
   const upsertScheduleCell = async (date, resource, payload) => {
     const token = localStorage.getItem('rimmet_token');
+    // Formatear la fecha como YYYY-MM-DD local
     const dateStr = format(date, 'yyyy-MM-dd');
     
-    let textToSave = '';
-    
-    if (typeof payload === 'string') {
-       // Compatibilidad hacia atrás o si se manda un string puro
-       textToSave = payload;
-    } else if (payload) {
-       // Si no viene morning y afternoon está vacío, borrar celda
-       if (!payload.morning && !payload.afternoon) {
-         textToSave = '';
-       } else {
-         // Obtener el autor y timestamp
-         let autor = 'Desconocido';
-         if (token) {
+    // Convertir el payload (sea strig o objeto) a un objeto seguro.
+    let payloadObj = null;
+    if (typeof payload === 'string' && payload.trim() !== '') {
+        const parts = payload.split(';');
+        payloadObj = {
+           morning: parts[0] ? parts[0].trim() : '',
+           afternoon: parts[1] ? parts[1].trim() : '',
+           colorAM: parts[2] ? parts[2].trim() : '',
+           colorPM: parts[3] ? parts[3].trim() : '',
+           autor: parts[4] ? parts[4].trim() : 'Sistema',
+           vehiculo: 'Ninguno'
+        };
+    } else if (payload && typeof payload === 'object') {
+        let autorText = 'Sistema';
+        if (token) {
            try {
-             const payloadToken = JSON.parse(atob(token.split('.')[1]));
-             autor = payloadToken.nombre || payloadToken.usuario || 'Desconocido';
-           } catch (e) {}
-         }
-         const timestamp = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
-           
-         textToSave = `${payload.morning || ''};${payload.afternoon || ''};${payload.colorAM || ''};${payload.colorPM || ''};${autor};${timestamp}`;
-       }
+              const payloadToken = JSON.parse(atob(token.split('.')[1]));
+              autorText = payloadToken.nombre || payloadToken.usuario || 'Sistema';
+           } catch(e) {}
+        }
+        
+        payloadObj = {
+           morning: payload.morning || '',
+           afternoon: payload.afternoon || '',
+           colorAM: payload.colorAM || '',
+           colorPM: payload.colorPM || '',
+           vehiculo: payload.vehiculo === 'Ninguno' ? null : payload.vehiculo,
+           autor: autorText
+        };
     }
 
     const res = await fetch(`${API_BASE}/calendar/cronograma`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}` 
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
         date: dateStr,
         resource,
-        text: textToSave
+        payload: payloadObj
       })
     });
-    
-    if (!res.ok) throw new Error('Error al guardar en el cronograma');
+
+    if (!res.ok) {
+        let errMsg = 'Error al guardar en el cronograma';
+        try {
+           const d = await res.json();
+           if (d.message) errMsg = d.message;
+        } catch(e) {}
+        throw new Error(errMsg);
+    }
     await fetchData(); // Refetch para redibujar la grilla plana
   };
 
@@ -196,6 +208,7 @@ export function useGantt() {
     nextWeek: () => setWeekStart(d => addWeeks(d, 1)),
     prevWeek: () => setWeekStart(d => subWeeks(d, 1)),
     goToCurrentWeek: () => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 })),
+    goToDate: (date) => setWeekStart(startOfWeek(date, { weekStartsOn: 1 })),
     isToday,
     isSameDay,
   };

@@ -2,7 +2,9 @@ import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { cn } from '../../../shared/utils/cn';
+import { Truck } from 'lucide-react';
+import { cn } from '../../../utils/cn';
+import { isNonWorkingDay } from '../utils/holidays';
 
 export function GanttTaskCell({ 
   tasks, 
@@ -49,7 +51,14 @@ export function GanttTaskCell({
   };
 
   const cellStyle = isPreview ? { opacity: previewOpacity } : {};
-  let baseClasses = `gantt-cell ${todayFlag ? 'gantt-cell-today-bg' : ''} ${isPreview ? 'gantt-cell-preview' : ''}`;
+  
+  // Evaluamos si la columna es un día no laborable
+  const { isNonWorking, type } = isNonWorkingDay(date);
+  const nonWorkClass = isNonWorking
+    ? (type === 'feriado' ? 'bg-yellow-500/10' : 'bg-red-500/10')
+    : '';
+  
+  let baseClasses = `gantt-cell ${todayFlag ? 'gantt-cell-today-bg' : ''} ${isPreview ? 'gantt-cell-preview' : ''} ${nonWorkClass}`;
 
   if (onTaskClick) {
     baseClasses += ' cursor-pointer hover:bg-white/5 transition-colors';
@@ -105,8 +114,11 @@ export function GanttTaskCell({
 
   const formattedDateTooltip = date ? format(date, "EEEE, d 'de' MMMM", { locale: es }) : '';
 
+  // Determinar si todos los eventos pasados están logitamente purgados (vaciados)
+  const isEmptyTask = (t) => !t.morning && !t.afternoon;
+  const validTasks = tasks ? tasks.filter(t => !isEmptyTask(t)) : [];
 
-  if (!tasks || tasks.length === 0) {
+  if (validTasks.length === 0) {
     return (
       <div 
         className={`${baseClasses} gantt-cell-empty relative group`} 
@@ -143,25 +155,29 @@ export function GanttTaskCell({
         >
           {/* Sub-celda MAÑANA */}
           <div 
-            className="flex-1 flex flex-col justify-center px-1.5 border-b border-white/5 relative group/slot"
-            style={{ backgroundColor: task.colorAM || '#37A65F' }}
+            className={`flex-1 flex flex-col justify-center px-1.5 border-b border-white/5 relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''}`}
+            style={task.morning && task.colorAM ? { backgroundColor: task.colorAM } : {}}
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none opacity-50" />
-            <div className="flex items-center gap-1.5 relative z-10">
-              <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">AM</span>
-              <span className="line-clamp-1 break-words font-bold leading-none">{task.morning || '-'}</span>
-            </div>
+            {task.morning && task.colorAM && <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none opacity-50" />}
+            {task.morning && (
+              <div className="flex items-center gap-1.5 relative z-10">
+                <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">AM</span>
+                <span className="line-clamp-1 break-words font-bold leading-none">{task.morning}</span>
+              </div>
+            )}
           </div>
           {/* Sub-celda TARDE */}
           <div 
-            className="flex-1 flex flex-col justify-center px-1.5 relative group/slot"
-            style={{ backgroundColor: task.colorPM || task.colorAM || '#37A65F' }}
+            className={`flex-1 flex flex-col justify-center px-1.5 relative group/slot ${!(task.afternoon && task.colorPM) ? 'bg-transparent' : ''}`}
+            style={task.afternoon && task.colorPM ? { backgroundColor: task.colorPM } : {}}
           >
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none opacity-30" />
-            <div className="flex items-center gap-1.5 relative z-10">
-              <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">PM</span>
-              <span className="line-clamp-1 break-words font-bold leading-none">{task.afternoon || '-'}</span>
-            </div>
+            {task.afternoon && task.colorPM && <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none opacity-30" />}
+            {task.afternoon && (
+              <div className="flex items-center gap-1.5 relative z-10">
+                <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">PM</span>
+                <span className="line-clamp-1 break-words font-bold leading-none">{task.afternoon}</span>
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -205,9 +221,10 @@ export function GanttTaskCell({
               </div>
            </div>
            
-           {(primaryTask.author || primaryTask.timestampUpdated) && (
+           {(primaryTask.author || primaryTask.timestampUpdated || (primaryTask.vehiculo && primaryTask.vehiculo !== 'Ninguno')) && (
              <div className="mt-4 pt-3 border-t border-white/10">
                <p className="text-[9px] text-gray-500 font-mono tracking-wide leading-tight">
+                 {primaryTask.vehiculo && primaryTask.vehiculo !== 'Ninguno' && <span className="flex items-center gap-1.5 mb-1.5"><Truck className="w-3 h-3 text-emerald-400" /> Vehículo asig.: <span className="text-gray-300 font-medium">{primaryTask.vehiculo}</span></span>}
                  {primaryTask.author && <span>Actualizado por: <span className="text-gray-300 font-medium">{primaryTask.author}</span><br/></span>}
                  {primaryTask.timestampUpdated && <span>El {primaryTask.timestampUpdated}</span>}
                </p>

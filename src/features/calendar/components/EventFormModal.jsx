@@ -161,7 +161,7 @@ export function EventFormModal({
                 className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-sm font-medium"
               >
                 <Trash2 className="w-4 h-4" />
-                Limpiar celda
+                Eliminar
               </button>
             )}
           </div>

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Toaster } from 'sileo';
 import { Header } from './shared/components/layout/Header';
-import { Footer } from './shared/components/layout/Footer';
 import { RimFormPage } from './features/rim/RimFormPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
 import { LoginPage } from './features/auth/LoginPage';
+import bgImage from './assets/soporte_tecnico.svg';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -50,7 +50,10 @@ function App() {
   return (
     <>
       <Toaster position="bottom-right" theme="dark" />
-      <div className="min-h-screen bg-[#141414] pb-12">
+      <div 
+        className="min-h-screen bg-[#141414] pb-12 bg-cover bg-center bg-fixed"
+        style={{ backgroundImage: `linear-gradient(rgba(20, 20, 20, 0.8), rgba(20, 20, 20, 0.95)), url(${bgImage})` }}
+      >
         <Header
           activeView={activeView}
           onViewChange={setActiveView}
@@ -58,12 +61,10 @@ function App() {
           onLogout={handleLogout}
         />
 
-        {/* Spacer para compensar el header fixed */}
         <div className="h-20" />
 
         {renderView()}
 
-        <Footer />
       </div>
     </>
   );

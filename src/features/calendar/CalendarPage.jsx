@@ -8,9 +8,8 @@ import { sileo } from 'sileo';
 
 import { useCalendar } from './hooks/useCalendar';
 import { useGantt } from './hooks/useGantt';
-import { CalendarGrid } from './components/CalendarGrid';
-import { StatsBar } from './components/StatsBar';
-import { EventModal } from './components/EventModal';
+import { SidebarWidgets } from './components/SidebarWidgets';
+import { LeftFilterSidebar } from './components/LeftFilterSidebar';
 import { CellPopoverForm } from './components/CellPopoverForm';
 import { GanttPage } from './GanttPage';
 
@@ -20,9 +19,9 @@ function parseJwt(token) {
 }
 
 export function CalendarPage() {
-  const [calendarView, setCalendarView] = useState('gantt');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [selectedArea, setSelectedArea] = useState('Todas');
   
   // Guardar la cede de click de la grilla (para nuevas tareas)
   const [prefilledDate, setPrefilledDate] = useState(new Date());
@@ -48,8 +47,19 @@ export function CalendarPage() {
     nextWeek,
     prevWeek,
     goToCurrentWeek,
+    goToDate,
     isToday: isTodayGantt,
   } = useGantt();
+
+  // Filtrado de Técnicos Reactivo por Área
+  const filteredTecnicos = React.useMemo(() => {
+    if (!tecnicos) return [];
+    if (selectedArea === 'Todas') return tecnicos;
+    return tecnicos.filter(t => {
+      const pArea = typeof t.area === 'string' && t.area.trim() !== '' ? t.area.trim() : 'Sin Área';
+      return pArea === selectedArea;
+    });
+  }, [tecnicos, selectedArea]);
 
   // ── Hook vista mensual ──
   const {
@@ -74,6 +84,20 @@ export function CalendarPage() {
 
   const weekRangeLabel = `${format(weekStart, "d 'de' MMMM", { locale: es })} – ${format(weekEnd, "d 'de' MMMM yyyy", { locale: es })}`;
   const weekRangeCapitalized = weekRangeLabel.charAt(0).toUpperCase() + weekRangeLabel.slice(1);
+
+  // Computar qué vehículos están ocupados para este día en específico
+  const takenVehicles = React.useMemo(() => {
+    if (!prefilledDate || !tasks) return [];
+    return tasks
+      .filter(t => 
+        t.fecha.getTime() === prefilledDate.getTime() && 
+        t.vehiculo && 
+        t.vehiculo !== 'Ninguno' && 
+        t.vehiculo !== 'Vehículo Propio' &&
+        t.Tecnico !== prefilledResource // No bloquea si el técnico actual ya lo tiene asignado
+      )
+      .map(t => t.vehiculo);
+  }, [tasks, prefilledDate, prefilledResource]);
 
   const handleOpenForm = (evt = null, date = new Date(), resourceId = '') => {
     setEditingEvent(evt);
@@ -170,177 +194,103 @@ export function CalendarPage() {
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main className="w-full px-4 sm:px-6 2xl:px-12 py-6">
 
       {/* ══ Encabezado unificado ══ */}
       <div className="mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
 
-          {/* Título + subtítulo */}
+          {/* Título + navegación semanal inline */}
           <div className="flex items-center gap-3">
-            <CalendarDays className="h-6 w-6 text-primary-400 shrink-0 mt-0.5" />
+            <CalendarDays className="h-6 w-6 text-primary-400 shrink-0" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-100">Calendario de Trabajo</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-gray-100">Calendario Metrica</h1>
+                {/* Botones de semana inline con el título */}
+                <div className="flex items-center gap-1 ml-1">
+                  <button
+                    onClick={goToCurrentWeek}
+                    className="px-2.5 py-1 text-[11px] font-medium text-gray-400 hover:text-gray-100 hover:bg-white/8 rounded-lg transition-all border border-gray-700/50"
+                  >
+                    Hoy
+                  </button>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-700/50">
+                    <button
+                      onClick={prevWeek}
+                      className="p-1.5 text-gray-400 hover:text-gray-100 hover:bg-white/8 transition-all border-r border-gray-700/50"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={nextWeek}
+                      className="p-1.5 text-gray-400 hover:text-gray-100 hover:bg-white/8 transition-all"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
               <p className="text-sm text-gray-400 mt-0.5">
-                {calendarView === 'gantt'
-                  ? <span className="capitalize">{weekRangeCapitalized}</span>
-                  : <span className="capitalize">{monthTitleCapitalized}</span>}
+                <span className="capitalize">{weekRangeCapitalized}</span>
               </p>
             </div>
           </div>
 
-          {/* Controles derechos */}
+          {/* Controles derechos — solo indicadores */}
           <div className="flex items-center gap-2 flex-wrap">
 
             {/* Badge datos de ejemplo (solo Gantt) */}
-            {calendarView === 'gantt' && useMock && (
+            {useMock && (
               <span className="gantt-mock-badge">
                 <DatabaseZap size={10} />
-                Datos de ejemplo
+                Datos Oficiales
               </span>
             )}
 
-            {/* Botón Nueva Tarea (Eliminado) */}
-            {/* Spinner (solo Gantt) */}
-            {calendarView === 'gantt' && loading && (
-              <Loader2 className="h-4 w-4 text-gray-500 animate-spin" />
-            )}
-
-            {/* Botones Hoy + Prev/Next */}
-            {calendarView === 'gantt' ? (
-              <>
-                <button
-                  onClick={goToCurrentWeek}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-100 hover:bg-white/8 rounded-lg transition-all"
-                >
-                  Hoy
-                </button>
-                <div className="flex rounded-lg overflow-hidden border border-gray-700/50">
-                  <button
-                    onClick={prevWeek}
-                    className="p-1.5 text-gray-400 hover:text-gray-100 hover:bg-white/8 transition-all border-r border-gray-700/50"
-                    aria-label="Semana anterior"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={nextWeek}
-                    className="p-1.5 text-gray-400 hover:text-gray-100 hover:bg-white/8 transition-all"
-                    aria-label="Semana siguiente"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={goToToday}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-100 hover:bg-white/8 rounded-lg transition-all"
-                >
-                  Hoy
-                </button>
-                <div className="flex rounded-lg overflow-hidden border border-gray-700/50">
-                  <button
-                    onClick={prevMonth}
-                    className="p-1.5 text-gray-400 hover:text-gray-100 hover:bg-white/8 transition-all border-r border-gray-700/50"
-                    aria-label="Mes anterior"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={nextMonth}
-                    className="p-1.5 text-gray-400 hover:text-gray-100 hover:bg-white/8 transition-all"
-                    aria-label="Mes siguiente"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Toggle de vista */}
-            <div className="flex rounded-xl overflow-hidden border border-gray-700/50 bg-[#1a1a1d] p-1 gap-1">
-              <button
-                onClick={() => setCalendarView('gantt')}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  calendarView === 'gantt'
-                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                <LayoutList className="h-4 w-4" />
-                Semana
-              </button>
-              <button
-                onClick={() => setCalendarView('month')}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  calendarView === 'month'
-                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                <CalendarDays className="h-4 w-4" />
-                Mes
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* ══ Cronograma semanal (Gantt) ══ */}
-      {calendarView === 'gantt' && (
-        <GanttPage
-          weekDays={weekDays}
-          previewDays={previewDays}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* ══ Panel Lateral Izq (Filtros Organizacionales) ══ */}
+        <LeftFilterSidebar 
           tecnicos={tecnicos}
-          tasksForCell={tasksForCell}
-          isToday={isTodayGantt}
-          onTaskClick={isAdmin ? handleOpenForm : undefined}
-          onTaskDrop={isAdmin ? handleTaskDrop : undefined}
+          selectedArea={selectedArea}
+          onSelectArea={setSelectedArea}
         />
-      )}
 
-      {/* ══ Vista mensual ══ */}
-      {calendarView === 'month' && (
-        <>
-          <div className="mb-6">
-            <StatsBar stats={monthStats} />
-          </div>
+        {/* ══ Cronograma semanal (Gantt Principal) ══ */}
+        <div className="flex-1 min-w-0 w-full overflow-hidden">
+          <GanttPage
+            weekDays={weekDays}
+            previewDays={previewDays}
+            tecnicos={filteredTecnicos}
+            tasksForCell={tasksForCell}
+            isToday={isTodayGantt}
+            onTaskClick={isAdmin ? handleOpenForm : undefined}
+            onTaskDrop={isAdmin ? handleTaskDrop : undefined}
+          />
+        </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-[#1a1a1d] border border-gray-700/50 rounded-2xl p-5 shadow-xl">
-              <CalendarGrid
-                calendarDays={calendarDays}
-                currentDate={currentDate}
-                selectedDay={selectedDay}
-                onSelectDay={selectDay}
-                eventsForDay={eventsForDay}
-                isSameMonth={isSameMonth}
-                isSameDay={isSameDay}
-                isToday={isToday}
-              />
-            </div>
-
-            <div className="bg-[#1a1a1d] border border-gray-700/50 rounded-2xl p-5 shadow-xl">
-              <EventModal selectedDay={selectedDay} events={selectedDayEvents} />
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-4 justify-end">
-            {[
-              { color: 'bg-yellow-400', label: 'Pendiente' },
-              { color: 'bg-blue-400',   label: 'En Proceso' },
-              { color: 'bg-green-400',  label: 'Completado' },
-            ].map(({ color, label }) => (
-              <div key={label} className="flex items-center gap-1.5 text-xs text-gray-500">
-                <span className={`w-2 h-2 rounded-full ${color}`} />
-                {label}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+        {/* ══ Panel Lateral (Sidebar Widgets) ══ */}
+        <SidebarWidgets
+          currentDate={currentDate}
+          selectedDay={selectedDay}
+          calendarDays={calendarDays}
+          onSelectDay={(date) => {
+            selectDay(date);
+            goToDate(date);
+          }}
+          eventsForDay={eventsForDay}
+          isSameMonth={isSameMonth}
+          isSameDay={isSameDay}
+          isToday={isToday}
+          prevMonth={prevMonth}
+          nextMonth={nextMonth}
+          selectedDayEvents={selectedDayEvents}
+          tasks={tasks}
+        />
+      </div>
 
       {/* ══ Modal Flotante de Formulario (Crear/Editar Celda) ══ */}
       <CellPopoverForm
@@ -350,6 +300,7 @@ export function CalendarPage() {
         event={editingEvent}
         prefilledDate={prefilledDate}
         prefilledResource={prefilledResource}
+        takenVehicles={takenVehicles}
       />
     </main>
   );

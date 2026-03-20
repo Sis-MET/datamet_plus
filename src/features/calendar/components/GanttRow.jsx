@@ -6,7 +6,7 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
     <div className="gantt-row">
       {/* Sticky name column */}
       <div className="gantt-name-col">
-        <div className="gantt-tecnico-name">{tecnico.nombre}</div>
+        <div className="gantt-tecnico-name">{tecnico.nombre?.replace(/_/g, ' ')}</div>
         {tecnico.cargo && (
           <div className="gantt-tecnico-cargo">{tecnico.cargo}</div>
         )}
