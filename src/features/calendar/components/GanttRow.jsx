@@ -1,12 +1,16 @@
 import React from 'react';
+import { Truck } from 'lucide-react';
 import { GanttTaskCell } from './GanttTaskCell';
 
-export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, onTaskClick, onTaskDrop }) {
+export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, onTaskClick, onTaskDrop, readOnly = false }) {
   return (
-    <div className="gantt-row">
+    <div className={`gantt-row ${readOnly ? 'bg-blue-950/10' : ''}`}>
       {/* Sticky name column */}
-      <div className="gantt-name-col">
-        <div className="gantt-tecnico-name">{tecnico.nombre?.replace(/_/g, ' ')}</div>
+      <div className="gantt-name-col" style={readOnly ? { background: '#0d1424' } : {}}>
+        <div className="flex items-center gap-1.5">
+          {readOnly && <Truck className="w-3 h-3 text-blue-400/60 flex-shrink-0" />}
+          <div className="gantt-tecnico-name">{tecnico.nombre?.replace(/_/g, ' ')}</div>
+        </div>
         {tecnico.cargo && (
           <div className="gantt-tecnico-cargo">{tecnico.cargo}</div>
         )}
@@ -23,8 +27,9 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             date={day}
             resourceId={tecnico.id}
             resourceName={tecnico.nombre}
-            onTaskClick={onTaskClick}
-            onTaskDrop={onTaskDrop}
+            onTaskClick={readOnly ? null : onTaskClick}
+            onTaskDrop={readOnly ? null : onTaskDrop}
+            readOnly={readOnly}
           />
         );
       })}
@@ -42,8 +47,9 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             date={day}
             resourceId={tecnico.id}
             resourceName={tecnico.nombre}
-            onTaskClick={onTaskClick}
-            onTaskDrop={onTaskDrop}
+            onTaskClick={readOnly ? null : onTaskClick}
+            onTaskDrop={readOnly ? null : onTaskDrop}
+            readOnly={readOnly}
           />
         );
       })}

@@ -65,6 +65,7 @@ export function CellPopoverForm({
         colorAM,
         colorPM,
         vehiculo,
+        lastModified: event ? (event.timestampUpdated || null) : null,
       });
       // Sileo success is handled by the parent
     } catch (err) {

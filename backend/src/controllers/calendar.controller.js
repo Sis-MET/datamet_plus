@@ -61,6 +61,9 @@ const upsertScheduleCell = async (req, res, next) => {
     const updatedRow = await calendarService.upsertScheduleCell(data);
     res.status(200).json({ success: true, data: updatedRow });
   } catch (error) {
+    if (error.status === 409) {
+      return res.status(409).json({ success: false, message: error.message });
+    }
     if (error.message.includes('ya está reservado')) {
       return res.status(400).json({ success: false, message: error.message });
     }

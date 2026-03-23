@@ -7,7 +7,7 @@ import {
 import { sileo } from 'sileo';
 
 import { useCalendar } from './hooks/useCalendar';
-import { useGantt } from './hooks/useGantt';
+import { useGantt, VEHICLES } from './hooks/useGantt';
 import { SidebarWidgets } from './components/SidebarWidgets';
 import { LeftFilterSidebar } from './components/LeftFilterSidebar';
 import { CellPopoverForm } from './components/CellPopoverForm';
@@ -49,6 +49,7 @@ export function CalendarPage() {
     goToCurrentWeek,
     goToDate,
     isToday: isTodayGantt,
+    tasksForVehicleCell,
   } = useGantt();
 
   // Filtrado de Técnicos Reactivo por Área
@@ -117,7 +118,17 @@ export function CalendarPage() {
         sileo.success({ description: "Actividad guardada correctamente." });
       }
     } catch (err) {
-      sileo.error({ description: err.message || "Error al guardar en el calendario" });
+      const isConcurrencyError = err.message?.includes('Otro usuario') || err.message?.includes('otro proceso');
+      sileo.error({ 
+        description: err.message || "Error al guardar en el calendario",
+        // Si es error de concurrencia, mostrarlo más tiempo para que el usuario lo lea
+        duration: isConcurrencyError ? 8000 : 4000,
+      });
+      // Solo cerramos el form si NO es un problema de concurrencia
+      // (en concurrencia, preferimos que el usuario pueda recargar antes de volver a intentar)
+      if (!isConcurrencyError) {
+        // El form permanece abierto si hay otro error técnico
+      }
     }
   };
 
@@ -137,7 +148,8 @@ export function CalendarPage() {
           morning: sourceTask.morning,
           afternoon: sourceTask.afternoon,
           colorAM: sourceTask.colorAM,
-          colorPM: sourceTask.colorPM
+          colorPM: sourceTask.colorPM,
+          vehiculo: sourceTask.vehiculo || 'Ninguno',
         });
         sileo.success({ description: "Actividad copiada correctamente." });
       } catch (err) {
@@ -265,7 +277,9 @@ export function CalendarPage() {
             weekDays={weekDays}
             previewDays={previewDays}
             tecnicos={filteredTecnicos}
+            vehiculos={VEHICLES}
             tasksForCell={tasksForCell}
+            tasksForVehicleCell={tasksForVehicleCell}
             isToday={isTodayGantt}
             onTaskClick={isAdmin ? handleOpenForm : undefined}
             onTaskDrop={isAdmin ? handleTaskDrop : undefined}

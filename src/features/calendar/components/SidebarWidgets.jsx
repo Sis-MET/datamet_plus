@@ -149,27 +149,27 @@ export function SidebarWidgets({
                   {/* Turnos */}
                   <div className="px-3.5 py-2.5 flex flex-col gap-1.5">
                     {hasMorning && (
-                      <div className="flex items-start gap-2">
-                        <div
-                          className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
-                          style={{ backgroundColor: evt.colorAM || '#10B981' }}
-                        />
-                        <div>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
+                            style={{ backgroundColor: evt.colorAM || '#10B981' }}
+                          />
                           <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Mañana</span>
-                          <p className="text-[11px] text-gray-300 font-medium leading-tight">{evt.morning}</p>
                         </div>
+                        <p className="text-[11px] text-gray-300 font-medium leading-tight pl-3.5">{evt.morning}</p>
                       </div>
                     )}
                     {hasAfternoon && (
-                      <div className="flex items-start gap-2">
-                        <div
-                          className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
-                          style={{ backgroundColor: evt.colorPM || '#F59E0B' }}
-                        />
-                        <div>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
+                            style={{ backgroundColor: evt.colorPM || '#F59E0B' }}
+                          />
                           <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Tarde</span>
-                          <p className="text-[11px] text-gray-300 font-medium leading-tight">{evt.afternoon}</p>
                         </div>
+                        <p className="text-[11px] text-gray-300 font-medium leading-tight pl-3.5">{evt.afternoon}</p>
                       </div>
                     )}
                     {!hasMorning && !hasAfternoon && (

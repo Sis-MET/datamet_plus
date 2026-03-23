@@ -14,7 +14,7 @@ export function Header() {
             />
           </div>
           <div className="text-xs sm:text-sm md:text-base text-gray-300 font-medium text-right">
-            RIM Recepción de Instrumentos de Pesaje
+            NextMET
           </div>
         </div>
       </div>

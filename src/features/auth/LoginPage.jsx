@@ -132,9 +132,9 @@ export function LoginPage({ onLogin }) {
         <div className="login-left">
           <img src={logoMetrica} alt="Metriga Logo" className="login-logo" />
           <div className="login-tagline">
-            <h1 className="login-title">Sistema de<br />Gestión RIM</h1>
+            <h1 className="login-title">NextMET</h1>
             <p className="login-subtitle">
-              Gestión inteligente de instrumentos<br />de medición y calibración.
+              Calendario Metrica y<br />Recepción de Registros de Instrumentos.
             </p>
           </div>
         </div>
@@ -145,7 +145,7 @@ export function LoginPage({ onLogin }) {
             {/* Header de la tarjeta */}
             <div className="login-card-header">
               <div className="login-card-dot" />
-              <span className="login-card-label">Acceso al sistema</span>
+              <span className="login-card-label">Acceso al NextMET</span>
             </div>
 
             <h2 className="login-card-title">
@@ -154,7 +154,7 @@ export function LoginPage({ onLogin }) {
             <p className="login-card-desc">
               {lockUntil 
                 ? 'Por seguridad, hemos pausado los intentos de acceso.'
-                : 'Ingresa tus credenciales para continuar'}
+                : 'Ingresa tus credenciales para continuar, son las mismas del DataMET'}
             </p>
 
             {lockUntil ? (
@@ -276,7 +276,7 @@ export function LoginPage({ onLogin }) {
             )}
 
             <p className="login-footer-text">
-              © {new Date().getFullYear()} Metriga Ltda. — Sistema interno
+              © {new Date().getFullYear()} Metriga Ltda. — NextMET
             </p>
           </div>
         </div>

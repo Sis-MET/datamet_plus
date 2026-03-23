@@ -60,9 +60,9 @@ const getTecnicos = async () => {
 /**
  * Inserta o actualiza un registro en DATA_SCHEDULE_V2 adaptando el payload de Frontend.
  */
-const upsertScheduleCell = async (data) => {
+  const upsertScheduleCell = async (data) => {
   const pool = getPool();
-  const { date, resource, payload } = data; // Payload es estructural JSON ahora
+  const { date, resource, payload } = data;
   
   let m = payload ? payload.morning : null;
   let a = payload ? payload.afternoon : null;
@@ -70,6 +70,8 @@ const upsertScheduleCell = async (data) => {
   let cPM = payload ? payload.colorPM : '#10B981';
   let autor = payload ? payload.autor : 'Sistema';
   let vehiculo_nombre = (payload && payload.vehiculo && payload.vehiculo !== 'Ninguno') ? payload.vehiculo : null;
+  // ETag de concurrencia: timestamp de la última lectura conocida por el cliente
+  let lastModified = payload ? (payload.lastModified || null) : null;
 
   // Buscar en DATA_USERS estricto para el técnico
   let id_usuario = null;
@@ -88,11 +90,18 @@ const upsertScheduleCell = async (data) => {
   }
 
   // Comprobar si ya existe fila para esta fecha y este usuario
+  // Incluimos fecha_modificacion + hora_modificacion para el check de concurrencia
   const checkReq = pool.request()
     .input('fecha', sql.Date, date)
     .input('id_us', sql.Int, id_usuario);
 
-  const existingRes = await checkReq.query(`SELECT id FROM DATA_CRONOGRAMA WHERE fecha = @fecha AND id_usuario = @id_us`);
+  const existingRes = await checkReq.query(`
+    SELECT id,
+      CONVERT(varchar, fecha_modificacion, 23) as fmod,
+      CONVERT(varchar, hora_modificacion, 8) as hmod
+    FROM DATA_CRONOGRAMA
+    WHERE fecha = @fecha AND id_usuario = @id_us
+  `);
 
   // Validación de Choques de Vehículo (Si pide un vehículo que no es propio)
   if (vehiculo_nombre && vehiculo_nombre !== 'Vehículo Propio') {
@@ -112,7 +121,6 @@ const upsertScheduleCell = async (data) => {
   }
 
   if (!payload || Object.keys(payload).length === 0) {
-    // Si el payload es explícitamente null, históricamente era DELETE. Ahora preferimos ignorarlo.
     return { status: 'ignored' };
   }
 
@@ -128,11 +136,11 @@ const upsertScheduleCell = async (data) => {
     .input('autor', sql.VarChar, autor);
 
   if (existingRes.recordset.length === 0) {
-    // Prevenir inserción de filas basura vacías si aprietan "Guardar" o "Limpiar" en celda nueva
+    // Prevenir inserción de filas basura vacías
     if (!m && !a && !vehiculo_nombre) {
          return { status: 'ignored_empty_insert' };
     }
-    // INSERT
+    // INSERT — no hay conflicto de concurrencia en nuevos registros
     await upsertReq.query(`
       INSERT INTO DATA_CRONOGRAMA (id_usuario, usuario, vehiculo, fecha, manana, tarde, color_am, color_pm, creado_por, fecha_creacion, hora_creacion)
       VALUES (@id_us, @usr, @veh, @f, @tm, @tt, @cam, @cpm, @autor,
@@ -141,9 +149,25 @@ const upsertScheduleCell = async (data) => {
       )
     `);
   } else {
-    // UPDATE (Sobreescribirá y mantendrá el registro en blanco para el historial histórico)
-    upsertReq.input('row_id', sql.Int, existingRes.recordset[0].id);
-    await upsertReq.query(`
+    // ── CONTROL DE CONCURRENCIA OPTIMISTA ──
+    // Reconstruir el timestamp tal como lo envía el frontend ("YYYY-MM-DD HH:MM:SS")
+    const row = existingRes.recordset[0];
+    const currentTimestamp = (row.fmod && row.hmod) ? `${row.fmod} ${row.hmod}` : null;
+
+    upsertReq.input('row_id', sql.Int, row.id);
+
+    // Si el cliente envió un lastModified y no coincide con el actual → 409 Conflict
+    if (lastModified !== null && lastModified !== undefined && lastModified !== '') {
+      if (currentTimestamp !== lastModified) {
+        const concurrencyErr = new Error(
+          'Otro usuario ya modificó esta celda. Recarga la página para ver los últimos datos antes de volver a editar.'
+        );
+        concurrencyErr.status = 409;
+        throw concurrencyErr;
+      }
+    }
+
+    const result = await upsertReq.query(`
       UPDATE DATA_CRONOGRAMA
       SET manana = @tm,
           tarde = @tt,
@@ -155,6 +179,13 @@ const upsertScheduleCell = async (data) => {
           hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
       WHERE id = @row_id
     `);
+
+    // Verificación de seguridad adicional: si rowsAffected = 0 algo raro pasó
+    if (result.rowsAffected[0] === 0) {
+      const concurrencyErr = new Error('La celda fue modificada por otro proceso. Recarga la página para sincronizar.');
+      concurrencyErr.status = 409;
+      throw concurrencyErr;
+    }
   }
 
   return { status: 'upserted', resource };

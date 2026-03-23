@@ -13,6 +13,12 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+// Vehículos de la flota — recursos de solo lectura en el Gantt
+export const VEHICLES = [
+  { id: 'Furgón',    nombre: 'Furgón',    tipo: 'vehiculo', area: 'VEHÍCULOS' },
+  { id: 'Camioneta', nombre: 'Camioneta', tipo: 'vehiculo', area: 'VEHÍCULOS' },
+];
+
 export function useGantt() {
   const [weekStart, setWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -96,6 +102,7 @@ export function useGantt() {
             id: `task_${row.id}`,
             rowId: row.id,
             Tecnico: resourceId,
+            vehiculo: row.vehiculo || null,
             fecha: rowDate,
             morning: row.manana || '',
             afternoon: row.tarde || '',
@@ -125,10 +132,20 @@ export function useGantt() {
     fetchData();
   }, [fetchData]);
 
-  // Tareas en un día específico para un técnico específico
-  // Comparación por día exacto y técnico idético
+  // Tareas para la celda de un técnico (por tecnicoId + día)
   const tasksForCell = useCallback((tecnicoId, day) => {
     return tasks.filter(t => t.Tecnico === tecnicoId && isSameDay(t.fecha, day));
+  }, [tasks]);
+
+  // Tareas espejo para la fila de un vehículo: filtra por el campo vehiculo de las tareas
+  const tasksForVehicleCell = useCallback((vehicleId, day) => {
+    return tasks
+      .filter(t => t.vehiculo === vehicleId && isSameDay(t.fecha, day))
+      .map(t => ({
+        ...t,
+        // Sobreescribir Tecnico para que el key no choque
+        Tecnico: vehicleId,
+      }));
   }, [tasks]);
 
   // Ahora upsertScheduleCell recibe un objeto con morning, afternoon y color en vez de un solo texto
@@ -164,6 +181,7 @@ export function useGantt() {
            colorAM: payload.colorAM || '',
            colorPM: payload.colorPM || '',
            vehiculo: payload.vehiculo === 'Ninguno' ? null : payload.vehiculo,
+           lastModified: payload.lastModified || null,
            autor: autorText
         };
     }
@@ -198,12 +216,12 @@ export function useGantt() {
     weekEnd,
     weekDays,
     previewDays,
-    tasks,
     tecnicos,
     loading,
     error,
     useMock,
     tasksForCell,
+    tasksForVehicleCell,
     upsertScheduleCell,
     nextWeek: () => setWeekStart(d => addWeeks(d, 1)),
     prevWeek: () => setWeekStart(d => subWeeks(d, 1)),

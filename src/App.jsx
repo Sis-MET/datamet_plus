@@ -4,6 +4,7 @@ import { Header } from './shared/components/layout/Header';
 import { RimFormPage } from './features/rim/RimFormPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
 import { LoginPage } from './features/auth/LoginPage';
+import { HomePage } from './features/home/HomePage';
 import bgImage from './assets/soporte_tecnico.svg';
 
 function App() {
@@ -19,7 +20,7 @@ function App() {
     }
   });
 
-  const [activeView, setActiveView] = useState('rim');
+  const [activeView, setActiveView] = useState('home');
 
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -41,6 +42,8 @@ function App() {
     switch (activeView) {
       case 'calendar':
         return <CalendarPage />;
+      case 'home':
+        return <HomePage onViewChange={setActiveView} currentUser={currentUser} />;
       case 'rim':
       default:
         return <RimFormPage currentUser={currentUser} />;

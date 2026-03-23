@@ -1,13 +1,7 @@
 import React from 'react';
 import logoMetrica from '../../../assets/logo_metrica.svg';
-import { ClipboardList, CalendarDays, BarChart3, LogOut, User } from 'lucide-react';
+import { LogOut, User, Home } from 'lucide-react';
 import { cn } from '../../utils/cn';
-
-const NAV_ITEMS = [
-  { id: 'rim', label: 'RIM', icon: ClipboardList },
-  { id: 'calendar', label: 'Calendario', icon: CalendarDays },
-  // { id: 'reports', label: 'Reportes', icon: BarChart3 }, // próxima fase
-];
 
 export function Header({ activeView, onViewChange, currentUser, onLogout }) {
   return (
@@ -22,7 +16,11 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
           }}
         >
           {/* Logo */}
-          <div className="flex items-center flex-shrink-0">
+          <div 
+            className="flex items-center flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onViewChange?.('home')}
+            title="Ir al Inicio"
+          >
             <img
               src={logoMetrica}
               alt="Métrica LTDA"
@@ -30,23 +28,17 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
             />
           </div>
 
-          {/* Nav */}
-          <nav className="flex items-center gap-1">
-            {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+          {/* Nav contextual */}
+          <nav className="flex items-center gap-1 justify-center absolute left-1/2 -translate-x-1/2">
+            {activeView !== 'home' && (
               <button
-                key={id}
-                onClick={() => onViewChange?.(id)}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200',
-                  activeView === id
-                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
-                    : 'text-gray-400 hover:text-gray-100 hover:bg-white/8'
-                )}
+                onClick={() => onViewChange?.('home')}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-white/5 text-gray-300 hover:text-white hover:bg-white/10 border border-white/10 transition-all duration-200 shadow-lg"
               >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
+                <Home className="h-4 w-4" />
+                <span className="hidden sm:inline">Volver al Inicio</span>
               </button>
-            ))}
+            )}
           </nav>
 
           {/* Right side: usuario + logout */}

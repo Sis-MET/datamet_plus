@@ -100,15 +100,15 @@ export function LeftFilterSidebar({
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2.5">
             <div className="w-3 h-3 rounded-full bg-yellow-500/70 flex-shrink-0 ring-1 ring-yellow-500/40" />
-            <span className="text-[11px] text-gray-400 font-medium">Domingos (no laborable)</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-3 h-3 rounded-full bg-yellow-500/70 flex-shrink-0 ring-1 ring-yellow-500/40" />
-            <span className="text-[11px] text-gray-400 font-medium">Feriado Nacional (Bolivia)</span>
+            <span className="text-[11px] text-gray-400 font-medium">Domingos y Feriados (no laborable)</span>
           </div>
           <div className="flex items-center gap-2.5">
             <div className="w-3 h-3 rounded-full bg-primary-500/70 flex-shrink-0 ring-1 ring-primary-500/40" />
             <span className="text-[11px] text-gray-400 font-medium">Día de Hoy</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-3 h-3 rounded-full bg-blue-500/70 flex-shrink-0 ring-1 ring-blue-500/40" />
+            <span className="text-[11px] text-gray-400 font-medium">Información Vehículos</span>
           </div>
         </div>
       </div>
