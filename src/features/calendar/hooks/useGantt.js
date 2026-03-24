@@ -78,12 +78,10 @@ export function useGantt() {
       if (scheduleData.success && validTecnicos.length > 0) {
         // Mapear directamente el array normalizado
         const flatTasks = scheduleData.data.map(row => {
-          let resourceId = '';
+          let resourceId = row.id_usuario || row.usuario || '';
           if (row.id_usuario) {
             const tec = validTecnicos.find(t => t.user_id === row.id_usuario);
-            resourceId = tec ? tec.id : '';
-          } else if (row.vehiculo) {
-            resourceId = row.vehiculo;
+            if (tec) resourceId = tec.id;
           }
 
           if (!resourceId) return null;
@@ -102,7 +100,6 @@ export function useGantt() {
             id: `task_${row.id}`,
             rowId: row.id,
             Tecnico: resourceId,
-            vehiculo: row.vehiculo || null,
             fecha: rowDate,
             morning: row.manana || '',
             afternoon: row.tarde || '',
@@ -132,20 +129,9 @@ export function useGantt() {
     fetchData();
   }, [fetchData]);
 
-  // Tareas para la celda de un técnico (por tecnicoId + día)
+  // Tareas para la celda de un técnico o vehículo (por recurso + día)
   const tasksForCell = useCallback((tecnicoId, day) => {
     return tasks.filter(t => t.Tecnico === tecnicoId && isSameDay(t.fecha, day));
-  }, [tasks]);
-
-  // Tareas espejo para la fila de un vehículo: filtra por el campo vehiculo de las tareas
-  const tasksForVehicleCell = useCallback((vehicleId, day) => {
-    return tasks
-      .filter(t => t.vehiculo === vehicleId && isSameDay(t.fecha, day))
-      .map(t => ({
-        ...t,
-        // Sobreescribir Tecnico para que el key no choque
-        Tecnico: vehicleId,
-      }));
   }, [tasks]);
 
   // Ahora upsertScheduleCell recibe un objeto con morning, afternoon y color en vez de un solo texto
@@ -163,8 +149,7 @@ export function useGantt() {
            afternoon: parts[1] ? parts[1].trim() : '',
            colorAM: parts[2] ? parts[2].trim() : '',
            colorPM: parts[3] ? parts[3].trim() : '',
-           autor: parts[4] ? parts[4].trim() : 'Sistema',
-           vehiculo: 'Ninguno'
+           autor: parts[4] ? parts[4].trim() : 'Sistema'
         };
     } else if (payload && typeof payload === 'object') {
         let autorText = 'Sistema';
@@ -180,7 +165,6 @@ export function useGantt() {
            afternoon: payload.afternoon || '',
            colorAM: payload.colorAM || '',
            colorPM: payload.colorPM || '',
-           vehiculo: payload.vehiculo === 'Ninguno' ? null : payload.vehiculo,
            lastModified: payload.lastModified || null,
            autor: autorText
         };
@@ -221,8 +205,8 @@ export function useGantt() {
     error,
     useMock,
     tasksForCell,
-    tasksForVehicleCell,
     upsertScheduleCell,
+    refetch: fetchData,
     nextWeek: () => setWeekStart(d => addWeeks(d, 1)),
     prevWeek: () => setWeekStart(d => subWeeks(d, 1)),
     goToCurrentWeek: () => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 })),

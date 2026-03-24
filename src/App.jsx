@@ -4,7 +4,6 @@ import { Header } from './shared/components/layout/Header';
 import { RimFormPage } from './features/rim/RimFormPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
 import { LoginPage } from './features/auth/LoginPage';
-import { HomePage } from './features/home/HomePage';
 import bgImage from './assets/soporte_tecnico.svg';
 
 function App() {
@@ -20,10 +19,13 @@ function App() {
     }
   });
 
-  const [activeView, setActiveView] = useState('home');
+  const [activeView, setActiveView] = useState(() => {
+    return localStorage.getItem('rimmet_last_view') || 'rim';
+  });
 
-  const handleLogin = (user) => {
+  const handleLogin = (user, selectedView) => {
     setCurrentUser(user);
+    if (selectedView) setActiveView(selectedView);
     setIsAuthenticated(true);
   };
 
@@ -42,8 +44,6 @@ function App() {
     switch (activeView) {
       case 'calendar':
         return <CalendarPage />;
-      case 'home':
-        return <HomePage onViewChange={setActiveView} currentUser={currentUser} />;
       case 'rim':
       default:
         return <RimFormPage currentUser={currentUser} />;

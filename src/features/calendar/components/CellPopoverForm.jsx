@@ -18,16 +18,40 @@ export function CellPopoverForm({
   onSave,
   event,
   prefilledDate,
-  prefilledResource,
-  takenVehicles = []
+  prefilledResource
 }) {
   const [morning, setMorning] = useState('');
   const [afternoon, setAfternoon] = useState('');
   const [colorAM, setColorAM] = useState(''); 
   const [colorPM, setColorPM] = useState(''); 
-  const [vehiculo, setVehiculo] = useState('Ninguno');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeColorPicker, setActiveColorPicker] = useState(null);
+
+  const [recentColors, setRecentColors] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('rimmet_recent_colors');
+        return saved ? JSON.parse(saved) : [];
+      } catch { return []; }
+    }
+    return [];
+  });
+
+  const saveToRecent = (cAM, cPM) => {
+    setRecentColors(prev => {
+      let updated = [...prev];
+      [cAM, cPM].forEach(c => {
+        if (c && !PRESET_COLORS.includes(c)) {
+          updated = updated.filter(prevC => prevC !== c);
+          updated.unshift(c);
+        }
+      });
+      // Sólo guardar hasta 5
+      updated = updated.slice(0, 5);
+      localStorage.setItem('rimmet_recent_colors', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -36,13 +60,11 @@ export function CellPopoverForm({
         setAfternoon(event.afternoon || '');
         setColorAM(event.colorAM || event.color || '');
         setColorPM(event.colorPM || event.color || '');
-        setVehiculo(event.vehiculo || 'Ninguno');
       } else {
         setMorning('');
         setAfternoon('');
         setColorAM('');
         setColorPM('');
-        setVehiculo('Ninguno');
       }
       setActiveColorPicker(null);
     }
@@ -59,12 +81,12 @@ export function CellPopoverForm({
 
     setIsSubmitting(true);
     try {
+      saveToRecent(colorAM, colorPM);
       await onSave(prefilledDate, prefilledResource, {
         morning: morning.trim().toUpperCase(),
         afternoon: afternoon.trim().toUpperCase(),
         colorAM,
         colorPM,
-        vehiculo,
         lastModified: event ? (event.timestampUpdated || null) : null,
       });
       // Sileo success is handled by the parent
@@ -79,7 +101,7 @@ export function CellPopoverForm({
     setIsSubmitting(true);
     try {
       // Para limpiar la celda, mandamos campos vacíos
-      await onSave(prefilledDate, prefilledResource, { morning: '', afternoon: '', colorAM: '', colorPM: '', vehiculo: 'Ninguno' });
+      await onSave(prefilledDate, prefilledResource, { morning: '', afternoon: '', colorAM: '', colorPM: '' });
     } finally {
       setIsSubmitting(false);
     }
@@ -110,27 +132,8 @@ export function CellPopoverForm({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
-          {/* Selector de Vehículo */}
-          <div className="space-y-3">
-             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Asignación de Vehículo</label>
-             <select
-               value={vehiculo}
-               onChange={(e) => setVehiculo(e.target.value)}
-               className="w-full bg-[#111111] border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-100 focus:outline-none focus:border-primary-500/50 shadow-inner appearance-none relative"
-             >
-               <option value="Ninguno">Ninguno</option>
-               <option value="Furgón" disabled={takenVehicles.includes('Furgón')}>
-                 {takenVehicles.includes('Furgón') ? 'Furgón (No Disponible)' : 'Furgón'}
-               </option>
-               <option value="Camioneta" disabled={takenVehicles.includes('Camioneta')}>
-                 {takenVehicles.includes('Camioneta') ? 'Camioneta (No Disponible)' : 'Camioneta'}
-               </option>
-               <option value="Vehículo Propio">Vehículo Propio</option>
-             </select>
-          </div>
-
           {/* Turno Mañana */}
-          <div className="space-y-4 pt-2 border-t border-white/5">
+          <div className="space-y-4 pt-2">
             <div className="flex items-center gap-3">
                <div className="flex-1">
                  <div className="flex items-center justify-between mb-2">
@@ -157,6 +160,13 @@ export function CellPopoverForm({
                     </div>
                  </div>
                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={morning}
+                      onChange={(e) => setMorning(e.target.value.toUpperCase())}
+                      placeholder="EJ: EMBOL - LA PAZ"
+                      className="flex-1 min-w-0 bg-[#111111] border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-700 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner"
+                    />
                     {/* Botón para abrir Color Picker */}
                     <div className="relative">
                        <button
@@ -172,31 +182,43 @@ export function CellPopoverForm({
 
                        {/* Popover Custom Color Picker AM */}
                        {activeColorPicker === 'am' && (
-                         <div className="absolute top-14 left-0 z-50 p-3 bg-[#1e1e24] border border-gray-700/50 rounded-2xl shadow-2xl animate-fade-in w-56">
+                         <div className="absolute top-14 right-0 z-50 p-3 bg-[#1e1e24] border border-gray-700/50 rounded-2xl shadow-2xl animate-fade-in w-56">
                             <div className="flex justify-between items-center mb-2">
                                <span className="text-xs font-semibold text-gray-300">Color AM</span>
                                <button type="button" onClick={() => setActiveColorPicker(null)} className="text-gray-500 hover:text-white"><X size={14}/></button>
                             </div>
                             <HexColorPicker color={colorAM || PRESET_COLORS[1]} onChange={setColorAM} style={{ width: '100%', height: '120px' }} />
-                            <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
-                               {PRESET_COLORS.map(c => (
-                                 <button
-                                   key={c} type="button" onClick={() => setColorAM(c)}
-                                   className="w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm"
-                                   style={{ backgroundColor: c }}
-                                 />
-                               ))}
+                            
+                            <div className="mt-3">
+                              <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest px-1 block mb-1.5">Predefinidos</span>
+                              <div className="flex flex-wrap gap-1.5 justify-center">
+                                 {PRESET_COLORS.map(c => (
+                                   <button
+                                     key={c} type="button" onClick={() => setColorAM(c)}
+                                     className="w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ring-white/10"
+                                     style={{ backgroundColor: c }}
+                                   />
+                                 ))}
+                              </div>
                             </div>
+                            
+                            {recentColors.length > 0 && (
+                              <div className="mt-3 border-t border-gray-700/50 pt-2">
+                                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest px-1 block mb-1.5">Recientes</span>
+                                <div className="flex flex-wrap gap-1.5 justify-center">
+                                   {recentColors.map((c, i) => (
+                                     <button
+                                       key={`am-recent-${c}-${i}`} type="button" onClick={() => setColorAM(c)}
+                                       className="w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ring-white/10"
+                                       style={{ backgroundColor: c }}
+                                     />
+                                   ))}
+                                </div>
+                              </div>
+                            )}
                          </div>
                        )}
                     </div>
-                    <input
-                      type="text"
-                      value={morning}
-                      onChange={(e) => setMorning(e.target.value.toUpperCase())}
-                      placeholder="EJ: EMBOL - LA PAZ"
-                      className="flex-1 min-w-0 bg-[#111111] border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-700 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner"
-                    />
                  </div>
                </div>
             </div>
@@ -219,6 +241,13 @@ export function CellPopoverForm({
                     </button>
                  </div>
                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={afternoon}
+                      onChange={(e) => setAfternoon(e.target.value.toUpperCase())}
+                      placeholder="EJ: EMBOL - EL ALTO"
+                      className="flex-1 min-w-0 bg-[#111111] border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-700 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner"
+                    />
                     {/* Botón para abrir Color Picker */}
                     <div className="relative">
                        <button
@@ -234,31 +263,43 @@ export function CellPopoverForm({
 
                        {/* Popover Custom Color Picker PM */}
                        {activeColorPicker === 'pm' && (
-                         <div className="absolute top-14 left-0 z-50 p-3 bg-[#1e1e24] border border-gray-700/50 rounded-2xl shadow-2xl animate-fade-in w-56">
+                         <div className="absolute top-14 right-0 z-50 p-3 bg-[#1e1e24] border border-gray-700/50 rounded-2xl shadow-2xl animate-fade-in w-56">
                             <div className="flex justify-between items-center mb-2">
                                <span className="text-xs font-semibold text-gray-300">Color PM</span>
                                <button type="button" onClick={() => setActiveColorPicker(null)} className="text-gray-500 hover:text-white"><X size={14}/></button>
                             </div>
                             <HexColorPicker color={colorPM || PRESET_COLORS[1]} onChange={setColorPM} style={{ width: '100%', height: '120px' }} />
-                            <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
-                               {PRESET_COLORS.map(c => (
-                                 <button
-                                   key={c} type="button" onClick={() => setColorPM(c)}
-                                   className="w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm"
-                                   style={{ backgroundColor: c }}
-                                 />
-                               ))}
+                            
+                            <div className="mt-3">
+                              <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest px-1 block mb-1.5">Predefinidos</span>
+                              <div className="flex flex-wrap gap-1.5 justify-center">
+                                 {PRESET_COLORS.map(c => (
+                                   <button
+                                     key={c} type="button" onClick={() => setColorPM(c)}
+                                     className="w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ring-white/10"
+                                     style={{ backgroundColor: c }}
+                                   />
+                                 ))}
+                              </div>
                             </div>
+
+                            {recentColors.length > 0 && (
+                              <div className="mt-3 border-t border-gray-700/50 pt-2">
+                                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest px-1 block mb-1.5">Recientes</span>
+                                <div className="flex flex-wrap gap-1.5 justify-center">
+                                   {recentColors.map((c, i) => (
+                                     <button
+                                       key={`pm-recent-${c}-${i}`} type="button" onClick={() => setColorPM(c)}
+                                       className="w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ring-white/10"
+                                       style={{ backgroundColor: c }}
+                                     />
+                                   ))}
+                                </div>
+                              </div>
+                            )}
                          </div>
                        )}
                     </div>
-                    <input
-                      type="text"
-                      value={afternoon}
-                      onChange={(e) => setAfternoon(e.target.value.toUpperCase())}
-                      placeholder="EJ: EMBOL - EL ALTO"
-                      className="flex-1 min-w-0 bg-[#111111] border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-700 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner"
-                    />
                  </div>
                </div>
             </div>

@@ -221,10 +221,9 @@ export function GanttTaskCell({
               </div>
            </div>
            
-           {(primaryTask.author || primaryTask.timestampUpdated || (primaryTask.vehiculo && primaryTask.vehiculo !== 'Ninguno')) && (
+           {(primaryTask.author || primaryTask.timestampUpdated) && (
              <div className="mt-4 pt-3 border-t border-white/10">
                <p className="text-[9px] text-gray-500 font-mono tracking-wide leading-tight">
-                 {primaryTask.vehiculo && primaryTask.vehiculo !== 'Ninguno' && <span className="flex items-center gap-1.5 mb-1.5"><Truck className="w-3 h-3 text-emerald-400" /> Vehículo asig.: <span className="text-gray-300 font-medium">{primaryTask.vehiculo}</span></span>}
                  {primaryTask.author && <span>Actualizado por: <span className="text-gray-300 font-medium">{primaryTask.author}</span><br/></span>}
                  {primaryTask.timestampUpdated && <span>El {primaryTask.timestampUpdated}</span>}
                </p>

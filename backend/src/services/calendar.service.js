@@ -15,7 +15,6 @@ const getSchedule = async (start, end) => {
         id,
         id_usuario,
         usuario,
-        vehiculo,
         CONVERT(varchar, fecha, 23) as fecha,
         manana,
         tarde,
@@ -69,11 +68,8 @@ const getTecnicos = async () => {
   let cAM = payload ? payload.colorAM : '#10B981';
   let cPM = payload ? payload.colorPM : '#10B981';
   let autor = payload ? payload.autor : 'Sistema';
-  let vehiculo_nombre = (payload && payload.vehiculo && payload.vehiculo !== 'Ninguno') ? payload.vehiculo : null;
-  // ETag de concurrencia: timestamp de la última lectura conocida por el cliente
   let lastModified = payload ? (payload.lastModified || null) : null;
 
-  // Buscar en DATA_USERS estricto para el técnico
   let id_usuario = null;
   let usuario_nombre = null;
 
@@ -84,41 +80,31 @@ const getTecnicos = async () => {
       FROM DATA_USERS 
       WHERE REPLACE(TRIM(ISNULL(nombre1, 'SIN_NOMBRE')), ' ', '_') + '_' + REPLACE(TRIM(ISNULL(apellido1, 'SIN_APELLIDO')), ' ', '_') = @res
     `);
+
   if (userMatch.recordset.length > 0) {
       id_usuario = userMatch.recordset[0].id;
       usuario_nombre = userMatch.recordset[0].fullname;
+  } else {
+      usuario_nombre = resource;
   }
 
   // Comprobar si ya existe fila para esta fecha y este usuario
   // Incluimos fecha_modificacion + hora_modificacion para el check de concurrencia
   const checkReq = pool.request()
     .input('fecha', sql.Date, date)
-    .input('id_us', sql.Int, id_usuario);
+    .input('id_us', sql.Int, id_usuario)
+    .input('usr', sql.VarChar, usuario_nombre);
 
   const existingRes = await checkReq.query(`
     SELECT id,
       CONVERT(varchar, fecha_modificacion, 23) as fmod,
       CONVERT(varchar, hora_modificacion, 8) as hmod
     FROM DATA_CRONOGRAMA
-    WHERE fecha = @fecha AND id_usuario = @id_us
+    WHERE fecha = @fecha AND (
+      (id_usuario IS NOT NULL AND id_usuario = @id_us) OR 
+      (id_usuario IS NULL AND usuario = @usr)
+    )
   `);
-
-  // Validación de Choques de Vehículo (Si pide un vehículo que no es propio)
-  if (vehiculo_nombre && vehiculo_nombre !== 'Vehículo Propio') {
-    const conflictReq = pool.request()
-        .input('veh', sql.VarChar, vehiculo_nombre)
-        .input('f', sql.Date, date);
-        
-    let conflictQuery = `SELECT usuario FROM DATA_CRONOGRAMA WHERE vehiculo = @veh AND fecha = @f`;
-    if (existingRes.recordset.length > 0) {
-        conflictReq.input('self_id', sql.Int, existingRes.recordset[0].id);
-        conflictQuery += ` AND id != @self_id`;
-    }
-    const conflict = await conflictReq.query(conflictQuery);
-    if (conflict.recordset.length > 0) {
-        throw new Error(`El vehículo ${vehiculo_nombre} ya está reservado por ${conflict.recordset[0].usuario || 'otro técnico'} para este día.`);
-    }
-  }
 
   if (!payload || Object.keys(payload).length === 0) {
     return { status: 'ignored' };
@@ -127,7 +113,6 @@ const getTecnicos = async () => {
   const upsertReq = pool.request()
     .input('id_us', sql.Int, id_usuario)
     .input('usr', sql.VarChar, usuario_nombre)
-    .input('veh', sql.VarChar, vehiculo_nombre)
     .input('f', sql.Date, date)
     .input('tm', sql.NVarChar, m)
     .input('tt', sql.NVarChar, a)
@@ -137,13 +122,13 @@ const getTecnicos = async () => {
 
   if (existingRes.recordset.length === 0) {
     // Prevenir inserción de filas basura vacías
-    if (!m && !a && !vehiculo_nombre) {
+    if (!m && !a) {
          return { status: 'ignored_empty_insert' };
     }
     // INSERT — no hay conflicto de concurrencia en nuevos registros
     await upsertReq.query(`
-      INSERT INTO DATA_CRONOGRAMA (id_usuario, usuario, vehiculo, fecha, manana, tarde, color_am, color_pm, creado_por, fecha_creacion, hora_creacion)
-      VALUES (@id_us, @usr, @veh, @f, @tm, @tt, @cam, @cpm, @autor,
+      INSERT INTO DATA_CRONOGRAMA (id_usuario, usuario, fecha, manana, tarde, color_am, color_pm, creado_por, fecha_creacion, hora_creacion)
+      VALUES (@id_us, @usr, @f, @tm, @tt, @cam, @cpm, @autor,
         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
       )
@@ -173,7 +158,6 @@ const getTecnicos = async () => {
           tarde = @tt,
           color_am = @cam,
           color_pm = @cpm,
-          vehiculo = @veh,
           actualizado_por = @autor,
           fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
           hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)

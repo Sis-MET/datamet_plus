@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-  ChevronLeft, ChevronRight, CalendarDays, LayoutList, Loader2, DatabaseZap,
+  ChevronLeft, ChevronRight, CalendarDays, LayoutList, Loader2, DatabaseZap, RefreshCw,
 } from 'lucide-react';
 import { sileo } from 'sileo';
 
 import { useCalendar } from './hooks/useCalendar';
-import { useGantt, VEHICLES } from './hooks/useGantt';
+import { useGantt } from './hooks/useGantt';
 import { SidebarWidgets } from './components/SidebarWidgets';
 import { LeftFilterSidebar } from './components/LeftFilterSidebar';
 import { CellPopoverForm } from './components/CellPopoverForm';
@@ -49,7 +49,7 @@ export function CalendarPage() {
     goToCurrentWeek,
     goToDate,
     isToday: isTodayGantt,
-    tasksForVehicleCell,
+    refetch,
   } = useGantt();
 
   // Filtrado de Técnicos Reactivo por Área
@@ -85,20 +85,6 @@ export function CalendarPage() {
 
   const weekRangeLabel = `${format(weekStart, "d 'de' MMMM", { locale: es })} – ${format(weekEnd, "d 'de' MMMM yyyy", { locale: es })}`;
   const weekRangeCapitalized = weekRangeLabel.charAt(0).toUpperCase() + weekRangeLabel.slice(1);
-
-  // Computar qué vehículos están ocupados para este día en específico
-  const takenVehicles = React.useMemo(() => {
-    if (!prefilledDate || !tasks) return [];
-    return tasks
-      .filter(t => 
-        t.fecha.getTime() === prefilledDate.getTime() && 
-        t.vehiculo && 
-        t.vehiculo !== 'Ninguno' && 
-        t.vehiculo !== 'Vehículo Propio' &&
-        t.Tecnico !== prefilledResource // No bloquea si el técnico actual ya lo tiene asignado
-      )
-      .map(t => t.vehiculo);
-  }, [tasks, prefilledDate, prefilledResource]);
 
   const handleOpenForm = (evt = null, date = new Date(), resourceId = '') => {
     setEditingEvent(evt);
@@ -149,7 +135,6 @@ export function CalendarPage() {
           afternoon: sourceTask.afternoon,
           colorAM: sourceTask.colorAM,
           colorPM: sourceTask.colorPM,
-          vehiculo: sourceTask.vehiculo || 'Ninguno',
         });
         sileo.success({ description: "Actividad copiada correctamente." });
       } catch (err) {
@@ -216,30 +201,46 @@ export function CalendarPage() {
           <div className="flex items-center gap-3">
             <CalendarDays className="h-6 w-6 text-primary-400 shrink-0" />
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-gray-100">Calendario Metrica</h1>
-                {/* Botones de semana inline con el título */}
-                <div className="flex items-center gap-1 ml-1">
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-gray-100 leading-none pb-0.5">Calendario Metrica</h1>
+                {/* Botones de semana inline con el título y efecto glass */}
+                <div className="flex items-center gap-2 ml-2">
                   <button
                     onClick={goToCurrentWeek}
-                    className="px-2.5 py-1 text-[11px] font-medium text-gray-400 hover:text-gray-100 hover:bg-white/8 rounded-lg transition-all border border-gray-700/50"
+                    className="group relative px-3 py-1.5 text-[11px] font-medium text-gray-300 hover:text-white rounded-xl backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 hover:bg-white/10 transition-colors overflow-hidden"
                   >
-                    Hoy
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    <span className="relative z-10">Hoy</span>
                   </button>
-                  <div className="flex rounded-lg overflow-hidden border border-gray-700/50">
+                  
+                  <div className="flex rounded-xl overflow-hidden backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 transition-colors group relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                     <button
                       onClick={prevWeek}
-                      className="p-1.5 text-gray-400 hover:text-gray-100 hover:bg-white/8 transition-all border-r border-gray-700/50"
+                      className="relative z-10 p-1.5 text-gray-300 hover:text-white hover:bg-white/10 transition-colors border-r border-white/10"
                     >
-                      <ChevronLeft className="h-3.5 w-3.5" />
+                      <ChevronLeft className="h-4 w-4" />
                     </button>
                     <button
                       onClick={nextWeek}
-                      className="p-1.5 text-gray-400 hover:text-gray-100 hover:bg-white/8 transition-all"
+                      className="relative z-10 p-1.5 text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
                     >
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
+
+                  <button
+                    onClick={() => {
+                       refetch();
+                       sileo.success({ description: "Cronograma actualizado", duration: 1500 });
+                    }}
+                    disabled={loading}
+                    className="group relative p-1.5 ml-1 text-gray-300 hover:text-white rounded-xl backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 hover:bg-white/10 transition-colors overflow-hidden disabled:opacity-50"
+                    title="Recargar datos"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    <RefreshCw className={`relative z-10 h-4 w-4 ${loading ? 'animate-spin text-primary-400' : ''}`} />
+                  </button>
                 </div>
               </div>
               <p className="text-sm text-gray-400 mt-0.5">
@@ -277,9 +278,7 @@ export function CalendarPage() {
             weekDays={weekDays}
             previewDays={previewDays}
             tecnicos={filteredTecnicos}
-            vehiculos={VEHICLES}
             tasksForCell={tasksForCell}
-            tasksForVehicleCell={tasksForVehicleCell}
             isToday={isTodayGantt}
             onTaskClick={isAdmin ? handleOpenForm : undefined}
             onTaskDrop={isAdmin ? handleTaskDrop : undefined}
@@ -314,7 +313,6 @@ export function CalendarPage() {
         event={editingEvent}
         prefilledDate={prefilledDate}
         prefilledResource={prefilledResource}
-        takenVehicles={takenVehicles}
       />
     </main>
   );

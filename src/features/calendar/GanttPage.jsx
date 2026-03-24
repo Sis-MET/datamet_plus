@@ -3,6 +3,7 @@ import { Truck } from 'lucide-react';
 import { GanttHeader } from './components/GanttHeader';
 import { GanttRow } from './components/GanttRow';
 import { GanttLegend } from './components/GanttLegend';
+import { VEHICLES } from './hooks/useGantt';
 
 /**
  * Componente presentacional puro: solo renderiza la grilla y la leyenda.
@@ -12,9 +13,7 @@ export function GanttPage({
   weekDays,
   previewDays = [],
   tecnicos,
-  vehiculos = [],
   tasksForCell,
-  tasksForVehicleCell,
   isToday,
   onTaskClick,
   onTaskDrop
@@ -37,35 +36,6 @@ export function GanttPage({
       <div className="gantt-scroll-container">
         <div className="gantt-grid">
           <GanttHeader weekDays={weekDays} previewDays={previewDays} isToday={isToday} />
-
-          {/* ══ Sección VEHÍCULOS ══ */}
-          {vehiculos.length > 0 && (
-            <React.Fragment>
-              <div
-                className="flex items-center gap-3 px-4 py-1.5 border-b border-blue-500/20 bg-blue-950/30"
-                style={{ gridColumn: '1 / -1' }}
-              >
-                <Truck className="w-3.5 h-3.5 text-blue-400/70" />
-                <span className="text-[9px] font-black uppercase tracking-[0.15em] text-blue-400/70">Vehículos</span>
-                <div className="flex-1 h-[1px] bg-gradient-to-r from-blue-500/20 to-transparent" />
-                <span className="text-[9px] text-blue-400/40 font-bold">{vehiculos.length}</span>
-              </div>
-
-              {vehiculos.map((vehiculo) => (
-                <GanttRow
-                  key={vehiculo.id}
-                  tecnico={vehiculo}
-                  weekDays={weekDays}
-                  previewDays={previewDays}
-                  tasksForCell={(id, day) => tasksForVehicleCell ? tasksForVehicleCell(id, day) : []}
-                  isToday={isToday}
-                  onTaskClick={null}
-                  onTaskDrop={null}
-                  readOnly
-                />
-              ))}
-            </React.Fragment>
-          )}
 
           {/* ══ Técnicos agrupados por Área ══ */}
           {grupos.map(([area, tecnicosDelArea]) => (
@@ -95,6 +65,34 @@ export function GanttPage({
               ))}
             </React.Fragment>
           ))}
+
+          {/* ══ Sección VEHÍCULOS (Al final) ══ */}
+          {VEHICLES.length > 0 && (
+            <React.Fragment>
+              <div
+                className="flex items-center gap-3 px-4 py-1.5 border-b border-blue-500/20 bg-blue-950/30"
+                style={{ gridColumn: '1 / -1' }}
+              >
+                <Truck className="w-3.5 h-3.5 text-blue-400/70" />
+                <span className="text-[9px] font-black uppercase tracking-[0.15em] text-blue-400/70">Vehículos</span>
+                <div className="flex-1 h-[1px] bg-gradient-to-r from-blue-500/20 to-transparent" />
+                <span className="text-[9px] text-blue-400/40 font-bold">{VEHICLES.length}</span>
+              </div>
+
+              {VEHICLES.map((vehiculo) => (
+                <GanttRow
+                  key={vehiculo.id}
+                  tecnico={vehiculo}
+                  weekDays={weekDays}
+                  previewDays={previewDays}
+                  tasksForCell={tasksForCell}
+                  isToday={isToday}
+                  onTaskClick={onTaskClick}
+                  onTaskDrop={onTaskDrop}
+                />
+              ))}
+            </React.Fragment>
+          )}
         </div>
       </div>
 

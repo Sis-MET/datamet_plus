@@ -47,7 +47,6 @@ export function SidebarWidgets({
         afternoon: evt.afternoon || '',
         colorAM: evt.colorAM || '',
         colorPM: evt.colorPM || '',
-        vehiculo: evt.vehiculo || 'Ninguno',
       };
     } else {
       // Si ya existe, completar datos que falten
@@ -55,9 +54,6 @@ export function SidebarWidgets({
       if (!tecnicoMap[key].afternoon && evt.afternoon) tecnicoMap[key].afternoon = evt.afternoon;
       if (!tecnicoMap[key].colorAM && evt.colorAM) tecnicoMap[key].colorAM = evt.colorAM;
       if (!tecnicoMap[key].colorPM && evt.colorPM) tecnicoMap[key].colorPM = evt.colorPM;
-      if ((!tecnicoMap[key].vehiculo || tecnicoMap[key].vehiculo === 'Ninguno') && evt.vehiculo) {
-        tecnicoMap[key].vehiculo = evt.vehiculo;
-      }
     }
   });
   const tecnicosDelDia = Object.values(tecnicoMap);
@@ -126,7 +122,6 @@ export function SidebarWidgets({
             {tecnicosDelDia.map((evt, idx) => {
               const hasMorning = evt.morning && evt.morning.trim() !== '';
               const hasAfternoon = evt.afternoon && evt.afternoon.trim() !== '';
-              const hasVehicle = evt.vehiculo && evt.vehiculo !== 'Ninguno' && evt.vehiculo !== 'Vehículo Propio';
 
               return (
                 <div
@@ -138,12 +133,6 @@ export function SidebarWidgets({
                     <span className="text-[12px] font-bold text-gray-200 capitalize">
                       {evt.client?.replace(/_/g, ' ')}
                     </span>
-                    {hasVehicle && (
-                      <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 rounded-full px-2 py-0.5">
-                        <Truck className="w-3 h-3 text-yellow-400" />
-                        <span className="text-[9px] font-bold text-yellow-400 uppercase tracking-wider">{evt.vehiculo}</span>
-                      </div>
-                    )}
                   </div>
 
                   {/* Turnos */}
