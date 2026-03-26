@@ -15,6 +15,11 @@ Antes de copiar el código, debes asegurarte de que el servidor tenga instaladas
    node -v
    npm -v
    ```
+   > **Nota:** Si usas PowerShell y al ejecutar `npm` recibes un error indicando que "la ejecución de scripts está deshabilitada", abre PowerShell como Administrador y ejecuta este comando de una sola vez:
+   > ```powershell
+   > Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+   > ```
+   > Luego, acepta con `S` o `Y` y vuelve a intentarlo.
 
 ### B. Instalar y Configurar la Base de Datos (SQL Server)
 *(Si la base de datos no estará en el mismo servidor, puedes saltar este punto. Ignora Docker completamente).*

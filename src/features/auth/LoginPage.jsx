@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './login.css';
 import logoMetrica from '../../assets/logo_metrica.svg';
 import soporteSvg from '../../assets/soporte_tecnico.svg';
-import { ClipboardList, CalendarDays, ArrowRight } from 'lucide-react';
 
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3000/api';
 const MAX_ATTEMPTS = 3;
 const LOCK_TIME_MS = 60 * 1000;
 
@@ -14,8 +13,6 @@ export function LoginPage({ onLogin }) {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
-  const [step, setStep]         = useState(1);
-  const [authData, setAuthData] = useState(null);
 
   // Estados para bloqueo
   const [attempts, setAttempts] = useState(() => {
@@ -110,22 +107,16 @@ export function LoginPage({ onLogin }) {
       localStorage.removeItem('rimmet_login_attempts');
       localStorage.removeItem('rimmet_login_lock_until');
       
-      // Pasar a step 2
-      setAuthData(data.data);
-      setStep(2);
+      // Pasar a calendar directamente
+      localStorage.setItem('rimmet_token', data.data.token);
+      localStorage.setItem('rimmet_user', JSON.stringify(data.data.user));
+      localStorage.setItem('rimmet_last_view', 'calendar');
+      onLogin(data.data.user, 'calendar');
     } catch {
       setError('No se pudo conectar al servidor. Intente nuevamente.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSelectModule = (moduleName) => {
-    if (!authData) return;
-    localStorage.setItem('rimmet_token', authData.token);
-    localStorage.setItem('rimmet_user', JSON.stringify(authData.user));
-    localStorage.setItem('rimmet_last_view', moduleName);
-    onLogin(authData.user, moduleName);
   };
 
   return (
@@ -158,24 +149,20 @@ export function LoginPage({ onLogin }) {
             <div className="login-card-header">
               <div className="login-card-dot" />
               <span className="login-card-label">
-                {step === 1 ? 'Acceso a NextMET' : 'Selección de Módulo'}
+                Acceso a NextMET
               </span>
             </div>
 
             <h2 className="login-card-title">
-              {step === 1 
-                ? (lockUntil ? 'Acceso Bloqueado' : 'Iniciar Sesión')
-                : `¡Hola, ${authData?.user?.usuario?.split(' ')[0] || 'Usuario'}!`
-              }
+              {lockUntil ? 'Acceso Bloqueado' : 'Iniciar Sesión'}
             </h2>
             <p className="login-card-desc">
-              {step === 1
-                ? (lockUntil ? 'Por seguridad, hemos pausado los intentos de acceso.' : 'Ingresa tus credenciales para continuar, son las mismas del DataMET')
-                : '¿A qué apartado deseas ingresar hoy?'
-              }
+              {lockUntil 
+                ? 'Por seguridad, hemos pausado los intentos de acceso.' 
+                : 'Ingresa tus credenciales para continuar, son las mismas del DataMET'}
             </p>
 
-            {step === 1 ? (
+            {
               lockUntil ? (
               <div className="login-locked-state">
                 <div className="login-lock-icon">
@@ -292,53 +279,6 @@ export function LoginPage({ onLogin }) {
                   )}
                 </button>
               </form>
-              )
-            ) : (
-               <div className="flex flex-col gap-3 mt-6">
-                {/* RIM Card */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectModule('rim')}
-                  className="group relative flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:border-primary-500/50 hover:bg-white/10 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden text-left shadow-lg hover:shadow-primary-500/10"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                  
-                  <div className="flex items-center gap-4 relative z-10 w-full">
-                    <div className="p-3 bg-primary-500/20 rounded-xl text-primary-400 group-hover:scale-110 group-hover:bg-primary-500 group-hover:text-white transition-all duration-300 shrink-0">
-                      <ClipboardList className="w-6 h-6" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-white mb-0.5 group-hover:text-primary-300 transition-colors">Formulario RIM</h3>
-                      <p className="text-[11px] text-gray-400 leading-snug pr-2">Recepción de Registros de Instrumentos Métrica.</p>
-                    </div>
-                    <div className="p-1.5 rounded-full bg-white/5 text-gray-400 group-hover:text-white group-hover:bg-primary-500 group-hover:translate-x-1 transition-all duration-300 shrink-0">
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                </button>
-
-                {/* Calendar Card */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectModule('calendar')}
-                  className="group relative flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:border-green-500/50 hover:bg-white/10 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden text-left shadow-lg hover:shadow-green-500/10"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                  
-                  <div className="flex items-center gap-4 relative z-10 w-full">
-                     <div className="p-3 bg-green-500/20 rounded-xl text-green-400 group-hover:scale-110 group-hover:bg-green-500 group-hover:text-white transition-all duration-300 shrink-0">
-                      <CalendarDays className="w-6 h-6" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-white mb-0.5 group-hover:text-green-300 transition-colors">Calendario Métrica</h3>
-                      <p className="text-[11px] text-gray-400 leading-snug pr-2">Planificación y seguimiento de actividades.</p>
-                    </div>
-                    <div className="p-1.5 rounded-full bg-white/5 text-gray-400 group-hover:text-white group-hover:bg-green-500 group-hover:translate-x-1 transition-all duration-300 shrink-0">
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                </button>
-               </div>
             )}
 
             <p className="login-footer-text mt-8">
