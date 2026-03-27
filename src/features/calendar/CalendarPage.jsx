@@ -8,10 +8,10 @@ import { sileo } from 'sileo';
 
 import { useCalendar } from './hooks/useCalendar';
 import { useGantt } from './hooks/useGantt';
-import { SidebarWidgets } from './components/SidebarWidgets';
 import { LeftFilterSidebar } from './components/LeftFilterSidebar';
 import { CellPopoverForm } from './components/CellPopoverForm';
 import { GanttPage } from './GanttPage';
+import { safeStorage } from '../../shared/utils/storage';
 
 function parseJwt(token) {
   try { return JSON.parse(atob(token.split('.')[1])); }
@@ -28,9 +28,9 @@ export function CalendarPage() {
   const [prefilledResource, setPrefilledResource] = useState('');
 
   // Determinar permisos del usuario
-  const token = localStorage.getItem('rimmet_token');
+  const token = safeStorage.getItem('rimmet_token');
   const user = token ? parseJwt(token) : null;
-  const isAdmin = user?.acceso === 'SAdministrador';
+  const isAdmin = user?.acceso?.trim() === 'SAdministrador';
 
   // ── Hook vista Gantt ── (Lo cargamos primero para tener las Tasks)
   const {
@@ -164,22 +164,26 @@ export function CalendarPage() {
               Vas a copiar esta actividad a <strong className="font-semibold text-gray-800">{targetName}</strong>. ¿Estás seguro?
             </span>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={handleConfirm}
                 onPointerDown={(e) => e.stopPropagation()}
-                className="flex-1 py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleConfirm(e); }}
+                className="flex-1 py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
               >
                 Sí, Copiar
-              </button>
-              <button
-                type="button"
+              </div>
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={handleCancel}
                 onPointerDown={(e) => e.stopPropagation()}
-                className="flex-1 py-1.5 px-4 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCancel(e); }}
+                className="flex-1 py-1.5 px-4 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
               >
                 Cancelar
-              </button>
+              </div>
             </div>
           </div>
         )
@@ -265,44 +269,40 @@ export function CalendarPage() {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* ══ Panel Lateral Izq (Filtros Organizacionales) ══ */}
-        <LeftFilterSidebar 
-          tecnicos={tecnicos}
-          selectedArea={selectedArea}
-          onSelectArea={setSelectedArea}
-        />
+        {/* ══ Panel Lateral Izq — mini-cal + detalle + filtros + leyenda ══ */}
+        <div className="order-2 lg:order-1 w-full lg:w-auto">
+          <LeftFilterSidebar
+            tecnicos={tecnicos}
+            selectedArea={selectedArea}
+            onSelectArea={setSelectedArea}
+            currentDate={currentDate}
+            selectedDay={selectedDay}
+            calendarDays={calendarDays}
+            onSelectDay={(date) => { selectDay(date); goToDate(date); }}
+            eventsForDay={eventsForDay}
+            isSameMonth={isSameMonth}
+            isSameDay={isSameDay}
+            isToday={isToday}
+            prevMonth={prevMonth}
+            nextMonth={nextMonth}
+            selectedDayEvents={selectedDayEvents}
+          />
+        </div>
 
         {/* ══ Cronograma semanal (Gantt Principal) ══ */}
-        <div className="flex-1 min-w-0 w-full overflow-hidden">
+        <div className="order-1 lg:order-2 flex-1 min-w-0 w-full overflow-x-auto">
           <GanttPage
             weekDays={weekDays}
-            previewDays={previewDays}
+            previewDays={[]}
             tecnicos={filteredTecnicos}
             tasksForCell={tasksForCell}
             isToday={isTodayGantt}
             onTaskClick={isAdmin ? handleOpenForm : undefined}
             onTaskDrop={isAdmin ? handleTaskDrop : undefined}
+            currentWeekStart={weekStart}
+            currentWeekEnd={weekEnd}
           />
         </div>
-
-        {/* ══ Panel Lateral (Sidebar Widgets) ══ */}
-        <SidebarWidgets
-          currentDate={currentDate}
-          selectedDay={selectedDay}
-          calendarDays={calendarDays}
-          onSelectDay={(date) => {
-            selectDay(date);
-            goToDate(date);
-          }}
-          eventsForDay={eventsForDay}
-          isSameMonth={isSameMonth}
-          isSameDay={isSameDay}
-          isToday={isToday}
-          prevMonth={prevMonth}
-          nextMonth={nextMonth}
-          selectedDayEvents={selectedDayEvents}
-          tasks={tasks}
-        />
       </div>
 
       {/* ══ Modal Flotante de Formulario (Crear/Editar Celda) ══ */}

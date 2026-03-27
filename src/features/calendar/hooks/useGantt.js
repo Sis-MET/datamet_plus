@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { safeStorage } from '../../../shared/utils/storage';
 import {
   startOfWeek,
   endOfWeek,
@@ -11,7 +12,7 @@ import {
   format,
 } from 'date-fns';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3000/api';
 
 // Vehículos de la flota — recursos de solo lectura en el Gantt
 export const VEHICLES = [
@@ -31,27 +32,29 @@ export function useGantt() {
 
   const weekEnd = useMemo(() => endOfWeek(weekStart, { weekStartsOn: 1 }), [weekStart]);
 
+  // Semana anterior y siguiente para la vista de 3 semanas
+  const prevWeekStart = useMemo(() => startOfWeek(subWeeks(weekStart, 1), { weekStartsOn: 1 }), [weekStart]);
+  const nextWeekEnd   = useMemo(() => endOfWeek(addWeeks(weekStart, 1), { weekStartsOn: 1 }), [weekStart]);
+
+  // 21 días: semana anterior + actual + siguiente
   const weekDays = useMemo(() =>
-    eachDayOfInterval({ start: weekStart, end: weekEnd }),
-    [weekStart, weekEnd]
+    eachDayOfInterval({ start: prevWeekStart, end: nextWeekEnd }),
+    [prevWeekStart, nextWeekEnd]
   );
 
-  // 3 días de la siguiente semana (preview con efecto glass)
-  const previewDays = useMemo(() =>
-    [1, 2, 3].map(n => addDays(weekEnd, n)),
-    [weekEnd]
-  );
+  // previewDays ya no se usa pero lo mantenemos vacío para compatibilidad
+  const previewDays = [];
 
   // Intentar cargar del backend; si falla, conservar mock
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem('rimmet_token');
+    const token = safeStorage.getItem('rimmet_token');
     if (!token) return;
 
     setLoading(true);
     setError(null);
     try {
-      const startStr = format(weekStart, 'yyyy-MM-dd');
-      const endStr   = format(weekEnd,   'yyyy-MM-dd');
+      const startStr = format(prevWeekStart, 'yyyy-MM-dd');
+      const endStr   = format(nextWeekEnd,   'yyyy-MM-dd');
 
       const [scheduleRes, tecnicosRes] = await Promise.all([
         fetch(`${API_BASE}/calendar/cronograma?start=${startStr}&end=${endStr}`, {
@@ -105,6 +108,8 @@ export function useGantt() {
             afternoon: row.tarde || '',
             colorAM: row.color_am || '#37A65F',
             colorPM: row.color_pm || '#37A65F',
+            estadoAM: row.estado_am || 'Pendiente',
+            estadoPM: row.estado_pm || 'Pendiente',
             author: row.actualizado_por || row.creado_por || '',
             timestampUpdated: formattedTimestamp
           };
@@ -123,7 +128,7 @@ export function useGantt() {
     } finally {
       setLoading(false);
     }
-  }, [weekStart, weekEnd]);
+  }, [weekStart, weekEnd, prevWeekStart, nextWeekEnd]);
 
   useEffect(() => {
     fetchData();
@@ -136,7 +141,7 @@ export function useGantt() {
 
   // Ahora upsertScheduleCell recibe un objeto con morning, afternoon y color en vez de un solo texto
   const upsertScheduleCell = async (date, resource, payload) => {
-    const token = localStorage.getItem('rimmet_token');
+    const token = safeStorage.getItem('rimmet_token');
     // Formatear la fecha como YYYY-MM-DD local
     const dateStr = format(date, 'yyyy-MM-dd');
     
@@ -165,6 +170,8 @@ export function useGantt() {
            afternoon: payload.afternoon || '',
            colorAM: payload.colorAM || '',
            colorPM: payload.colorPM || '',
+           estadoAM: payload.estadoAM || 'Pendiente',
+           estadoPM: payload.estadoPM || 'Pendiente',
            lastModified: payload.lastModified || null,
            autor: autorText
         };

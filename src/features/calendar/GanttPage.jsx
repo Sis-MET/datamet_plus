@@ -1,5 +1,7 @@
 import React from 'react';
 import { Truck } from 'lucide-react';
+import { format, isBefore, isAfter, subWeeks, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
 import { GanttRow } from './components/GanttRow';
 import { GanttLegend } from './components/GanttLegend';
@@ -16,7 +18,9 @@ export function GanttPage({
   tasksForCell,
   isToday,
   onTaskClick,
-  onTaskDrop
+  onTaskDrop,
+  currentWeekStart,
+  currentWeekEnd,
 }) {
 
   // Agrupar técnicos por área, ordenados alfabéticamente por área
@@ -30,12 +34,55 @@ export function GanttPage({
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [tecnicos]);
 
+  // Etiquetas de rango para las 3 semanas
+  const fmtRange = (start, end) =>
+    `${format(start, "d MMM", { locale: es })} – ${format(end, "d MMM", { locale: es })}`;
+  const prevStart = currentWeekStart ? startOfWeek(subWeeks(currentWeekStart, 1), { weekStartsOn: 1 }) : null;
+  const prevEnd   = currentWeekStart ? endOfWeek(subWeeks(currentWeekStart, 1), { weekStartsOn: 1 }) : null;
+  const nextStart = currentWeekEnd   ? startOfWeek(addWeeks(currentWeekEnd, 1), { weekStartsOn: 1 }) : null;
+  const nextEnd   = currentWeekEnd   ? endOfWeek(addWeeks(currentWeekEnd, 1), { weekStartsOn: 1 }) : null;
+
+  const glassBase = {
+    background: 'rgba(255,255,255,0.04)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+  };
+
   return (
     <div>
+      {/* ── Indicador de semanas (glass pills) ── */}
+      {currentWeekStart && (
+        <div className="flex items-center gap-2 mb-2 px-0.5">
+          {/* Semana Anterior */}
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 text-[10px] font-medium text-gray-400"
+            style={glassBase}>
+            <span className="opacity-60">◂</span>
+            <span>{prevStart && prevEnd ? fmtRange(prevStart, prevEnd) : 'Sem. Ant.'}</span>
+          </div>
+
+          {/* Esta Semana — destacada */}
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-green-500/30 text-[10px] font-bold text-green-300"
+            style={{ ...glassBase, background: 'rgba(34,197,94,0.10)', boxShadow: '0 0 12px rgba(34,197,94,0.12)' }}>
+            <span>★</span>
+            <span>Esta Semana</span>
+            <span className="text-green-400/60 font-normal">
+              {fmtRange(currentWeekStart, currentWeekEnd)}
+            </span>
+          </div>
+
+          {/* Próxima Semana */}
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 text-[10px] font-medium text-gray-400"
+            style={glassBase}>
+            <span>{nextStart && nextEnd ? fmtRange(nextStart, nextEnd) : 'Próx. Sem.'}</span>
+            <span className="opacity-60">▸</span>
+          </div>
+        </div>
+      )}
+
       {/* ── Gantt Grid ── */}
       <div className="gantt-scroll-container">
         <div className="gantt-grid">
-          <GanttHeader weekDays={weekDays} previewDays={previewDays} isToday={isToday} />
+          <GanttHeader weekDays={weekDays} previewDays={previewDays} isToday={isToday} currentWeekStart={currentWeekStart} currentWeekEnd={currentWeekEnd} />
 
           {/* ══ Técnicos agrupados por Área ══ */}
           {grupos.map(([area, tecnicosDelArea]) => (

@@ -5,14 +5,15 @@ import { RimFormPage } from './features/rim/RimFormPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
 import { LoginPage } from './features/auth/LoginPage';
 import bgImage from './assets/soporte_tecnico.svg';
+import { safeStorage } from './shared/utils/storage';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!localStorage.getItem('rimmet_token');
+    return !!safeStorage.getItem('rimmet_token');
   });
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('rimmet_user');
+      const saved = safeStorage.getItem('rimmet_user');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -20,7 +21,7 @@ function App() {
   });
 
   const [activeView, setActiveView] = useState(() => {
-    return localStorage.getItem('rimmet_last_view') || 'rim';
+    return safeStorage.getItem('rimmet_last_view') || 'rim';
   });
 
   const handleLogin = (user, selectedView) => {
@@ -30,8 +31,8 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('rimmet_token');
-    localStorage.removeItem('rimmet_user');
+    safeStorage.removeItem('rimmet_token');
+    safeStorage.removeItem('rimmet_user');
     setCurrentUser(null);
     setIsAuthenticated(false);
   };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './login.css';
 import logoMetrica from '../../assets/logo_metrica.svg';
 import soporteSvg from '../../assets/soporte_tecnico.svg';
+import { safeStorage } from '../../shared/utils/storage';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3000/api';
 const MAX_ATTEMPTS = 3;
@@ -16,10 +17,10 @@ export function LoginPage({ onLogin }) {
 
   // Estados para bloqueo
   const [attempts, setAttempts] = useState(() => {
-    return parseInt(localStorage.getItem('rimmet_login_attempts') || '0', 10);
+    return parseInt(safeStorage.getItem('rimmet_login_attempts') || '0', 10);
   });
   const [lockUntil, setLockUntil] = useState(() => {
-    const saved = localStorage.getItem('rimmet_login_lock_until');
+    const saved = safeStorage.getItem('rimmet_login_lock_until');
     return saved ? parseInt(saved, 10) : null;
   });
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -35,8 +36,8 @@ export function LoginPage({ onLogin }) {
         setLockUntil(null);
         setAttempts(0);
         setTimeRemaining(0);
-        localStorage.removeItem('rimmet_login_lock_until');
-        localStorage.setItem('rimmet_login_attempts', '0');
+        safeStorage.removeItem('rimmet_login_lock_until');
+        safeStorage.setItem('rimmet_login_attempts', '0');
         clearInterval(interval);
       } else {
         setTimeRemaining(Math.ceil((lockUntil - now) / 1000));
@@ -48,8 +49,8 @@ export function LoginPage({ onLogin }) {
     if (now >= lockUntil) {
       setLockUntil(null);
       setAttempts(0);
-      localStorage.removeItem('rimmet_login_lock_until');
-      localStorage.setItem('rimmet_login_attempts', '0');
+      safeStorage.removeItem('rimmet_login_lock_until');
+      safeStorage.setItem('rimmet_login_attempts', '0');
     } else {
       setTimeRemaining(Math.ceil((lockUntil - now) / 1000));
     }
@@ -61,13 +62,13 @@ export function LoginPage({ onLogin }) {
   const lockAccount = (lockTimeMs = LOCK_TIME_MS) => {
     const until = Date.now() + lockTimeMs;
     setLockUntil(until);
-    localStorage.setItem('rimmet_login_lock_until', until.toString());
+    safeStorage.setItem('rimmet_login_lock_until', until.toString());
   };
 
   const handleFailedAttempt = () => {
     const newAttempts = attempts + 1;
     setAttempts(newAttempts);
-    localStorage.setItem('rimmet_login_attempts', newAttempts.toString());
+    safeStorage.setItem('rimmet_login_attempts', newAttempts.toString());
     if (newAttempts >= MAX_ATTEMPTS) {
       lockAccount();
     }
@@ -104,13 +105,13 @@ export function LoginPage({ onLogin }) {
       // Éxito: limpiar contadores
       setAttempts(0);
       setLockUntil(null);
-      localStorage.removeItem('rimmet_login_attempts');
-      localStorage.removeItem('rimmet_login_lock_until');
+      safeStorage.removeItem('rimmet_login_attempts');
+      safeStorage.removeItem('rimmet_login_lock_until');
       
       // Pasar a calendar directamente
-      localStorage.setItem('rimmet_token', data.data.token);
-      localStorage.setItem('rimmet_user', JSON.stringify(data.data.user));
-      localStorage.setItem('rimmet_last_view', 'calendar');
+      safeStorage.setItem('rimmet_token', data.data.token);
+      safeStorage.setItem('rimmet_user', JSON.stringify(data.data.user));
+      safeStorage.setItem('rimmet_last_view', 'calendar');
       onLogin(data.data.user, 'calendar');
     } catch {
       setError('No se pudo conectar al servidor. Intente nuevamente.');

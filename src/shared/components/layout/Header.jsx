@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import logoMetrica from '../../../assets/logo_metrica.svg';
 import { LogOut, User, LayoutGrid, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { safeStorage } from '../../utils/storage';
 
 export function Header({ activeView, onViewChange, currentUser, onLogout }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -18,7 +19,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
   }, []);
 
   const handleViewChange = (view) => {
-    localStorage.setItem('rimmet_last_view', view);
+    safeStorage.setItem('rimmet_last_view', view);
     onViewChange?.(view);
     setIsDropdownOpen(false);
   };

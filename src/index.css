@@ -216,3 +216,24 @@
 .sileo-viewport, [data-sileo-viewport] {
   z-index: 99999 !important;
 }
+
+@media (max-width: 1023px) {
+  /* Reducimos el tamaño base de fuente para que todos los
+     tamaños rem de Tailwind (text-sm, text-xs, etc.) encogen */
+  html {
+    font-size: 87.5%; /* 14px en vez de 16px */
+  }
+
+  /* ── Clases custom del Gantt (usan px fijos, deben sobreescribirse) ── */
+  .gantt-tecnico-name  { font-size: 11px !important; }
+  .gantt-tecnico-cargo { font-size: 9px  !important; }
+  .gantt-task-chip     { font-size: 9px  !important; }
+  .gantt-day-number    { font-size: 14px !important; }
+  .gantt-day-label     { font-size: 9px  !important; }
+  .gantt-day-month     { font-size: 9px  !important; }
+  .gantt-name-col      { min-width: 130px; max-width: 130px; }
+  .gantt-day-header-cell, .gantt-cell { min-width: 90px; width: 90px; }
+
+  /* ── Header de la app ── */
+  .gantt-mock-badge { font-size: 9px !important; }
+}

@@ -22,6 +22,15 @@ export function GanttTaskCell({
   const [tooltipPos, setTooltipPos] = useState(null);
   const timeoutRef = useRef(null);
 
+  const getStateBadgeClass = (estado) => {
+    switch(estado) {
+      case 'Completado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30';
+      case 'En Proceso': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30';
+      case 'Cancelado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-red-500/20 text-red-400 ring-1 ring-red-500/30';
+      default: return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/30'; // Pendiente
+    }
+  };
+
   const handleMouseEnter = (e) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     
@@ -204,10 +213,13 @@ export function GanttTaskCell({
            </div>
            
            <div className="space-y-3">
-              <div className="flex gap-3">
+               <div className="flex gap-3">
                  <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: primaryTask.colorAM || '#37A65F' }} />
                  <div className="flex-1">
-                    <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest mb-0.5">Mañana</p>
+                    <div className="flex justify-between items-center mb-0.5">
+                       <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest">Mañana</p>
+                       {primaryTask.morning && <span className={getStateBadgeClass(primaryTask.estadoAM)}>{primaryTask.estadoAM || 'Pendiente'}</span>}
+                    </div>
                     <p className="text-sm text-white font-medium break-words leading-snug">{primaryTask.morning || '(Sin actividad)'}</p>
                  </div>
               </div>
@@ -215,7 +227,10 @@ export function GanttTaskCell({
               <div className="flex gap-3 pt-1">
                  <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: primaryTask.colorPM || primaryTask.colorAM || '#37A65F' }} />
                  <div className="flex-1">
-                    <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest mb-0.5">Tarde</p>
+                    <div className="flex justify-between items-center mb-0.5">
+                       <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest">Tarde</p>
+                       {primaryTask.afternoon && <span className={getStateBadgeClass(primaryTask.estadoPM)}>{primaryTask.estadoPM || 'Pendiente'}</span>}
+                    </div>
                     <p className="text-sm text-white font-medium break-words leading-snug">{primaryTask.afternoon || '(Sin actividad)'}</p>
                  </div>
               </div>

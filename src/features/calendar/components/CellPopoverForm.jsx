@@ -5,6 +5,7 @@ import { cn } from '../../../shared/utils/cn';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { HexColorPicker } from 'react-colorful';
+import { safeStorage } from '../../../shared/utils/storage';
 
 const PRESET_COLORS = [
   '#10B981', '#37A65F', '#84CC16', '#F59E0B', '#F97316', '#EF4444'
@@ -24,13 +25,16 @@ export function CellPopoverForm({
   const [afternoon, setAfternoon] = useState('');
   const [colorAM, setColorAM] = useState(''); 
   const [colorPM, setColorPM] = useState(''); 
+  const [estadoAM, setEstadoAM] = useState('Pendiente');
+  const [estadoPM, setEstadoPM] = useState('Pendiente');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeColorPicker, setActiveColorPicker] = useState(null);
 
   const [recentColors, setRecentColors] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('rimmet_recent_colors');
+        const saved = safeStorage.getItem('rimmet_recent_colors');
         return saved ? JSON.parse(saved) : [];
       } catch { return []; }
     }
@@ -48,7 +52,7 @@ export function CellPopoverForm({
       });
       // Sólo guardar hasta 5
       updated = updated.slice(0, 5);
-      localStorage.setItem('rimmet_recent_colors', JSON.stringify(updated));
+      safeStorage.setItem('rimmet_recent_colors', JSON.stringify(updated));
       return updated;
     });
   };
@@ -60,11 +64,15 @@ export function CellPopoverForm({
         setAfternoon(event.afternoon || '');
         setColorAM(event.colorAM || event.color || '');
         setColorPM(event.colorPM || event.color || '');
+        setEstadoAM(event.estadoAM || 'Pendiente');
+        setEstadoPM(event.estadoPM || 'Pendiente');
       } else {
         setMorning('');
         setAfternoon('');
         setColorAM('');
         setColorPM('');
+        setEstadoAM('Pendiente');
+        setEstadoPM('Pendiente');
       }
       setActiveColorPicker(null);
     }
@@ -79,6 +87,9 @@ export function CellPopoverForm({
       return;
     }
 
+    const hasMorning = morning.trim().length > 0;
+    const hasAfternoon = afternoon.trim().length > 0;
+
     setIsSubmitting(true);
     try {
       saveToRecent(colorAM, colorPM);
@@ -87,6 +98,8 @@ export function CellPopoverForm({
         afternoon: afternoon.trim().toUpperCase(),
         colorAM,
         colorPM,
+        estadoAM: hasMorning ? estadoAM : null,
+        estadoPM: hasAfternoon ? estadoPM : null,
         lastModified: event ? (event.timestampUpdated || null) : null,
       });
       // Sileo success is handled by the parent
@@ -101,7 +114,7 @@ export function CellPopoverForm({
     setIsSubmitting(true);
     try {
       // Para limpiar la celda, mandamos campos vacíos
-      await onSave(prefilledDate, prefilledResource, { morning: '', afternoon: '', colorAM: '', colorPM: '' });
+      await onSave(prefilledDate, prefilledResource, { morning: '', afternoon: '', colorAM: '', colorPM: '', estadoAM: null, estadoPM: null });
     } finally {
       setIsSubmitting(false);
     }
@@ -138,7 +151,16 @@ export function CellPopoverForm({
                <div className="flex-1">
                  <div className="flex items-center justify-between mb-2">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mañana</label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1.5 cursor-pointer" title="Marcar como Completado">
+                        <input
+                          type="checkbox"
+                          checked={estadoAM === 'Completado'}
+                          onChange={(e) => setEstadoAM(e.target.checked ? 'Completado' : 'Pendiente')}
+                          className="w-3.5 h-3.5 rounded border-gray-600 text-primary-500 focus:ring-primary-500/30 bg-[#111] cursor-pointer"
+                        />
+                        <span className="text-[10px] font-medium text-gray-300">Completado</span>
+                      </label>
                       <button
                         type="button"
                         onClick={() => { setMorning(''); setColorAM(''); }}
@@ -150,7 +172,7 @@ export function CellPopoverForm({
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setAfternoon(morning); setColorPM(colorAM); }}
+                        onClick={() => { setAfternoon(morning); setColorPM(colorAM); setEstadoPM(estadoAM); }}
                         className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-primary-400 bg-primary-500/10 hover:bg-primary-500/20 hover:text-primary-300 transition-colors"
                         title="Copiar datos a Turno Tarde"
                       >
@@ -222,6 +244,7 @@ export function CellPopoverForm({
                  </div>
                </div>
             </div>
+
           </div>
 
           {/* Turno Tarde */}
@@ -230,15 +253,26 @@ export function CellPopoverForm({
                <div className="flex-1">
                  <div className="flex items-center justify-between mb-2">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tarde</label>
-                    <button
-                      type="button"
-                      onClick={() => { setAfternoon(''); setColorPM(''); }}
-                      className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 transition-colors"
-                      title="Limpiar Turno Tarde"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      Limpiar
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1.5 cursor-pointer" title="Marcar como Completado">
+                        <input
+                          type="checkbox"
+                          checked={estadoPM === 'Completado'}
+                          onChange={(e) => setEstadoPM(e.target.checked ? 'Completado' : 'Pendiente')}
+                          className="w-3.5 h-3.5 rounded border-gray-600 text-primary-500 focus:ring-primary-500/30 bg-[#111] cursor-pointer"
+                        />
+                        <span className="text-[10px] font-medium text-gray-300">Completado</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => { setAfternoon(''); setColorPM(''); }}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                        title="Limpiar Turno Tarde"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Limpiar
+                      </button>
+                    </div>
                  </div>
                  <div className="flex gap-2">
                     <input
@@ -303,6 +337,7 @@ export function CellPopoverForm({
                  </div>
                </div>
             </div>
+
           </div>
 
           {/* Metadata de Auditoría (Solo Lectura) */}

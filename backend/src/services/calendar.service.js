@@ -20,6 +20,8 @@ const getSchedule = async (start, end) => {
         tarde,
         color_am,
         color_pm,
+        estado_am,
+        estado_pm,
         creado_por,
         CONVERT(varchar, fecha_creacion, 23) as fecha_creacion,
         CONVERT(varchar, hora_creacion, 8) as hora_creacion,
@@ -67,6 +69,8 @@ const getTecnicos = async () => {
   let a = payload ? payload.afternoon : null;
   let cAM = payload ? payload.colorAM : '#10B981';
   let cPM = payload ? payload.colorPM : '#10B981';
+  let estadoAM = payload ? (payload.estadoAM || 'Pendiente') : 'Pendiente';
+  let estadoPM = payload ? (payload.estadoPM || 'Pendiente') : 'Pendiente';
   let autor = payload ? payload.autor : 'Sistema';
   let lastModified = payload ? (payload.lastModified || null) : null;
 
@@ -98,7 +102,9 @@ const getTecnicos = async () => {
   const existingRes = await checkReq.query(`
     SELECT id,
       CONVERT(varchar, fecha_modificacion, 23) as fmod,
-      CONVERT(varchar, hora_modificacion, 8) as hmod
+      CONVERT(varchar, hora_modificacion, 8) as hmod,
+      CONVERT(varchar, fecha_creacion, 23) as fcrea,
+      CONVERT(varchar, hora_creacion, 8) as hcrea
     FROM DATA_CRONOGRAMA
     WHERE fecha = @fecha AND (
       (id_usuario IS NOT NULL AND id_usuario = @id_us) OR 
@@ -118,6 +124,8 @@ const getTecnicos = async () => {
     .input('tt', sql.NVarChar, a)
     .input('cam', sql.VarChar, cAM)
     .input('cpm', sql.VarChar, cPM)
+    .input('est_am', sql.NVarChar, estadoAM)
+    .input('est_pm', sql.NVarChar, estadoPM)
     .input('autor', sql.VarChar, autor);
 
   if (existingRes.recordset.length === 0) {
@@ -127,25 +135,36 @@ const getTecnicos = async () => {
     }
     // INSERT — no hay conflicto de concurrencia en nuevos registros
     await upsertReq.query(`
-      INSERT INTO DATA_CRONOGRAMA (id_usuario, usuario, fecha, manana, tarde, color_am, color_pm, creado_por, fecha_creacion, hora_creacion)
-      VALUES (@id_us, @usr, @f, @tm, @tt, @cam, @cpm, @autor,
+      INSERT INTO DATA_CRONOGRAMA (id_usuario, usuario, fecha, manana, tarde, color_am, color_pm, estado_am, estado_pm, creado_por, fecha_creacion, hora_creacion)
+      VALUES (@id_us, @usr, @f, @tm, @tt, @cam, @cpm, @est_am, @est_pm, @autor,
         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
       )
     `);
   } else {
     // ── CONTROL DE CONCURRENCIA OPTIMISTA ──
-    // Reconstruir el timestamp tal como lo envía el frontend ("YYYY-MM-DD HH:MM:SS")
     const row = existingRes.recordset[0];
-    const currentTimestamp = (row.fmod && row.hmod) ? `${row.fmod} ${row.hmod}` : null;
+    const fmod = row.fmod ? String(row.fmod).trim() : null;
+    const hmod = row.hmod ? String(row.hmod).trim() : null;
+    let currentTimestamp = (fmod && hmod) ? `${fmod} ${hmod}` : null;
+
+    if (!currentTimestamp) {
+       const fcrea = row.fcrea ? String(row.fcrea).trim() : null;
+       const hcrea = row.hcrea ? String(row.hcrea).trim() : null;
+       currentTimestamp = (fcrea && hcrea) ? `${fcrea} ${hcrea}` : null;
+    }
 
     upsertReq.input('row_id', sql.Int, row.id);
 
+    const clientTimestamp = (lastModified !== null && lastModified !== undefined && lastModified !== '') 
+      ? String(lastModified).trim() 
+      : null;
+
     // Si el cliente envió un lastModified y no coincide con el actual → 409 Conflict
-    if (lastModified !== null && lastModified !== undefined && lastModified !== '') {
-      if (currentTimestamp !== lastModified) {
+    if (clientTimestamp) {
+      if (currentTimestamp !== clientTimestamp) {
         const concurrencyErr = new Error(
-          'Otro usuario ya modificó esta celda. Recarga la página para ver los últimos datos antes de volver a editar.'
+          `Celda modif. por otro proceso. (Servidor: ${currentTimestamp || 'Nulo'} | Tuyo: ${clientTimestamp}). Recarga la página.`
         );
         concurrencyErr.status = 409;
         throw concurrencyErr;
@@ -158,6 +177,8 @@ const getTecnicos = async () => {
           tarde = @tt,
           color_am = @cam,
           color_pm = @cpm,
+          estado_am = @est_am,
+          estado_pm = @est_pm,
           actualizado_por = @autor,
           fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
           hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)

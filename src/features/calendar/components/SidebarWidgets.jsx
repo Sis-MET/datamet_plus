@@ -19,13 +19,22 @@ export function SidebarWidgets({
   const monthTitle = format(currentDate, "MMMM yyyy", { locale: es });
   const monthTitleCapitalized = monthTitle.charAt(0).toUpperCase() + monthTitle.slice(1);
 
+  const getStateBadgeClass = (estado) => {
+    switch(estado) {
+      case 'Completado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30';
+      case 'En Proceso': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30';
+      case 'Cancelado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-red-500/20 text-red-400 ring-1 ring-red-500/30';
+      default: return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/30'; // Pendiente
+    }
+  };
+
   const getDayClass = (day) => {
     let classes = 'relative flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full text-[13px] font-medium cursor-pointer transition-all ';
     
     if (isSameDay(day, selectedDay)) {
-      classes += 'bg-primary-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.5)] font-bold ';
+      classes += 'bg-[#f9e300] text-black shadow-[0_0_12px_rgba(249,227,0,0.6)] font-bold ';
     } else if (isToday(day)) {
-      classes += 'bg-white/10 text-white font-bold ring-1 ring-white/20 ';
+      classes += 'bg-transparent text-white font-bold ring-2 ring-[#f9e300]/80 shadow-[0_0_10px_rgba(249,227,0,0.3)] ';
     } else if (!isSameMonth(day, currentDate)) {
       classes += 'text-gray-600 hover:text-gray-400 ';
     } else {
@@ -47,11 +56,19 @@ export function SidebarWidgets({
         afternoon: evt.afternoon || '',
         colorAM: evt.colorAM || '',
         colorPM: evt.colorPM || '',
+        estadoAM: evt.estadoAM || 'Pendiente',
+        estadoPM: evt.estadoPM || 'Pendiente',
       };
     } else {
       // Si ya existe, completar datos que falten
-      if (!tecnicoMap[key].morning && evt.morning) tecnicoMap[key].morning = evt.morning;
-      if (!tecnicoMap[key].afternoon && evt.afternoon) tecnicoMap[key].afternoon = evt.afternoon;
+      if (!tecnicoMap[key].morning && evt.morning) {
+         tecnicoMap[key].morning = evt.morning;
+         tecnicoMap[key].estadoAM = evt.estadoAM || 'Pendiente';
+      }
+      if (!tecnicoMap[key].afternoon && evt.afternoon) {
+         tecnicoMap[key].afternoon = evt.afternoon;
+         tecnicoMap[key].estadoPM = evt.estadoPM || 'Pendiente';
+      }
       if (!tecnicoMap[key].colorAM && evt.colorAM) tecnicoMap[key].colorAM = evt.colorAM;
       if (!tecnicoMap[key].colorPM && evt.colorPM) tecnicoMap[key].colorPM = evt.colorPM;
     }
@@ -62,7 +79,14 @@ export function SidebarWidgets({
     <div className="w-full xl:w-[350px] flex-shrink-0 flex flex-col gap-6">
       
       {/* ── Mini Calendario Oscuro ── */}
-      <div className="bg-[#151518] border border-gray-800 rounded-3xl p-5 shadow-2xl relative overflow-hidden select-none">
+      <div 
+        className="rounded-3xl border border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden select-none"
+        style={{
+          background: 'rgba(73, 73, 73, 0.35)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+        }}
+      >
         {/* Decorative ambient glow */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[100px] bg-primary-500/10 blur-[50px] rounded-full pointer-events-none" />
 
@@ -112,7 +136,14 @@ export function SidebarWidgets({
         <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">Detalle del Día</h3>
 
         {tecnicosDelDia.length === 0 ? (
-          <div className="bg-[#151518] border border-white/5 rounded-2xl p-4 shadow-lg flex items-center justify-center opacity-60 h-20">
+          <div 
+            className="border border-white/10 rounded-2xl p-4 flex items-center justify-center opacity-60 h-20 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+            style={{
+              background: 'rgba(73, 73, 73, 0.35)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+            }}
+          >
             <span className="text-[11px] text-gray-500 font-bold tracking-widest uppercase flex items-center gap-2">
               <Bell className="w-3.5 h-3.5" /> Sin Novedades
             </span>
@@ -126,7 +157,12 @@ export function SidebarWidgets({
               return (
                 <div
                   key={idx}
-                  className="bg-[#151518] border border-white/5 rounded-2xl overflow-hidden shadow-md hover:border-white/10 transition-colors"
+                  className="border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 transition-colors shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+                  style={{
+                    background: 'rgba(73, 73, 73, 0.35)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                  }}
                 >
                   {/* Nombre del técnico */}
                   <div className="flex items-center justify-between px-3.5 pt-3 pb-2 border-b border-white/5">
@@ -139,24 +175,30 @@ export function SidebarWidgets({
                   <div className="px-3.5 py-2.5 flex flex-col gap-1.5">
                     {hasMorning && (
                       <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
-                            style={{ backgroundColor: evt.colorAM || '#10B981' }}
-                          />
-                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Mañana</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <div
+                              className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
+                              style={{ backgroundColor: evt.colorAM || '#10B981' }}
+                            />
+                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Mañana</span>
+                          </div>
+                          <span className={getStateBadgeClass(evt.estadoAM)}>{evt.estadoAM || 'Pendiente'}</span>
                         </div>
                         <p className="text-[11px] text-gray-300 font-medium leading-tight pl-3.5">{evt.morning}</p>
                       </div>
                     )}
                     {hasAfternoon && (
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
-                            style={{ backgroundColor: evt.colorPM || '#F59E0B' }}
-                          />
-                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Tarde</span>
+                      <div className="flex flex-col gap-0.5 mt-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <div
+                              className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
+                              style={{ backgroundColor: evt.colorPM || '#F59E0B' }}
+                            />
+                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Tarde</span>
+                          </div>
+                          <span className={getStateBadgeClass(evt.estadoPM)}>{evt.estadoPM || 'Pendiente'}</span>
                         </div>
                         <p className="text-[11px] text-gray-300 font-medium leading-tight pl-3.5">{evt.afternoon}</p>
                       </div>
