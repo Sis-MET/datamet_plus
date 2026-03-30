@@ -3,16 +3,24 @@ import { Truck } from 'lucide-react';
 import { GanttTaskCell } from './GanttTaskCell';
 
 export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, onTaskClick, onTaskDrop, readOnly = false }) {
+  const rawName = (tecnico.nombre || '').replace(/_/g, ' ').trim();
+  const nameParts = rawName.split(' ');
+  const lastName = nameParts.pop() || '';
+  const firstName = nameParts.join(' ');
+
   return (
     <div className={`gantt-row ${readOnly ? 'bg-blue-950/10' : ''}`}>
       {/* Sticky name column */}
       <div className="gantt-name-col" style={readOnly ? { background: '#0d1424' } : {}}>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 leading-tight">
           {readOnly && <Truck className="w-3 h-3 text-blue-400/60 flex-shrink-0" />}
-          <div className="gantt-tecnico-name">{tecnico.nombre?.replace(/_/g, ' ')}</div>
+          <div className="gantt-tecnico-name truncate">
+            {firstName && <span className="hidden lg:inline">{firstName} </span>}
+            <span>{lastName}</span>
+          </div>
         </div>
         {tecnico.cargo && (
-          <div className="gantt-tecnico-cargo">{tecnico.cargo}</div>
+          <div className="gantt-tecnico-cargo truncate">{tecnico.cargo}</div>
         )}
       </div>
 

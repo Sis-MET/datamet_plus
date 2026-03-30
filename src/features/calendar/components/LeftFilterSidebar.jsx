@@ -99,7 +99,57 @@ export function LeftFilterSidebar({
   return (
     <aside className="w-full xl:w-[300px] flex-shrink-0 flex flex-col gap-4 select-none">
 
-      {/* ── 1. Mini Calendario ── */}
+      {/* ── 1. Detalle del Día (Compacto) ── */}
+      <div className="flex flex-col gap-2">
+        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">Detalle del Día</h3>
+        {tecnicosDelDia.length === 0 ? (
+          <div className="border border-white/10 rounded-2xl p-3 flex items-center justify-center opacity-50" style={glassStyle}>
+            <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase flex items-center gap-2">
+              <Bell className="w-3 h-3" /> Sin Novedades
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1 overflow-y-auto max-h-[280px] custom-scrollbar pr-1">
+            {tecnicosDelDia.map((evt, idx) => {
+              const hasMorning   = evt.morning   && evt.morning.trim()   !== '';
+              const hasAfternoon = evt.afternoon && evt.afternoon.trim() !== '';
+              return (
+                <div key={idx} className="border border-white/[0.07] rounded-xl px-3 py-2 hover:border-white/15 hover:bg-white/[0.03] transition-all" style={glassStyle}>
+                  {/* Nombre + dots de turno */}
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-gray-100 truncate leading-none capitalize">
+                      {evt.client?.replace(/_/g, ' ')}
+                    </span>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {hasMorning   && <div className="w-1.5 h-1.5 rounded-full ring-1 ring-black/20" style={{ backgroundColor: evt.colorAM || '#10B981' }} title="Mañana" />}
+                      {hasAfternoon && <div className="w-1.5 h-1.5 rounded-full ring-1 ring-black/20" style={{ backgroundColor: evt.colorPM || '#F59E0B' }} title="Tarde" />}
+                    </div>
+                  </div>
+                  {/* Turnos en filas compactas */}
+                  <div className="flex flex-col gap-0.5">
+                    {hasMorning && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] font-bold text-gray-600 uppercase w-3 flex-shrink-0">AM</span>
+                        <p className="text-[10px] text-gray-400 truncate flex-1 leading-tight">{evt.morning}</p>
+                        <span className={getStateBadgeClass(evt.estadoAM)}>{evt.estadoAM || 'Pendiente'}</span>
+                      </div>
+                    )}
+                    {hasAfternoon && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] font-bold text-gray-600 uppercase w-3 flex-shrink-0">PM</span>
+                        <p className="text-[10px] text-gray-400 truncate flex-1 leading-tight">{evt.afternoon}</p>
+                        <span className={getStateBadgeClass(evt.estadoPM)}>{evt.estadoPM || 'Pendiente'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── 2. Mini Calendario ── */}
       {currentDate && (
         <div className="rounded-3xl border border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden" style={glassStyle}>
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[100px] bg-primary-500/10 blur-[50px] rounded-full pointer-events-none" />
@@ -135,61 +185,6 @@ export function LeftFilterSidebar({
           </div>
         </div>
       )}
-
-      {/* ── 2. Detalle del Día ── */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">Detalle del Día</h3>
-        {tecnicosDelDia.length === 0 ? (
-          <div className="border border-white/10 rounded-2xl p-4 flex items-center justify-center opacity-60 h-20" style={glassStyle}>
-            <span className="text-[11px] text-gray-500 font-bold tracking-widest uppercase flex items-center gap-2">
-              <Bell className="w-3.5 h-3.5" /> Sin Novedades
-            </span>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2 overflow-y-auto max-h-[300px] custom-scrollbar pr-1">
-            {tecnicosDelDia.map((evt, idx) => {
-              const hasMorning   = evt.morning   && evt.morning.trim()   !== '';
-              const hasAfternoon = evt.afternoon && evt.afternoon.trim() !== '';
-              return (
-                <div key={idx} className="border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 transition-colors" style={glassStyle}>
-                  <div className="flex items-center justify-between px-3.5 pt-3 pb-2 border-b border-white/5">
-                    <span className="text-[12px] font-bold text-gray-200 capitalize">{evt.client?.replace(/_/g, ' ')}</span>
-                  </div>
-                  <div className="px-3.5 py-2.5 flex flex-col gap-1.5">
-                    {hasMorning && (
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20" style={{ backgroundColor: evt.colorAM || '#10B981' }} />
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Mañana</span>
-                          </div>
-                          <span className={getStateBadgeClass(evt.estadoAM)}>{evt.estadoAM || 'Pendiente'}</span>
-                        </div>
-                        <p className="text-[11px] text-gray-300 font-medium leading-tight pl-3.5">{evt.morning}</p>
-                      </div>
-                    )}
-                    {hasAfternoon && (
-                      <div className="flex flex-col gap-0.5 mt-1">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20" style={{ backgroundColor: evt.colorPM || '#F59E0B' }} />
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Tarde</span>
-                          </div>
-                          <span className={getStateBadgeClass(evt.estadoPM)}>{evt.estadoPM || 'Pendiente'}</span>
-                        </div>
-                        <p className="text-[11px] text-gray-300 font-medium leading-tight pl-3.5">{evt.afternoon}</p>
-                      </div>
-                    )}
-                    {!hasMorning && !hasAfternoon && (
-                      <p className="text-[10px] text-gray-600 italic">Sin actividad registrada</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
       {/* ── 3. Tarjeta de Filtros ── */}
       <div className="rounded-3xl border border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden" style={glassStyle}>
@@ -267,7 +262,7 @@ export function LeftFilterSidebar({
             <span className="text-[11px] text-gray-200 font-medium">Domingos y Feriados (no laborable)</span>
           </div>
           <div className="flex items-center gap-3 group">
-            <div className="w-3 h-3 rounded-full bg-[#f9e300] flex-shrink-0 shadow-[0_0_8px_rgba(249,227,0,0.8)] ring-2 ring-[#f9e300]/30 group-hover:scale-110 transition-transform" />
+            <div className="w-3 h-3 rounded-full bg-[#0D3C66] flex-shrink-0 shadow-[0_0_8px_rgba(13,60,102,0.8)] ring-2 ring-[#0D3C66]/30 group-hover:scale-110 transition-transform" />
             <span className="text-[11px] text-gray-200 font-medium">Día de Hoy</span>
           </div>
           <div className="flex items-center gap-3 group">

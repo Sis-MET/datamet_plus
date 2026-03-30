@@ -1,5 +1,5 @@
 import React from 'react';
-import { Truck } from 'lucide-react';
+import { Truck, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { format, isBefore, isAfter, subWeeks, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
@@ -21,6 +21,11 @@ export function GanttPage({
   onTaskDrop,
   currentWeekStart,
   currentWeekEnd,
+  goToCurrentWeek,
+  prevWeek,
+  nextWeek,
+  onRefetch,
+  loading,
 }) {
 
   // Agrupar técnicos por área, ordenados alfabéticamente por área
@@ -42,47 +47,62 @@ export function GanttPage({
   const nextStart = currentWeekEnd   ? startOfWeek(addWeeks(currentWeekEnd, 1), { weekStartsOn: 1 }) : null;
   const nextEnd   = currentWeekEnd   ? endOfWeek(addWeeks(currentWeekEnd, 1), { weekStartsOn: 1 }) : null;
 
-  const glassBase = {
-    background: 'rgba(255,255,255,0.04)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-  };
-
   return (
     <div>
-      {/* ── Indicador de semanas (glass pills) ── */}
+      {/* ── Controles de Semana y Recarga ── */}
       {currentWeekStart && (
         <div className="flex items-center gap-2 mb-2 px-0.5">
-          {/* Semana Anterior */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 text-[10px] font-medium text-gray-400"
-            style={glassBase}>
-            <span className="opacity-60">◂</span>
-            <span>{prevStart && prevEnd ? fmtRange(prevStart, prevEnd) : 'Sem. Ant.'}</span>
-          </div>
-
-          {/* Esta Semana — destacada */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-green-500/30 text-[10px] font-bold text-green-300"
-            style={{ ...glassBase, background: 'rgba(34,197,94,0.10)', boxShadow: '0 0 12px rgba(34,197,94,0.12)' }}>
-            <span>★</span>
-            <span>Esta Semana</span>
-            <span className="text-green-400/60 font-normal">
+          <button
+            onClick={goToCurrentWeek}
+            className="group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-gray-300 hover:text-white rounded-xl backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 hover:bg-white/10 transition-colors overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            <span className="relative z-10 font-bold text-white">★ Hoy</span>
+            <span className="relative z-10 text-gray-400 font-normal">
               {fmtRange(currentWeekStart, currentWeekEnd)}
             </span>
+          </button>
+          
+          <div className="flex rounded-xl overflow-hidden backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 transition-colors group relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            <button
+              onClick={prevWeek}
+              className="relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] text-gray-400 font-medium hover:text-white hover:bg-white/10 transition-colors border-r border-white/10"
+            >
+              <ChevronLeft className="h-3.5 w-3.5 text-gray-300" />
+              <span>{prevStart && prevEnd ? fmtRange(prevStart, prevEnd) : 'Anterior'}</span>
+            </button>
+            <button
+              onClick={nextWeek}
+              className="relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] text-gray-400 font-medium hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <span>{nextStart && nextEnd ? fmtRange(nextStart, nextEnd) : 'Próxima'}</span>
+              <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+            </button>
           </div>
 
-          {/* Próxima Semana */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 text-[10px] font-medium text-gray-400"
-            style={glassBase}>
-            <span>{nextStart && nextEnd ? fmtRange(nextStart, nextEnd) : 'Próx. Sem.'}</span>
-            <span className="opacity-60">▸</span>
-          </div>
+          <button
+            onClick={onRefetch}
+            disabled={loading}
+            className="group relative p-1.5 ml-1 text-gray-300 hover:text-white rounded-xl backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 hover:bg-white/10 transition-colors overflow-hidden disabled:opacity-50"
+            title="Recargar datos"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            <RefreshCw className={`relative z-10 h-4 w-4 ${loading ? 'animate-spin text-primary-400' : ''}`} />
+          </button>
         </div>
       )}
 
       {/* ── Gantt Grid ── */}
       <div className="gantt-scroll-container">
         <div className="gantt-grid">
-          <GanttHeader weekDays={weekDays} previewDays={previewDays} isToday={isToday} currentWeekStart={currentWeekStart} currentWeekEnd={currentWeekEnd} />
+          <GanttHeader
+            weekDays={weekDays}
+            previewDays={previewDays}
+            isToday={isToday}
+            currentWeekStart={currentWeekStart}
+            currentWeekEnd={currentWeekEnd}
+          />
 
           {/* ══ Técnicos agrupados por Área ══ */}
           {grupos.map(([area, tecnicosDelArea]) => (

@@ -11,9 +11,16 @@ const startServer = async () => {
     const fs = require('fs');
     const https = require('https');
     
+    const certPath = 'C:\\Users\\Fatima Miranda\\Proyectos\\Backend\\192.168.1.60+2.pem';
+    const keyPath  = 'C:\\Users\\Fatima Miranda\\Proyectos\\Backend\\192.168.1.60+2-key.pem';
+
+    if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
+      throw new Error(`Certificados SSL no encontrados.\nCert: ${certPath}\nKey : ${keyPath}`);
+    }
+
     const opcionesSsl = {
-      pfx: fs.readFileSync('C:\\Users\\Fatima Miranda\\Proyectos\\Backend\\metrica_server.pfx'),
-      passphrase: 'M3trica2026!'
+      cert: fs.readFileSync(certPath),
+      key:  fs.readFileSync(keyPath)
     };
 
     const server = https.createServer(opcionesSsl, app).listen(env.port, '0.0.0.0', () => {
