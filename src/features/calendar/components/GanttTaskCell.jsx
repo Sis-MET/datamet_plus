@@ -13,6 +13,9 @@ export function GanttTaskCell({
   previewOpacity, 
   onTaskClick,
   onTaskDrop,
+  onTaskContextMenu,
+  onTaskDragStart,
+  onTaskDragEnd,
   date,
   resourceId,
   resourceName
@@ -61,7 +64,6 @@ export function GanttTaskCell({
 
   const cellStyle = isPreview ? { opacity: previewOpacity } : {};
   
-  // Evaluamos si la columna es un día no laborable
   const { isNonWorking, type } = isNonWorkingDay(date);
   const nonWorkClass = isNonWorking
     ? (type === 'feriado' ? 'bg-yellow-500/10' : 'bg-red-500/10')
@@ -86,22 +88,25 @@ export function GanttTaskCell({
     e.stopPropagation();
     if (!onTaskDrop) return; // solo si tiene permisos
     
+    if (onTaskDragStart) onTaskDragStart();
+
     // Convertimos la información relevante a string para pasarla en el Drag Event
     const dragData = JSON.stringify({ 
       sourceResource: resourceId,
+      sourceDate: date,
       morning: task.morning, 
       afternoon: task.afternoon, 
       colorAM: task.colorAM,
       colorPM: task.colorPM
     });
     e.dataTransfer.setData('application/json', dragData);
-    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.effectAllowed = 'copyMove';
   };
 
   const handleDragOver = (e) => {
     if (onTaskDrop) {
       e.preventDefault(); // Necesario para permitir el "Drop"
-      e.dataTransfer.dropEffect = 'copy';
+      e.dataTransfer.dropEffect = e.ctrlKey ? 'move' : 'copy';
     }
   };
 
@@ -113,7 +118,7 @@ export function GanttTaskCell({
       if (rawData) {
         try {
           const sourceTask = JSON.parse(rawData);
-          onTaskDrop(sourceTask, date, resourceId);
+          onTaskDrop(sourceTask, date, resourceId, e.ctrlKey);
         } catch (err) {
           console.error('Error parseando drag data', err);
         }
@@ -160,6 +165,14 @@ export function GanttTaskCell({
           key={task.id}
           draggable={!!onTaskDrop}
           onDragStart={(e) => handleDragStart(e, task)}
+          onDragEnd={() => onTaskDragEnd && onTaskDragEnd()}
+          onContextMenu={(e) => {
+            if (onTaskContextMenu) {
+              e.preventDefault();
+              e.stopPropagation();
+              onTaskContextMenu(e, task, date, resourceId);
+            }
+          }}
           className="w-full h-[3.25rem] border border-white/10 rounded-lg overflow-hidden text-[10px] text-white shadow-lg flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-white/30 transition-all font-mono tracking-tight animate-fade-in"
         >
           {/* Sub-celda MAÑANA */}

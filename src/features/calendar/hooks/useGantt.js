@@ -59,9 +59,11 @@ export function useGantt() {
       const [scheduleRes, tecnicosRes] = await Promise.all([
         fetch(`${API_BASE}/calendar/cronograma?start=${startStr}&end=${endStr}`, {
           headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store'
         }),
         fetch(`${API_BASE}/calendar/tecnicos`, {
           headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store'
         }),
       ]);
 
@@ -140,7 +142,7 @@ export function useGantt() {
   }, [tasks]);
 
   // Ahora upsertScheduleCell recibe un objeto con morning, afternoon y color en vez de un solo texto
-  const upsertScheduleCell = async (date, resource, payload) => {
+  const upsertScheduleCell = async (date, resource, payload, skipFetch = false) => {
     const token = safeStorage.getItem('rimmet_token');
     // Formatear la fecha como YYYY-MM-DD local
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -198,7 +200,9 @@ export function useGantt() {
         } catch(e) {}
         throw new Error(errMsg);
     }
-    await fetchData(); // Refetch para redibujar la grilla plana
+    if (!skipFetch) {
+       await fetchData(); // Refetch para redibujar la grilla plana
+    }
   };
 
   return {

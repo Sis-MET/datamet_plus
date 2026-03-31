@@ -54,10 +54,15 @@ function App() {
   return (
     <>
       <Toaster position="bottom-right" theme="dark" />
+      {/* Background layer, fixed for mobile performance without jitter */}
       <div 
-        className="min-h-screen bg-[#141414] pb-12 bg-cover bg-center bg-fixed"
-        style={{ backgroundImage: `linear-gradient(rgba(20, 20, 20, 0.8), rgba(20, 20, 20, 0.95)), url(${bgImage})` }}
-      >
+        className="fixed inset-0 z-[-1] bg-cover bg-center"
+        style={{ 
+          backgroundImage: `linear-gradient(rgba(20, 20, 20, 0.6), rgba(20, 20, 20, 0.8)), url(${bgImage})` 
+        }}
+      />
+
+      <div className="min-h-screen bg-transparent pb-12 relative z-0">
         <Header
           activeView={activeView}
           onViewChange={setActiveView}

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-  ChevronLeft, ChevronRight, CalendarDays, LayoutList, Loader2, DatabaseZap, RefreshCw,
+  ChevronLeft, ChevronRight, LayoutList, Loader2, DatabaseZap, RefreshCw, ArrowRightLeft, Trash2
 } from 'lucide-react';
 import { sileo } from 'sileo';
 
@@ -26,11 +26,45 @@ export function CalendarPage() {
   // Guardar la cede de click de la grilla (para nuevas tareas)
   const [prefilledDate, setPrefilledDate] = useState(new Date());
   const [prefilledResource, setPrefilledResource] = useState('');
+  
+  // UX: Modo Mover y ContextMenu
+  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null });
 
-  // Determinar permisos del usuario
-  const token = safeStorage.getItem('rimmet_token');
-  const user = token ? parseJwt(token) : null;
-  const isAdmin = user?.acceso?.trim() === 'SAdministrador';
+  useEffect(() => {
+    const down = (e) => { if (e.key === 'Control') setIsCtrlPressed(true); };
+    const up = (e) => { if (e.key === 'Control') setIsCtrlPressed(false); };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', () => setIsCtrlPressed(false)); // Cortar si cambia de tab
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', () => setIsCtrlPressed(false));
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null });
+    if (contextMenu.visible) window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [contextMenu.visible]);
+
+  // Determinar permisos del usuario (Priorizar objeto guardado completo sobre el JWT limitado)
+  let user = null;
+  try {
+    user = JSON.parse(safeStorage.getItem('rimmet_user') || 'null');
+  } catch (e) {
+    // ignore
+  }
+  if (!user) {
+    const token = safeStorage.getItem('rimmet_token');
+    user = token ? parseJwt(token) : null;
+  }
+  
+  const isAdmin = String(user?.acceso_cron) === '1'; // 1 = Puede editar todo, 2 = Solo Lectura
 
   // ── Hook vista Gantt ── (Lo cargamos primero para tener las Tasks)
   const {
@@ -91,8 +125,6 @@ export function CalendarPage() {
   const monthTitle = format(currentDate, "MMMM yyyy", { locale: es });
   const monthTitleCapitalized = monthTitle.charAt(0).toUpperCase() + monthTitle.slice(1);
 
-  const weekRangeLabel = `${format(weekStart, "d 'de' MMMM", { locale: es })} – ${format(weekEnd, "d 'de' MMMM yyyy", { locale: es })}`;
-  const weekRangeCapitalized = weekRangeLabel.charAt(0).toUpperCase() + weekRangeLabel.slice(1);
 
   const handleOpenForm = (evt = null, date = new Date(), resourceId = '') => {
     setEditingEvent(evt);
@@ -126,35 +158,84 @@ export function CalendarPage() {
     }
   };
 
-  const handleTaskDrop = async (sourceTask, targetDate, targetResource) => {
+  // Eliminar turno rapido (Click Derecho)
+  const handleDeleteTask = async (task, date, resourceId) => {
+     setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null });
+     sileo.success({ description: "Borrando turno...", duration: 500 }); // Usando success en vez de loading pq no existe loading
+     try {
+       const dateObj = new Date(date);
+       await upsertScheduleCell(dateObj, resourceId, {
+          morning: '', afternoon: '', colorAM: '', colorPM: ''
+       }, true);
+       await new Promise(r => setTimeout(r, 400));
+       if (typeof refetch === 'function') refetch();
+       sileo.success({ description: "Turno eliminado" });
+     } catch (err) {
+       sileo.error({ description: err.message || "Error al borrar turno" });
+     }
+  };
+
+  const handleTaskDrop = async (sourceTask, targetDate, targetResource, isMoveKey) => {
     if (!sourceTask) return;
     
     // Buscar el nombre del técnico para un mensaje más amigable
     const targetTecnico = tecnicos.find(t => t.id === targetResource);
     const targetName = targetTecnico ? targetTecnico.nombre : targetResource;
 
-    const executeCopy = async () => {
+    const executeAction = async () => {
       try {
-        // Aseguramos que targetDate sea un objeto Date
-        const dateObj = targetDate instanceof Date ? targetDate : new Date(targetDate);
+        const targetDateObj = targetDate instanceof Date ? targetDate : new Date(targetDate);
         
-        await upsertScheduleCell(dateObj, targetResource, {
-          morning: sourceTask.morning,
-          afternoon: sourceTask.afternoon,
-          colorAM: sourceTask.colorAM,
-          colorPM: sourceTask.colorPM,
-        });
-        sileo.success({ description: "Actividad copiada correctamente." });
+        if (isMoveKey && sourceTask.sourceDate) {
+          const sourceDateObj = new Date(sourceTask.sourceDate);
+          
+          // Prevenir mover a la misma celda
+          if (targetResource === sourceTask.sourceResource && targetDateObj.getTime() === sourceDateObj.getTime()) {
+             return;
+          }
+          
+          // 1. Escribir Destino
+          await upsertScheduleCell(targetDateObj, targetResource, {
+            morning: sourceTask.morning,
+            afternoon: sourceTask.afternoon,
+            colorAM: sourceTask.colorAM,
+            colorPM: sourceTask.colorPM,
+          }, true);
+          
+          // 2. Limpiar Origen
+          await upsertScheduleCell(sourceDateObj, sourceTask.sourceResource, {
+            morning: '',
+            afternoon: '',
+            colorAM: '',
+            colorPM: ''
+          }, true);
+          
+          await new Promise(r => setTimeout(r, 400));
+          if (typeof refetch === 'function') refetch();
+          sileo.success({ description: "Actividad movida correctamente." });
+        } else {
+          // Copia Normal
+          await upsertScheduleCell(targetDateObj, targetResource, {
+            morning: sourceTask.morning,
+            afternoon: sourceTask.afternoon,
+            colorAM: sourceTask.colorAM,
+            colorPM: sourceTask.colorPM,
+          }, true);
+
+          await new Promise(r => setTimeout(r, 400));
+          if (typeof refetch === 'function') refetch();
+          sileo.success({ description: "Actividad copiada correctamente." });
+        }
       } catch (err) {
-        sileo.error({ description: err.message || "Error al copiar la actividad" });
+        sileo.error({ description: err.message || "Error al procesar la actividad" });
       }
     };
 
     if (sourceTask.sourceResource && sourceTask.sourceResource !== targetResource) {
-      // Diferente técnico: solicitar confirmación usando ReactNode en el description
+      // Diferente técnico: solicitar confirmación
       const handleConfirm = (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
-        executeCopy();
+        executeAction();
         sileo.clear();
       };
 
@@ -164,12 +245,12 @@ export function CalendarPage() {
       };
 
       sileo.action({
-        title: "¿Copiar a otro técnico?",
-        duration: 10000, // Darle 10 segundos para reaccionar
+        title: isMoveKey ? "¿Mover a otro técnico?" : "¿Copiar a otro técnico?",
+        duration: 10000,
         description: (
           <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
             <span className="text-[13px] text-gray-600 leading-snug">
-              Vas a copiar esta actividad a <strong className="font-semibold text-gray-800">{targetName}</strong>. ¿Estás seguro?
+              Vas a {isMoveKey ? "mover" : "copiar"} esta actividad a <strong className="font-semibold text-gray-800">{targetName}</strong>. ¿Estás seguro?
             </span>
             <div className="flex items-center gap-2">
               <div
@@ -180,7 +261,7 @@ export function CalendarPage() {
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleConfirm(e); }}
                 className="flex-1 py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
               >
-                Sí, Copiar
+                Sí, {isMoveKey ? "Mover" : "Copiar"}
               </div>
               <div
                 role="button"
@@ -197,31 +278,27 @@ export function CalendarPage() {
         )
       });
     } else {
-      // Mismo técnico (diferente día), copiamos directo
-      executeCopy();
+      // Mismo técnico (diferente día), copiamos o movemos directo sin preguntar
+      executeAction();
     }
   };
 
   return (
-    <main className="w-full px-4 sm:px-6 2xl:px-12 py-6">
+    <main 
+      className="w-full h-full flex flex-col px-4 sm:px-6 2xl:px-12 py-6 relative"
+      onDragOver={(e) => {
+        if (isDragging) {
+           e.preventDefault();
+           setDragPos({ x: e.clientX, y: e.clientY });
+        }
+      }}
+    >
 
       {/* ══ Encabezado unificado ══ */}
       <div className="mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
 
-          {/* Título + navegación semanal inline */}
-          <div className="flex items-center gap-3">
-            <CalendarDays className="h-6 w-6 text-primary-400 shrink-0" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-gray-100 leading-none pb-0.5">Calendario Metrica</h1>
-                {/* Los botones han sido movidos a GanttPage.jsx */}
-              </div>
-              <p className="text-sm text-gray-400 mt-0.5">
-                <span className="capitalize">{weekRangeCapitalized}</span>
-              </p>
-            </div>
-          </div>
+
 
           {/* Controles derechos — solo indicadores */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -269,6 +346,12 @@ export function CalendarPage() {
             isToday={isTodayGantt}
             onTaskClick={isAdmin ? handleOpenForm : undefined}
             onTaskDrop={isAdmin ? handleTaskDrop : undefined}
+            onTaskContextMenu={isAdmin ? (e, task, date, res) => {
+               e.preventDefault();
+               setContextMenu({ visible: true, x: e.clientX, y: e.clientY, task, date, resourceId: res });
+            } : undefined}
+            onTaskDragStart={isAdmin ? () => setIsDragging(true) : undefined}
+            onTaskDragEnd={isAdmin ? () => setIsDragging(false) : undefined}
             currentWeekStart={weekStart}
             currentWeekEnd={weekEnd}
             goToCurrentWeek={goToCurrentWeek}
@@ -292,6 +375,32 @@ export function CalendarPage() {
         prefilledDate={prefilledDate}
         prefilledResource={prefilledResource}
       />
+      
+      {/* ── UX Flotantes ── */}
+      {isDragging && isCtrlPressed && (
+         <div 
+           className="fixed z-[9999] pointer-events-none px-2.5 py-1.5 rounded-md bg-blue-600/90 text-white text-[11px] font-bold shadow-lg flex items-center gap-1.5 transition-opacity"
+           style={{ left: dragPos.x + 15, top: dragPos.y + 15 }}
+         >
+           <ArrowRightLeft className="w-3.5 h-3.5" /> Mover
+         </div>
+      )}
+
+      {contextMenu.visible && (
+         <div 
+           className="fixed z-[9999] bg-[#1a1f2e] border border-white/20 shadow-2xl rounded-lg w-48 overflow-hidden animate-fade-in"
+           style={{ top: contextMenu.y, left: contextMenu.x }}
+         >
+            <button 
+              className="w-full text-left px-4 py-3 text-red-500 hover:bg-red-500/20 flex items-center gap-2.5 text-sm font-semibold transition-colors"
+              onClick={(e) => { e.stopPropagation(); handleDeleteTask(contextMenu.task, contextMenu.date, contextMenu.resourceId); }}
+            >
+               <Trash2 className="w-4 h-4" />
+               Eliminar turno
+            </button>
+         </div>
+      )}
+
     </main>
   );
 }

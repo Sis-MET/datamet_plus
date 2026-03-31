@@ -58,14 +58,20 @@ const loginUser = async (usuario, pass) => {
       throw new Error('Credenciales inválidas');
     }
 
+    // Validación estricta a nivel backend para perfiles sin acceso
+    if (String(user.acceso_cron) === "0") {
+      throw new Error('Tu perfil no tiene los permisos habilitados para acceder a esta aplicación.');
+    }
+
     // Login exitoso -> limpiar intentos previos
     loginAttemptsMap.delete(usuario);
 
-    // Inyectar "acceso" en el payload del token y en la respuesta
+    // Inyectar "acceso" y "acceso_cron" en el payload del token y en la respuesta
     const token = generateToken({ 
       id: user.id || user.usuario, 
       usuario: user.usuario,
-      acceso: user.acceso 
+      acceso: user.acceso,
+      acceso_cron: user.acceso_cron
     });
 
     return {
@@ -75,7 +81,8 @@ const loginUser = async (usuario, pass) => {
         apellido: user.apellido1 || '',
         cargo: user.cargo || '',
         area: user.area || '',
-        acceso: user.acceso || ''
+        acceso: user.acceso || '',
+        acceso_cron: user.acceso_cron || ''
       },
       token
     };

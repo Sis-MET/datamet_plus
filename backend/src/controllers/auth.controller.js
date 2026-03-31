@@ -28,7 +28,7 @@ const login = async (req, res, next) => {
         remainingSecs: error.remainingSecs
       });
     }
-    if (error.message.includes('Credenciales')) {
+    if (error.message.includes('Credenciales') || error.message.includes('Tu perfil no tiene')) {
       return res.status(401).json({ success: false, message: error.message });
     }
     next(error);

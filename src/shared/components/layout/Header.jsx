@@ -35,12 +35,18 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
           }}
         >
           {/* Logo */}
-          <div className="flex items-center flex-shrink-0 select-none">
+          <div className="flex items-center flex-shrink-0 select-none gap-4">
             <img
               src={logoMetrica}
               alt="Métrica LTDA"
               className="h-9 w-auto object-contain"
             />
+            {/* Título dinámico por módulo */}
+            <div className="hidden md:block border-l border-white/10 pl-4">
+              <h1 className="text-[17px] font-semibold text-gray-200 leading-none tracking-wide">
+                {activeView === 'rim' ? 'Formulario RIM' : 'Cronograma Metrica'}
+              </h1>
+            </div>
           </div>
 
           {/* Right side: button + usuario + logout */}
@@ -81,7 +87,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                         onClick={() => handleViewChange('calendar')}
                         className={`w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-white/5 transition-colors ${activeView === 'calendar' ? 'text-green-400 bg-green-500/10' : 'text-gray-300'}`}
                       >
-                        Calendario Métrica
+                        Cronograma Metrica
                       </button>
                    </div>
                  )}

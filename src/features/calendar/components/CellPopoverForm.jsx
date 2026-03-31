@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Trash2, Copy } from 'lucide-react';
 import { sileo } from 'sileo';
 import { cn } from '../../../shared/utils/cn';
@@ -30,6 +30,21 @@ export function CellPopoverForm({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeColorPicker, setActiveColorPicker] = useState(null);
+  const colorPickerRefAM = useRef(null);
+  const colorPickerRefPM = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (activeColorPicker === 'am' && colorPickerRefAM.current && !colorPickerRefAM.current.contains(e.target)) {
+        setActiveColorPicker(null);
+      }
+      if (activeColorPicker === 'pm' && colorPickerRefPM.current && !colorPickerRefPM.current.contains(e.target)) {
+        setActiveColorPicker(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeColorPicker]);
 
   const [recentColors, setRecentColors] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -190,7 +205,7 @@ export function CellPopoverForm({
                       className="flex-1 min-w-0 bg-[#111111] border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-700 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner"
                     />
                     {/* Botón para abrir Color Picker */}
-                    <div className="relative">
+                    <div className="relative" ref={colorPickerRefAM}>
                        <button
                          type="button"
                          onClick={() => setActiveColorPicker(activeColorPicker === 'am' ? null : 'am')}
@@ -283,7 +298,7 @@ export function CellPopoverForm({
                       className="flex-1 min-w-0 bg-[#111111] border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-700 focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner"
                     />
                     {/* Botón para abrir Color Picker */}
-                    <div className="relative">
+                    <div className="relative" ref={colorPickerRefPM}>
                        <button
                          type="button"
                          onClick={() => setActiveColorPicker(activeColorPicker === 'pm' ? null : 'pm')}

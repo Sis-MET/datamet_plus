@@ -103,6 +103,14 @@ export function LoginPage({ onLogin }) {
       }
       
       // Éxito: limpiar contadores
+      const loggedUser = data.data.user;
+
+      if (String(loggedUser.acceso_cron) === "0") {
+        setError('Tu perfil no tiene permisos habilitados para acceder a esta aplicación.');
+        return;
+      }
+
+      // Éxito: limpiar contadores
       setAttempts(0);
       setLockUntil(null);
       safeStorage.removeItem('rimmet_login_attempts');
@@ -110,9 +118,9 @@ export function LoginPage({ onLogin }) {
       
       // Pasar a calendar directamente
       safeStorage.setItem('rimmet_token', data.data.token);
-      safeStorage.setItem('rimmet_user', JSON.stringify(data.data.user));
+      safeStorage.setItem('rimmet_user', JSON.stringify(loggedUser));
       safeStorage.setItem('rimmet_last_view', 'calendar');
-      onLogin(data.data.user, 'calendar');
+      onLogin(loggedUser, 'calendar');
     } catch {
       setError('No se pudo conectar al servidor. Intente nuevamente.');
     } finally {
@@ -136,9 +144,9 @@ export function LoginPage({ onLogin }) {
         <div className="login-left">
           <img src={logoMetrica} alt="Metriga Logo" className="login-logo" />
           <div className="login-tagline">
-            <h1 className="login-title">NextMET</h1>
+            <h1 className="login-title">DataMET+</h1>
             <p className="login-subtitle">
-              Calendario Metrica y<br />Recepción de Registros de Instrumentos.
+              Cronograma Metrica y<br />Recepción de Registros de Instrumentos.
             </p>
           </div>
         </div>
@@ -150,7 +158,7 @@ export function LoginPage({ onLogin }) {
             <div className="login-card-header">
               <div className="login-card-dot" />
               <span className="login-card-label">
-                Acceso a NextMET
+                Acceso a DataMET+
               </span>
             </div>
 
@@ -283,7 +291,7 @@ export function LoginPage({ onLogin }) {
             )}
 
             <p className="login-footer-text mt-8">
-              © {new Date().getFullYear()} Metrica Ltda. — NextMET
+              © {new Date().getFullYear()} Metrica Ltda. — DataMET+
             </p>
           </div>
         </div>

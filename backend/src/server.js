@@ -7,27 +7,11 @@ const startServer = async () => {
     // 1. Iniciar conexión a base de datos
     await connectDB();
 
-    // 2. Levantar servidor Express Seguro (HTTPS)
-    const fs = require('fs');
-    const https = require('https');
-    
-    const certPath = 'C:\\Users\\Fatima Miranda\\Proyectos\\Backend\\192.168.1.60+2.pem';
-    const keyPath  = 'C:\\Users\\Fatima Miranda\\Proyectos\\Backend\\192.168.1.60+2-key.pem';
-
-    if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-      throw new Error(`Certificados SSL no encontrados.\nCert: ${certPath}\nKey : ${keyPath}`);
-    }
-
-    const opcionesSsl = {
-      cert: fs.readFileSync(certPath),
-      key:  fs.readFileSync(keyPath)
-    };
-
-    const server = https.createServer(opcionesSsl, app).listen(env.port, '0.0.0.0', () => {
-      console.log(`Servidor backend HTTPS corriendo seguro en el puerto ${env.port}`);
+    // 2. Levantar servidor Express HTTP Normal
+    const server = app.listen(env.port, '0.0.0.0', () => {
+      console.log(`Servidor backend HTTP corriendo en el puerto ${env.port}`);
       console.log(`Entorno: ${env.nodeEnv}`);
     });
-
     // Manejo de cierres gráciles (Graceful Shutdown)
     const shutdown = () => {
       console.log('Apagando servidor...');

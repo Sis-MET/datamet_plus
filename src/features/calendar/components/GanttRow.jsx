@@ -2,7 +2,7 @@ import React from 'react';
 import { Truck } from 'lucide-react';
 import { GanttTaskCell } from './GanttTaskCell';
 
-export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, onTaskClick, onTaskDrop, readOnly = false }) {
+export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, onTaskClick, onTaskDrop, readOnly = false, onTaskContextMenu, onTaskDragStart, onTaskDragEnd }) {
   const rawName = (tecnico.nombre || '').replace(/_/g, ' ').trim();
   const nameParts = rawName.split(' ');
   const lastName = nameParts.pop() || '';
@@ -37,6 +37,9 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             resourceName={tecnico.nombre}
             onTaskClick={readOnly ? null : onTaskClick}
             onTaskDrop={readOnly ? null : onTaskDrop}
+            onTaskContextMenu={readOnly ? null : onTaskContextMenu}
+            onTaskDragStart={readOnly ? null : onTaskDragStart}
+            onTaskDragEnd={readOnly ? null : onTaskDragEnd}
             readOnly={readOnly}
           />
         );
@@ -57,6 +60,9 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             resourceName={tecnico.nombre}
             onTaskClick={readOnly ? null : onTaskClick}
             onTaskDrop={readOnly ? null : onTaskDrop}
+            onTaskContextMenu={readOnly ? null : onTaskContextMenu}
+            onTaskDragStart={readOnly ? null : onTaskDragStart}
+            onTaskDragEnd={readOnly ? null : onTaskDragEnd}
             readOnly={readOnly}
           />
         );

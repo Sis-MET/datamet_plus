@@ -26,6 +26,9 @@ export function GanttPage({
   nextWeek,
   onRefetch,
   loading,
+  onTaskContextMenu,
+  onTaskDragStart,
+  onTaskDragEnd,
 }) {
 
   // Agrupar técnicos por área, ordenados alfabéticamente por área
@@ -128,6 +131,9 @@ export function GanttPage({
                   isToday={isToday}
                   onTaskClick={onTaskClick}
                   onTaskDrop={onTaskDrop}
+                  onTaskContextMenu={onTaskContextMenu}
+                  onTaskDragStart={onTaskDragStart}
+                  onTaskDragEnd={onTaskDragEnd}
                 />
               ))}
             </React.Fragment>
@@ -156,6 +162,9 @@ export function GanttPage({
                   isToday={isToday}
                   onTaskClick={onTaskClick}
                   onTaskDrop={onTaskDrop}
+                  onTaskContextMenu={onTaskContextMenu}
+                  onTaskDragStart={onTaskDragStart}
+                  onTaskDragEnd={onTaskDragEnd}
                 />
               ))}
             </React.Fragment>
