@@ -51,7 +51,21 @@ const getTecnicos = async () => {
         area
       FROM DATA_USERS
       WHERE estado = 'ACTIVO'
-      ORDER BY apellido1, nombre1
+      
+      UNION ALL
+      
+      SELECT 
+        id as user_id,
+        REPLACE(TRIM(ISNULL(identificacion, 'SIN_IDENTIFICACION')), ' ', '_') AS id,
+        TRIM(ISNULL(identificacion, 'SIN_IDENTIFICACION')) AS nombre,
+        categoria AS cargo,
+        'VEHÍCULOS' AS area
+      FROM DATA_ACTIVOS
+      WHERE categoria = 'VEHICULO' 
+        AND estado = 'ACTIVO' 
+        AND acceso_cron = 1
+      
+      ORDER BY area, nombre
     `);
 
   const tecnicos = result.recordset;

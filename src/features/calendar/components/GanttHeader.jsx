@@ -1,11 +1,11 @@
 import React from 'react';
-import { format, startOfWeek, endOfWeek, isBefore, isAfter } from 'date-fns';
+import { format, startOfWeek, endOfWeek, isBefore, isAfter, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { isNonWorkingDay } from '../utils/holidays';
 
 const DAY_LABELS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-export function GanttHeader({ weekDays, previewDays = [], isToday, currentWeekStart, currentWeekEnd }) {
+export function GanttHeader({ weekDays, previewDays = [], isToday, currentWeekStart, currentWeekEnd, selectedDay }) {
   return (
     <div className="gantt-header-row">
       {/* Columna sticky de nombre de técnico */}
@@ -33,16 +33,23 @@ export function GanttHeader({ weekDays, previewDays = [], isToday, currentWeekSt
 
         // Semana actual → fondo verde sutil + opacidad completa
         // Semanas pasada/futura → opacidad reducida
-        const weekAccentStyle = isCurrent && !isNonWorking && !todayFlag
-          ? { backgroundColor: 'rgba(34, 197, 94, 0.08)' }   // verde-500 al 8%
-          : {};
-        const dimClass   = !isCurrent ? 'opacity-45' : '';
+        const isSelectedDay = selectedDay && isSameDay(day, selectedDay);
+        
+        let weekAccentStyle = {};
+
+        if (isSelectedDay) {
+          weekAccentStyle = { backgroundColor: 'rgba(16, 185, 129, 0.25)' }; // Verde esmeralda (emerald-500)
+        }
+        
+        const dimClass   = !isCurrent && !isSelectedDay ? 'opacity-45' : '';
         const borderClass = isFirstOfWeek ? 'border-l-2 border-l-white/20' : '';
+        const highlightClass = isSelectedDay ? 'ring-inset ring-2 ring-[#10b981]/80 shadow-[0_0_15px_rgba(16,185,129,0.3)] z-10 transition-all duration-300' : '';
 
         return (
           <div
             key={day.toISOString()}
-            className={`gantt-day-header-cell ${todayFlag ? 'gantt-day-header-today' : ''} ${nonWorkBg} ${dimClass} ${borderClass}`}
+            id={`gantt-day-${format(day, 'yyyy-MM-dd')}`}
+            className={`gantt-day-header-cell ${todayFlag ? 'gantt-day-header-today' : ''} ${nonWorkBg} ${dimClass} ${borderClass} ${highlightClass}`}
             style={weekAccentStyle}
           >
             <span className={`gantt-day-label ${isNonWorking ? (type === 'feriado' ? 'text-yellow-400/80' : 'text-red-400/80') : isCurrent ? 'text-green-300/80' : ''}`}>

@@ -1,11 +1,10 @@
-import React from 'react';
-import { Truck, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
+import { Truck, ChevronLeft, ChevronRight, RefreshCw, Filter, ChevronDown, Users } from 'lucide-react';
 import { format, isBefore, isAfter, subWeeks, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
 import { GanttRow } from './components/GanttRow';
 import { GanttLegend } from './components/GanttLegend';
-import { VEHICLES } from './hooks/useGantt';
 
 /**
  * Componente presentacional puro: solo renderiza la grilla y la leyenda.
@@ -15,8 +14,12 @@ export function GanttPage({
   weekDays,
   previewDays = [],
   tecnicos,
+  allTecnicos = [],
+  selectedArea,
+  onSelectArea,
   tasksForCell,
   isToday,
+  selectedDay,
   onTaskClick,
   onTaskDrop,
   currentWeekStart,
@@ -30,6 +33,24 @@ export function GanttPage({
   onTaskDragStart,
   onTaskDragEnd,
 }) {
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  // ── Estadísticas de áreas ──
+  const areaStats = useMemo(() => {
+    const stats = {};
+    let totalActivos = 0;
+    allTecnicos.forEach(t => {
+      const rawArea = typeof t.area === 'string' && t.area.trim() !== '' ? t.area.trim() : 'Sin Área';
+      if (!stats[rawArea]) stats[rawArea] = 0;
+      stats[rawArea]++;
+      totalActivos++;
+    });
+    const areasArray = Object.keys(stats).map(areaName => ({
+      name: areaName,
+      count: stats[areaName]
+    })).sort((a, b) => a.name.localeCompare(b.name));
+    return { totalActivos, areasArray };
+  }, [allTecnicos]);
 
   // Agrupar técnicos por área, ordenados alfabéticamente por área
   const grupos = React.useMemo(() => {
@@ -49,6 +70,30 @@ export function GanttPage({
   const prevEnd   = currentWeekStart ? endOfWeek(subWeeks(currentWeekStart, 1), { weekStartsOn: 1 }) : null;
   const nextStart = currentWeekEnd   ? startOfWeek(addWeeks(currentWeekEnd, 1), { weekStartsOn: 1 }) : null;
   const nextEnd   = currentWeekEnd   ? endOfWeek(addWeeks(currentWeekEnd, 1), { weekStartsOn: 1 }) : null;
+
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (selectedDay && scrollRef.current) {
+      const dateStr = format(selectedDay, 'yyyy-MM-dd');
+      const el = scrollRef.current.querySelector(`#gantt-day-${dateStr}`);
+      if (el) {
+        const containerRect = scrollRef.current.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        
+        const stickyWidth = window.innerWidth <= 1023 ? 130 : 160;
+        const visibleWidth = containerRect.width - stickyWidth;
+        
+        const elLeftInContent = elRect.left - containerRect.left + scrollRef.current.scrollLeft;
+        const targetX = elLeftInContent - stickyWidth - (visibleWidth / 2) + (elRect.width / 2);
+
+        scrollRef.current.scrollTo({
+          left: Math.max(0, targetX),
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [selectedDay, weekDays]);
 
   return (
     <div>
@@ -93,11 +138,73 @@ export function GanttPage({
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <RefreshCw className={`relative z-10 h-4 w-4 ${loading ? 'animate-spin text-primary-400' : ''}`} />
           </button>
+
+          {/* ── Filtro por Área Dropdown ── */}
+          <div className="relative z-50 ml-1">
+            <button
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md border shadow-sm transition-colors overflow-hidden ${
+                selectedArea !== 'Todas' 
+                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30' 
+                  : 'bg-white/5 text-gray-300 border-white/10 hover:border-white/20 hover:bg-white/10 hover:text-white'
+              }`}
+              title="Filtrar por Área"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+              <Filter className={`relative z-10 h-3.5 w-3.5 transition-colors ${selectedArea !== 'Todas' ? 'text-blue-400' : 'text-gray-400 group-hover:text-white'}`} />
+              <span className="relative z-10 truncate max-w-[100px]">{selectedArea === 'Todas' ? 'Todas las áreas' : selectedArea}</span>
+              <ChevronDown className={`relative z-10 h-3.5 w-3.5 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isFilterOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
+                <div className="absolute top-full left-0 mt-2 w-64 rounded-2xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)] overflow-hidden animate-fade-in z-50 transform origin-top-left" 
+                     style={{ background: 'rgba(30, 30, 35, 0.95)', backdropFilter: 'blur(16px)' }}>
+                  <div className="p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
+                    <button
+                      onClick={() => { if(onSelectArea) onSelectArea('Todas'); setIsFilterOpen(false); }}
+                      className={`flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-colors ${
+                        selectedArea === 'Todas'
+                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                          : 'text-gray-300 hover:bg-white/10 hover:text-white border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 opacity-80" />
+                        <span>Todas las Áreas</span>
+                      </div>
+                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider ${selectedArea === 'Todas' ? 'bg-blue-500/20 text-blue-300' : 'bg-white/10 text-gray-400'}`}>
+                        {areaStats.totalActivos}
+                      </span>
+                    </button>
+                    <div className="h-[1px] w-full bg-white/10 my-1" />
+                    {areaStats.areasArray.map(area => (
+                      <button
+                        key={area.name}
+                        onClick={() => { if(onSelectArea) onSelectArea(area.name); setIsFilterOpen(false); }}
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-colors ${
+                          selectedArea === area.name
+                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                            : 'text-gray-300 hover:bg-white/10 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        <span className="truncate pr-2">{area.name}</span>
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider flex-shrink-0 ${selectedArea === area.name ? 'bg-blue-500/20 text-blue-300' : 'bg-white/10 text-gray-400'}`}>
+                          {area.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
       {/* ── Gantt Grid ── */}
-      <div className="gantt-scroll-container">
+      <div className="gantt-scroll-container" ref={scrollRef}>
         <div className="gantt-grid">
           <GanttHeader
             weekDays={weekDays}
@@ -105,20 +212,33 @@ export function GanttPage({
             isToday={isToday}
             currentWeekStart={currentWeekStart}
             currentWeekEnd={currentWeekEnd}
+            selectedDay={selectedDay}
           />
 
           {/* ══ Técnicos agrupados por Área ══ */}
           {grupos.map(([area, tecnicosDelArea]) => (
             <React.Fragment key={area}>
               {/* ── Separador de Área ── */}
-              <div
-                className="flex items-center gap-3 px-4 py-1.5 bg-[#111114] border-b border-gray-700/30"
-                style={{ gridColumn: '1 / -1' }}
-              >
-                <span className="text-[9px] font-black uppercase tracking-[0.15em] text-gray-500">{area}</span>
-                <div className="flex-1 h-[1px] bg-gradient-to-r from-gray-700/40 to-transparent" />
-                <span className="text-[9px] text-gray-600 font-bold">{tecnicosDelArea.length}</span>
-              </div>
+              {area === 'VEHÍCULOS' ? (
+                <div
+                  className="flex items-center gap-3 px-4 py-1.5 border-b border-blue-500/20 bg-blue-950/30"
+                  style={{ gridColumn: '1 / -1' }}
+                >
+                  <Truck className="w-3.5 h-3.5 text-blue-400/70" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.15em] text-blue-400/70">Vehículos</span>
+                  <div className="flex-1 h-[1px] bg-gradient-to-r from-blue-500/20 to-transparent" />
+                  <span className="text-[9px] text-blue-400/40 font-bold">{tecnicosDelArea.length}</span>
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-3 px-4 py-1.5 bg-[#111114] border-b border-gray-700/30"
+                  style={{ gridColumn: '1 / -1' }}
+                >
+                  <span className="text-[9px] font-black uppercase tracking-[0.15em] text-gray-500">{area}</span>
+                  <div className="flex-1 h-[1px] bg-gradient-to-r from-gray-700/40 to-transparent" />
+                  <span className="text-[9px] text-gray-600 font-bold">{tecnicosDelArea.length}</span>
+                </div>
+              )}
 
               {/* ── Filas del área ── */}
               {tecnicosDelArea.map((tecnico) => (
@@ -129,6 +249,7 @@ export function GanttPage({
                   previewDays={previewDays}
                   tasksForCell={tasksForCell}
                   isToday={isToday}
+                  selectedDay={selectedDay}
                   onTaskClick={onTaskClick}
                   onTaskDrop={onTaskDrop}
                   onTaskContextMenu={onTaskContextMenu}
@@ -139,36 +260,7 @@ export function GanttPage({
             </React.Fragment>
           ))}
 
-          {/* ══ Sección VEHÍCULOS (Al final) ══ */}
-          {VEHICLES.length > 0 && (
-            <React.Fragment>
-              <div
-                className="flex items-center gap-3 px-4 py-1.5 border-b border-blue-500/20 bg-blue-950/30"
-                style={{ gridColumn: '1 / -1' }}
-              >
-                <Truck className="w-3.5 h-3.5 text-blue-400/70" />
-                <span className="text-[9px] font-black uppercase tracking-[0.15em] text-blue-400/70">Vehículos</span>
-                <div className="flex-1 h-[1px] bg-gradient-to-r from-blue-500/20 to-transparent" />
-                <span className="text-[9px] text-blue-400/40 font-bold">{VEHICLES.length}</span>
-              </div>
 
-              {VEHICLES.map((vehiculo) => (
-                <GanttRow
-                  key={vehiculo.id}
-                  tecnico={vehiculo}
-                  weekDays={weekDays}
-                  previewDays={previewDays}
-                  tasksForCell={tasksForCell}
-                  isToday={isToday}
-                  onTaskClick={onTaskClick}
-                  onTaskDrop={onTaskDrop}
-                  onTaskContextMenu={onTaskContextMenu}
-                  onTaskDragStart={onTaskDragStart}
-                  onTaskDragEnd={onTaskDragEnd}
-                />
-              ))}
-            </React.Fragment>
-          )}
         </div>
       </div>
 

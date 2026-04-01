@@ -14,11 +14,6 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3000/api';
 
-// Vehículos de la flota — recursos de solo lectura en el Gantt
-export const VEHICLES = [
-  { id: 'Furgón',    nombre: 'Furgón',    tipo: 'vehiculo', area: 'VEHÍCULOS' },
-  { id: 'Camioneta', nombre: 'Camioneta', tipo: 'vehiculo', area: 'VEHÍCULOS' },
-];
 
 export function useGantt() {
   const [weekStart, setWeekStart] = useState(() =>

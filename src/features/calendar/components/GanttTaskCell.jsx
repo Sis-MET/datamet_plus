@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { format } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Truck } from 'lucide-react';
 import { cn } from '../../../utils/cn';
@@ -17,6 +17,7 @@ export function GanttTaskCell({
   onTaskDragStart,
   onTaskDragEnd,
   date,
+  selectedDay,
   resourceId,
   resourceName
 }) {
@@ -65,11 +66,17 @@ export function GanttTaskCell({
   const cellStyle = isPreview ? { opacity: previewOpacity } : {};
   
   const { isNonWorking, type } = isNonWorkingDay(date);
+  const isSelectedDay = selectedDay && isSameDay(date, selectedDay);
+  
   const nonWorkClass = isNonWorking
     ? (type === 'feriado' ? 'bg-yellow-500/10' : 'bg-red-500/10')
     : '';
   
   let baseClasses = `gantt-cell ${todayFlag ? 'gantt-cell-today-bg' : ''} ${isPreview ? 'gantt-cell-preview' : ''} ${nonWorkClass}`;
+
+  if (isSelectedDay) {
+    baseClasses += ' bg-[#10b981]/[0.15] ring-[1px] ring-inset ring-[#10b981]/50 shadow-[inset_0_0_15px_rgba(16,185,129,0.1)] z-[5] transition-all duration-300';
+  }
 
   if (onTaskClick) {
     baseClasses += ' cursor-pointer hover:bg-white/5 transition-colors';

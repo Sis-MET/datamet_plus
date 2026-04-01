@@ -161,7 +161,7 @@ export function CalendarPage() {
   // Eliminar turno rapido (Click Derecho)
   const handleDeleteTask = async (task, date, resourceId) => {
      setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null });
-     sileo.success({ description: "Borrando turno...", duration: 500 }); // Usando success en vez de loading pq no existe loading
+     sileo.success({ description: "Borrando ficha...", duration: 500 }); 
      try {
        const dateObj = new Date(date);
        await upsertScheduleCell(dateObj, resourceId, {
@@ -169,9 +169,9 @@ export function CalendarPage() {
        }, true);
        await new Promise(r => setTimeout(r, 400));
        if (typeof refetch === 'function') refetch();
-       sileo.success({ description: "Turno eliminado" });
+       sileo.success({ description: "Ficha eliminada" });
      } catch (err) {
-       sileo.error({ description: err.message || "Error al borrar turno" });
+       sileo.error({ description: err.message || "Error al borrar ficha" });
      }
   };
 
@@ -320,8 +320,6 @@ export function CalendarPage() {
         <div className="order-2 lg:order-1 w-full lg:w-auto">
           <LeftFilterSidebar
             tecnicos={tecnicos}
-            selectedArea={selectedArea}
-            onSelectArea={setSelectedArea}
             currentDate={currentDate}
             selectedDay={selectedDay}
             calendarDays={calendarDays}
@@ -342,8 +340,12 @@ export function CalendarPage() {
             weekDays={weekDays}
             previewDays={[]}
             tecnicos={filteredTecnicos}
+            allTecnicos={tecnicos}
+            selectedArea={selectedArea}
+            onSelectArea={setSelectedArea}
             tasksForCell={tasksForCell}
             isToday={isTodayGantt}
+            selectedDay={selectedDay}
             onTaskClick={isAdmin ? handleOpenForm : undefined}
             onTaskDrop={isAdmin ? handleTaskDrop : undefined}
             onTaskContextMenu={isAdmin ? (e, task, date, res) => {
@@ -382,7 +384,7 @@ export function CalendarPage() {
            className="fixed z-[9999] pointer-events-none px-2.5 py-1.5 rounded-md bg-blue-600/90 text-white text-[11px] font-bold shadow-lg flex items-center gap-1.5 transition-opacity"
            style={{ left: dragPos.x + 15, top: dragPos.y + 15 }}
          >
-           <ArrowRightLeft className="w-3.5 h-3.5" /> Mover
+           <ArrowRightLeft className="w-3.5 h-3.5" /> Mover Ficha
          </div>
       )}
 
@@ -396,7 +398,7 @@ export function CalendarPage() {
               onClick={(e) => { e.stopPropagation(); handleDeleteTask(contextMenu.task, contextMenu.date, contextMenu.resourceId); }}
             >
                <Trash2 className="w-4 h-4" />
-               Eliminar turno
+               Eliminar Ficha
             </button>
          </div>
       )}

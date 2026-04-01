@@ -2,7 +2,7 @@ import React from 'react';
 import { Truck } from 'lucide-react';
 import { GanttTaskCell } from './GanttTaskCell';
 
-export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, onTaskClick, onTaskDrop, readOnly = false, onTaskContextMenu, onTaskDragStart, onTaskDragEnd }) {
+export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, selectedDay, onTaskClick, onTaskDrop, readOnly = false, onTaskContextMenu, onTaskDragStart, onTaskDragEnd }) {
   const rawName = (tecnico.nombre || '').replace(/_/g, ' ').trim();
   const nameParts = rawName.split(' ');
   const lastName = nameParts.pop() || '';
@@ -33,6 +33,7 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             tasks={dayTasks}
             isToday={isToday(day)}
             date={day}
+            selectedDay={selectedDay}
             resourceId={tecnico.id}
             resourceName={tecnico.nombre}
             onTaskClick={readOnly ? null : onTaskClick}
@@ -56,6 +57,7 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
             isPreview
             previewOpacity={1 - idx * 0.28}
             date={day}
+            selectedDay={selectedDay}
             resourceId={tecnico.id}
             resourceName={tecnico.nombre}
             onTaskClick={readOnly ? null : onTaskClick}

@@ -8,7 +8,7 @@ import { HexColorPicker } from 'react-colorful';
 import { safeStorage } from '../../../shared/utils/storage';
 
 const PRESET_COLORS = [
-  '#10B981', '#37A65F', '#84CC16', '#F59E0B', '#F97316', '#EF4444'
+  '#dadd12ff', '#1d2e8fff', '#424242ff', '#ce1515ff', '#621fceff', '#44bfefff'
 ];
 
 
@@ -180,7 +180,7 @@ export function CellPopoverForm({
                         type="button"
                         onClick={() => { setMorning(''); setColorAM(''); }}
                         className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 transition-colors"
-                        title="Limpiar Turno Mañana"
+                        title="Limpiar Ficha Mañana"
                       >
                         <Trash2 className="w-3 h-3" />
                         Limpiar
@@ -189,7 +189,7 @@ export function CellPopoverForm({
                         type="button"
                         onClick={() => { setAfternoon(morning); setColorPM(colorAM); setEstadoPM(estadoAM); }}
                         className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-primary-400 bg-primary-500/10 hover:bg-primary-500/20 hover:text-primary-300 transition-colors"
-                        title="Copiar datos a Turno Tarde"
+                        title="Copiar datos a Ficha Tarde"
                       >
                         <Copy className="w-3 h-3" />
                         Copiar a Tarde
@@ -282,7 +282,7 @@ export function CellPopoverForm({
                         type="button"
                         onClick={() => { setAfternoon(''); setColorPM(''); }}
                         className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 transition-colors"
-                        title="Limpiar Turno Tarde"
+                        title="Limpiar Ficha Tarde"
                       >
                         <Trash2 className="w-3 h-3" />
                         Limpiar

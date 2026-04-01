@@ -43,8 +43,8 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
             />
             {/* Título dinámico por módulo */}
             <div className="hidden md:block border-l border-white/10 pl-4">
-              <h1 className="text-[17px] font-semibold text-gray-200 leading-none tracking-wide">
-                {activeView === 'rim' ? 'Formulario RIM' : 'Cronograma Metrica'}
+              <h1 className="text-[18px] font-semibold text-white leading-none tracking-wide">
+                {activeView === 'rim' ? 'FORMULARIO RIM' : 'CRONOGRAMA METRICA'}
               </h1>
             </div>
           </div>
