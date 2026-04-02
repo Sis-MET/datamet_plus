@@ -210,6 +210,110 @@
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium;
     @apply bg-amber-500/10 text-amber-400 border border-amber-500/20;
   }
+
+  /* ═══════════════════════════════════════════════════
+     MODO CLARO — Grilla Gantt
+     Se activa añadiendo la clase .gantt-light al
+     .gantt-scroll-container  (desde GanttPage.jsx)
+     ═══════════════════════════════════════════════════ */
+  .gantt-light {
+    background: #f0f0f5 !important;
+    border-color: rgba(0, 0, 0, 0.10) !important;
+  }
+
+  /* Header row */
+  .gantt-light .gantt-header-row {
+    background-color: #e8e8ef !important;
+    border-bottom-color: rgba(0, 0, 0, 0.12) !important;
+  }
+
+  /* Columna sticky de nombre */
+  .gantt-light .gantt-name-col {
+    background: #e2e2ea !important;
+    border-right-color: rgba(0, 0, 0, 0.12) !important;
+  }
+
+  /* Cabecera "Técnico" */
+  .gantt-light .gantt-name-header {
+    color: #555560 !important;
+  }
+
+  /* Nombre e info del técnico */
+  .gantt-light .gantt-tecnico-name {
+    color: #1a1a2a !important;
+  }
+  .gantt-light .gantt-tecnico-cargo {
+    color: #666677 !important;
+  }
+
+  /* Filas */
+  .gantt-light .gantt-row {
+    border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+  }
+  .gantt-light .gantt-row:hover {
+    background: rgba(0, 0, 0, 0.03) !important;
+  }
+
+  /* Separador de área (fondo oscuro por defecto) */
+  .gantt-light .gantt-area-separator {
+    background: #dcdce6 !important;
+    border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Celdas de día en el header */
+  .gantt-light .gantt-day-header-cell {
+    border-right-color: rgba(0, 0, 0, 0.08) !important;
+    color: #555560 !important;
+  }
+  .gantt-light .gantt-day-header-today {
+    background: rgba(16, 185, 129, 0.12) !important;
+  }
+  .gantt-light .gantt-day-label {
+    color: #444455 !important;
+  }
+  .gantt-light .gantt-day-number {
+    color: #1a1a2a !important;
+  }
+  .gantt-light .gantt-day-number-today {
+    color: #059669 !important;
+  }
+  .gantt-light .gantt-day-month {
+    color: #888899 !important;
+  }
+
+  /* Celdas de datos */
+  .gantt-light .gantt-cell {
+    border-right-color: rgba(0, 0, 0, 0.07) !important;
+  }
+  .gantt-light .gantt-cell-today-bg {
+    background: rgba(99, 102, 241, 0.07) !important;
+  }
+
+  /* Separadores de área inline */
+  .gantt-light [style*="gridColumn: '1 / -1'"] {
+    background: #dcdce6 !important;
+    border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+  }
+  /* Texto del separador de área */
+  .gantt-light [style*="gridColumn: '1 / -1'"] span.text-gray-500 {
+    color: #666677 !important;
+  }
+  .gantt-light [style*="gridColumn: '1 / -1'"] span.text-gray-600 {
+    color: #888899 !important;
+  }
+
+  /* Tooltip en modo claro */
+  .gantt-light .gantt-tooltip {
+    background: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.12) !important;
+    color: #1a1a2a !important;
+  }
+  .gantt-light .gantt-tooltip-desc {
+    color: #1a1a2a !important;
+  }
+  .gantt-light .gantt-tooltip-row {
+    color: #555566 !important;
+  }
 }
 
 /* ── Corrección de Z-Index para Sileo Toasts (Errores) ── */

@@ -4,7 +4,6 @@ import { format } from 'date-fns';
 const FIXED_HOLIDAYS_BO = [
   '01-01', // Año Nuevo
   '01-22', // Día del Estado Plurinacional
-  '04-02', // Jueves Santo
   '04-03', // Viernes Santo
   '05-01', // Día del Trabajador
   '06-21', // Año Nuevo Aymara

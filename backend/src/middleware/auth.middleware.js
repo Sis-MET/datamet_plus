@@ -30,10 +30,10 @@ const protect = (req, res, next) => {
 };
 
 const isAdmin = (req, res, next) => {
-  if (req.user && req.user.acceso === 'SAdministrador') {
+  if (req.user && String(req.user.acceso_cron) === '1') {
     next();
   } else {
-    res.status(403).json({ success: false, message: 'Se requieren permisos de SAdministrador para esta acción' });
+    res.status(403).json({ success: false, message: 'Se requieren permisos completos para esta acción. (Modo Lectura)' });
   }
 };
 

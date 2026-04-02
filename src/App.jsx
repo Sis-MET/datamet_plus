@@ -6,6 +6,32 @@ import { CalendarPage } from './features/calendar/CalendarPage';
 import { LoginPage } from './features/auth/LoginPage';
 import bgImage from './assets/soporte_tecnico.svg';
 import { safeStorage } from './shared/utils/storage';
+import { ThemeProvider } from './shared/context/ThemeContext';
+
+// ── Componente interno: puede leer el contexto de tema ──
+function AppContent({ activeView, setActiveView, currentUser, handleLogout, renderView }) {
+  return (
+    <>
+      <Toaster position="bottom-right" theme="dark" />
+      {/* Background layer — siempre oscuro, sin cambios por el tema */}
+      <div
+        className="fixed inset-0 z-[-1] bg-cover bg-center"
+        style={{ backgroundImage: `linear-gradient(rgba(20, 20, 20, 0.60), rgba(20, 20, 20, 0.80)), url(${bgImage})` }}
+      />
+
+      <div className="min-h-screen bg-transparent pb-12 relative z-0">
+        <Header
+          activeView={activeView}
+          onViewChange={setActiveView}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+        />
+        <div className="h-20" />
+        {renderView()}
+      </div>
+    </>
+  );
+}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -52,30 +78,15 @@ function App() {
   };
 
   return (
-    <>
-      <Toaster position="bottom-right" theme="dark" />
-      {/* Background layer, fixed for mobile performance without jitter */}
-      <div 
-        className="fixed inset-0 z-[-1] bg-cover bg-center"
-        style={{ 
-          backgroundImage: `linear-gradient(rgba(20, 20, 20, 0.6), rgba(20, 20, 20, 0.8)), url(${bgImage})` 
-        }}
+    <ThemeProvider>
+      <AppContent
+        activeView={activeView}
+        setActiveView={setActiveView}
+        currentUser={currentUser}
+        handleLogout={handleLogout}
+        renderView={renderView}
       />
-
-      <div className="min-h-screen bg-transparent pb-12 relative z-0">
-        <Header
-          activeView={activeView}
-          onViewChange={setActiveView}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-        />
-
-        <div className="h-20" />
-
-        {renderView()}
-
-      </div>
-    </>
+    </ThemeProvider>
   );
 }
 

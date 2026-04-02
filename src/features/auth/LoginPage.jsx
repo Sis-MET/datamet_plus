@@ -4,7 +4,7 @@ import logoMetrica from '../../assets/logo_metrica.svg';
 import soporteSvg from '../../assets/soporte_tecnico.svg';
 import { safeStorage } from '../../shared/utils/storage';
 
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3000/api';
+const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : `${window.location.protocol}//${window.location.hostname}:3000/api`;
 const MAX_ATTEMPTS = 3;
 const LOCK_TIME_MS = 60 * 1000;
 

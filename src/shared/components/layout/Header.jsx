@@ -1,17 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
 import logoMetrica from '../../../assets/logo_metrica.svg';
-import { LogOut, User, LayoutGrid, ChevronDown } from 'lucide-react';
+import { LogOut, User, LayoutGrid, ChevronDown, Settings, Sun, Moon } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { safeStorage } from '../../utils/storage';
+import { useTheme } from '../../context/ThemeContext';
 
 export function Header({ activeView, onViewChange, currentUser, onLogout }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const settingsRef = useRef(null);
 
+  const { isDarkGantt, toggleGanttTheme } = useTheme();
+
+  // Cerrar dropdown al click fuera
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsDropdownOpen(false);
+      }
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setIsSettingsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -23,6 +32,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
     onViewChange?.(view);
     setIsDropdownOpen(false);
   };
+
   return (
     <header className="fixed top-3 left-4 right-4 z-50">
       <div className="max-w-7xl mx-auto">
@@ -49,7 +59,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
             </div>
           </div>
 
-          {/* Right side: button + usuario + logout */}
+          {/* Right side */}
           <div className="flex items-center gap-2">
             {currentUser && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/8">
@@ -60,6 +70,91 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                 </span>
               </div>
             )}
+
+            {/* ── Botón de Ajustes ── */}
+            {currentUser && (
+              <div className="relative" ref={settingsRef}>
+                <button
+                  onClick={() => setIsSettingsOpen((o) => !o)}
+                  title="Ajustes"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-200 ${
+                    isSettingsOpen
+                      ? 'text-white bg-white/10 border-white/20'
+                      : 'text-gray-400 hover:text-white hover:bg-white/10 border-transparent hover:border-white/20'
+                  }`}
+                >
+                  <Settings className={`h-4 w-4 transition-transform duration-300 ${isSettingsOpen ? 'rotate-45' : ''}`} />
+                  <span className="hidden sm:inline">Ajustes</span>
+                </button>
+
+                {/* ── Tarjeta de Ajustes ── */}
+                {isSettingsOpen && (
+                  <div
+                    className="absolute top-full right-0 mt-2 w-64 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden border border-white/10 animate-in fade-in zoom-in-95 duration-150 origin-top-right"
+                    style={{
+                      background: 'rgba(22, 22, 28, 0.96)',
+                      backdropFilter: 'blur(20px)',
+                      WebkitBackdropFilter: 'blur(20px)',
+                    }}
+                  >
+                    {/* Header de la tarjeta */}
+                    <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                      <Settings className="h-3.5 w-3.5 text-gray-400" />
+                      <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest">
+                        Ajustes
+                      </span>
+                    </div>
+
+                    {/* Opciones */}
+                    <div className="p-3 flex flex-col gap-1">
+                      {/* ── Switch Modo Claro/Oscuro Gantt ── */}
+                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors group">
+                        <div className="flex items-center gap-2.5">
+                          {isDarkGantt
+                            ? <Moon className="h-4 w-4 text-indigo-400 flex-shrink-0" />
+                            : <Sun className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                          }
+                          <div>
+                            <p className="text-xs font-semibold text-gray-200 leading-none mb-0.5">
+                              Modo de la grilla
+                            </p>
+                            <p className="text-[10px] text-gray-500 leading-none">
+                              {isDarkGantt ? 'Oscuro (actual)' : 'Claro (actual)'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Toggle switch */}
+                        <button
+                          role="switch"
+                          aria-checked={!isDarkGantt}
+                          onClick={toggleGanttTheme}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            !isDarkGantt
+                              ? 'bg-amber-400'
+                              : 'bg-white/15'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
+                              !isDarkGantt ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Footer info */}
+                    <div className="px-4 py-2 border-t border-white/5">
+                      <p className="text-[10px] text-gray-600 text-center">
+                        Solo afecta la grilla semanal
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Selector de Módulo (Dropdown) */}
             {currentUser && (
               <div className="relative" ref={dropdownRef}>
@@ -93,6 +188,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                  )}
               </div>
             )}
+
             {onLogout && (
               <button
                 onClick={onLogout}

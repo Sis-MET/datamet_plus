@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Loader2, Package, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
 
 /**
  * Buscador de equipos con lista siempre visible.

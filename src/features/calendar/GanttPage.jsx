@@ -5,6 +5,7 @@ import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
 import { GanttRow } from './components/GanttRow';
 import { GanttLegend } from './components/GanttLegend';
+import { useTheme } from '../../shared/context/ThemeContext';
 
 /**
  * Componente presentacional puro: solo renderiza la grilla y la leyenda.
@@ -34,6 +35,7 @@ export function GanttPage({
   onTaskDragEnd,
 }) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const { isDarkGantt } = useTheme();
 
   // ── Estadísticas de áreas ──
   const areaStats = useMemo(() => {
@@ -204,7 +206,7 @@ export function GanttPage({
       )}
 
       {/* ── Gantt Grid ── */}
-      <div className="gantt-scroll-container" ref={scrollRef}>
+      <div className={`gantt-scroll-container${isDarkGantt ? '' : ' gantt-light'}`} ref={scrollRef}>
         <div className="gantt-grid">
           <GanttHeader
             weekDays={weekDays}
@@ -221,22 +223,22 @@ export function GanttPage({
               {/* ── Separador de Área ── */}
               {area === 'VEHÍCULOS' ? (
                 <div
-                  className="flex items-center gap-3 px-4 py-1.5 border-b border-blue-500/20 bg-blue-950/30"
+                  className={`flex items-center gap-3 px-4 py-1.5 border-b ${isDarkGantt ? 'border-blue-500/20 bg-blue-950/30' : 'border-blue-300/40 bg-blue-100/60'}`}
                   style={{ gridColumn: '1 / -1' }}
                 >
-                  <Truck className="w-3.5 h-3.5 text-blue-400/70" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.15em] text-blue-400/70">Vehículos</span>
-                  <div className="flex-1 h-[1px] bg-gradient-to-r from-blue-500/20 to-transparent" />
-                  <span className="text-[9px] text-blue-400/40 font-bold">{tecnicosDelArea.length}</span>
+                  <Truck className={`w-3.5 h-3.5 ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-600/70'}`} />
+                  <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-700/70'}`}>Vehículos</span>
+                  <div className={`flex-1 h-[1px] bg-gradient-to-r ${isDarkGantt ? 'from-blue-500/20' : 'from-blue-400/30'} to-transparent`} />
+                  <span className={`text-[9px] font-bold ${isDarkGantt ? 'text-blue-400/40' : 'text-blue-600/50'}`}>{tecnicosDelArea.length}</span>
                 </div>
               ) : (
                 <div
-                  className="flex items-center gap-3 px-4 py-1.5 bg-[#111114] border-b border-gray-700/30"
+                  className={`flex items-center gap-3 px-4 py-1.5 border-b ${isDarkGantt ? 'bg-[#111114] border-gray-700/30' : 'bg-[#dcdce6] border-gray-300/40'}`}
                   style={{ gridColumn: '1 / -1' }}
                 >
-                  <span className="text-[9px] font-black uppercase tracking-[0.15em] text-gray-500">{area}</span>
-                  <div className="flex-1 h-[1px] bg-gradient-to-r from-gray-700/40 to-transparent" />
-                  <span className="text-[9px] text-gray-600 font-bold">{tecnicosDelArea.length}</span>
+                  <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-gray-500' : 'text-gray-500'}`}>{area}</span>
+                  <div className={`flex-1 h-[1px] bg-gradient-to-r ${isDarkGantt ? 'from-gray-700/40' : 'from-gray-400/40'} to-transparent`} />
+                  <span className={`text-[9px] font-bold ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>{tecnicosDelArea.length}</span>
                 </div>
               )}
 
