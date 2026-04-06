@@ -6,6 +6,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    outDir: 'backend/dist',   // Express sirve desde backend/src/../dist = backend/dist
+    emptyOutDir: true,
+  },
   server: {
     host: '0.0.0.0', // Para que escuche en la IP de la red local
     port: 3000,
