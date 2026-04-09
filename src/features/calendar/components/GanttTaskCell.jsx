@@ -5,6 +5,7 @@ import { es } from 'date-fns/locale';
 import { Truck } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 export function GanttTaskCell({ 
   tasks, 
@@ -21,6 +22,7 @@ export function GanttTaskCell({
   resourceId,
   resourceName
 }) {
+  const { isDarkGantt } = useTheme();
   const [renderTooltip, setRenderTooltip] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState(null);
@@ -149,7 +151,7 @@ export function GanttTaskCell({
         onDrop={handleDrop}
       >
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className="text-[10px] text-gray-500 font-medium">+</span>
+          <span className={`text-[10px] font-medium ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>+</span>
         </div>
       </div>
     );
@@ -180,14 +182,18 @@ export function GanttTaskCell({
               onTaskContextMenu(e, task, date, resourceId);
             }
           }}
-          className="w-full h-[3.25rem] border border-white/10 rounded-lg overflow-hidden text-[10px] text-white shadow-lg flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-white/30 transition-all font-mono tracking-tight animate-fade-in"
+          className={`w-full h-[3.25rem] border rounded-lg overflow-hidden text-[10px] shadow-lg flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in ${
+            isDarkGantt
+              ? 'border-white/10 text-white hover:ring-white/30'
+              : 'border-white/20 text-white hover:ring-black/20'
+          }`}
         >
           {/* Sub-celda MAÑANA */}
           <div 
-            className={`flex-1 flex flex-col justify-center px-1.5 border-b border-white/5 relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''}`}
+            className={`flex-1 flex flex-col justify-center px-1.5 border-b relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''} ${isDarkGantt ? 'border-white/5' : 'border-black/5'}`}
             style={task.morning && task.colorAM ? { backgroundColor: task.colorAM } : {}}
           >
-            {task.morning && task.colorAM && <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none opacity-50" />}
+            {task.morning && task.colorAM && <div className={`absolute inset-0 pointer-events-none opacity-50 bg-gradient-to-b ${isDarkGantt ? 'from-white/10 to-transparent' : 'from-white/20 to-transparent'}`} />}
             {task.morning && (
               <div className="flex items-center gap-1.5 relative z-10">
                 <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">AM</span>
@@ -200,7 +206,7 @@ export function GanttTaskCell({
             className={`flex-1 flex flex-col justify-center px-1.5 relative group/slot ${!(task.afternoon && task.colorPM) ? 'bg-transparent' : ''}`}
             style={task.afternoon && task.colorPM ? { backgroundColor: task.colorPM } : {}}
           >
-            {task.afternoon && task.colorPM && <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none opacity-30" />}
+            {task.afternoon && task.colorPM && <div className={`absolute inset-0 pointer-events-none opacity-30 bg-gradient-to-t ${isDarkGantt ? 'from-black/20 to-transparent' : 'from-black/10 to-transparent'}`} />}
             {task.afternoon && (
               <div className="flex items-center gap-1.5 relative z-10">
                 <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">PM</span>
@@ -216,7 +222,10 @@ export function GanttTaskCell({
         <div 
           className={cn(
             "fixed z-[9999] w-[260px] pointer-events-none transition-all duration-200 ease-out",
-            "backdrop-filter backdrop-blur-xl bg-[#1a1a1d]/75 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-4 ring-1 ring-white/5",
+            "backdrop-filter backdrop-blur-xl border rounded-2xl p-4 ring-1",
+            isDarkGantt 
+              ? "bg-[#1a1a1d]/75 border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.9)] ring-white/5" 
+              : "bg-white/90 border-gray-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] ring-black/5",
             tooltipPos.isTop ? "-translate-x-1/2 origin-top" : "-translate-x-1/2 -translate-y-full origin-bottom",
             showTooltip ? "opacity-100 scale-100 mt-0" : "opacity-0 scale-95",
             !showTooltip && tooltipPos.isTop ? "-mt-2" : "",
@@ -227,9 +236,9 @@ export function GanttTaskCell({
             top: tooltipPos.y
           }}
         >
-           <div className="border-b border-white/10 pb-3 mb-3 flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-primary-400 uppercase tracking-widest leading-none">{resourceName || resourceId}</span>
-              <span className="text-[13px] font-semibold text-gray-100 capitalize leading-tight">{formattedDateTooltip}</span>
+           <div className={`border-b pb-3 mb-3 flex flex-col gap-1 ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
+              <span className={`text-[10px] font-bold uppercase tracking-widest leading-none ${isDarkGantt ? 'text-primary-400' : 'text-primary-600'}`}>{resourceName || resourceId}</span>
+              <span className={`text-[13px] font-semibold capitalize leading-tight ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>{formattedDateTooltip}</span>
            </div>
            
            <div className="space-y-3">
@@ -237,10 +246,10 @@ export function GanttTaskCell({
                  <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: primaryTask.colorAM || '#37A65F' }} />
                  <div className="flex-1">
                     <div className="flex justify-between items-center mb-0.5">
-                       <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest">Mañana</p>
+                       <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Mañana</p>
                        {primaryTask.morning && <span className={getStateBadgeClass(primaryTask.estadoAM)}>{primaryTask.estadoAM || 'Pendiente'}</span>}
                     </div>
-                    <p className="text-sm text-white font-medium break-words leading-snug">{primaryTask.morning || '(Sin actividad)'}</p>
+                    <p className={`text-sm font-medium break-words leading-snug ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{primaryTask.morning || '(Sin actividad)'}</p>
                  </div>
               </div>
               
@@ -248,18 +257,18 @@ export function GanttTaskCell({
                  <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: primaryTask.colorPM || primaryTask.colorAM || '#37A65F' }} />
                  <div className="flex-1">
                     <div className="flex justify-between items-center mb-0.5">
-                       <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest">Tarde</p>
+                       <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Tarde</p>
                        {primaryTask.afternoon && <span className={getStateBadgeClass(primaryTask.estadoPM)}>{primaryTask.estadoPM || 'Pendiente'}</span>}
                     </div>
-                    <p className="text-sm text-white font-medium break-words leading-snug">{primaryTask.afternoon || '(Sin actividad)'}</p>
+                    <p className={`text-sm font-medium break-words leading-snug ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{primaryTask.afternoon || '(Sin actividad)'}</p>
                  </div>
               </div>
            </div>
            
            {(primaryTask.author || primaryTask.timestampUpdated) && (
-             <div className="mt-4 pt-3 border-t border-white/10">
-               <p className="text-[9px] text-gray-500 font-mono tracking-wide leading-tight">
-                 {primaryTask.author && <span>Actualizado por: <span className="text-gray-300 font-medium">{primaryTask.author}</span><br/></span>}
+             <div className={`mt-4 pt-3 border-t ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
+               <p className={`text-[9px] font-mono tracking-wide leading-tight ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+                 {primaryTask.author && <span>Actualizado por: <span className={`font-medium ${isDarkGantt ? 'text-gray-300' : 'text-gray-600'}`}>{primaryTask.author}</span><br/></span>}
                  {primaryTask.timestampUpdated && <span>El {primaryTask.timestampUpdated}</span>}
                </p>
              </div>
@@ -269,8 +278,8 @@ export function GanttTaskCell({
            <div className={cn(
              "absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent backdrop-filter backdrop-blur-xl",
              tooltipPos.isTop 
-               ? "bottom-full border-b-[8px] border-b-[#1a1a1d]/75 mb-[-1px]" 
-               : "top-full border-t-[8px] border-t-[#1a1a1d]/75 mt-[-1px]"
+               ? (isDarkGantt ? "bottom-full border-b-[8px] border-b-[#1a1a1d]/75 mb-[-1px]" : "bottom-full border-b-[8px] border-b-white/90 mb-[-1px]")
+               : (isDarkGantt ? "top-full border-t-[8px] border-t-[#1a1a1d]/75 mt-[-1px]" : "top-full border-t-[8px] border-t-white/90 mt-[-1px]")
            )} />
         </div>,
         document.body

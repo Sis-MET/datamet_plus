@@ -104,37 +104,37 @@ export function GanttPage({
         <div className="flex items-center gap-2 mb-2 px-0.5">
           <button
             onClick={goToCurrentWeek}
-            className="group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-gray-300 hover:text-white rounded-xl backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 hover:bg-white/10 transition-colors overflow-hidden"
+            className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden border ${isDarkGantt ? 'text-gray-300 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-gray-700 hover:text-gray-900 bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-            <span className="relative z-10 font-bold text-white">★ Hoy</span>
-            <span className="relative z-10 text-gray-400 font-normal">
+            <span className={`relative z-10 font-bold ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>★ Hoy</span>
+            <span className={`relative z-10 font-normal ${isDarkGantt ? 'text-gray-400' : 'text-gray-600'}`}>
               {fmtRange(currentWeekStart, currentWeekEnd)}
             </span>
           </button>
           
-          <div className="flex rounded-xl overflow-hidden backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 transition-colors group relative">
+          <div className={`flex rounded-xl overflow-hidden backdrop-blur-md shadow-sm transition-colors group relative border ${isDarkGantt ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-white border-gray-200 hover:border-gray-300 shadow-gray-200/50'}`}>
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <button
               onClick={prevWeek}
-              className="relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] text-gray-400 font-medium hover:text-white hover:bg-white/10 transition-colors border-r border-white/10"
+              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors border-r ${isDarkGantt ? 'text-gray-400 hover:text-white hover:bg-white/10 border-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-gray-200'}`}
             >
-              <ChevronLeft className="h-3.5 w-3.5 text-gray-300" />
+              <ChevronLeft className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`} />
               <span>{prevStart && prevEnd ? fmtRange(prevStart, prevEnd) : 'Anterior'}</span>
             </button>
             <button
               onClick={nextWeek}
-              className="relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] text-gray-400 font-medium hover:text-white hover:bg-white/10 transition-colors"
+              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors ${isDarkGantt ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
             >
               <span>{nextStart && nextEnd ? fmtRange(nextStart, nextEnd) : 'Próxima'}</span>
-              <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+              <ChevronRight className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`} />
             </button>
           </div>
 
           <button
             onClick={onRefetch}
             disabled={loading}
-            className="group relative p-1.5 ml-1 text-gray-300 hover:text-white rounded-xl backdrop-blur-md bg-white/5 border border-white/10 shadow-sm hover:border-white/20 hover:bg-white/10 transition-colors overflow-hidden disabled:opacity-50"
+            className={`group relative p-1.5 ml-1 rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden disabled:opacity-50 border ${isDarkGantt ? 'text-gray-300 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
             title="Recargar datos"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -142,18 +142,18 @@ export function GanttPage({
           </button>
 
           {/* ── Filtro por Área Dropdown ── */}
-          <div className="relative z-50 ml-1">
+          <div className={`relative ml-1 ${isFilterOpen ? 'z-50' : ''}`}>
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md border shadow-sm transition-colors overflow-hidden ${
                 selectedArea !== 'Todas' 
                   ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30' 
-                  : 'bg-white/5 text-gray-300 border-white/10 hover:border-white/20 hover:bg-white/10 hover:text-white'
+                  : (isDarkGantt ? 'bg-white/5 text-gray-300 border-white/10 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900')
               }`}
               title="Filtrar por Área"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-              <Filter className={`relative z-10 h-3.5 w-3.5 transition-colors ${selectedArea !== 'Todas' ? 'text-blue-400' : 'text-gray-400 group-hover:text-white'}`} />
+              <Filter className={`relative z-10 h-3.5 w-3.5 transition-colors ${selectedArea !== 'Todas' ? 'text-blue-400' : (isDarkGantt ? 'text-gray-400 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700')}`} />
               <span className="relative z-10 truncate max-w-[100px]">{selectedArea === 'Todas' ? 'Todas las áreas' : selectedArea}</span>
               <ChevronDown className={`relative z-10 h-3.5 w-3.5 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -161,26 +161,29 @@ export function GanttPage({
             {isFilterOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-                <div className="absolute top-full left-0 mt-2 w-64 rounded-2xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)] overflow-hidden animate-fade-in z-50 transform origin-top-left" 
-                     style={{ background: 'rgba(30, 30, 35, 0.95)', backdropFilter: 'blur(16px)' }}>
+                <div className={`absolute top-full left-0 mt-2 w-64 rounded-2xl border shadow-2xl overflow-hidden animate-fade-in z-50 transform origin-top-left ${isDarkGantt ? 'border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)]' : 'border-gray-200 shadow-gray-200/50'}`} 
+                     style={{
+                       background: isDarkGantt ? 'rgba(30, 30, 35, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                       backdropFilter: 'blur(16px)'
+                     }}>
                   <div className="p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
                     <button
                       onClick={() => { if(onSelectArea) onSelectArea('Todas'); setIsFilterOpen(false); }}
                       className={`flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-colors ${
                         selectedArea === 'Todas'
                           ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          : 'text-gray-300 hover:bg-white/10 hover:text-white border border-transparent'
+                          : (isDarkGantt ? 'text-gray-300 hover:bg-white/10 hover:text-white border border-transparent' : 'text-gray-700 hover:bg-gray-100 border border-transparent hover:text-gray-900')
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 opacity-80" />
+                        <Users className={`w-3.5 h-3.5 ${selectedArea === 'Todas' ? 'opacity-80' : 'opacity-60'}`} />
                         <span>Todas las Áreas</span>
                       </div>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider ${selectedArea === 'Todas' ? 'bg-blue-500/20 text-blue-300' : 'bg-white/10 text-gray-400'}`}>
+                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider ${selectedArea === 'Todas' ? 'bg-blue-500/20 text-blue-300' : (isDarkGantt ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
                         {areaStats.totalActivos}
                       </span>
                     </button>
-                    <div className="h-[1px] w-full bg-white/10 my-1" />
+                    <div className={`h-[1px] w-full my-1 ${isDarkGantt ? 'bg-white/10' : 'bg-gray-200'}`} />
                     {areaStats.areasArray.map(area => (
                       <button
                         key={area.name}
@@ -188,11 +191,11 @@ export function GanttPage({
                         className={`flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-colors ${
                           selectedArea === area.name
                             ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                            : 'text-gray-300 hover:bg-white/10 hover:text-white border border-transparent'
+                            : (isDarkGantt ? 'text-gray-300 hover:bg-white/10 hover:text-white border border-transparent' : 'text-gray-700 hover:bg-gray-100 border border-transparent hover:text-gray-900')
                         }`}
                       >
                         <span className="truncate pr-2">{area.name}</span>
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider flex-shrink-0 ${selectedArea === area.name ? 'bg-blue-500/20 text-blue-300' : 'bg-white/10 text-gray-400'}`}>
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider flex-shrink-0 ${selectedArea === area.name ? 'bg-blue-500/20 text-blue-300' : (isDarkGantt ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
                           {area.count}
                         </span>
                       </button>
@@ -223,22 +226,26 @@ export function GanttPage({
               {/* ── Separador de Área ── */}
               {area === 'VEHÍCULOS' ? (
                 <div
-                  className={`flex items-center gap-3 px-4 py-1.5 border-b ${isDarkGantt ? 'border-blue-500/20 bg-blue-950/30' : 'border-blue-300/40 bg-blue-100/60'}`}
+                  className={`flex items-center py-1.5 border-b ${isDarkGantt ? 'border-blue-500/20 bg-[#0f172a]' : 'border-blue-300/40 bg-[#e0e7ff]'}`}
                   style={{ gridColumn: '1 / -1' }}
                 >
-                  <Truck className={`w-3.5 h-3.5 ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-600/70'}`} />
-                  <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-700/70'}`}>Vehículos</span>
-                  <div className={`flex-1 h-[1px] bg-gradient-to-r ${isDarkGantt ? 'from-blue-500/20' : 'from-blue-400/30'} to-transparent`} />
-                  <span className={`text-[9px] font-bold ${isDarkGantt ? 'text-blue-400/40' : 'text-blue-600/50'}`}>{tecnicosDelArea.length}</span>
+                  <div className={`sticky left-0 z-20 flex items-center gap-3 px-4 py-1 min-w-fit ${isDarkGantt ? 'bg-[#0f172a]' : 'bg-[#e0e7ff]'}`}>
+                    <Truck className={`w-3.5 h-3.5 ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-600/70'}`} />
+                    <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-700/70'}`}>Vehículos</span>
+                  </div>
+                  <div className={`flex-1 h-[1px] bg-gradient-to-r ${isDarkGantt ? 'from-blue-500/20' : 'from-blue-400/30'} to-transparent ml-2`} />
+                  <span className={`text-[9px] font-bold px-4 ${isDarkGantt ? 'text-blue-400/40' : 'text-blue-600/50'}`}>{tecnicosDelArea.length}</span>
                 </div>
               ) : (
                 <div
-                  className={`flex items-center gap-3 px-4 py-1.5 border-b ${isDarkGantt ? 'bg-[#111114] border-gray-700/30' : 'bg-[#dcdce6] border-gray-300/40'}`}
+                  className={`flex items-center py-1.5 border-b ${isDarkGantt ? 'bg-[#111114] border-gray-700/30' : 'bg-[#dcdce6] border-gray-300/40'}`}
                   style={{ gridColumn: '1 / -1' }}
                 >
-                  <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-gray-500' : 'text-gray-500'}`}>{area}</span>
-                  <div className={`flex-1 h-[1px] bg-gradient-to-r ${isDarkGantt ? 'from-gray-700/40' : 'from-gray-400/40'} to-transparent`} />
-                  <span className={`text-[9px] font-bold ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>{tecnicosDelArea.length}</span>
+                  <div className={`sticky left-0 z-20 flex items-center gap-3 px-4 py-1 min-w-fit ${isDarkGantt ? 'bg-[#111114]' : 'bg-[#dcdce6]'}`}>
+                    <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-gray-500' : 'text-gray-500'}`}>{area}</span>
+                  </div>
+                  <div className={`flex-1 h-[1px] bg-gradient-to-r ${isDarkGantt ? 'from-gray-700/40' : 'from-gray-400/40'} to-transparent ml-2`} />
+                  <span className={`text-[9px] font-bold px-4 ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>{tecnicosDelArea.length}</span>
                 </div>
               )}
 

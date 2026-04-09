@@ -3,11 +3,7 @@ import { Filter, Users, ChevronDown, ChevronRight, Info, Bell, ChevronLeft } fro
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const glassStyle = {
-  background: 'rgba(73, 73, 73, 0.35)',
-  backdropFilter: 'blur(16px)',
-  WebkitBackdropFilter: 'blur(16px)',
-};
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 export function LeftFilterSidebar({
   tecnicos = [],
@@ -24,7 +20,14 @@ export function LeftFilterSidebar({
   nextMonth,
   selectedDayEvents = [],
 }) {
+  const { isDarkGantt } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const glassStyle = {
+    background: isDarkGantt ? 'rgba(73, 73, 73, 0.35)' : 'rgba(255, 255, 255, 0.85)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+  };
 
   // ── Mini calendario ──
   const monthTitle = currentDate ? format(currentDate, 'MMMM yyyy', { locale: es }) : '';
@@ -36,11 +39,11 @@ export function LeftFilterSidebar({
     if (isSameDay && selectedDay && isSameDay(day, selectedDay)) {
       classes += 'bg-[#10b981] text-white shadow-[0_0_12px_rgba(16,185,129,0.6)] font-bold ';
     } else if (isToday && isToday(day)) {
-      classes += 'bg-transparent text-white font-bold ring-2 ring-[#3b82f6]/80 shadow-[0_0_10px_rgba(59,130,246,0.5)] ';
+      classes += `bg-transparent font-bold ring-2 ring-[#3b82f6]/80 shadow-[0_0_10px_rgba(59,130,246,0.5)] ${isDarkGantt ? 'text-white' : 'text-blue-600'} `;
     } else if (isSameMonth && currentDate && !isSameMonth(day, currentDate)) {
-      classes += 'text-gray-600 hover:text-gray-400 ';
+      classes += isDarkGantt ? 'text-gray-600 hover:text-gray-400 ' : 'text-gray-400 hover:text-gray-500 ';
     } else {
-      classes += 'text-gray-300 hover:bg-white/5 hover:text-white ';
+      classes += isDarkGantt ? 'text-gray-300 hover:bg-white/5 hover:text-white ' : 'text-gray-700 hover:bg-black/5 hover:text-black ';
     }
     return classes;
   };
@@ -82,15 +85,15 @@ export function LeftFilterSidebar({
 
       {/* ── 1. Mini Calendario ── */}
       {currentDate && (
-        <div className="rounded-3xl border border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden" style={glassStyle}>
+        <div className={`rounded-3xl border p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`} style={glassStyle}>
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[100px] bg-primary-500/10 blur-[50px] rounded-full pointer-events-none" />
           <div className="flex items-center justify-between mb-6 relative z-10">
-            <h2 className="text-[13px] font-bold text-gray-100 uppercase tracking-widest">{monthTitleCapitalized}</h2>
+            <h2 className={`text-[13px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-100' : 'text-gray-800'}`}>{monthTitleCapitalized}</h2>
             <div className="flex gap-2">
-              <button onClick={prevMonth} className="p-1.5 text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-lg">
+              <button onClick={prevMonth} className={`p-1.5 transition-colors rounded-lg ${isDarkGantt ? 'text-gray-400 hover:text-white bg-white/5 hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 bg-black/5 hover:bg-black/10'}`}>
                 <ChevronLeft size={16} />
               </button>
-              <button onClick={nextMonth} className="p-1.5 text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-lg">
+              <button onClick={nextMonth} className={`p-1.5 transition-colors rounded-lg ${isDarkGantt ? 'text-gray-400 hover:text-white bg-white/5 hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 bg-black/5 hover:bg-black/10'}`}>
                 <ChevronRight size={16} />
               </button>
             </div>
@@ -119,10 +122,10 @@ export function LeftFilterSidebar({
 
       {/* ── 2. Detalle del Día (Compacto) ── */}
       <div className="flex flex-col gap-2">
-        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">Detalle del Día</h3>
+        <h3 className={`text-[10px] font-bold uppercase tracking-widest px-2 mb-1 ${isDarkGantt ? 'text-gray-500' : 'text-gray-600'}`}>Detalle del Día</h3>
         {tecnicosDelDia.length === 0 ? (
-          <div className="border border-white/10 rounded-2xl p-3 flex items-center justify-center opacity-50" style={glassStyle}>
-            <span className="text-[10px] text-gray-500 font-bold tracking-widest uppercase flex items-center gap-2">
+          <div className={`border rounded-2xl p-3 flex items-center justify-center opacity-50 ${isDarkGantt ? 'border-white/10' : 'border-gray-300'}`} style={glassStyle}>
+            <span className={`text-[10px] font-bold tracking-widest uppercase flex items-center gap-2 ${isDarkGantt ? 'text-gray-500' : 'text-gray-700'}`}>
               <Bell className="w-3 h-3" /> Sin Novedades
             </span>
           </div>
@@ -132,10 +135,10 @@ export function LeftFilterSidebar({
               const hasMorning   = evt.morning   && evt.morning.trim()   !== '';
               const hasAfternoon = evt.afternoon && evt.afternoon.trim() !== '';
               return (
-                <div key={idx} className="border border-white/[0.07] rounded-xl px-3 py-2 hover:border-white/15 hover:bg-white/[0.03] transition-all" style={glassStyle}>
+                <div key={idx} className={`border rounded-xl px-3 py-2 transition-all ${isDarkGantt ? 'border-white/[0.07] hover:border-white/15 hover:bg-white/[0.03]' : 'border-gray-200 hover:border-gray-300 hover:bg-black/[0.03]'}`} style={glassStyle}>
                   {/* Nombre + dots de turno */}
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-[11px] font-bold text-gray-100 truncate leading-none capitalize">
+                    <span className={`text-[11px] font-bold truncate leading-none capitalize ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>
                       {evt.client?.replace(/_/g, ' ')}
                     </span>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -147,15 +150,15 @@ export function LeftFilterSidebar({
                   <div className="flex flex-col gap-0.5">
                     {hasMorning && (
                       <div className="flex items-center gap-2">
-                        <span className="text-[8px] font-bold text-gray-600 uppercase w-3 flex-shrink-0">AM</span>
-                        <p className="text-[10px] text-gray-400 truncate flex-1 leading-tight">{evt.morning}</p>
+                        <span className={`text-[8px] font-bold uppercase w-3 flex-shrink-0 ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>AM</span>
+                        <p className={`text-[10px] truncate flex-1 leading-tight ${isDarkGantt ? 'text-gray-400' : 'text-gray-700'}`}>{evt.morning}</p>
                         <span className={getStateBadgeClass(evt.estadoAM)}>{evt.estadoAM || 'Pendiente'}</span>
                       </div>
                     )}
                     {hasAfternoon && (
                       <div className="flex items-center gap-2">
-                        <span className="text-[8px] font-bold text-gray-600 uppercase w-3 flex-shrink-0">PM</span>
-                        <p className="text-[10px] text-gray-400 truncate flex-1 leading-tight">{evt.afternoon}</p>
+                        <span className={`text-[8px] font-bold uppercase w-3 flex-shrink-0 ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>PM</span>
+                        <p className={`text-[10px] truncate flex-1 leading-tight ${isDarkGantt ? 'text-gray-400' : 'text-gray-700'}`}>{evt.afternoon}</p>
                         <span className={getStateBadgeClass(evt.estadoPM)}>{evt.estadoPM || 'Pendiente'}</span>
                       </div>
                     )}
@@ -169,26 +172,26 @@ export function LeftFilterSidebar({
 
 
       {/* ── 4. Referencia de Colores ── */}
-      <div className="rounded-3xl border border-white/10 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden" style={glassStyle}>
-        <div className="absolute top-[-50px] right-[-50px] w-[150px] h-[150px] bg-white/5 blur-[50px] rounded-full pointer-events-none" />
+      <div className={`rounded-3xl border p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`} style={glassStyle}>
+        <div className={`absolute top-[-50px] right-[-50px] w-[150px] h-[150px] blur-[50px] rounded-full pointer-events-none ${isDarkGantt ? 'bg-white/5' : 'bg-black/5'}`} />
         <div className="flex items-center gap-2.5 mb-4 relative z-10">
-          <div className="p-1.5 bg-white/10 rounded-lg">
-            <Info className="w-3.5 h-3.5 text-gray-300" />
+          <div className={`p-1.5 rounded-lg ${isDarkGantt ? 'bg-white/10' : 'bg-black/5'}`}>
+            <Info className={`w-3.5 h-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`} />
           </div>
-          <h3 className="text-[11px] font-bold text-white uppercase tracking-widest">Referencia de Colores</h3>
+          <h3 className={`text-[11px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>Referencia de Colores</h3>
         </div>
         <div className="flex flex-col gap-3.5 relative z-10">
           <div className="flex items-center gap-3 group">
             <div className="w-3 h-3 rounded-full bg-yellow-400 flex-shrink-0 shadow-[0_0_8px_rgba(250,204,21,0.6)] ring-2 ring-yellow-400/30 group-hover:scale-110 transition-transform" />
-            <span className="text-[11px] text-gray-200 font-medium">Domingos y Feriados (no laborable)</span>
+            <span className={`text-[11px] font-medium ${isDarkGantt ? 'text-gray-200' : 'text-gray-700'}`}>Domingos y Feriados (no laborable)</span>
           </div>
           <div className="flex items-center gap-3 group">
-            <div className="w-3 h-3 rounded-full bg-[#0D3C66] flex-shrink-0 shadow-[0_0_8px_rgba(13,60,102,0.8)] ring-2 ring-[#0D3C66]/30 group-hover:scale-110 transition-transform" />
-            <span className="text-[11px] text-gray-200 font-medium">Día de Hoy</span>
+            <div className="w-3 h-3 rounded-full bg-[#10B981] flex-shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.25)] ring-2 ring-[#10B981]/30 group-hover:scale-110 transition-transform" />
+            <span className={`text-[11px] font-medium ${isDarkGantt ? 'text-gray-200' : 'text-gray-700'}`}>Día de Hoy</span>
           </div>
           <div className="flex items-center gap-3 group">
-            <div className="w-3 h-3 rounded-full bg-blue-300 flex-shrink-0 shadow-[0_0_8px_rgba(147,197,253,0.6)] ring-2 ring-blue-300/30 group-hover:scale-110 transition-transform" />
-            <span className="text-[11px] text-gray-200 font-medium">Información Vehículos</span>
+            <div className={`w-3 h-3 rounded-full flex-shrink-0 ring-2 group-hover:scale-110 transition-transform ${isDarkGantt ? 'bg-blue-300 shadow-[0_0_8px_rgba(147,197,253,0.6)] ring-blue-300/30' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)] ring-blue-500/30'}`} />
+            <span className={`text-[11px] font-medium ${isDarkGantt ? 'text-gray-200' : 'text-gray-700'}`}>Información Vehículos</span>
           </div>
         </div>
       </div>

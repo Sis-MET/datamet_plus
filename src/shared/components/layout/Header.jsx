@@ -8,8 +8,10 @@ import { useTheme } from '../../context/ThemeContext';
 export function Header({ activeView, onViewChange, currentUser, onLogout }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
   const settingsRef = useRef(null);
+  const userMenuRef = useRef(null);
 
   const { isDarkGantt, toggleGanttTheme } = useTheme();
 
@@ -21,6 +23,9 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
       }
       if (settingsRef.current && !settingsRef.current.contains(e.target)) {
         setIsSettingsOpen(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setIsUserMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -37,9 +42,9 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
     <header className="fixed top-3 left-4 right-4 z-50">
       <div className="max-w-7xl mx-auto">
         <div
-          className="flex items-center justify-between px-5 py-3 rounded-2xl shadow-2xl shadow-black/40"
+          className={`flex items-center justify-between px-5 py-3 rounded-2xl shadow-2xl ${isDarkGantt ? 'shadow-black/40' : 'shadow-gray-300/50'}`}
           style={{
-            background: 'rgba(18, 18, 20, 0.16)',
+            background: isDarkGantt ? 'rgba(18, 18, 20, 0.16)' : 'rgba(255, 255, 255, 0.85)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
           }}
@@ -52,8 +57,8 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
               className="h-9 w-auto object-contain"
             />
             {/* Título dinámico por módulo */}
-            <div className="hidden md:block border-l border-white/10 pl-4">
-              <h1 className="text-[18px] font-semibold text-white leading-none tracking-wide">
+            <div className={`hidden md:block border-l pl-4 ${isDarkGantt ? 'border-white/10' : 'border-gray-300'}`}>
+              <h1 className={`text-[18px] font-semibold leading-none tracking-wide ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>
                 {activeView === 'rim' ? 'FORMULARIO RIM' : 'CRONOGRAMA METRICA'}
               </h1>
             </div>
@@ -61,13 +66,56 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            {/* Usuario (Dropdown) */}
             {currentUser && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/8">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <User className="h-3.5 w-3.5 text-gray-400 hidden sm:block" />
-                <span className="text-xs text-gray-300 hidden sm:inline font-medium">
-                  {currentUser.usuario}
-                </span>
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setIsUserMenuOpen((o) => !o)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 ${
+                    isUserMenuOpen
+                      ? (isDarkGantt ? 'bg-white/10 border-white/20' : 'bg-gray-200 border-gray-300')
+                      : (isDarkGantt ? 'bg-white/5 border-white/8 hover:bg-white/10 hover:border-white/20' : 'bg-gray-100 border-gray-200 hover:bg-gray-200 hover:border-gray-300')
+                  }`}
+                >
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  <User className={`h-3.5 w-3.5 hidden sm:block ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`} />
+                  <span className={`text-xs hidden sm:inline font-medium ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {currentUser.usuario}
+                  </span>
+                  <ChevronDown className={`h-3 w-3 opacity-70 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''} ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`} />
+                </button>
+
+                {isUserMenuOpen && (
+                  <div
+                    className={`absolute top-full right-0 mt-2 w-48 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden border animate-in fade-in zoom-in-95 duration-150 origin-top-right ${isDarkGantt ? 'border-white/10' : 'border-gray-200 shadow-[0_8px_32px_rgba(0,0,0,0.1)]'}`}
+                    style={{
+                      background: isDarkGantt ? 'rgba(22, 22, 28, 0.96)' : 'rgba(255, 255, 255, 0.96)',
+                      backdropFilter: 'blur(20px)',
+                      WebkitBackdropFilter: 'blur(20px)',
+                    }}
+                  >
+                    <div className="p-2 flex flex-col gap-1">
+                      <div className={`px-3 py-2 border-b mb-1 ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-500' : 'text-gray-500'}`}>Sesión iniciada</p>
+                        <p className={`text-xs font-semibold truncate ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>{currentUser.usuario}</p>
+                      </div>
+
+                      {onLogout && (
+                        <button
+                          onClick={onLogout}
+                          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                            isDarkGantt
+                              ? 'text-red-400 hover:bg-red-500/10'
+                              : 'text-red-600 hover:bg-red-50'
+                          }`}
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span>Cerrar Sesión</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -79,8 +127,8 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                   title="Ajustes"
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-200 ${
                     isSettingsOpen
-                      ? 'text-white bg-white/10 border-white/20'
-                      : 'text-gray-400 hover:text-white hover:bg-white/10 border-transparent hover:border-white/20'
+                      ? (isDarkGantt ? 'text-white bg-white/10 border-white/20' : 'text-gray-900 bg-gray-200 border-gray-300')
+                      : (isDarkGantt ? 'text-gray-400 hover:text-white hover:bg-white/10 border-transparent hover:border-white/20' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-transparent hover:border-gray-300')
                   }`}
                 >
                   <Settings className={`h-4 w-4 transition-transform duration-300 ${isSettingsOpen ? 'rotate-45' : ''}`} />
@@ -90,17 +138,17 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                 {/* ── Tarjeta de Ajustes ── */}
                 {isSettingsOpen && (
                   <div
-                    className="absolute top-full right-0 mt-2 w-64 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden border border-white/10 animate-in fade-in zoom-in-95 duration-150 origin-top-right"
+                    className={`absolute top-full right-0 mt-2 w-64 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden border animate-in fade-in zoom-in-95 duration-150 origin-top-right ${isDarkGantt ? 'border-white/10' : 'border-gray-200 shadow-[0_8px_32px_rgba(0,0,0,0.1)]'}`}
                     style={{
-                      background: 'rgba(22, 22, 28, 0.96)',
+                      background: isDarkGantt ? 'rgba(22, 22, 28, 0.96)' : 'rgba(255, 255, 255, 0.96)',
                       backdropFilter: 'blur(20px)',
                       WebkitBackdropFilter: 'blur(20px)',
                     }}
                   >
                     {/* Header de la tarjeta */}
-                    <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                      <Settings className="h-3.5 w-3.5 text-gray-400" />
-                      <span className="text-xs font-semibold text-gray-300 uppercase tracking-widest">
+                    <div className={`px-4 py-3 border-b flex items-center gap-2 ${isDarkGantt ? 'border-white/8' : 'border-gray-200'}`}>
+                      <Settings className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`} />
+                      <span className={`text-xs font-semibold uppercase tracking-widest ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
                         Ajustes
                       </span>
                     </div>
@@ -108,17 +156,17 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                     {/* Opciones */}
                     <div className="p-3 flex flex-col gap-1">
                       {/* ── Switch Modo Claro/Oscuro Gantt ── */}
-                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors group">
+                      <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors group ${isDarkGantt ? 'hover:bg-white/5' : 'hover:bg-gray-100'}`}>
                         <div className="flex items-center gap-2.5">
                           {isDarkGantt
                             ? <Moon className="h-4 w-4 text-indigo-400 flex-shrink-0" />
-                            : <Sun className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                            : <Sun className="h-4 w-4 text-amber-500 flex-shrink-0" />
                           }
                           <div>
-                            <p className="text-xs font-semibold text-gray-200 leading-none mb-0.5">
-                              Modo de la grilla
+                            <p className={`text-xs font-semibold leading-none mb-0.5 ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>
+                              Modo del sistema
                             </p>
-                            <p className="text-[10px] text-gray-500 leading-none">
+                            <p className={`text-[10px] leading-none ${isDarkGantt ? 'text-gray-500' : 'text-gray-500'}`}>
                               {isDarkGantt ? 'Oscuro (actual)' : 'Claro (actual)'}
                             </p>
                           </div>
@@ -145,8 +193,8 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                     </div>
 
                     {/* Footer info */}
-                    <div className="px-4 py-2 border-t border-white/5">
-                      <p className="text-[10px] text-gray-600 text-center">
+                    <div className={`px-4 py-2 border-t ${isDarkGantt ? 'border-white/5' : 'border-gray-200'}`}>
+                      <p className={`text-[10px] text-center ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>
                         Solo afecta la grilla semanal
                       </p>
                     </div>
@@ -161,7 +209,11 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                  <button
                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                    title="Cambiar Modulo"
-                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-gray-400 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/20 transition-all duration-200"
+                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-200 ${
+                    isDarkGantt 
+                      ? 'text-gray-400 hover:text-white hover:bg-white/10 border-transparent hover:border-white/20' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-transparent hover:border-gray-300'
+                   }`}
                  >
                    <LayoutGrid className="h-4 w-4" />
                    <span className="hidden sm:inline">
@@ -171,16 +223,26 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                  </button>
 
                  {isDropdownOpen && (
-                   <div className="absolute top-full right-0 mt-2 w-48 bg-[#1e1e24] border border-gray-700/50 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                   <div className={`absolute top-full right-0 mt-2 w-48 border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
+                     isDarkGantt ? 'bg-[#1e1e24] border-gray-700/50' : 'bg-white border-gray-200 shadow-gray-200/50'
+                   }`}>
                       <button
                         onClick={() => handleViewChange('rim')}
-                        className={`w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-white/5 transition-colors ${activeView === 'rim' ? 'text-primary-400 bg-primary-500/10' : 'text-gray-300'}`}
+                        className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors ${
+                          activeView === 'rim' 
+                            ? (isDarkGantt ? 'text-primary-400 bg-primary-500/10' : 'text-primary-600 bg-primary-50/50') 
+                            : (isDarkGantt ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50')
+                        }`}
                       >
                         Formulario RIM
                       </button>
                       <button
                         onClick={() => handleViewChange('calendar')}
-                        className={`w-full text-left px-4 py-2.5 text-xs font-medium hover:bg-white/5 transition-colors ${activeView === 'calendar' ? 'text-green-400 bg-green-500/10' : 'text-gray-300'}`}
+                        className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors ${
+                          activeView === 'calendar' 
+                            ? (isDarkGantt ? 'text-green-400 bg-green-500/10' : 'text-green-600 bg-green-50/50') 
+                            : (isDarkGantt ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50')
+                        }`}
                       >
                         Cronograma Metrica
                       </button>
@@ -189,16 +251,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
               </div>
             )}
 
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                title="Cerrar sesión"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all duration-200"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Cerrar Sesión</span>
-              </button>
-            )}
+
           </div>
         </div>
       </div>

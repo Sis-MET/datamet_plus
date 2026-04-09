@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Toaster } from 'sileo';
 import { Header } from './shared/components/layout/Header';
 import { RimFormPage } from './features/rim/RimFormPage';
@@ -34,10 +34,34 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
 }
 
 function App() {
+  const checkTokenValidity = () => {
+    const token = safeStorage.getItem('rimmet_token');
+    if (!token) return false;
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/, '/');
+      const payload = JSON.parse(window.atob(base64));
+      // Verificar si existe la fecha de expiración y ya fue superada (en segundos)
+      if (payload.exp && Date.now() >= payload.exp * 1000) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!safeStorage.getItem('rimmet_token');
+    const isValid = checkTokenValidity();
+    if (!isValid) {
+      safeStorage.removeItem('rimmet_token');
+      safeStorage.removeItem('rimmet_user');
+    }
+    return isValid;
   });
   const [currentUser, setCurrentUser] = useState(() => {
+    const token = safeStorage.getItem('rimmet_token');
+    if (!token) return null;
     try {
       const saved = safeStorage.getItem('rimmet_user');
       return saved ? JSON.parse(saved) : null;
@@ -66,6 +90,32 @@ function App() {
   if (!isAuthenticated) {
     return <LoginPage onLogin={handleLogin} />;
   }
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const verifyToken = () => {
+      if (!checkTokenValidity()) {
+        handleLogout();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        verifyToken();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Revisar la validez del token periódicamente
+    const intervalId = setInterval(verifyToken, 60000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(intervalId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const renderView = () => {
     switch (activeView) {

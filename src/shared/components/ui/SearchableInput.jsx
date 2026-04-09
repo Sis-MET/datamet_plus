@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '../../utils/cn';
+import { useTheme } from '../../context/ThemeContext';
 
 const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
 
@@ -12,6 +13,7 @@ export const SearchableInput = React.forwardRef(({
   onSelect,
   ...props
 }, ref) => {
+  const { isDarkGantt } = useTheme();
   const [query, setQuery] = useState(value || '');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -102,7 +104,7 @@ export const SearchableInput = React.forwardRef(({
   return (
     <div className="w-full relative" ref={wrapperRef}>
       {label && (
-        <label className="block text-sm font-medium text-gray-300 mb-1">
+        <label className={`block text-sm font-medium mb-1 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
           {label} {props.required && <span className="text-red-500">*</span>}
         </label>
       )}
@@ -114,7 +116,10 @@ export const SearchableInput = React.forwardRef(({
           onKeyDown={handleKeyDown}
           onFocus={() => { if (results.length > 0) setIsOpen(true); }}
           className={cn(
-            'flex h-10 w-full rounded-md border border-gray-600 bg-[#1e1e1e] text-gray-200 px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50',
+            'flex h-10 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50',
+            isDarkGantt 
+              ? 'border-gray-600 bg-[#1e1e1e] text-gray-200 placeholder:text-gray-500' 
+              : 'border-gray-300 bg-white text-gray-900 placeholder:text-gray-400',
             error && 'border-red-500 focus:ring-red-500',
             className
           )}
@@ -128,16 +133,19 @@ export const SearchableInput = React.forwardRef(({
         )}
       </div>
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto rounded-md border border-gray-600 bg-[#1e1e1e] shadow-lg">
+        <ul className={cn("absolute z-50 w-full mt-1 max-h-48 overflow-y-auto rounded-md border shadow-lg",
+          isDarkGantt ? "border-gray-600 bg-[#1e1e1e]" : "border-gray-200 bg-white"
+        )}>
           {results.map((item, index) => (
             <li
               key={index}
               onClick={() => handleSelectItem(item)}
               className={cn(
-                'px-3 py-2 text-sm text-gray-200 cursor-pointer transition-colors',
+                'px-3 py-2 text-sm cursor-pointer transition-colors',
+                isDarkGantt ? 'text-gray-200' : 'text-gray-800',
                 index === highlightedIndex
-                  ? 'bg-primary-600/30 text-primary-300'
-                  : 'hover:bg-gray-700/50'
+                  ? (isDarkGantt ? 'bg-primary-600/30 text-primary-300' : 'bg-primary-50 text-primary-600')
+                  : (isDarkGantt ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50')
               )}
             >
               {item.cliente}

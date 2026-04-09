@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { useTheme } from '../../context/ThemeContext';
 
 export function CheckboxWithLocation({
   options,
@@ -11,6 +12,7 @@ export function CheckboxWithLocation({
   className,
   locationOptions = []
 }) {
+  const { isDarkGantt } = useTheme();
   const handleCheckboxChange = (optionValue) => {
     const newValue = { ...value };
     if (newValue[optionValue]) {
@@ -33,7 +35,7 @@ export function CheckboxWithLocation({
   return (
     <div className={cn("w-full", className)}>
       {label && (
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className={`block text-sm font-medium mb-2 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
           {label}
         </label>
       )}
@@ -43,18 +45,25 @@ export function CheckboxWithLocation({
           const selectedLocations = value[option.value] || [];
           return (
             <div key={option.value} className="space-y-2">
-              <label className="flex items-center px-3 py-2 rounded-md border border-gray-700 hover:bg-[#252525] cursor-pointer transition-colors">
+              <label 
+                className={cn(
+                  "flex items-center px-3 py-2 rounded-md border cursor-pointer transition-colors",
+                  isDarkGantt 
+                    ? "border-gray-700 hover:bg-[#252525]" 
+                    : "border-gray-300 bg-white hover:bg-gray-50"
+                )}
+              >
                 <input
                   type="checkbox"
                   checked={isChecked}
                   onChange={() => handleCheckboxChange(option.value)}
                   className="mr-3 text-primary-600 focus:ring-primary-500 rounded"
                 />
-                <span className="text-sm text-gray-200 flex-1">{option.label}</span>
+                <span className={`text-sm flex-1 ${isDarkGantt ? 'text-gray-200' : 'text-gray-900'}`}>{option.label}</span>
               </label>
               {isChecked && locationOptions.length > 0 && (
-                <div className="ml-8 pl-4 border-l-2 border-gray-700">
-                  <div className="mb-2 flex items-center text-xs text-gray-400">
+                <div className={`ml-8 pl-4 border-l-2 ${isDarkGantt ? 'border-gray-700' : 'border-gray-300'}`}>
+                  <div className={`mb-2 flex items-center text-xs ${isDarkGantt ? 'text-gray-400' : 'text-gray-600'}`}>
                     <ChevronDown className="h-3 w-3 mr-1" />
                     Ubicación del daño/suciedad:
                   </div>
@@ -65,8 +74,8 @@ export function CheckboxWithLocation({
                         className={cn(
                           "flex items-center px-2 py-1.5 rounded text-xs cursor-pointer transition-all border",
                           selectedLocations.includes(location.value)
-                            ? "bg-primary-600/20 border-primary-600/50 text-primary-300"
-                            : "bg-[#1e1e1e] border-gray-700 text-gray-400 hover:border-gray-600"
+                            ? (isDarkGantt ? "bg-primary-600/20 border-primary-600/50 text-primary-300" : "bg-primary-50 border-primary-300 text-primary-700")
+                            : (isDarkGantt ? "bg-[#1e1e1e] border-gray-700 text-gray-400 hover:border-gray-600" : "bg-white border-gray-300 text-gray-600 hover:border-gray-400")
                         )}
                       >
                         <input

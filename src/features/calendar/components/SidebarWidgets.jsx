@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronLeft, ChevronRight, CheckCircle2, Truck, Bell } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 export function SidebarWidgets({
   currentDate,
@@ -16,6 +17,7 @@ export function SidebarWidgets({
   nextMonth,
   selectedDayEvents
 }) {
+  const { isDarkGantt } = useTheme();
   const monthTitle = format(currentDate, "MMMM yyyy", { locale: es });
   const monthTitleCapitalized = monthTitle.charAt(0).toUpperCase() + monthTitle.slice(1);
 
@@ -133,7 +135,7 @@ export function SidebarWidgets({
 
       {/* ── Resumen Detallado por Técnico ── */}
       <div className="flex flex-col gap-2">
-        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2 mb-1">Detalle del Día</h3>
+        <h3 className={`text-[10px] font-bold uppercase tracking-widest px-2 mb-1 ${isDarkGantt ? 'text-gray-500' : 'text-gray-600'}`}>Detalle del Día</h3>
 
         {tecnicosDelDia.length === 0 ? (
           <div 

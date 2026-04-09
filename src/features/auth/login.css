@@ -497,3 +497,110 @@
     padding: 2rem 1.5rem;
   }
 }
+
+/* ══════════════════════════════════════════════════════════
+   LIGHT MODE OVERRIDES
+   ══════════════════════════════════════════════════════════ */
+.login-root.login-light .login-bg {
+  filter: brightness(1) saturate(1.1);
+  opacity: 0.15;
+}
+
+.login-root.login-light .login-overlay {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(240, 245, 255, 0.9) 50%,
+    rgba(255, 255, 255, 0.98) 100%
+  );
+}
+
+.login-root.login-light .login-logo {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
+}
+
+.login-root.login-light .login-title {
+  color: #111827;
+  text-shadow: none;
+}
+
+.login-root.login-light .login-title span {
+  color: #d97706; /* Amber for contrast */
+}
+
+.login-root.login-light .login-subtitle {
+  color: #4b5563;
+}
+
+.login-root.login-light .login-card {
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+}
+
+.login-root.login-light .login-card-label {
+  color: #6b7280;
+}
+
+.login-root.login-light .login-card-title {
+  color: #111827;
+}
+
+.login-root.login-light .login-card-desc {
+  color: #4b5563;
+}
+
+.login-root.login-light .login-label {
+  color: #374151;
+}
+
+.login-root.login-light .login-input {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #111827;
+  caret-color: #d97706;
+}
+
+.login-root.login-light .login-input::placeholder {
+  color: #9ca3af;
+}
+
+.login-root.login-light .login-input:focus {
+  border-color: #f9e300;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(249, 227, 0, 0.2);
+}
+
+.login-root.login-light .login-input-icon,
+.login-root.login-light .login-eye-btn {
+  color: #9ca3af;
+}
+
+.login-root.login-light .login-input:focus + .login-input-icon,
+.login-root.login-light .login-input-wrap:focus-within .login-input-icon,
+.login-root.login-light .login-eye-btn:hover {
+  color: #d97706;
+}
+
+.login-root.login-light .login-btn {
+  color: #111;
+  box-shadow: 0 4px 15px rgba(249, 227, 0, 0.4);
+}
+
+.login-root.login-light .login-btn:hover:not(:disabled) {
+  box-shadow: 0 8px 25px rgba(249, 227, 0, 0.6);
+}
+
+.login-root.login-light .login-footer-text {
+  color: #9ca3af;
+}
+
+/* Fix browser autofill for light mode */
+.login-root.login-light .login-input:-webkit-autofill,
+.login-root.login-light .login-input:-webkit-autofill:hover, 
+.login-root.login-light .login-input:-webkit-autofill:focus, 
+.login-root.login-light .login-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #ffffff inset !important;
+  -webkit-text-fill-color: #111827 !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}

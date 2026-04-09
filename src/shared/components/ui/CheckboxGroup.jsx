@@ -1,7 +1,10 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
+import { useTheme } from '../../context/ThemeContext';
 
 export function CheckboxGroup({ options, label, value = [], onChange, error, className }) {
+  const { isDarkGantt } = useTheme();
+
   const handleChange = (optionValue) => {
     const newValue = value.includes(optionValue)
       ? value.filter(v => v !== optionValue)
@@ -12,7 +15,7 @@ export function CheckboxGroup({ options, label, value = [], onChange, error, cla
   return (
     <div className={cn("w-full", className)}>
       {label && (
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className={`block text-sm font-medium mb-2 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
           {label}
         </label>
       )}
@@ -20,7 +23,12 @@ export function CheckboxGroup({ options, label, value = [], onChange, error, cla
         {options.map((option) => (
           <label
             key={option.value}
-            className="flex items-center px-3 py-2 rounded-md border border-gray-700 hover:bg-[#252525] cursor-pointer transition-colors"
+            className={cn(
+              "flex items-center px-3 py-2 rounded-md border cursor-pointer transition-colors",
+              isDarkGantt 
+                ? "border-gray-700 hover:bg-[#252525]" 
+                : "border-gray-300 bg-white hover:bg-gray-50"
+            )}
           >
             <input
               type="checkbox"
@@ -28,7 +36,7 @@ export function CheckboxGroup({ options, label, value = [], onChange, error, cla
               onChange={() => handleChange(option.value)}
               className="mr-3 text-primary-600 focus:ring-primary-500 rounded"
             />
-            <span className="text-sm text-gray-200">{option.label}</span>
+            <span className={`text-sm ${isDarkGantt ? 'text-gray-200' : 'text-gray-900'}`}>{option.label}</span>
           </label>
         ))}
       </div>

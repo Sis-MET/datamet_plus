@@ -3,12 +3,14 @@ import './login.css';
 import logoMetrica from '../../assets/logo_metrica.svg';
 import soporteSvg from '../../assets/soporte_tecnico.svg';
 import { safeStorage } from '../../shared/utils/storage';
+import { useTheme } from '../../shared/context/ThemeContext';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : `${window.location.protocol}//${window.location.hostname}:3000/api`;
 const MAX_ATTEMPTS = 3;
 const LOCK_TIME_MS = 60 * 1000;
 
 export function LoginPage({ onLogin }) {
+  const { isDarkGantt } = useTheme();
   const [usuario, setUsuario] = useState('');
   const [pass, setPass]       = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -129,7 +131,7 @@ export function LoginPage({ onLogin }) {
   };
 
   return (
-    <div className="login-root">
+    <div className={`login-root ${isDarkGantt ? '' : 'login-light'}`}>
       {/* Fondo SVG */}
       <div
         className="login-bg"

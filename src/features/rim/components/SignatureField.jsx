@@ -2,8 +2,10 @@ import React, { useRef, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { Button } from '../../../shared/components/ui/Button';
 import { Eraser } from 'lucide-react';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 export function SignatureField({ label, onEnd, error }) {
+  const { isDarkGantt } = useTheme();
   const sigPad = useRef(null);
   const containerRef = useRef(null);
 
@@ -40,12 +42,12 @@ export function SignatureField({ label, onEnd, error }) {
 
   return (
     <div className="w-full mb-4">
-      <label className="block text-sm font-medium text-gray-300 mb-2">
+      <label className={`block text-sm font-medium mb-2 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
         {label} <span className="text-red-500">*</span>
       </label>
       <div
         ref={containerRef}
-        className={`border-2 rounded-lg bg-white overflow-hidden relative ${error ? 'border-red-500 bg-red-50' : 'border-gray-600 border-dashed'}`}
+        className={`border-2 rounded-lg bg-white overflow-hidden relative ${error ? 'border-red-500 bg-red-50' : (isDarkGantt ? 'border-gray-600 border-dashed' : 'border-gray-300 border-dashed')}`}
         style={{ height: '200px' }}
       >
         <SignatureCanvas

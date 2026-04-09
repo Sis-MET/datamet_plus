@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-  ChevronLeft, ChevronRight, LayoutList, Loader2, DatabaseZap, RefreshCw, ArrowRightLeft, Trash2
+  ChevronLeft, ChevronRight, LayoutList, Loader2, DatabaseZap, RefreshCw, ArrowRightLeft, Trash2, CheckCircle2, CalendarClock, XCircle, Car
 } from 'lucide-react';
 import { sileo } from 'sileo';
 
@@ -12,6 +12,7 @@ import { LeftFilterSidebar } from './components/LeftFilterSidebar';
 import { CellPopoverForm } from './components/CellPopoverForm';
 import { GanttPage } from './GanttPage';
 import { safeStorage } from '../../shared/utils/storage';
+import { useTheme } from '../../shared/context/ThemeContext';
 
 function parseJwt(token) {
   try { return JSON.parse(atob(token.split('.')[1])); }
@@ -19,6 +20,7 @@ function parseJwt(token) {
 }
 
 export function CalendarPage() {
+  const { isDarkGantt } = useTheme();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedArea, setSelectedArea] = useState('Todas');
@@ -92,7 +94,7 @@ export function CalendarPage() {
     if (selectedArea === 'Todas') return tecnicos;
     return tecnicos.filter(t => {
       const pArea = typeof t.area === 'string' && t.area.trim() !== '' ? t.area.trim() : 'Sin Área';
-      return pArea === selectedArea;
+      return pArea === selectedArea || pArea === 'VEHÍCULOS';
     });
   }, [tecnicos, selectedArea]);
 
@@ -158,15 +160,54 @@ export function CalendarPage() {
     }
   };
 
-  // Eliminar turno rapido (Click Derecho)
   const handleDeleteTask = async (task, date, resourceId) => {
-     setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null });
+     setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false });
+
+     const targetResourceObj = tecnicos.find(t => t.id === resourceId);
+     const isVehiculoTarget = targetResourceObj && targetResourceObj.area === 'VEHÍCULOS';
+
+     if (isVehiculoTarget) {
+         const authorName = task.author?.trim();
+         const currentUserName = user?.nombre?.trim() || user?.usuario?.trim();
+         if (authorName && currentUserName && authorName !== currentUserName && authorName !== 'Sistema') {
+             sileo.error({ description: `Acceso denegado: Solo el creador original (${authorName}) puede borrar esta asignación de vehículo.`, duration: 6000 });
+             return;
+         }
+     }
+
      sileo.success({ description: "Borrando ficha...", duration: 500 }); 
      try {
        const dateObj = new Date(date);
        await upsertScheduleCell(dateObj, resourceId, {
           morning: '', afternoon: '', colorAM: '', colorPM: ''
        }, true);
+
+       // Clean up any vehicles assigned to this service if we are deleting a technician's service
+       if (!isVehiculoTarget) {
+           const vehicleTasksToClean = tasks.filter(t => {
+               if (!isSameDay(t.fecha, dateObj)) return false;
+               const isVehiculo = tecnicos.find(tec => tec.id === t.Tecnico)?.area === 'VEHÍCULOS';
+               if (!isVehiculo) return false;
+               
+               const matchAM = task.morning && t.morning === task.morning;
+               const matchPM = task.afternoon && t.afternoon === task.afternoon;
+               return matchAM || matchPM;
+           });
+
+           for (const vTask of vehicleTasksToClean) {
+               const cleanAM = task.morning && vTask.morning === task.morning;
+               const cleanPM = task.afternoon && vTask.afternoon === task.afternoon;
+               await upsertScheduleCell(vTask.fecha, vTask.Tecnico, {
+                   morning: cleanAM ? '' : vTask.morning,
+                   afternoon: cleanPM ? '' : vTask.afternoon,
+                   colorAM: cleanAM ? '' : vTask.colorAM,
+                   colorPM: cleanPM ? '' : vTask.colorPM,
+                   estadoAM: cleanAM ? null : vTask.estadoAM,
+                   estadoPM: cleanPM ? null : vTask.estadoPM
+               }, true);
+           }
+       }
+
        await new Promise(r => setTimeout(r, 400));
        if (typeof refetch === 'function') refetch();
        sileo.success({ description: "Ficha eliminada" });
@@ -283,6 +324,332 @@ export function CalendarPage() {
     }
   };
 
+  // ── Cambio de Estado ──
+  const handleStateChange = async (newState) => {
+    const { task, date, resourceId } = contextMenu;
+    setContextMenu({ ...contextMenu, visible: false });
+    
+    if (newState === 'Reprogramado') {
+       return handleRescheduleInit(task, date, resourceId);
+    }
+    
+    sileo.success({ description: `Marcando como ${newState}...`, duration: 500 });
+    try {
+      const dateObj = new Date(date);
+      await upsertScheduleCell(dateObj, resourceId, {
+         morning: task.morning,
+         afternoon: task.afternoon,
+         colorAM: task.colorAM,
+         colorPM: task.colorPM,
+         estadoAM: task.morning ? newState : null,
+         estadoPM: task.afternoon ? newState : null,
+         lastModified: task.timestampUpdated || null
+      }, false);
+      sileo.success({ description: `Estado actualizado a ${newState}` });
+    } catch (err) {
+      sileo.error({ description: err.message || "Error al actualizar estado" });
+    }
+  };
+
+  const executeIntelligentReschedule = async (part, serviceStr, sourceTask, oldDate, newDate) => {
+      const diffTime = Math.round((newDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffTime === 0) return sileo.success({ description: "No se seleccionó una fecha diferente." });
+
+      const sourceCells = [];
+      const isWithinCurrentWeek = (d) => d >= weekStart && d <= weekEnd;
+
+      tasks.forEach(t => {
+         if (!isWithinCurrentWeek(t.fecha)) return;
+         
+         const matchAM = part === 'ambos' || part === 'am' ? t.morning?.trim() === serviceStr?.trim() : false;
+         const matchPM = part === 'ambos' || part === 'pm' ? t.afternoon?.trim() === serviceStr?.trim() : false;
+         
+         if (part === 'ambos') {
+            if (t.morning?.trim() === sourceTask.morning?.trim() && t.afternoon?.trim() === sourceTask.afternoon?.trim()) {
+               sourceCells.push({ ...t, moveAM: true, movePM: true });
+            }
+         } else {
+            if (matchAM || matchPM) {
+               sourceCells.push({ ...t, moveAM: matchAM, movePM: matchPM });
+            }
+         }
+      });
+
+      if (sourceCells.length === 0) {
+          sourceCells.push({ ...sourceTask, moveAM: part === 'am' || part === 'ambos', movePM: part === 'pm' || part === 'ambos' });
+      }
+
+      const destinationCells = []; 
+      let collision = null;
+
+      sourceCells.forEach(sc => {
+         const destDate = new Date(sc.fecha.getTime());
+         destDate.setDate(destDate.getDate() + diffTime);
+         
+         const existingTask = tasks.find(t => isSameDay(t.fecha, destDate) && t.Tecnico === sc.Tecnico);
+         if (existingTask) {
+            const isSource = sourceCells.find(src => src.id === existingTask.id);
+            if (!isSource) {
+               if (sc.moveAM && existingTask.morning?.trim() && existingTask.morning !== sc.morning) collision = { date: destDate, res: sc.Tecnico, part: 'Mañana' };
+               if (sc.movePM && existingTask.afternoon?.trim() && existingTask.afternoon !== sc.afternoon) collision = { date: destDate, res: sc.Tecnico, part: 'Tarde' };
+            }
+         }
+         destinationCells.push({ originCell: sc, destDate });
+      });
+
+      if (collision) {
+         const tecName = tecnicos.find(t => t.id === collision.res)?.nombre || collision.res;
+         return sileo.error({ 
+            description: `Colisión detectada: El ${format(collision.date, 'EEEE d', { locale: es })} hay otro servicio agendado por la ${collision.part} para ${tecName}. Reprogramación cancelada.`,
+            duration: 8000
+         });
+      }
+
+      sileo.success({ description: `Moviendo ${sourceCells.length} ficha(s)...`, duration: 4000 });
+      try {
+         for (const sCell of sourceCells) {
+            await upsertScheduleCell(sCell.fecha, sCell.Tecnico, {
+               morning: sCell.moveAM ? '' : sCell.morning,
+               afternoon: sCell.movePM ? '' : sCell.afternoon,
+               colorAM: sCell.moveAM ? '' : sCell.colorAM,
+               colorPM: sCell.movePM ? '' : sCell.colorPM,
+               estadoAM: sCell.moveAM ? null : sCell.estadoAM,
+               estadoPM: sCell.movePM ? null : sCell.estadoPM
+            }, true);
+         }
+         
+         for (const { originCell: sCell, destDate } of destinationCells) {
+            const existingTask = tasks.find(t => isSameDay(t.fecha, destDate) && t.Tecnico === sCell.Tecnico) || { morning: '', afternoon: '', colorAM: '', colorPM: '' };
+            await upsertScheduleCell(destDate, sCell.Tecnico, {
+               morning: sCell.moveAM ? sCell.morning : existingTask.morning,
+               afternoon: sCell.movePM ? sCell.afternoon : existingTask.afternoon,
+               colorAM: sCell.moveAM ? sCell.colorAM : existingTask.colorAM,
+               colorPM: sCell.movePM ? sCell.colorPM : existingTask.colorPM,
+               estadoAM: sCell.moveAM ? 'Reprogramado' : existingTask.estadoAM,
+               estadoPM: sCell.movePM ? 'Reprogramado' : existingTask.estadoPM
+            }, true);
+         }
+
+         if (typeof refetch === 'function') refetch();
+         sileo.success({ description: `Fichas reprogramadas exitosamente.` });
+      } catch (e) {
+         sileo.error({ description: `Error al reprogramar: ${e.message}` });
+         if (typeof refetch === 'function') refetch();
+      }
+  };
+
+  const promptRescheduleDate = (part, serviceStr, task, date, resourceId) => {
+      let selectedDateStr = format(new Date(date), 'yyyy-MM-dd'); 
+
+      const onSubmit = (e) => {
+         e.preventDefault();
+         sileo.clear();
+         const newDateObj = new Date(selectedDateStr + 'T12:00:00');
+         const oldDateNoon = new Date(date);
+         oldDateNoon.setHours(12, 0, 0, 0);
+         executeIntelligentReschedule(part, serviceStr, task, oldDateNoon, newDateObj);
+      };
+
+      sileo.action({
+         title: "Seleccionar nueva fecha",
+         duration: 30000,
+         description: (
+            <form onSubmit={onSubmit} className="flex flex-col gap-3 mt-2" onPointerDown={e => e.stopPropagation()}>
+               <p className="text-[13px] text-gray-600 leading-snug">
+                  Se reprogramarán inteligentemente todas las fichas vinculadas de la semana actual.
+               </p>
+               <input 
+                 type="date" 
+                 defaultValue={selectedDateStr}
+                 onChange={(e) => selectedDateStr = e.target.value}
+                 required
+                 className="w-full px-3 py-2 border border-gray-300 rounded-xl bg-white text-gray-800 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none"
+               />
+               <div className="flex gap-2 pt-1 border-t border-gray-200">
+                 <button type="submit" className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors">
+                    Continuar
+                 </button>
+                 <button type="button" onClick={() => sileo.clear()} className="flex-1 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-bold transition-colors">
+                    Cancelar
+                 </button>
+               </div>
+            </form>
+         )
+      });
+  };
+
+  const handleRescheduleInit = (task, date, resourceId) => {
+      const hasAM = !!task.morning?.trim();
+      const hasPM = !!task.afternoon?.trim();
+      
+      const proceed = (part, serviceStr) => {
+         sileo.clear();
+         promptRescheduleDate(part, serviceStr, task, date, resourceId);
+      };
+
+      if (hasAM && hasPM) {
+         sileo.action({
+            title: "¿Qué turno deseas reprogramar?",
+            duration: 15000,
+            description: (
+               <div className="flex flex-col gap-2 mt-2" onPointerDown={e => e.stopPropagation()}>
+                  <button onClick={() => proceed('am', task.morning)} className="py-2 px-3 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-semibold transition-colors text-left truncate">
+                     Solo Mañana
+                  </button>
+                  <button onClick={() => proceed('pm', task.afternoon)} className="py-2 px-3 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold transition-colors text-left truncate">
+                     Solo Tarde
+                  </button>
+                  <button onClick={() => proceed('ambos', null)} className="py-2 px-3 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-semibold transition-colors text-left">
+                     Ficha Completa
+                  </button>
+                  <button onClick={() => sileo.clear()} className="mt-1 py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold transition-colors">
+                     Cancelar
+                  </button>
+               </div>
+            )
+         });
+      } else {
+         const targetPart = hasAM ? 'am' : 'pm';
+         const serviceStr = hasAM ? task.morning : task.afternoon;
+         promptRescheduleDate(targetPart, serviceStr, task, date, resourceId);
+      }
+  };
+
+  const handleAssignVehicleInit = (vehiculo) => {
+      const { task, date, resourceId } = contextMenu;
+      setContextMenu({ ...contextMenu, visible: false, showVehicles: false });
+
+      const hasAM = !!task.morning?.trim();
+      const hasPM = !!task.afternoon?.trim();
+
+      const proceed = (part, serviceStr) => {
+         sileo.clear();
+         const oldDateNoon = new Date(date);
+         oldDateNoon.setHours(12, 0, 0, 0);
+         executeIntelligentVehicleAssign(part, serviceStr, task, oldDateNoon, resourceId, vehiculo);
+      };
+
+      if (hasAM && hasPM) {
+         sileo.action({
+            title: `Asignar ${vehiculo.nombre}`,
+            duration: 15000,
+            description: (
+               <div className="flex flex-col gap-2 mt-2" onPointerDown={e => e.stopPropagation()}>
+                  <button onClick={() => proceed('am', task.morning)} className="py-2 px-3 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-semibold transition-colors text-left truncate">
+                     Solo Mañana
+                  </button>
+                  <button onClick={() => proceed('pm', task.afternoon)} className="py-2 px-3 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold transition-colors text-left truncate">
+                     Solo Tarde
+                  </button>
+                  <button onClick={() => proceed('ambos', null)} className="py-2 px-3 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-semibold transition-colors text-left">
+                     Ficha Completa
+                  </button>
+                  <button onClick={() => sileo.clear()} className="mt-1 py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold transition-colors">
+                     Cancelar
+                  </button>
+               </div>
+            )
+         });
+      } else {
+         const targetPart = hasAM ? 'am' : 'pm';
+         const serviceStr = hasAM ? task.morning : task.afternoon;
+         proceed(targetPart, serviceStr);
+      }
+  };
+
+  const executeIntelligentVehicleAssign = async (part, serviceStr, sourceTask, sourceDateObj, technicianId, vehiculo) => {
+      const isWithinCurrentWeek = (d) => d >= weekStart && d <= weekEnd;
+      const associatedDates = [];
+
+      tasks.forEach(t => {
+         if (!isWithinCurrentWeek(t.fecha) || t.Tecnico !== technicianId) return;
+         
+         const matchAM = part === 'ambos' || part === 'am' ? t.morning?.trim() === serviceStr?.trim() : false;
+         const matchPM = part === 'ambos' || part === 'pm' ? t.afternoon?.trim() === serviceStr?.trim() : false;
+         
+         if (part === 'ambos') {
+            if (t.morning?.trim() === sourceTask.morning?.trim() && t.afternoon?.trim() === sourceTask.afternoon?.trim()) {
+               associatedDates.push({ date: t.fecha, tCell: t, assignAM: true, assignPM: true });
+            }
+         } else {
+            if (matchAM || matchPM) {
+               associatedDates.push({ date: t.fecha, tCell: t, assignAM: matchAM, assignPM: matchPM });
+            }
+         }
+      });
+
+      if (associatedDates.length === 0) {
+         associatedDates.push({ 
+             date: sourceDateObj, 
+             tCell: sourceTask, 
+             assignAM: part === 'am' || part === 'ambos', 
+             assignPM: part === 'pm' || part === 'ambos' 
+         });
+      }
+
+      let collision = null;
+
+      associatedDates.forEach(dt => {
+         const existingVehicleTask = tasks.find(t => isSameDay(t.fecha, dt.date) && t.Tecnico === vehiculo.id);
+         
+         if (existingVehicleTask) {
+             const vehMorningText = existingVehicleTask.morning?.trim();
+             const vehAfternoonText = existingVehicleTask.afternoon?.trim();
+             
+             if (vehMorningText || vehAfternoonText) {
+                 const conflictTechTask = tasks.find(t => 
+                     isSameDay(t.fecha, dt.date) && 
+                     t.Tecnico !== vehiculo.id && 
+                     tecnicos.find(tec => tec.id === t.Tecnico)?.area !== 'VEHÍCULOS' &&
+                     (t.morning?.trim() === (vehMorningText || vehAfternoonText) || t.afternoon?.trim() === (vehMorningText || vehAfternoonText))
+                 );
+
+                 const conflictService = vehMorningText || vehAfternoonText;
+                 const conflictTechId = conflictTechTask ? conflictTechTask.Tecnico : null;
+
+                 if (conflictService !== serviceStr || (conflictTechId && conflictTechId !== technicianId)) {
+                     collision = { date: dt.date, conflictTechId, service: conflictService };
+                 }
+             }
+         }
+      });
+
+      if (collision) {
+         let conflictMessage = "un usuario no identificado";
+         if (collision.conflictTechId) {
+             const culprit = tecnicos.find(t => t.id === collision.conflictTechId);
+             if (culprit) conflictMessage = `${culprit.nombre} (${culprit.area})`;
+         }
+
+         return sileo.error({
+             description: `Cancelado: El ${format(collision.date, 'EEEE d', { locale: es })} el vehículo ya está en uso ocupando "${collision.service}" asignado por ${conflictMessage}.`,
+             duration: 9000
+         });
+      }
+
+      sileo.success({ description: `Asignando vehículo en ${associatedDates.length} jornada(s)...`, duration: 4000 });
+      try {
+         for (const dt of associatedDates) {
+             const existingV = tasks.find(t => isSameDay(t.fecha, dt.date) && t.Tecnico === vehiculo.id) || { morning: '', afternoon: '', colorAM: '', colorPM: '' };
+             
+             await upsertScheduleCell(dt.date, vehiculo.id, {
+                 morning: dt.assignAM ? dt.tCell.morning : existingV.morning,
+                 afternoon: dt.assignPM ? dt.tCell.afternoon : existingV.afternoon,
+                 colorAM: dt.assignAM ? dt.tCell.colorAM : existingV.colorAM,
+                 colorPM: dt.assignPM ? dt.tCell.colorPM : existingV.colorPM,
+                 estadoAM: dt.assignAM ? dt.tCell.estadoAM : existingV.estadoAM,
+                 estadoPM: dt.assignPM ? dt.tCell.estadoPM : existingV.estadoPM
+             }, true);
+         }
+         
+         if (typeof refetch === 'function') refetch();
+         sileo.success({ description: "Vehículo asignado correctamente." });
+      } catch (err) {
+         sileo.error({ description: `Error al asignar: ${err.message}` });
+         if (typeof refetch === 'function') refetch();
+      }
+  };
+
   return (
     <main 
       className="w-full h-full flex flex-col px-4 sm:px-6 2xl:px-12 py-6 relative"
@@ -350,7 +717,11 @@ export function CalendarPage() {
             onTaskDrop={isAdmin ? handleTaskDrop : undefined}
             onTaskContextMenu={isAdmin ? (e, task, date, res) => {
                e.preventDefault();
-               setContextMenu({ visible: true, x: e.clientX, y: e.clientY, task, date, resourceId: res });
+               const menuW = 180;
+               const menuH = 220;
+               const x = e.clientX + menuW > window.innerWidth ? window.innerWidth - menuW - 10 : e.clientX;
+               const y = e.clientY + menuH > window.innerHeight ? window.innerHeight - menuH - 10 : e.clientY;
+               setContextMenu({ visible: true, x, y, task, date, resourceId: res, showVehicles: false });
             } : undefined}
             onTaskDragStart={isAdmin ? () => setIsDragging(true) : undefined}
             onTaskDragEnd={isAdmin ? () => setIsDragging(false) : undefined}
@@ -389,18 +760,87 @@ export function CalendarPage() {
       )}
 
       {contextMenu.visible && (
-         <div 
-           className="fixed z-[9999] bg-[#1a1f2e] border border-white/20 shadow-2xl rounded-lg w-48 overflow-hidden animate-fade-in"
-           style={{ top: contextMenu.y, left: contextMenu.x }}
-         >
-            <button 
-              className="w-full text-left px-4 py-3 text-red-500 hover:bg-red-500/20 flex items-center gap-2.5 text-sm font-semibold transition-colors"
-              onClick={(e) => { e.stopPropagation(); handleDeleteTask(contextMenu.task, contextMenu.date, contextMenu.resourceId); }}
-            >
-               <Trash2 className="w-4 h-4" />
-               Eliminar Ficha
-            </button>
-         </div>
+         <>
+           <div 
+             className="fixed inset-0 z-[9998]" 
+             onPointerDown={() => setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false })}
+             onContextMenu={(e) => { e.preventDefault(); setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false }); }}
+           />
+           <div 
+             className={`fixed z-[9999] border rounded-xl w-44 overflow-visible animate-fade-in ${isDarkGantt ? 'border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)]' : 'border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.15)]'}`}
+             style={{ 
+               top: contextMenu.y, 
+               left: contextMenu.x,
+               background: isDarkGantt ? 'rgba(30, 30, 35, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
+               backdropFilter: 'blur(16px)'
+             }}
+           >
+              <div className="px-3 pt-2.5 pb-1 text-[9px] font-bold text-gray-500 uppercase tracking-widest pointer-events-none">Cambiar Estado</div>
+              <button 
+                className={`w-full text-left px-3 py-1.5 flex items-center gap-2 text-[11px] font-semibold transition-colors ${isDarkGantt ? 'text-emerald-400 hover:bg-white/10' : 'text-emerald-600 hover:bg-black/5'}`}
+                onClick={(e) => { e.stopPropagation(); handleStateChange('Completado'); }}
+              >
+                 <CheckCircle2 className="w-3.5 h-3.5" /> Completado
+              </button>
+              <button 
+                className={`w-full text-left px-3 py-1.5 flex items-center gap-2 text-[11px] font-semibold transition-colors ${isDarkGantt ? 'text-blue-400 hover:bg-white/10' : 'text-blue-600 hover:bg-black/5'}`}
+                onClick={(e) => { e.stopPropagation(); handleStateChange('Reprogramado'); }}
+              >
+                 <CalendarClock className="w-3.5 h-3.5" /> Reprogramar
+              </button>
+              <button 
+                className={`w-full text-left px-3 py-1.5 flex items-center gap-2 text-[11px] font-semibold transition-colors ${isDarkGantt ? 'text-gray-400 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}
+                onClick={(e) => { e.stopPropagation(); handleStateChange('Cancelado'); }}
+              >
+                 <XCircle className="w-3.5 h-3.5" /> Cancelado
+              </button>
+
+              <div className={`h-[1px] w-full my-0.5 ${isDarkGantt ? 'bg-white/10' : 'bg-gray-200'}`} />
+
+              <div className="relative">
+                 <button 
+                   className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 text-[11px] font-semibold transition-colors ${isDarkGantt ? 'text-emerald-300 hover:bg-white/10' : 'text-emerald-600 hover:bg-black/5'}`}
+                   onClick={(e) => { e.stopPropagation(); setContextMenu(prev => ({...prev, showVehicles: !prev.showVehicles})) }}
+                 >
+                    <div className="flex items-center gap-2">
+                       <Car className="w-3.5 h-3.5" /> Asignar Vehículo
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                 </button>
+
+                 {contextMenu.showVehicles && (
+                    <div className={`absolute top-0 ${(typeof window !== 'undefined' && contextMenu.x > window.innerWidth - 380) ? 'right-full mr-1' : 'left-full ml-1'} w-44 border rounded-xl overflow-hidden animate-fade-in ${isDarkGantt ? 'border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)]' : 'border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.15)]'}`}
+                         style={{ background: isDarkGantt ? 'rgba(30,30,35,0.98)' : 'rgba(255,255,255,0.98)', backdropFilter: 'blur(16px)' }}
+                    >
+                       <div className="px-3 pt-2.5 pb-1 text-[9px] font-bold text-gray-500 uppercase tracking-widest pointer-events-none">Vehículos</div>
+                       <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col py-0.5">
+                          {tecnicos.filter(t => t.area === 'VEHÍCULOS').length === 0 && (
+                            <span className="px-3 py-2 text-[10px] text-gray-500">Sin vehículos en el sistema</span>
+                          )}
+                          {tecnicos.filter(t => t.area === 'VEHÍCULOS').map(vehiculo => (
+                             <button 
+                               key={vehiculo.id}
+                               onClick={(e) => { e.stopPropagation(); handleAssignVehicleInit(vehiculo); }}
+                               className={`w-full text-left px-3 py-1.5 text-[11px] font-semibold transition-colors truncate ${isDarkGantt ? 'text-gray-300 hover:bg-emerald-500/20 hover:text-emerald-300' : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                             >
+                               {vehiculo.nombre}
+                             </button>
+                          ))}
+                       </div>
+                    </div>
+                 )}
+              </div>
+
+              <div className={`h-[1px] w-full my-0.5 ${isDarkGantt ? 'bg-white/10' : 'bg-gray-200'}`} />
+
+              <button 
+                className={`w-full text-left px-3 py-2 flex items-center gap-2 text-[11px] font-semibold transition-colors mb-0.5 ${isDarkGantt ? 'text-red-500 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'}`}
+                onClick={(e) => { e.stopPropagation(); handleDeleteTask(contextMenu.task, contextMenu.date, contextMenu.resourceId); }}
+              >
+                 <Trash2 className="w-3.5 h-3.5" /> Eliminar Ficha
+              </button>
+           </div>
+         </>
       )}
 
     </main>
