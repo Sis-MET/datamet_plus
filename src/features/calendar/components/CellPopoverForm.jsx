@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale';
 import { HexColorPicker } from 'react-colorful';
 import { safeStorage } from '../../../shared/utils/storage';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { CotizacionAutocomplete } from './CotizacionAutocomplete';
 
 const PRESET_COLORS = [
   '#dadd12ff', '#1d2e8fff', '#424242ff', '#ce1515ff', '#621fceff', '#44bfefff'
@@ -190,13 +191,12 @@ export function CellPopoverForm({
                     </div>
                  </div>
                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={morning}
-                      onChange={(e) => setMorning(e.target.value.toUpperCase())}
-                      placeholder="EJ: EMBOL - LA PAZ"
-                      className={`flex-1 min-w-0 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner ${isDarkGantt ? 'bg-[#111111] border-white/5 text-gray-100 placeholder-gray-700' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                    />
+                     <CotizacionAutocomplete
+                       value={morning}
+                       onChange={setMorning}
+                       placeholder="EJ: 260001.COT01 · EMBOL"
+                       isDarkGantt={isDarkGantt}
+                     />
                     {/* Botón para abrir Color Picker */}
                     <div className="relative" ref={colorPickerRefAM}>
                        <button
@@ -274,13 +274,12 @@ export function CellPopoverForm({
                     </div>
                  </div>
                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={afternoon}
-                      onChange={(e) => setAfternoon(e.target.value.toUpperCase())}
-                      placeholder="EJ: EMBOL - EL ALTO"
-                      className={`flex-1 min-w-0 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner ${isDarkGantt ? 'bg-[#111111] border-white/5 text-gray-100 placeholder-gray-700' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                    />
+                     <CotizacionAutocomplete
+                       value={afternoon}
+                       onChange={setAfternoon}
+                       placeholder="EJ: 260001.COT01 · EMBOL"
+                       isDarkGantt={isDarkGantt}
+                     />
                     {/* Botón para abrir Color Picker */}
                     <div className="relative" ref={colorPickerRefPM}>
                        <button

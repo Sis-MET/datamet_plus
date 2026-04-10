@@ -7,6 +7,7 @@ const authRoutes = require('./auth.routes');
 const clientesRoutes = require('./clientes.routes');
 const equiposRoutes = require('./equipos.routes');
 const calendarRoutes = require('./calendar.routes');
+const cotizacionesRoutes = require('./cotizaciones.routes');
 
 // Define rutas base (prefijos)
 router.use('/health', healthRoutes);
@@ -15,6 +16,7 @@ router.use('/auth', authRoutes);
 router.use('/clientes', clientesRoutes);
 router.use('/equipos', equiposRoutes);
 router.use('/calendar', calendarRoutes);
+router.use('/cotizaciones', cotizacionesRoutes);
 
 module.exports = router;
 

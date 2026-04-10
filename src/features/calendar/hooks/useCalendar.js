@@ -65,7 +65,7 @@ export function useCalendar(tasks = []) {
 
   const monthStats = useMemo(() => {
     // Tareas del mes seleccionado
-    const currentMonthStart = startOfMonth(currentDate).setHours(0,0,0,0);
+    const currentMonthStart = startOfMonth(currentDate).setHours(0,0,0,0);    
     const currentMonthEnd = endOfMonth(currentDate).setHours(23,59,59,999);
 
     const monthEvents = tasks.filter(t => {

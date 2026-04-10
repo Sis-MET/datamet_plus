@@ -87,10 +87,6 @@ function App() {
     setIsAuthenticated(false);
   };
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -116,6 +112,10 @@ function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   const renderView = () => {
     switch (activeView) {
