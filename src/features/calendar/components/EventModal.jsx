@@ -24,6 +24,7 @@ export function EventModal({ selectedDay, events }) {
         </div>
       ) : (
         <div className="space-y-3">
+          
           {events.map((ev) => {
             return (
               <div

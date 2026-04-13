@@ -291,7 +291,7 @@ export function CalendarPage() {
         description: (
           <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
             <span className="text-[13px] text-gray-600 leading-snug">
-              Vas a {isMoveKey ? "mover" : "copiar"} esta actividad a <strong className="font-semibold text-gray-800">{targetName}</strong>. ¿Estás seguro?
+              Vas a {isMoveKey ? "mover" : "copiar"} esta ficha a <strong className="font-semibold text-gray-800">{targetName}</strong>. ¿Estás seguro?
             </span>
             <div className="flex items-center gap-2">
               <div
@@ -456,7 +456,7 @@ export function CalendarPage() {
          description: (
             <form onSubmit={onSubmit} className="flex flex-col gap-3 mt-2" onPointerDown={e => e.stopPropagation()}>
                <p className="text-[13px] text-gray-600 leading-snug">
-                  Se reprogramarán inteligentemente todas las fichas vinculadas de la semana actual.
+                  Se reprogramarán las fichas vinculadas de la semana actual.
                </p>
                <input 
                  type="date" 
