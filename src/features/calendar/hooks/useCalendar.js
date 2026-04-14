@@ -36,21 +36,11 @@ export function useCalendar(tasks = []) {
        if (t.morning) {
          eventsArray.push({
            ...t,
-           id: `${t.id}-am`,
+           id: `${t.id}-act`,
            title: t.morning,
            client: t.Tecnico,
            status: 'completado',
-           shiftIndicator: 'AM'
-         });
-       }
-       if (t.afternoon) {
-         eventsArray.push({
-           ...t,
-           id: `${t.id}-pm`,
-           title: t.afternoon,
-           client: t.Tecnico,
-           status: 'completado',
-           shiftIndicator: 'PM'
+           shiftIndicator: ''
          });
        }
     });

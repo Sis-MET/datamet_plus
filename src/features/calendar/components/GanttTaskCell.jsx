@@ -87,8 +87,7 @@ export function GanttTaskCell({
   const handleClick = (e) => {
     if (onTaskClick) {
       e.stopPropagation();
-      const taskObj = tasks && tasks.length > 0 ? tasks[0] : null;
-      onTaskClick(taskObj, date, resourceId);
+      onTaskClick(null, date, resourceId);
     }
   };
 
@@ -103,10 +102,10 @@ export function GanttTaskCell({
     const dragData = JSON.stringify({ 
       sourceResource: resourceId,
       sourceDate: date,
+      rowId: task.rowId,
       morning: task.morning, 
-      afternoon: task.afternoon, 
       colorAM: task.colorAM,
-      colorPM: task.colorPM
+      estadoAM: task.estadoAM
     });
     e.dataTransfer.setData('application/json', dragData);
     e.dataTransfer.effectAllowed = 'copyMove';
@@ -138,7 +137,7 @@ export function GanttTaskCell({
   const formattedDateTooltip = date ? format(date, "EEEE, d 'de' MMMM", { locale: es }) : '';
 
   // Determinar si todos los eventos pasados están logitamente purgados (vaciados)
-  const isEmptyTask = (t) => !t.morning && !t.afternoon;
+  const isEmptyTask = (t) => !t.morning;
   const validTasks = tasks ? tasks.filter(t => !isEmptyTask(t)) : [];
 
   if (validTasks.length === 0) {
@@ -173,6 +172,12 @@ export function GanttTaskCell({
         <div
           key={task.id}
           draggable={!!onTaskDrop}
+          onClick={(e) => {
+            if (onTaskClick) {
+              e.stopPropagation();
+              onTaskClick(task, date, resourceId);
+            }
+          }}
           onDragStart={(e) => handleDragStart(e, task)}
           onDragEnd={() => onTaskDragEnd && onTaskDragEnd()}
           onContextMenu={(e) => {
@@ -182,35 +187,20 @@ export function GanttTaskCell({
               onTaskContextMenu(e, task, date, resourceId);
             }
           }}
-          className={`w-full h-[3.25rem] border rounded-lg overflow-hidden text-[10px] shadow-lg flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in ${
+          className={`w-full mt-0.5 h-8 border rounded-md overflow-hidden text-[10px] shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in ${
             isDarkGantt
               ? 'border-white/10 text-white hover:ring-white/30'
               : 'border-white/20 text-white hover:ring-black/20'
           }`}
         >
-          {/* Sub-celda MAÑANA */}
           <div 
-            className={`flex-1 flex flex-col justify-center px-1.5 border-b relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''} ${isDarkGantt ? 'border-white/5' : 'border-black/5'}`}
+            className={`flex-1 flex flex-col justify-center px-1.5 relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''}`}
             style={task.morning && task.colorAM ? { backgroundColor: task.colorAM } : {}}
           >
             {task.morning && task.colorAM && <div className={`absolute inset-0 pointer-events-none opacity-50 bg-gradient-to-b ${isDarkGantt ? 'from-white/10 to-transparent' : 'from-white/20 to-transparent'}`} />}
             {task.morning && (
-              <div className="flex items-center gap-1.5 relative z-10">
-                <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">AM</span>
-                <span className="line-clamp-1 break-words font-bold leading-none">{task.morning}</span>
-              </div>
-            )}
-          </div>
-          {/* Sub-celda TARDE */}
-          <div 
-            className={`flex-1 flex flex-col justify-center px-1.5 relative group/slot ${!(task.afternoon && task.colorPM) ? 'bg-transparent' : ''}`}
-            style={task.afternoon && task.colorPM ? { backgroundColor: task.colorPM } : {}}
-          >
-            {task.afternoon && task.colorPM && <div className={`absolute inset-0 pointer-events-none opacity-30 bg-gradient-to-t ${isDarkGantt ? 'from-black/20 to-transparent' : 'from-black/10 to-transparent'}`} />}
-            {task.afternoon && (
-              <div className="flex items-center gap-1.5 relative z-10">
-                <span className="font-extrabold opacity-40 text-[7px] uppercase tracking-tighter">PM</span>
-                <span className="line-clamp-1 break-words font-bold leading-none">{task.afternoon}</span>
+              <div className="flex items-center gap-1.5 relative z-10 w-full">
+                <span className="line-clamp-1 break-all font-bold leading-none">{task.morning}</span>
               </div>
             )}
           </div>
@@ -246,21 +236,10 @@ export function GanttTaskCell({
                  <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: primaryTask.colorAM || '#37A65F' }} />
                  <div className="flex-1">
                     <div className="flex justify-between items-center mb-0.5">
-                       <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Mañana</p>
+                       <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Actividad</p>
                        {primaryTask.morning && <span className={getStateBadgeClass(primaryTask.estadoAM)}>{primaryTask.estadoAM || 'Pendiente'}</span>}
                     </div>
                     <p className={`text-sm font-medium break-words leading-snug ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{primaryTask.morning || '(Sin actividad)'}</p>
-                 </div>
-              </div>
-              
-              <div className="flex gap-3 pt-1">
-                 <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: primaryTask.colorPM || primaryTask.colorAM || '#37A65F' }} />
-                 <div className="flex-1">
-                    <div className="flex justify-between items-center mb-0.5">
-                       <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Tarde</p>
-                       {primaryTask.afternoon && <span className={getStateBadgeClass(primaryTask.estadoPM)}>{primaryTask.estadoPM || 'Pendiente'}</span>}
-                    </div>
-                    <p className={`text-sm font-medium break-words leading-snug ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{primaryTask.afternoon || '(Sin actividad)'}</p>
                  </div>
               </div>
            </div>

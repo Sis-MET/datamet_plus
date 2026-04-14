@@ -179,7 +179,8 @@ export function CalendarPage() {
      try {
        const dateObj = new Date(date);
        await upsertScheduleCell(dateObj, resourceId, {
-          morning: '', afternoon: '', colorAM: '', colorPM: ''
+          rowId: task.rowId,
+          morning: ''
        }, true);
 
        // Clean up any vehicles assigned to this service if we are deleting a technician's service
@@ -189,21 +190,13 @@ export function CalendarPage() {
                const isVehiculo = tecnicos.find(tec => tec.id === t.Tecnico)?.area === 'VEHÍCULOS';
                if (!isVehiculo) return false;
                
-               const matchAM = task.morning && t.morning === task.morning;
-               const matchPM = task.afternoon && t.afternoon === task.afternoon;
-               return matchAM || matchPM;
+               return task.morning && t.morning === task.morning;
            });
 
            for (const vTask of vehicleTasksToClean) {
-               const cleanAM = task.morning && vTask.morning === task.morning;
-               const cleanPM = task.afternoon && vTask.afternoon === task.afternoon;
                await upsertScheduleCell(vTask.fecha, vTask.Tecnico, {
-                   morning: cleanAM ? '' : vTask.morning,
-                   afternoon: cleanPM ? '' : vTask.afternoon,
-                   colorAM: cleanAM ? '' : vTask.colorAM,
-                   colorPM: cleanPM ? '' : vTask.colorPM,
-                   estadoAM: cleanAM ? null : vTask.estadoAM,
-                   estadoPM: cleanPM ? null : vTask.estadoPM
+                   rowId: vTask.rowId,
+                   morning: ''
                }, true);
            }
        }
@@ -235,32 +228,24 @@ export function CalendarPage() {
              return;
           }
           
-          // 1. Escribir Destino
+          // 1. Mover: Mantiene el rowId
           await upsertScheduleCell(targetDateObj, targetResource, {
+            rowId: sourceTask.rowId,
             morning: sourceTask.morning,
-            afternoon: sourceTask.afternoon,
             colorAM: sourceTask.colorAM,
-            colorPM: sourceTask.colorPM,
-          }, true);
-          
-          // 2. Limpiar Origen
-          await upsertScheduleCell(sourceDateObj, sourceTask.sourceResource, {
-            morning: '',
-            afternoon: '',
-            colorAM: '',
-            colorPM: ''
+            estadoAM: sourceTask.estadoAM
           }, true);
           
           await new Promise(r => setTimeout(r, 400));
           if (typeof refetch === 'function') refetch();
           sileo.success({ description: "Actividad movida correctamente." });
         } else {
-          // Copia Normal
+          // Copia Normal: Crea un nuevo rowId
           await upsertScheduleCell(targetDateObj, targetResource, {
+            rowId: null,
             morning: sourceTask.morning,
-            afternoon: sourceTask.afternoon,
             colorAM: sourceTask.colorAM,
-            colorPM: sourceTask.colorPM,
+            estadoAM: sourceTask.estadoAM
           }, true);
 
           await new Promise(r => setTimeout(r, 400));
@@ -337,12 +322,10 @@ export function CalendarPage() {
     try {
       const dateObj = new Date(date);
       await upsertScheduleCell(dateObj, resourceId, {
+         rowId: task.rowId,
          morning: task.morning,
-         afternoon: task.afternoon,
          colorAM: task.colorAM,
-         colorPM: task.colorPM,
-         estadoAM: task.morning ? newState : null,
-         estadoPM: task.afternoon ? newState : null,
+         estadoAM: newState,
          lastModified: task.timestampUpdated || null
       }, false);
       sileo.success({ description: `Estado actualizado a ${newState}` });
@@ -361,22 +344,13 @@ export function CalendarPage() {
       tasks.forEach(t => {
          if (!isWithinCurrentWeek(t.fecha)) return;
          
-         const matchAM = part === 'ambos' || part === 'am' ? t.morning?.trim() === serviceStr?.trim() : false;
-         const matchPM = part === 'ambos' || part === 'pm' ? t.afternoon?.trim() === serviceStr?.trim() : false;
-         
-         if (part === 'ambos') {
-            if (t.morning?.trim() === sourceTask.morning?.trim() && t.afternoon?.trim() === sourceTask.afternoon?.trim()) {
-               sourceCells.push({ ...t, moveAM: true, movePM: true });
-            }
-         } else {
-            if (matchAM || matchPM) {
-               sourceCells.push({ ...t, moveAM: matchAM, movePM: matchPM });
-            }
+         if (t.morning?.trim() === sourceTask.morning?.trim()) {
+            sourceCells.push({ ...t, moveAM: true });
          }
       });
 
       if (sourceCells.length === 0) {
-          sourceCells.push({ ...sourceTask, moveAM: part === 'am' || part === 'ambos', movePM: part === 'pm' || part === 'ambos' });
+          sourceCells.push({ ...sourceTask, moveAM: true });
       }
 
       const destinationCells = []; 
@@ -386,12 +360,11 @@ export function CalendarPage() {
          const destDate = new Date(sc.fecha.getTime());
          destDate.setDate(destDate.getDate() + diffTime);
          
-         const existingTask = tasks.find(t => isSameDay(t.fecha, destDate) && t.Tecnico === sc.Tecnico);
+          const existingTask = tasks.find(t => isSameDay(t.fecha, destDate) && t.Tecnico === sc.Tecnico);
          if (existingTask) {
             const isSource = sourceCells.find(src => src.id === existingTask.id);
             if (!isSource) {
-               if (sc.moveAM && existingTask.morning?.trim() && existingTask.morning !== sc.morning) collision = { date: destDate, res: sc.Tecnico, part: 'Mañana' };
-               if (sc.movePM && existingTask.afternoon?.trim() && existingTask.afternoon !== sc.afternoon) collision = { date: destDate, res: sc.Tecnico, part: 'Tarde' };
+               if (existingTask.morning?.trim() && existingTask.morning !== sc.morning) collision = { date: destDate, res: sc.Tecnico, part: 'Actividad' };
             }
          }
          destinationCells.push({ originCell: sc, destDate });
@@ -409,24 +382,17 @@ export function CalendarPage() {
       try {
          for (const sCell of sourceCells) {
             await upsertScheduleCell(sCell.fecha, sCell.Tecnico, {
-               morning: sCell.moveAM ? '' : sCell.morning,
-               afternoon: sCell.movePM ? '' : sCell.afternoon,
-               colorAM: sCell.moveAM ? '' : sCell.colorAM,
-               colorPM: sCell.movePM ? '' : sCell.colorPM,
-               estadoAM: sCell.moveAM ? null : sCell.estadoAM,
-               estadoPM: sCell.movePM ? null : sCell.estadoPM
+               rowId: sCell.rowId,
+               morning: ''
             }, true);
          }
          
          for (const { originCell: sCell, destDate } of destinationCells) {
-            const existingTask = tasks.find(t => isSameDay(t.fecha, destDate) && t.Tecnico === sCell.Tecnico) || { morning: '', afternoon: '', colorAM: '', colorPM: '' };
             await upsertScheduleCell(destDate, sCell.Tecnico, {
-               morning: sCell.moveAM ? sCell.morning : existingTask.morning,
-               afternoon: sCell.movePM ? sCell.afternoon : existingTask.afternoon,
-               colorAM: sCell.moveAM ? sCell.colorAM : existingTask.colorAM,
-               colorPM: sCell.movePM ? sCell.colorPM : existingTask.colorPM,
-               estadoAM: sCell.moveAM ? 'Reprogramado' : existingTask.estadoAM,
-               estadoPM: sCell.movePM ? 'Reprogramado' : existingTask.estadoPM
+               rowId: null,
+               morning: sCell.morning,
+               colorAM: sCell.colorAM,
+               estadoAM: 'Reprogramado'
             }, true);
          }
 
@@ -479,82 +445,17 @@ export function CalendarPage() {
   };
 
   const handleRescheduleInit = (task, date, resourceId) => {
-      const hasAM = !!task.morning?.trim();
-      const hasPM = !!task.afternoon?.trim();
-      
-      const proceed = (part, serviceStr) => {
-         sileo.clear();
-         promptRescheduleDate(part, serviceStr, task, date, resourceId);
-      };
-
-      if (hasAM && hasPM) {
-         sileo.action({
-            title: "¿Qué turno deseas reprogramar?",
-            duration: 15000,
-            description: (
-               <div className="flex flex-col gap-2 mt-2" onPointerDown={e => e.stopPropagation()}>
-                  <button onClick={() => proceed('am', task.morning)} className="py-2 px-3 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-semibold transition-colors text-left truncate">
-                     Solo Mañana
-                  </button>
-                  <button onClick={() => proceed('pm', task.afternoon)} className="py-2 px-3 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold transition-colors text-left truncate">
-                     Solo Tarde
-                  </button>
-                  <button onClick={() => proceed('ambos', null)} className="py-2 px-3 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-semibold transition-colors text-left">
-                     Ficha Completa
-                  </button>
-                  <button onClick={() => sileo.clear()} className="mt-1 py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold transition-colors">
-                     Cancelar
-                  </button>
-               </div>
-            )
-         });
-      } else {
-         const targetPart = hasAM ? 'am' : 'pm';
-         const serviceStr = hasAM ? task.morning : task.afternoon;
-         promptRescheduleDate(targetPart, serviceStr, task, date, resourceId);
-      }
+      promptRescheduleDate('ambos', task.morning, task, date, resourceId);
   };
 
   const handleAssignVehicleInit = (vehiculo) => {
       const { task, date, resourceId } = contextMenu;
       setContextMenu({ ...contextMenu, visible: false, showVehicles: false });
 
-      const hasAM = !!task.morning?.trim();
-      const hasPM = !!task.afternoon?.trim();
-
-      const proceed = (part, serviceStr) => {
-         sileo.clear();
-         const oldDateNoon = new Date(date);
-         oldDateNoon.setHours(12, 0, 0, 0);
-         executeIntelligentVehicleAssign(part, serviceStr, task, oldDateNoon, resourceId, vehiculo);
-      };
-
-      if (hasAM && hasPM) {
-         sileo.action({
-            title: `Asignar ${vehiculo.nombre}`,
-            duration: 15000,
-            description: (
-               <div className="flex flex-col gap-2 mt-2" onPointerDown={e => e.stopPropagation()}>
-                  <button onClick={() => proceed('am', task.morning)} className="py-2 px-3 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-semibold transition-colors text-left truncate">
-                     Solo Mañana
-                  </button>
-                  <button onClick={() => proceed('pm', task.afternoon)} className="py-2 px-3 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold transition-colors text-left truncate">
-                     Solo Tarde
-                  </button>
-                  <button onClick={() => proceed('ambos', null)} className="py-2 px-3 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-semibold transition-colors text-left">
-                     Ficha Completa
-                  </button>
-                  <button onClick={() => sileo.clear()} className="mt-1 py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold transition-colors">
-                     Cancelar
-                  </button>
-               </div>
-            )
-         });
-      } else {
-         const targetPart = hasAM ? 'am' : 'pm';
-         const serviceStr = hasAM ? task.morning : task.afternoon;
-         proceed(targetPart, serviceStr);
-      }
+      sileo.clear();
+      const oldDateNoon = new Date(date);
+      oldDateNoon.setHours(12, 0, 0, 0);
+      executeIntelligentVehicleAssign('ambos', task.morning, task, oldDateNoon, resourceId, vehiculo);
   };
 
   const executeIntelligentVehicleAssign = async (part, serviceStr, sourceTask, sourceDateObj, technicianId, vehiculo) => {
@@ -564,27 +465,13 @@ export function CalendarPage() {
       tasks.forEach(t => {
          if (!isWithinCurrentWeek(t.fecha) || t.Tecnico !== technicianId) return;
          
-         const matchAM = part === 'ambos' || part === 'am' ? t.morning?.trim() === serviceStr?.trim() : false;
-         const matchPM = part === 'ambos' || part === 'pm' ? t.afternoon?.trim() === serviceStr?.trim() : false;
-         
-         if (part === 'ambos') {
-            if (t.morning?.trim() === sourceTask.morning?.trim() && t.afternoon?.trim() === sourceTask.afternoon?.trim()) {
-               associatedDates.push({ date: t.fecha, tCell: t, assignAM: true, assignPM: true });
-            }
-         } else {
-            if (matchAM || matchPM) {
-               associatedDates.push({ date: t.fecha, tCell: t, assignAM: matchAM, assignPM: matchPM });
-            }
+         if (t.morning?.trim() === sourceTask.morning?.trim()) {
+            associatedDates.push({ date: t.fecha, tCell: t });
          }
       });
 
       if (associatedDates.length === 0) {
-         associatedDates.push({ 
-             date: sourceDateObj, 
-             tCell: sourceTask, 
-             assignAM: part === 'am' || part === 'ambos', 
-             assignPM: part === 'pm' || part === 'ambos' 
-         });
+         associatedDates.push({ date: sourceDateObj, tCell: sourceTask });
       }
 
       let collision = null;
@@ -594,17 +481,16 @@ export function CalendarPage() {
          
          if (existingVehicleTask) {
              const vehMorningText = existingVehicleTask.morning?.trim();
-             const vehAfternoonText = existingVehicleTask.afternoon?.trim();
              
-             if (vehMorningText || vehAfternoonText) {
+             if (vehMorningText) {
                  const conflictTechTask = tasks.find(t => 
                      isSameDay(t.fecha, dt.date) && 
                      t.Tecnico !== vehiculo.id && 
                      tecnicos.find(tec => tec.id === t.Tecnico)?.area !== 'VEHÍCULOS' &&
-                     (t.morning?.trim() === (vehMorningText || vehAfternoonText) || t.afternoon?.trim() === (vehMorningText || vehAfternoonText))
+                     (t.morning?.trim() === vehMorningText)
                  );
 
-                 const conflictService = vehMorningText || vehAfternoonText;
+                 const conflictService = vehMorningText;
                  const conflictTechId = conflictTechTask ? conflictTechTask.Tecnico : null;
 
                  if (conflictService !== serviceStr || (conflictTechId && conflictTechId !== technicianId)) {
@@ -630,16 +516,14 @@ export function CalendarPage() {
       sileo.success({ description: `Asignando vehículo en ${associatedDates.length} jornada(s)...`, duration: 4000 });
       try {
          for (const dt of associatedDates) {
-             const existingV = tasks.find(t => isSameDay(t.fecha, dt.date) && t.Tecnico === vehiculo.id) || { morning: '', afternoon: '', colorAM: '', colorPM: '' };
-             
-             await upsertScheduleCell(dt.date, vehiculo.id, {
-                 morning: dt.assignAM ? dt.tCell.morning : existingV.morning,
-                 afternoon: dt.assignPM ? dt.tCell.afternoon : existingV.afternoon,
-                 colorAM: dt.assignAM ? dt.tCell.colorAM : existingV.colorAM,
-                 colorPM: dt.assignPM ? dt.tCell.colorPM : existingV.colorPM,
-                 estadoAM: dt.assignAM ? dt.tCell.estadoAM : existingV.estadoAM,
-                 estadoPM: dt.assignPM ? dt.tCell.estadoPM : existingV.estadoPM
-             }, true);
+             if (!tasks.find(t => isSameDay(t.fecha, dt.date) && t.Tecnico === vehiculo.id && t.morning === dt.tCell.morning)) {
+                 await upsertScheduleCell(dt.date, vehiculo.id, {
+                     rowId: null, // Create new row for the vehicle
+                     morning: dt.tCell.morning,
+                     colorAM: dt.tCell.colorAM,
+                     estadoAM: dt.tCell.estadoAM,
+                 }, true);
+             }
          }
          
          if (typeof refetch === 'function') refetch();
@@ -775,7 +659,7 @@ export function CalendarPage() {
                backdropFilter: 'blur(16px)'
              }}
            >
-              <div className="px-3 pt-2.5 pb-1 text-[9px] font-bold text-gray-500 uppercase tracking-widest pointer-events-none">Cambiar Estado</div>
+              <div className={`px-3 pt-2.5 pb-1 text-[9px] font-bold uppercase tracking-widest pointer-events-none ${isDarkGantt ? 'text-gray-200' : 'text-gray-500'}`}>Cambiar Estado</div>
               <button 
                 className={`w-full text-left px-3 py-1.5 flex items-center gap-2 text-[11px] font-semibold transition-colors ${isDarkGantt ? 'text-emerald-400 hover:bg-white/10' : 'text-emerald-600 hover:bg-black/5'}`}
                 onClick={(e) => { e.stopPropagation(); handleStateChange('Completado'); }}
@@ -789,7 +673,7 @@ export function CalendarPage() {
                  <CalendarClock className="w-3.5 h-3.5" /> Reprogramar
               </button>
               <button 
-                className={`w-full text-left px-3 py-1.5 flex items-center gap-2 text-[11px] font-semibold transition-colors ${isDarkGantt ? 'text-gray-400 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}
+                className={`w-full text-left px-3 py-1.5 flex items-center gap-2 text-[11px] font-semibold transition-colors ${isDarkGantt ? 'text-gray-200 hover:bg-white/10' : 'text-gray-600 hover:bg-black/5'}`}
                 onClick={(e) => { e.stopPropagation(); handleStateChange('Cancelado'); }}
               >
                  <XCircle className="w-3.5 h-3.5" /> Cancelado
@@ -812,16 +696,16 @@ export function CalendarPage() {
                     <div className={`absolute top-0 ${(typeof window !== 'undefined' && contextMenu.x > window.innerWidth - 380) ? 'right-full mr-1' : 'left-full ml-1'} w-44 border rounded-xl overflow-hidden animate-fade-in ${isDarkGantt ? 'border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)]' : 'border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.15)]'}`}
                          style={{ background: isDarkGantt ? 'rgba(30,30,35,0.98)' : 'rgba(255,255,255,0.98)', backdropFilter: 'blur(16px)' }}
                     >
-                       <div className="px-3 pt-2.5 pb-1 text-[9px] font-bold text-gray-500 uppercase tracking-widest pointer-events-none">Vehículos</div>
+                       <div className={`px-3 pt-2.5 pb-1 text-[9px] font-bold uppercase tracking-widest pointer-events-none ${isDarkGantt ? 'text-emerald-300' : 'text-gray-500'}`}>Vehículos</div>
                        <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col py-0.5">
                           {tecnicos.filter(t => t.area === 'VEHÍCULOS').length === 0 && (
-                            <span className="px-3 py-2 text-[10px] text-gray-500">Sin vehículos en el sistema</span>
+                            <span className={`px-3 py-2 text-[10px] ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`}>Sin vehículos en el sistema</span>
                           )}
                           {tecnicos.filter(t => t.area === 'VEHÍCULOS').map(vehiculo => (
                              <button 
                                key={vehiculo.id}
                                onClick={(e) => { e.stopPropagation(); handleAssignVehicleInit(vehiculo); }}
-                               className={`w-full text-left px-3 py-1.5 text-[11px] font-semibold transition-colors truncate ${isDarkGantt ? 'text-gray-300 hover:bg-emerald-500/20 hover:text-emerald-300' : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                               className={`w-full text-left px-3 py-1.5 text-[11px] font-semibold transition-colors truncate ${isDarkGantt ? 'text-gray-200 hover:bg-emerald-500/20 hover:text-emerald-300' : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-600'}`}
                              >
                                {vehiculo.nombre}
                              </button>

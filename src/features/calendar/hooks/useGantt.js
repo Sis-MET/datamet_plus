@@ -170,6 +170,7 @@ export function useGantt() {
            estadoAM: payload.estadoAM || 'Pendiente',
            estadoPM: payload.estadoPM || 'Pendiente',
            lastModified: payload.lastModified || null,
+           rowId: payload.rowId || null,
            autor: autorText
         };
     }

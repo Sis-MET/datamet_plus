@@ -100,7 +100,7 @@ export function LeftFilterSidebar({
           </div>
           <div className="grid grid-cols-7 gap-y-1 relative z-10">
             {dayAbbreviations.map(day => (
-              <div key={day} className="text-center text-[10px] font-bold text-gray-500 mb-2">{day}</div>
+              <div key={day} className={`text-center text-[10px] font-bold mb-2 ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>{day}</div>
             ))}
             {calendarDays.map((day, idx) => {
               const evts = eventsForDay ? eventsForDay(day) : [];
@@ -110,7 +110,7 @@ export function LeftFilterSidebar({
                   <button onClick={() => onSelectDay && onSelectDay(day)} className={getDayClass(day)}>
                     <span className="relative z-10">{format(day, 'd')}</span>
                     {amt > 0 && isSameDay && selectedDay && !isSameDay(day, selectedDay) && (
-                      <div className="absolute bottom-1 sm:bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-primary-500/60 rounded-full" />
+                      <div className={`absolute bottom-1 sm:bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isDarkGantt ? 'bg-yellow-400 shadow-[0_0_4px_rgba(250,204,21,0.6)]' : 'bg-yellow-500'}`} />
                     )}
                   </button>
                 </div>
@@ -122,7 +122,7 @@ export function LeftFilterSidebar({
 
       {/* ── 2. Detalle del Día (Compacto) ── */}
       <div className="flex flex-col gap-2">
-        <h3 className={`text-[10px] font-bold uppercase tracking-widest px-2 mb-1 ${isDarkGantt ? 'text-gray-500' : 'text-gray-600'}`}>Detalle del Día</h3>
+        <h3 className={`text-[10px] font-bold uppercase tracking-widest px-2 mb-1 ${isDarkGantt ? 'text-white' : 'text-gray-600'}`}>Detalle del Día</h3>
         {tecnicosDelDia.length === 0 ? (
           <div className={`border rounded-2xl p-3 flex items-center justify-center opacity-50 ${isDarkGantt ? 'border-white/10' : 'border-gray-300'}`} style={glassStyle}>
             <span className={`text-[10px] font-bold tracking-widest uppercase flex items-center gap-2 ${isDarkGantt ? 'text-gray-500' : 'text-gray-700'}`}>
@@ -150,14 +150,14 @@ export function LeftFilterSidebar({
                   <div className="flex flex-col gap-0.5">
                     {hasMorning && (
                       <div className="flex items-center gap-2">
-                        <span className={`text-[8px] font-bold uppercase w-3 flex-shrink-0 ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>AM</span>
+                        <span className={`text-[8px] font-bold uppercase w-3 flex-shrink-0 ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>AM</span>
                         <p className={`text-[10px] truncate flex-1 leading-tight ${isDarkGantt ? 'text-gray-400' : 'text-gray-700'}`}>{evt.morning}</p>
                         <span className={getStateBadgeClass(evt.estadoAM)}>{evt.estadoAM || 'Pendiente'}</span>
                       </div>
                     )}
                     {hasAfternoon && (
                       <div className="flex items-center gap-2">
-                        <span className={`text-[8px] font-bold uppercase w-3 flex-shrink-0 ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>PM</span>
+                        <span className={`text-[8px] font-bold uppercase w-3 flex-shrink-0 ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>PM</span>
                         <p className={`text-[10px] truncate flex-1 leading-tight ${isDarkGantt ? 'text-gray-400' : 'text-gray-700'}`}>{evt.afternoon}</p>
                         <span className={getStateBadgeClass(evt.estadoPM)}>{evt.estadoPM || 'Pendiente'}</span>
                       </div>

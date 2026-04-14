@@ -25,11 +25,8 @@ export function CellPopoverForm({
 }) {
   const { isDarkGantt } = useTheme();
   const [morning, setMorning] = useState('');
-  const [afternoon, setAfternoon] = useState('');
   const [colorAM, setColorAM] = useState(''); 
-  const [colorPM, setColorPM] = useState(''); 
   const [estadoAM, setEstadoAM] = useState('Pendiente');
-  const [estadoPM, setEstadoPM] = useState('Pendiente');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeColorPicker, setActiveColorPicker] = useState(null);
@@ -39,9 +36,6 @@ export function CellPopoverForm({
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (activeColorPicker === 'am' && colorPickerRefAM.current && !colorPickerRefAM.current.contains(e.target)) {
-        setActiveColorPicker(null);
-      }
-      if (activeColorPicker === 'pm' && colorPickerRefPM.current && !colorPickerRefPM.current.contains(e.target)) {
         setActiveColorPicker(null);
       }
     };
@@ -79,18 +73,12 @@ export function CellPopoverForm({
     if (isOpen) {
       if (event) {
         setMorning(event.morning || '');
-        setAfternoon(event.afternoon || '');
         setColorAM(event.colorAM || event.color || '');
-        setColorPM(event.colorPM || event.color || '');
         setEstadoAM(event.estadoAM || 'Pendiente');
-        setEstadoPM(event.estadoPM || 'Pendiente');
       } else {
         setMorning('');
-        setAfternoon('');
         setColorAM('');
-        setColorPM('');
         setEstadoAM('Pendiente');
-        setEstadoPM('Pendiente');
       }
       setActiveColorPicker(null);
     }
@@ -100,24 +88,22 @@ export function CellPopoverForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!morning.trim() && !afternoon.trim()) {
-      sileo.error({ description: 'Debe ingresar al menos una actividad (Mañana o Tarde)' });
+    if (!morning.trim()) {
+      sileo.error({ description: 'Debe ingresar al menos una actividad' });
       return;
     }
 
-    const hasMorning = morning.trim().length > 0;
-    const hasAfternoon = afternoon.trim().length > 0;
-
     setIsSubmitting(true);
     try {
-      saveToRecent(colorAM, colorPM);
+      saveToRecent(colorAM, null);
       await onSave(prefilledDate, prefilledResource, {
+        rowId: event ? event.rowId : null,
         morning: morning.trim().toUpperCase(),
-        afternoon: afternoon.trim().toUpperCase(),
+        afternoon: '',
         colorAM,
-        colorPM,
-        estadoAM: hasMorning ? estadoAM : null,
-        estadoPM: hasAfternoon ? estadoPM : null,
+        colorPM: colorAM,
+        estadoAM: estadoAM,
+        estadoPM: null,
         lastModified: event ? (event.timestampUpdated || null) : null,
       });
       // Sileo success is handled by the parent
@@ -132,7 +118,7 @@ export function CellPopoverForm({
     setIsSubmitting(true);
     try {
       // Para limpiar la celda, mandamos campos vacíos
-      await onSave(prefilledDate, prefilledResource, { morning: '', afternoon: '', colorAM: '', colorPM: '', estadoAM: null, estadoPM: null });
+      await onSave(prefilledDate, prefilledResource, { rowId: event ? event.rowId : null, morning: '', afternoon: '', colorAM: '', colorPM: '', estadoAM: null, estadoPM: null });
     } finally {
       setIsSubmitting(false);
     }
@@ -168,25 +154,16 @@ export function CellPopoverForm({
             <div className="flex items-center gap-3">
                <div className="flex-1">
                   <div className="flex items-center justify-between mb-2">
-                    <label className={`text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>Mañana</label>
+                    <label className={`text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>Actividad</label>
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => { setMorning(''); setColorAM(''); }}
                         className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${isDarkGantt ? 'text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300' : 'text-red-600 bg-red-50 hover:bg-red-100'}`}
-                        title="Limpiar Ficha Mañana"
+                        title="Limpiar Ficha"
                       >
                         <Trash2 className="w-3 h-3" />
                         Limpiar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setAfternoon(morning); setColorPM(colorAM); setEstadoPM(estadoAM); }}
-                        className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${isDarkGantt ? 'text-primary-400 bg-primary-500/10 hover:bg-primary-500/20 hover:text-primary-300' : 'text-primary-600 bg-primary-50 hover:bg-primary-100'}`}
-                        title="Copiar datos a Ficha Tarde"
-                      >
-                        <Copy className="w-3 h-3" />
-                        Copiar a Tarde
                       </button>
                     </div>
                  </div>
@@ -239,89 +216,6 @@ export function CellPopoverForm({
                                    {recentColors.map((c, i) => (
                                      <button
                                        key={`am-recent-${c}-${i}`} type="button" onClick={() => setColorAM(c)}
-                                       className={`w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ${isDarkGantt ? 'ring-white/10' : 'ring-black/5'}`}
-                                       style={{ backgroundColor: c }}
-                                     />
-                                   ))}
-                                </div>
-                              </div>
-                            )}
-                         </div>
-                       )}
-                    </div>
-                 </div>
-               </div>
-            </div>
-
-          </div>
-
-          {/* Turno Tarde */}
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center gap-3">
-               <div className="flex-1">
-                 <div className="flex items-center justify-between mb-2">
-                    <label className={`text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>Tarde</label>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => { setAfternoon(''); setColorPM(''); }}
-                        className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${isDarkGantt ? 'text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300' : 'text-red-600 bg-red-50 hover:bg-red-100'}`}
-                        title="Limpiar Ficha Tarde"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Limpiar
-                      </button>
-                    </div>
-                 </div>
-                 <div className="flex gap-2">
-                     <CotizacionAutocomplete
-                       value={afternoon}
-                       onChange={setAfternoon}
-                       placeholder="EJ: 260001.COT01 · EMBOL"
-                       isDarkGantt={isDarkGantt}
-                     />
-                    {/* Botón para abrir Color Picker */}
-                    <div className="relative" ref={colorPickerRefPM}>
-                       <button
-                         type="button"
-                         onClick={() => setActiveColorPicker(activeColorPicker === 'pm' ? null : 'pm')}
-                         className={`w-11 h-11 rounded-xl border shadow-sm flex items-center justify-center transition-all hover:scale-105 active:scale-95 ring-offset-2 focus:outline-none focus:ring-2 focus:ring-primary-500 overflow-hidden ${isDarkGantt ? 'border-white/10 ring-offset-[#111]' : 'border-gray-200 ring-offset-white'}`}
-                         style={{ backgroundColor: colorPM || 'transparent' }}
-                         title="Elegir color PM"
-                       >
-                         {!colorPM && <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMmEyYTMwIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzYTNjNDIiPjwvcmVjdD4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzNhM2M0MiI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />}
-                         <div className={`w-5 h-5 rounded-full border-2 shadow-inner mix-blend-overlay relative z-10 ${isDarkGantt ? 'border-white/40' : 'border-black/20'}`} />
-                       </button>
-
-                       {/* Popover Custom Color Picker PM */}
-                       {activeColorPicker === 'pm' && (
-                         <div className={`absolute top-14 right-0 z-50 p-3 border rounded-2xl shadow-2xl animate-fade-in w-56 ${isDarkGantt ? 'bg-[#1e1e24] border-gray-700/50' : 'bg-white border-gray-200'}`}>
-                            <div className="flex justify-between items-center mb-2">
-                               <span className={`text-xs font-semibold ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>Color PM</span>
-                               <button type="button" onClick={() => setActiveColorPicker(null)} className={`hover:text-primary-500 transition-colors ${isDarkGantt ? 'text-gray-500 hover:text-white' : 'text-gray-400 hover:text-gray-800'}`}><X size={14}/></button>
-                            </div>
-                            <HexColorPicker color={colorPM || PRESET_COLORS[1]} onChange={setColorPM} style={{ width: '100%', height: '120px' }} />
-                            
-                            <div className="mt-3">
-                              <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest px-1 block mb-1.5">Predefinidos</span>
-                              <div className="flex flex-wrap gap-1.5 justify-center">
-                                 {PRESET_COLORS.map(c => (
-                                   <button
-                                     key={c} type="button" onClick={() => setColorPM(c)}
-                                     className={`w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ${isDarkGantt ? 'ring-white/10' : 'ring-black/5'}`}
-                                     style={{ backgroundColor: c }}
-                                   />
-                                 ))}
-                              </div>
-                            </div>
-
-                            {recentColors.length > 0 && (
-                              <div className={`mt-3 border-t pt-2 ${isDarkGantt ? 'border-gray-700/50' : 'border-gray-200'}`}>
-                                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest px-1 block mb-1.5">Recientes</span>
-                                <div className="flex flex-wrap gap-1.5 justify-center">
-                                   {recentColors.map((c, i) => (
-                                     <button
-                                       key={`pm-recent-${c}-${i}`} type="button" onClick={() => setColorPM(c)}
                                        className={`w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ${isDarkGantt ? 'ring-white/10' : 'ring-black/5'}`}
                                        style={{ backgroundColor: c }}
                                      />

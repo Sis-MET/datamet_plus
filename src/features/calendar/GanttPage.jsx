@@ -108,7 +108,7 @@ export function GanttPage({
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <span className={`relative z-10 font-bold ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>★ Hoy</span>
-            <span className={`relative z-10 font-normal ${isDarkGantt ? 'text-gray-400' : 'text-gray-600'}`}>
+            <span className={`relative z-10 font-normal ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
               {fmtRange(currentWeekStart, currentWeekEnd)}
             </span>
           </button>
@@ -117,14 +117,14 @@ export function GanttPage({
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <button
               onClick={prevWeek}
-              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors border-r ${isDarkGantt ? 'text-gray-400 hover:text-white hover:bg-white/10 border-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-gray-200'}`}
+              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors border-r ${isDarkGantt ? 'text-white hover:text-white hover:bg-white/10 border-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-gray-200'}`}
             >
               <ChevronLeft className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`} />
               <span>{prevStart && prevEnd ? fmtRange(prevStart, prevEnd) : 'Anterior'}</span>
             </button>
             <button
               onClick={nextWeek}
-              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors ${isDarkGantt ? 'text-gray-400 hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors ${isDarkGantt ? 'text-white hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
             >
               <span>{nextStart && nextEnd ? fmtRange(nextStart, nextEnd) : 'Próxima'}</span>
               <ChevronRight className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`} />
@@ -134,7 +134,7 @@ export function GanttPage({
           <button
             onClick={onRefetch}
             disabled={loading}
-            className={`group relative p-1.5 ml-1 rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden disabled:opacity-50 border ${isDarkGantt ? 'text-gray-300 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+            className={`group relative p-1.5 ml-1 rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden disabled:opacity-50 border ${isDarkGantt ? 'text-white hover:text-gray-300 bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-white hover:text-gray-900 bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
             title="Recargar datos"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -147,13 +147,13 @@ export function GanttPage({
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md border shadow-sm transition-colors overflow-hidden ${
                 selectedArea !== 'Todas' 
-                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30' 
-                  : (isDarkGantt ? 'bg-white/5 text-gray-300 border-white/10 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900')
+                  ? 'bg-blue-500/20 text-white border-blue-500/30 hover:bg-blue-500/30' 
+                  : (isDarkGantt ? 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900')
               }`}
               title="Filtrar por Área"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-              <Filter className={`relative z-10 h-3.5 w-3.5 transition-colors ${selectedArea !== 'Todas' ? 'text-blue-400' : (isDarkGantt ? 'text-gray-400 group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700')}`} />
+              <Filter className={`relative z-10 h-3.5 w-3.5 transition-colors ${selectedArea !== 'Todas' ? 'text-blue-400' : (isDarkGantt ? 'text-white group-hover:text-white' : 'text-gray-500 group-hover:text-gray-700')}`} />
               <span className="relative z-10 truncate max-w-[100px]">{selectedArea === 'Todas' ? 'Todas las áreas' : selectedArea}</span>
               <ChevronDown className={`relative z-10 h-3.5 w-3.5 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -171,8 +171,8 @@ export function GanttPage({
                       onClick={() => { if(onSelectArea) onSelectArea('Todas'); setIsFilterOpen(false); }}
                       className={`flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-colors ${
                         selectedArea === 'Todas'
-                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          : (isDarkGantt ? 'text-gray-300 hover:bg-white/10 hover:text-white border border-transparent' : 'text-gray-700 hover:bg-gray-100 border border-transparent hover:text-gray-900')
+                          ? 'bg-blue-500/20 text-white border border-blue-500/30'
+                          : (isDarkGantt ? 'text-white hover:bg-white/10 hover:text-white border border-transparent' : 'text-white hover:bg-gray-100 border border-transparent hover:text-gray-900')
                       }`}
                     >
                       <div className="flex items-center gap-2">

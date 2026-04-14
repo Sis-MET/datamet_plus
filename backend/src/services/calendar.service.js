@@ -87,6 +87,7 @@ const getTecnicos = async () => {
   let estadoPM = payload ? (payload.estadoPM || 'Pendiente') : 'Pendiente';
   let autor = payload ? payload.autor : 'Sistema';
   let lastModified = payload ? (payload.lastModified || null) : null;
+  let rowId = payload ? payload.rowId : null;
 
   let id_usuario = null;
   let usuario_nombre = null;
@@ -106,26 +107,7 @@ const getTecnicos = async () => {
       usuario_nombre = resource;
   }
 
-  // Comprobar si ya existe fila para esta fecha y este usuario
-  // Incluimos fecha_modificacion + hora_modificacion para el check de concurrencia
-  const checkReq = pool.request()
-    .input('fecha', sql.Date, date)
-    .input('id_us', sql.Int, id_usuario)
-    .input('usr', sql.VarChar, usuario_nombre);
-
-  const existingRes = await checkReq.query(`
-    SELECT id,
-      CONVERT(varchar, fecha_modificacion, 23) as fmod,
-      CONVERT(varchar, hora_modificacion, 8) as hmod,
-      CONVERT(varchar, fecha_creacion, 23) as fcrea,
-      CONVERT(varchar, hora_creacion, 8) as hcrea
-    FROM DATA_CRONOGRAMA
-    WHERE fecha = @fecha AND (
-      (id_usuario IS NOT NULL AND id_usuario = @id_us) OR 
-      (id_usuario IS NULL AND usuario = @usr)
-    )
-  `);
-
+  // Prevenir acciones vacías sin ID
   if (!payload || Object.keys(payload).length === 0) {
     return { status: 'ignored' };
   }
@@ -142,12 +124,13 @@ const getTecnicos = async () => {
     .input('est_pm', sql.NVarChar, estadoPM)
     .input('autor', sql.VarChar, autor);
 
-  if (existingRes.recordset.length === 0) {
+  if (!rowId) {
+    // Es un INSERT nuevo
     // Prevenir inserción de filas basura vacías
     if (!m && !a) {
          return { status: 'ignored_empty_insert' };
     }
-    // INSERT — no hay conflicto de concurrencia en nuevos registros
+    
     await upsertReq.query(`
       INSERT INTO DATA_CRONOGRAMA (id_usuario, usuario, fecha, manana, tarde, color_am, color_pm, estado_am, estado_pm, creado_por, fecha_creacion, hora_creacion)
       VALUES (@id_us, @usr, @f, @tm, @tt, @cam, @cpm, @est_am, @est_pm, @autor,
@@ -155,7 +138,32 @@ const getTecnicos = async () => {
         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
       )
     `);
+    
+    return { status: 'inserted', resource };
   } else {
+    // Si viene un rowId, verificar que exista
+    upsertReq.input('row_id', sql.Int, rowId);
+    
+    const existingRes = await upsertReq.query(`
+      SELECT id,
+        CONVERT(varchar, fecha_modificacion, 23) as fmod,
+        CONVERT(varchar, hora_modificacion, 8) as hmod,
+        CONVERT(varchar, fecha_creacion, 23) as fcrea,
+        CONVERT(varchar, hora_creacion, 8) as hcrea
+      FROM DATA_CRONOGRAMA
+      WHERE id = @row_id
+    `);
+    
+    if (existingRes.recordset.length === 0) {
+       return { status: 'ignored_not_found', resource };
+    }
+
+    // SI NO HAY TEXTO EN EL PAYLOAD (NI MAÑANA NI TARDE), SE BORRA LA FILA
+    if (!m && !a) {
+       await upsertReq.query(`DELETE FROM DATA_CRONOGRAMA WHERE id = @row_id`);
+       return { status: 'deleted', resource };
+    }
+
     // ── CONTROL DE CONCURRENCIA OPTIMISTA ──
     const row = existingRes.recordset[0];
     const fmod = row.fmod ? String(row.fmod).trim() : null;
@@ -167,8 +175,6 @@ const getTecnicos = async () => {
        const hcrea = row.hcrea ? String(row.hcrea).trim() : null;
        currentTimestamp = (fcrea && hcrea) ? `${fcrea} ${hcrea}` : null;
     }
-
-    upsertReq.input('row_id', sql.Int, row.id);
 
     const clientTimestamp = (lastModified !== null && lastModified !== undefined && lastModified !== '') 
       ? String(lastModified).trim() 
@@ -195,11 +201,13 @@ const getTecnicos = async () => {
           estado_pm = @est_pm,
           actualizado_por = @autor,
           fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
-          hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
+          hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),
+          fecha = @f,
+          id_usuario = @id_us,
+          usuario = @usr
       WHERE id = @row_id
     `);
 
-    // Verificación de seguridad adicional: si rowsAffected = 0 algo raro pasó
     if (result.rowsAffected[0] === 0) {
       const concurrencyErr = new Error('La celda fue modificada por otro proceso. Recarga la página para sincronizar.');
       concurrencyErr.status = 409;
