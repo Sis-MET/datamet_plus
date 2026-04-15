@@ -2,7 +2,7 @@ const { getPool, sql } = require('../config/db');
 
 /**
  * Retorna todas las tareas del cronograma en un rango de fechas.
- * Extraídas desde la tabla normalizada DATA_SCHEDULE_V2
+ * Cada fila de DATA_CRONOGRAMA es una actividad independiente.
  */
 const getSchedule = async (start, end) => {
   const pool = getPool();
@@ -16,12 +16,10 @@ const getSchedule = async (start, end) => {
         id_usuario,
         usuario,
         CONVERT(varchar, fecha, 23) as fecha,
-        manana,
-        tarde,
-        color_am,
-        color_pm,
-        estado_am,
-        estado_pm,
+        descripcion,
+        turno,
+        color,
+        estado,
         creado_por,
         CONVERT(varchar, fecha_creacion, 23) as fecha_creacion,
         CONVERT(varchar, hora_creacion, 8) as hora_creacion,
@@ -73,25 +71,29 @@ const getTecnicos = async () => {
 };
 
 /**
- * Inserta o actualiza un registro en DATA_SCHEDULE_V2 adaptando el payload de Frontend.
+ * Inserta, actualiza o elimina un registro en DATA_CRONOGRAMA.
+ * Cada fila = 1 actividad independiente.
+ * 
+ * - Si rowId es null  → INSERT nueva fila
+ * - Si rowId existe y descripcion vacía → DELETE esa fila
+ * - Si rowId existe y hay descripcion   → UPDATE esa fila
  */
-  const upsertScheduleCell = async (data) => {
+const upsertScheduleCell = async (data) => {
   const pool = getPool();
   const { date, resource, payload } = data;
   
-  let m = payload ? payload.morning : null;
-  let a = payload ? payload.afternoon : null;
-  let cAM = payload ? payload.colorAM : '#10B981';
-  let cPM = payload ? payload.colorPM : '#10B981';
-  let estadoAM = payload ? (payload.estadoAM || 'Pendiente') : 'Pendiente';
-  let estadoPM = payload ? (payload.estadoPM || 'Pendiente') : 'Pendiente';
-  let autor = payload ? payload.autor : 'Sistema';
-  let lastModified = payload ? (payload.lastModified || null) : null;
-  let rowId = payload ? payload.rowId : null;
+  const descripcion  = payload ? (payload.morning || payload.descripcion || '') : '';
+  const turno        = payload ? (payload.turno   || '')  : '';
+  const color        = payload ? (payload.color   || payload.colorAM || '#10B981') : '#10B981';
+  const estado       = payload ? (payload.estado  || payload.estadoAM || 'Pendiente') : 'Pendiente';
+  const autor        = payload ? (payload.autor   || 'Sistema') : 'Sistema';
+  const lastModified = payload ? (payload.lastModified || null) : null;
+  const rowId        = payload ? (payload.rowId   || null) : null;
 
-  let id_usuario = null;
+  let id_usuario     = null;
   let usuario_nombre = null;
 
+  // Resolver id_usuario y nombre desde DATA_USERS
   const userMatch = await pool.request()
     .input('res', sql.VarChar, resource)
     .query(`
@@ -101,10 +103,11 @@ const getTecnicos = async () => {
     `);
 
   if (userMatch.recordset.length > 0) {
-      id_usuario = userMatch.recordset[0].id;
-      usuario_nombre = userMatch.recordset[0].fullname;
+    id_usuario     = userMatch.recordset[0].id;
+    usuario_nombre = userMatch.recordset[0].fullname;
   } else {
-      usuario_nombre = resource;
+    // Podría ser un vehículo u otro recurso
+    usuario_nombre = resource;
   }
 
   // Prevenir acciones vacías sin ID
@@ -113,106 +116,102 @@ const getTecnicos = async () => {
   }
 
   const upsertReq = pool.request()
-    .input('id_us', sql.Int, id_usuario)
-    .input('usr', sql.VarChar, usuario_nombre)
-    .input('f', sql.Date, date)
-    .input('tm', sql.NVarChar, m)
-    .input('tt', sql.NVarChar, a)
-    .input('cam', sql.VarChar, cAM)
-    .input('cpm', sql.VarChar, cPM)
-    .input('est_am', sql.NVarChar, estadoAM)
-    .input('est_pm', sql.NVarChar, estadoPM)
-    .input('autor', sql.VarChar, autor);
+    .input('id_us',  sql.Int,      id_usuario)
+    .input('usr',    sql.VarChar,  usuario_nombre)
+    .input('f',      sql.Date,     date)
+    .input('desc',   sql.NVarChar, descripcion)
+    .input('trn',    sql.NVarChar, turno)
+    .input('col',    sql.VarChar,  color)
+    .input('est',    sql.NVarChar, estado)
+    .input('autor',  sql.VarChar,  autor);
 
   if (!rowId) {
-    // Es un INSERT nuevo
-    // Prevenir inserción de filas basura vacías
-    if (!m && !a) {
-         return { status: 'ignored_empty_insert' };
+    // ── INSERT nuevo ──
+    // Prevenir inserción de filas vacías
+    if (!descripcion.trim()) {
+      return { status: 'ignored_empty_insert' };
     }
-    
+
     await upsertReq.query(`
-      INSERT INTO DATA_CRONOGRAMA (id_usuario, usuario, fecha, manana, tarde, color_am, color_pm, estado_am, estado_pm, creado_por, fecha_creacion, hora_creacion)
-      VALUES (@id_us, @usr, @f, @tm, @tt, @cam, @cpm, @est_am, @est_pm, @autor,
-        CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
-        CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
-      )
+      INSERT INTO DATA_CRONOGRAMA
+        (id_usuario, usuario, fecha, descripcion, turno, color, estado,
+         creado_por, fecha_creacion, hora_creacion)
+      VALUES
+        (@id_us, @usr, @f, @desc, @trn, @col, @est, @autor,
+         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
+         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME))
     `);
-    
+
     return { status: 'inserted', resource };
-  } else {
-    // Si viene un rowId, verificar que exista
-    upsertReq.input('row_id', sql.Int, rowId);
-    
-    const existingRes = await upsertReq.query(`
-      SELECT id,
-        CONVERT(varchar, fecha_modificacion, 23) as fmod,
-        CONVERT(varchar, hora_modificacion, 8) as hmod,
-        CONVERT(varchar, fecha_creacion, 23) as fcrea,
-        CONVERT(varchar, hora_creacion, 8) as hcrea
-      FROM DATA_CRONOGRAMA
-      WHERE id = @row_id
-    `);
-    
-    if (existingRes.recordset.length === 0) {
-       return { status: 'ignored_not_found', resource };
-    }
+  }
 
-    // SI NO HAY TEXTO EN EL PAYLOAD (NI MAÑANA NI TARDE), SE BORRA LA FILA
-    if (!m && !a) {
-       await upsertReq.query(`DELETE FROM DATA_CRONOGRAMA WHERE id = @row_id`);
-       return { status: 'deleted', resource };
-    }
+  // ── Operaciones con rowId ──
+  upsertReq.input('row_id', sql.Int, rowId);
 
-    // ── CONTROL DE CONCURRENCIA OPTIMISTA ──
-    const row = existingRes.recordset[0];
-    const fmod = row.fmod ? String(row.fmod).trim() : null;
-    const hmod = row.hmod ? String(row.hmod).trim() : null;
-    let currentTimestamp = (fmod && hmod) ? `${fmod} ${hmod}` : null;
+  const existingRes = await upsertReq.query(`
+    SELECT id,
+      CONVERT(varchar, fecha_modificacion, 23) as fmod,
+      CONVERT(varchar, hora_modificacion, 8)   as hmod,
+      CONVERT(varchar, fecha_creacion, 23)     as fcrea,
+      CONVERT(varchar, hora_creacion, 8)       as hcrea
+    FROM DATA_CRONOGRAMA
+    WHERE id = @row_id
+  `);
 
-    if (!currentTimestamp) {
-       const fcrea = row.fcrea ? String(row.fcrea).trim() : null;
-       const hcrea = row.hcrea ? String(row.hcrea).trim() : null;
-       currentTimestamp = (fcrea && hcrea) ? `${fcrea} ${hcrea}` : null;
-    }
+  if (existingRes.recordset.length === 0) {
+    return { status: 'ignored_not_found', resource };
+  }
 
-    const clientTimestamp = (lastModified !== null && lastModified !== undefined && lastModified !== '') 
-      ? String(lastModified).trim() 
-      : null;
+  // Si descripcion vacía → DELETE
+  if (!descripcion.trim()) {
+    await upsertReq.query(`DELETE FROM DATA_CRONOGRAMA WHERE id = @row_id`);
+    return { status: 'deleted', resource };
+  }
 
-    // Si el cliente envió un lastModified y no coincide con el actual → 409 Conflict
-    if (clientTimestamp) {
-      if (currentTimestamp !== clientTimestamp) {
-        const concurrencyErr = new Error(
-          `Celda modif. por otro proceso. (Servidor: ${currentTimestamp || 'Nulo'} | Tuyo: ${clientTimestamp}). Recarga la página.`
-        );
-        concurrencyErr.status = 409;
-        throw concurrencyErr;
-      }
-    }
+  // ── CONTROL DE CONCURRENCIA OPTIMISTA ──
+  const row = existingRes.recordset[0];
+  const fmod = row.fmod ? String(row.fmod).trim() : null;
+  const hmod = row.hmod ? String(row.hmod).trim() : null;
+  let currentTimestamp = (fmod && hmod) ? `${fmod} ${hmod}` : null;
 
-    const result = await upsertReq.query(`
-      UPDATE DATA_CRONOGRAMA
-      SET manana = @tm,
-          tarde = @tt,
-          color_am = @cam,
-          color_pm = @cpm,
-          estado_am = @est_am,
-          estado_pm = @est_pm,
-          actualizado_por = @autor,
-          fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
-          hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),
-          fecha = @f,
-          id_usuario = @id_us,
-          usuario = @usr
-      WHERE id = @row_id
-    `);
+  if (!currentTimestamp) {
+    const fcrea = row.fcrea ? String(row.fcrea).trim() : null;
+    const hcrea = row.hcrea ? String(row.hcrea).trim() : null;
+    currentTimestamp = (fcrea && hcrea) ? `${fcrea} ${hcrea}` : null;
+  }
 
-    if (result.rowsAffected[0] === 0) {
-      const concurrencyErr = new Error('La celda fue modificada por otro proceso. Recarga la página para sincronizar.');
-      concurrencyErr.status = 409;
-      throw concurrencyErr;
-    }
+  const clientTimestamp = (lastModified !== null && lastModified !== undefined && lastModified !== '')
+    ? String(lastModified).trim()
+    : null;
+
+  if (clientTimestamp && currentTimestamp !== clientTimestamp) {
+    const concurrencyErr = new Error(
+      `Celda modif. por otro proceso. (Servidor: ${currentTimestamp || 'Nulo'} | Tuyo: ${clientTimestamp}). Recarga la página.`
+    );
+    concurrencyErr.status = 409;
+    throw concurrencyErr;
+  }
+
+  // ── UPDATE ──
+  const result = await upsertReq.query(`
+    UPDATE DATA_CRONOGRAMA
+    SET descripcion        = @desc,
+        turno              = @trn,
+        color              = @col,
+        estado             = @est,
+        actualizado_por    = @autor,
+        fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
+        hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),
+        fecha              = @f,
+        id_usuario         = @id_us,
+        usuario            = @usr
+    WHERE id = @row_id
+  `);
+
+  if (result.rowsAffected[0] === 0) {
+    const concurrencyErr = new Error('La celda fue modificada por otro proceso. Recarga la página para sincronizar.');
+    concurrencyErr.status = 409;
+    throw concurrencyErr;
   }
 
   return { status: 'upserted', resource };

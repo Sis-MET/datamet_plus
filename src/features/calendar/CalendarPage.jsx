@@ -66,7 +66,8 @@ export function CalendarPage() {
     user = token ? parseJwt(token) : null;
   }
   
-  const isAdmin = String(user?.acceso_cron) === '1'; // 1 = Puede editar todo, 2 = Solo Lectura
+  const isAdmin = ['2', '3'].includes(String(user?.acceso_cron)); // 2 = Admin, 3 = Dev
+  const isDev = String(user?.acceso_cron) === '3'; // Dev con selector DB
 
   // ── Hook vista Gantt ── (Lo cargamos primero para tener las Tasks)
   const {

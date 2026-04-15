@@ -30,7 +30,7 @@ const protect = (req, res, next) => {
 };
 
 const isAdmin = (req, res, next) => {
-  if (req.user && String(req.user.acceso_cron) === '1') {
+  if (req.user && ['2', '3'].includes(String(req.user.acceso_cron))) {
     next();
   } else {
     res.status(403).json({ success: false, message: 'Se requieren permisos completos para esta acción. (Modo Lectura)' });

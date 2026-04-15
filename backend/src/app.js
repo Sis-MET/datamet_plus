@@ -7,12 +7,15 @@ const indexRoutes = require('./routes/index');
 
 const app = express();
 
-// Middlewares Globales
+// CORS debe ir PRIMERO para responder preflight OPTIONS antes de cualquier otro middleware
 app.use(cors({
   origin: '*', // En producción debes cambiar esto a la URL específica de tu frontend en Azure
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-database-name']
 }));
+
+// Middlewares Globales
+
 app.use(express.json()); // Permite a express entender body en formato JSON
 app.use(express.urlencoded({ extended: true }));
 

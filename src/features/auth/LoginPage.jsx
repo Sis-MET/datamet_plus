@@ -195,10 +195,11 @@ export function LoginPage({ onLogin }) {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="login-form">
+
                 {/* Usuario */}
                 <div className="login-field">
                   <label htmlFor="login-usuario" className="login-label">Usuario</label>
-                  <div className="login-input-wrap">
+                  <div className="login-input-wrap relative">
                     <span className="login-input-icon">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -221,7 +222,7 @@ export function LoginPage({ onLogin }) {
                 {/* Contraseña */}
                 <div className="login-field">
                   <label htmlFor="login-pass" className="login-label">Contraseña</label>
-                  <div className="login-input-wrap">
+                  <div className="login-input-wrap relative">
                     <span className="login-input-icon">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>

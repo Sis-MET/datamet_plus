@@ -101,12 +101,10 @@ export function useGantt() {
             rowId: row.id,
             Tecnico: resourceId,
             fecha: rowDate,
-            morning: row.manana || '',
-            afternoon: row.tarde || '',
-            colorAM: row.color_am || '#37A65F',
-            colorPM: row.color_pm || '#37A65F',
-            estadoAM: row.estado_am || 'Pendiente',
-            estadoPM: row.estado_pm || 'Pendiente',
+            morning: row.descripcion || '',
+            turno: row.turno || '',
+            colorAM: row.color || '#37A65F',
+            estadoAM: row.estado || 'Pendiente',
             author: row.actualizado_por || row.creado_por || '',
             timestampUpdated: formattedTimestamp
           };
@@ -145,13 +143,11 @@ export function useGantt() {
     // Convertir el payload (sea strig o objeto) a un objeto seguro.
     let payloadObj = null;
     if (typeof payload === 'string' && payload.trim() !== '') {
-        const parts = payload.split(';');
         payloadObj = {
-           morning: parts[0] ? parts[0].trim() : '',
-           afternoon: parts[1] ? parts[1].trim() : '',
-           colorAM: parts[2] ? parts[2].trim() : '',
-           colorPM: parts[3] ? parts[3].trim() : '',
-           autor: parts[4] ? parts[4].trim() : 'Sistema'
+           morning: payload.trim(),
+           colorAM: '#10B981',
+           estadoAM: 'Pendiente',
+           autor: 'Sistema'
         };
     } else if (payload && typeof payload === 'object') {
         let autorText = 'Sistema';
@@ -161,16 +157,14 @@ export function useGantt() {
               autorText = payloadToken.nombre || payloadToken.usuario || 'Sistema';
            } catch(e) {}
         }
-        
+
         payloadObj = {
-           morning: payload.morning || '',
-           afternoon: payload.afternoon || '',
-           colorAM: payload.colorAM || '',
-           colorPM: payload.colorPM || '',
-           estadoAM: payload.estadoAM || 'Pendiente',
-           estadoPM: payload.estadoPM || 'Pendiente',
+           morning:      payload.morning      || '',
+           turno:        payload.turno        || '',
+           colorAM:      payload.colorAM      || '',
+           estadoAM:     payload.estadoAM     || 'Pendiente',
            lastModified: payload.lastModified || null,
-           rowId: payload.rowId || null,
+           rowId:        payload.rowId        || null,
            autor: autorText
         };
     }
