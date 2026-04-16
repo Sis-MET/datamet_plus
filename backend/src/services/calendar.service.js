@@ -20,6 +20,8 @@ const getSchedule = async (start, end) => {
         turno,
         color,
         estado,
+        CONVERT(varchar(8), hora_inicio, 8) as hora_inicio,
+        CONVERT(varchar(8), hora_fin,    8) as hora_fin,
         creado_por,
         CONVERT(varchar, fecha_creacion, 23) as fecha_creacion,
         CONVERT(varchar, hora_creacion, 8) as hora_creacion,
@@ -89,6 +91,8 @@ const upsertScheduleCell = async (data) => {
   const autor        = payload ? (payload.autor   || 'Sistema') : 'Sistema';
   const lastModified = payload ? (payload.lastModified || null) : null;
   const rowId        = payload ? (payload.rowId   || null) : null;
+  const horaInicio   = payload ? (payload.horaInicio || '') : '';
+  const horaFin      = payload ? (payload.horaFin    || '') : '';
 
   let id_usuario     = null;
   let usuario_nombre = null;
@@ -116,14 +120,16 @@ const upsertScheduleCell = async (data) => {
   }
 
   const upsertReq = pool.request()
-    .input('id_us',  sql.Int,      id_usuario)
-    .input('usr',    sql.VarChar,  usuario_nombre)
-    .input('f',      sql.Date,     date)
-    .input('desc',   sql.NVarChar, descripcion)
-    .input('trn',    sql.NVarChar, turno)
-    .input('col',    sql.VarChar,  color)
-    .input('est',    sql.NVarChar, estado)
-    .input('autor',  sql.VarChar,  autor);
+    .input('id_us',   sql.Int,      id_usuario)
+    .input('usr',     sql.VarChar,  usuario_nombre)
+    .input('f',       sql.Date,     date)
+    .input('desc',    sql.NVarChar, descripcion)
+    .input('trn',     sql.NVarChar, turno)
+    .input('col',     sql.VarChar,  color)
+    .input('est',     sql.NVarChar, estado)
+    .input('autor',   sql.VarChar,  autor)
+    .input('hinicio', sql.VarChar,  horaInicio || null)
+    .input('hfin',    sql.VarChar,  horaFin    || null);
 
   if (!rowId) {
     // ── INSERT nuevo ──
@@ -132,12 +138,41 @@ const upsertScheduleCell = async (data) => {
       return { status: 'ignored_empty_insert' };
     }
 
+    // ── Validar solapamiento de horario antes de insertar ──
+    if (horaInicio && horaFin) {
+      const overlapCheck = await pool.request()
+        .input('ov_id_us',  sql.Int,     id_usuario)
+        .input('ov_fecha',  sql.Date,    date)
+        .input('ov_inicio', sql.VarChar, horaInicio)
+        .input('ov_fin',    sql.VarChar, horaFin)
+        .query(`
+          SELECT COUNT(*) AS cnt
+          FROM DATA_CRONOGRAMA
+          WHERE id_usuario  = @ov_id_us
+            AND fecha       = @ov_fecha
+            AND hora_inicio IS NOT NULL
+            AND hora_fin    IS NOT NULL
+            AND CAST(@ov_inicio AS time(7)) < hora_fin
+            AND CAST(@ov_fin    AS time(7)) > hora_inicio
+        `);
+      if (overlapCheck.recordset[0].cnt > 0) {
+        const err = new Error(
+          `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este usuario en este día.`
+        );
+        err.status = 409;
+        throw err;
+      }
+    }
+
     await upsertReq.query(`
       INSERT INTO DATA_CRONOGRAMA
-        (id_usuario, usuario, fecha, descripcion, turno, color, estado,
+        (id_usuario, usuario, fecha, descripcion, turno, color, estado, hora_inicio, hora_fin,
          creado_por, fecha_creacion, hora_creacion)
       VALUES
-        (@id_us, @usr, @f, @desc, @trn, @col, @est, @autor,
+        (@id_us, @usr, @f, @desc, @trn, @col, @est,
+         CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
+         CASE WHEN @hfin    IS NULL OR @hfin    = '' THEN NULL ELSE CAST(@hfin    AS time(7)) END,
+         @autor,
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME))
     `);
@@ -192,6 +227,34 @@ const upsertScheduleCell = async (data) => {
     throw concurrencyErr;
   }
 
+  // ── Validar solapamiento antes de actualizar (excluye la fila actual) ──
+  if (horaInicio && horaFin) {
+    const overlapCheck = await pool.request()
+      .input('ov_id_us',  sql.Int,     id_usuario)
+      .input('ov_fecha',  sql.Date,    date)
+      .input('ov_inicio', sql.VarChar, horaInicio)
+      .input('ov_fin',    sql.VarChar, horaFin)
+      .input('ov_row_id', sql.Int,     rowId)
+      .query(`
+        SELECT COUNT(*) AS cnt
+        FROM DATA_CRONOGRAMA
+        WHERE id_usuario  = @ov_id_us
+          AND fecha       = @ov_fecha
+          AND id         != @ov_row_id
+          AND hora_inicio IS NOT NULL
+          AND hora_fin    IS NOT NULL
+          AND CAST(@ov_inicio AS time(7)) < hora_fin
+          AND CAST(@ov_fin    AS time(7)) > hora_inicio
+      `);
+    if (overlapCheck.recordset[0].cnt > 0) {
+      const err = new Error(
+        `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este usuario en este día.`
+      );
+      err.status = 409;
+      throw err;
+    }
+  }
+
   // ── UPDATE ──
   const result = await upsertReq.query(`
     UPDATE DATA_CRONOGRAMA
@@ -199,6 +262,8 @@ const upsertScheduleCell = async (data) => {
         turno              = @trn,
         color              = @col,
         estado             = @est,
+        hora_inicio        = CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
+        hora_fin           = CASE WHEN @hfin    IS NULL OR @hfin    = '' THEN NULL ELSE CAST(@hfin    AS time(7)) END,
         actualizado_por    = @autor,
         fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
         hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),

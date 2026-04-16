@@ -632,6 +632,7 @@ export function CalendarPage() {
         event={editingEvent}
         prefilledDate={prefilledDate}
         prefilledResource={prefilledResource}
+        existingTasks={tasksForCell(prefilledResource, prefilledDate)}
       />
       
       {/* ── UX Flotantes ── */}

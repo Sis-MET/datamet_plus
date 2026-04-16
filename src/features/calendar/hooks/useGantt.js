@@ -105,6 +105,8 @@ export function useGantt() {
             turno: row.turno || '',
             colorAM: row.color || '#37A65F',
             estadoAM: row.estado || 'Pendiente',
+            horaInicio: row.hora_inicio ? row.hora_inicio.substring(0, 5) : '',
+            horaFin:    row.hora_fin    ? row.hora_fin.substring(0, 5)    : '',
             author: row.actualizado_por || row.creado_por || '',
             timestampUpdated: formattedTimestamp
           };
@@ -160,9 +162,11 @@ export function useGantt() {
 
         payloadObj = {
            morning:      payload.morning      || '',
-           turno:        payload.turno        || '',
+           turno:        '',
            colorAM:      payload.colorAM      || '',
            estadoAM:     payload.estadoAM     || 'Pendiente',
+           horaInicio:   payload.horaInicio   || '',
+           horaFin:      payload.horaFin      || '',
            lastModified: payload.lastModified || null,
            rowId:        payload.rowId        || null,
            autor: autorText

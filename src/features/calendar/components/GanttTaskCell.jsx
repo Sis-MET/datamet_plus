@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -8,6 +8,41 @@ import { isNonWorkingDay } from '../utils/holidays';
 import { useTheme } from '../../../shared/context/ThemeContext';
 
 const MAX_TASKS_PER_CELL = 4;
+
+/**
+ * Hook de long-press: dispara onLongPress tras `delay` ms de presion sostenida.
+ * Cancela si el dedo se mueve mas de 10px (scroll). Solo actua en touch/pen.
+ */
+function useLongPress(onLongPress, delay = 500) {
+  const timerRef  = useRef(null);
+  const startPos  = useRef(null);
+  const triggered = useRef(false);
+
+  const start = useCallback((e) => {
+    if (e.pointerType === 'mouse') return;
+    triggered.current = false;
+    startPos.current = { x: e.clientX, y: e.clientY };
+    timerRef.current = setTimeout(() => {
+      triggered.current = true;
+      onLongPress(e);
+    }, delay);
+  }, [onLongPress, delay]);
+
+  const cancel = useCallback(() => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+  }, []);
+
+  const move = useCallback((e) => {
+    if (!startPos.current) return;
+    if (Math.abs(e.clientX - startPos.current.x) > 10 || Math.abs(e.clientY - startPos.current.y) > 10) cancel();
+  }, [cancel]);
+
+  const preventClick = useCallback((e) => {
+    if (triggered.current) { e.stopPropagation(); triggered.current = false; }
+  }, []);
+
+  return { onPointerDown: start, onPointerUp: cancel, onPointerCancel: cancel, onPointerMove: move, onClick: preventClick };
+}
 
 // Sub-componente: cada tarjeta con su propio tooltip
 function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resourceId, onTaskClick, onTaskDrop, onTaskContextMenu, onTaskDragStart, onTaskDragEnd, date }) {
@@ -48,6 +83,16 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
     }, 200);
   };
 
+  // Long-press => menu contextual en touch/tablet
+  const longPressHandlers = useLongPress((e) => {
+    if (onTaskContextMenu) {
+      onTaskContextMenu(
+        { preventDefault: () => {}, stopPropagation: () => {}, clientX: e.clientX, clientY: e.clientY },
+        task, date, resourceId
+      );
+    }
+  }, 500);
+
   return (
     <>
       <div
@@ -83,7 +128,9 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={`w-full mt-0.5 h-8 border rounded-md overflow-hidden text-[10px] shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in ${
+        {...longPressHandlers}
+        style={{ touchAction: 'none' }}
+        className={`w-full mt-0.5 h-8 border rounded-md overflow-hidden text-[10px] shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in select-none ${
           isDarkGantt
             ? 'border-white/10 text-white hover:ring-white/30'
             : 'border-white/20 text-white hover:ring-black/20'
@@ -132,6 +179,12 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
                   {task.morning && <span className={getStateBadgeClass(task.estadoAM)}>{task.estadoAM || 'Pendiente'}</span>}
                 </div>
                 <p className={`text-sm font-medium break-words leading-snug ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{task.morning || '(Sin actividad)'}</p>
+                {/* Rango horario */}
+                {task.horaFin && (
+                  <p className={`text-[12px] font-mono mt-1.5 ${isDarkGantt ? 'text-blue-400/80' : 'text-blue-600/80'}`}>
+                    ⏱ {task.horaInicio || '08:30'} → {task.horaFin}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -274,20 +327,23 @@ export function GanttTaskCell({
         />
       ))}
 
-      {/* Botón "+" visible cuando hay al menos 1 ficha y aún hay espacio (< 4) */}
+      {/* Boton "+": hover en desktop, siempre visible en touch */}
       {canAddMore && onTaskClick && (
         <div
           onClick={(e) => { e.stopPropagation(); onTaskClick(null, date, resourceId); }}
           className={cn(
-            'absolute bottom-1 right-1 w-4 h-4 rounded flex items-center justify-center',
-            'opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer z-10',
+            'absolute bottom-0.5 right-0.5 rounded-md flex items-center justify-center cursor-pointer z-10 transition-all duration-150 select-none',
+            // Desktop (hover disponible): w-5 h-5, invisible hasta hover
+            'w-5 h-5 opacity-0 group-hover:opacity-100',
+            // Touch (sin hover): w-7 h-7 siempre visible al 80%
+            '[@media(hover:none)]:opacity-80 [@media(hover:none)]:w-7 [@media(hover:none)]:h-7',
             isDarkGantt
-              ? 'bg-white/10 hover:bg-white/20 text-white/60 hover:text-white'
-              : 'bg-black/10 hover:bg-black/20 text-gray-600 hover:text-gray-900'
+              ? 'bg-white/15 hover:bg-white/30 text-white/80 hover:text-white'
+              : 'bg-black/10 hover:bg-black/25 text-gray-700 hover:text-gray-900'
           )}
           title={`Agregar ficha (${validTasks.length}/${MAX_TASKS_PER_CELL})`}
         >
-          <span className="text-[10px] font-bold leading-none">+</span>
+          <span className="text-[11px] font-bold leading-none">+</span>
         </div>
       )}
 
