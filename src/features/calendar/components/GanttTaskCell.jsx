@@ -84,7 +84,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
   };
 
   // Long-press => menu contextual en touch/tablet
-  const longPressHandlers = useLongPress((e) => {
+  const { onClick: longPressClick, ...otherLongPressHandlers } = useLongPress((e) => {
     if (onTaskContextMenu) {
       onTaskContextMenu(
         { preventDefault: () => {}, stopPropagation: () => {}, clientX: e.clientX, clientY: e.clientY },
@@ -97,7 +97,11 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
     <>
       <div
         draggable={!!onTaskDrop}
+        {...otherLongPressHandlers}
         onClick={(e) => {
+          longPressClick(e);
+          if (e.isPropagationStopped()) return;
+          
           if (onTaskClick) {
             e.stopPropagation();
             onTaskClick(task, date, resourceId);
@@ -128,7 +132,6 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        {...longPressHandlers}
         style={{ touchAction: 'none' }}
         className={`w-full mt-0.5 h-8 border rounded-md overflow-hidden text-[10px] shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in select-none ${
           isDarkGantt

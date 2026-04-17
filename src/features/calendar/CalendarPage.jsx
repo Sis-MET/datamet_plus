@@ -514,24 +514,102 @@ export function CalendarPage() {
          });
       }
 
-      sileo.success({ description: `Asignando vehículo en ${associatedDates.length} jornada(s)...`, duration: 4000 });
-      try {
-         for (const dt of associatedDates) {
-             if (!tasks.find(t => isSameDay(t.fecha, dt.date) && t.Tecnico === vehiculo.id && t.morning === dt.tCell.morning)) {
-                 await upsertScheduleCell(dt.date, vehiculo.id, {
-                     rowId: null, // Create new row for the vehicle
-                     morning: dt.tCell.morning,
-                     colorAM: dt.tCell.colorAM,
-                     estadoAM: dt.tCell.estadoAM,
-                 }, true);
+      // Check for existing vehicle assignment for the SAME technician on the SAME days for DIFFERENT activities
+      let techVehicleWarning = null;
+      for (const dt of associatedDates) {
+          const otherTechTasks = tasks.filter(t => 
+              isSameDay(t.fecha, dt.date) && 
+              t.Tecnico === technicianId && 
+              t.morning?.trim() !== sourceTask.morning?.trim()
+          );
+
+          for (const oTask of otherTechTasks) {
+              const assignedVehicleTask = tasks.find(t => 
+                  isSameDay(t.fecha, dt.date) &&
+                  tecnicos.find(tec => tec.id === t.Tecnico)?.area === 'VEHÍCULOS' &&
+                  t.morning?.trim() === oTask.morning?.trim()
+              );
+
+              if (assignedVehicleTask) {
+                  const vehicleName = tecnicos.find(tec => tec.id === assignedVehicleTask.Tecnico)?.nombre || 'un vehículo';
+                  techVehicleWarning = {
+                      date: dt.date,
+                      activity: oTask.morning,
+                      vehicleName: vehicleName
+                  };
+                  break;
+              }
+          }
+          if (techVehicleWarning) break;
+      }
+
+      const performAssignment = async () => {
+          sileo.success({ description: `Asignando vehículo en ${associatedDates.length} jornada(s)...`, duration: 4000 });
+          try {
+             for (const dt of associatedDates) {
+                 if (!tasks.find(t => isSameDay(t.fecha, dt.date) && t.Tecnico === vehiculo.id && t.morning === dt.tCell.morning)) {
+                     await upsertScheduleCell(dt.date, vehiculo.id, {
+                         rowId: null, // Create new row for the vehicle
+                         morning: dt.tCell.morning,
+                         colorAM: dt.tCell.colorAM,
+                         estadoAM: dt.tCell.estadoAM,
+                     }, true);
+                 }
              }
-         }
-         
-         if (typeof refetch === 'function') refetch();
-         sileo.success({ description: "Vehículo asignado correctamente." });
-      } catch (err) {
-         sileo.error({ description: `Error al asignar: ${err.message}` });
-         if (typeof refetch === 'function') refetch();
+             
+             if (typeof refetch === 'function') refetch();
+             sileo.success({ description: "Vehículo asignado correctamente." });
+          } catch (err) {
+             sileo.error({ description: `Error al asignar: ${err.message}` });
+             if (typeof refetch === 'function') refetch();
+          }
+      };
+
+      if (techVehicleWarning) {
+          const targetName = tecnicos.find(t => t.id === technicianId)?.nombre || 'El técnico';
+          
+          const handleConfirm = (e) => {
+              if (e) { e.preventDefault(); e.stopPropagation(); }
+              performAssignment();
+              sileo.clear();
+          };
+
+          const handleCancel = (e) => {
+              if (e) { e.preventDefault(); e.stopPropagation(); }
+              sileo.clear();
+          };
+
+          sileo.action({
+            title: "Advertencia de Asignación Múltiple",
+            duration: 15000,
+            description: (
+              <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
+                <span className="text-[13px] text-gray-600 leading-snug">
+                  <strong className="font-semibold text-gray-800">{targetName}</strong> ya está ocupando <strong className="font-semibold text-gray-800">{techVehicleWarning.vehicleName}</strong> para la actividad <strong className="font-semibold text-gray-800">"{techVehicleWarning.activity}"</strong> el {format(techVehicleWarning.date, 'EEEE d', { locale: es })}. ¿Deseas asignarle también este vehículo?
+                </span>
+                <div className="flex items-center gap-2">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleConfirm}
+                    className="flex-1 py-1.5 px-3 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
+                  >
+                    Sí, guardar
+                  </div>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleCancel}
+                    className="flex-1 py-1.5 px-3 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
+                  >
+                    Cancelar
+                  </div>
+                </div>
+              </div>
+            )
+          });
+      } else {
+          performAssignment();
       }
   };
 

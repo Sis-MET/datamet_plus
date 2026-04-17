@@ -110,8 +110,26 @@ const upsertScheduleCell = async (data) => {
     id_usuario     = userMatch.recordset[0].id;
     usuario_nombre = userMatch.recordset[0].fullname;
   } else {
-    // Podría ser un vehículo u otro recurso
-    usuario_nombre = resource;
+    // Buscar en DATA_ACTIVOS (Vehículos)
+    const vehMatch = await pool.request()
+      .input('res', sql.VarChar, resource)
+      .query(`
+        SELECT id, TRIM(ISNULL(identificacion, 'SIN_IDENTIFICACION')) as fullname
+        FROM DATA_ACTIVOS
+        WHERE REPLACE(TRIM(ISNULL(identificacion, 'SIN_IDENTIFICACION')), ' ', '_') = @res
+          AND categoria = 'VEHICULO'
+          AND estado = 'ACTIVO'
+      `);
+      
+    if (vehMatch.recordset.length > 0) {
+      id_usuario     = vehMatch.recordset[0].id;
+      usuario_nombre = vehMatch.recordset[0].fullname;
+    } else {
+      // Fallback a un valor por defecto si no es ni usuario ni vehículo,
+      // para evitar que la db lance el error por la restricción NOT NULL.
+      id_usuario     = 999999;
+      usuario_nombre = resource;
+    }
   }
 
   // Prevenir acciones vacías sin ID
@@ -142,6 +160,7 @@ const upsertScheduleCell = async (data) => {
     if (horaInicio && horaFin) {
       const overlapCheck = await pool.request()
         .input('ov_id_us',  sql.Int,     id_usuario)
+        .input('ov_usr',    sql.VarChar, usuario_nombre)
         .input('ov_fecha',  sql.Date,    date)
         .input('ov_inicio', sql.VarChar, horaInicio)
         .input('ov_fin',    sql.VarChar, horaFin)
@@ -149,6 +168,7 @@ const upsertScheduleCell = async (data) => {
           SELECT COUNT(*) AS cnt
           FROM DATA_CRONOGRAMA
           WHERE id_usuario  = @ov_id_us
+            AND usuario     = @ov_usr
             AND fecha       = @ov_fecha
             AND hora_inicio IS NOT NULL
             AND hora_fin    IS NOT NULL
@@ -157,7 +177,7 @@ const upsertScheduleCell = async (data) => {
         `);
       if (overlapCheck.recordset[0].cnt > 0) {
         const err = new Error(
-          `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este usuario en este día.`
+          `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este recurso en este día.`
         );
         err.status = 409;
         throw err;
@@ -231,6 +251,7 @@ const upsertScheduleCell = async (data) => {
   if (horaInicio && horaFin) {
     const overlapCheck = await pool.request()
       .input('ov_id_us',  sql.Int,     id_usuario)
+      .input('ov_usr',    sql.VarChar, usuario_nombre)
       .input('ov_fecha',  sql.Date,    date)
       .input('ov_inicio', sql.VarChar, horaInicio)
       .input('ov_fin',    sql.VarChar, horaFin)
@@ -239,6 +260,7 @@ const upsertScheduleCell = async (data) => {
         SELECT COUNT(*) AS cnt
         FROM DATA_CRONOGRAMA
         WHERE id_usuario  = @ov_id_us
+          AND usuario     = @ov_usr
           AND fecha       = @ov_fecha
           AND id         != @ov_row_id
           AND hora_inicio IS NOT NULL
@@ -248,7 +270,7 @@ const upsertScheduleCell = async (data) => {
       `);
     if (overlapCheck.recordset[0].cnt > 0) {
       const err = new Error(
-        `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este usuario en este día.`
+        `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este recurso en este día.`
       );
       err.status = 409;
       throw err;

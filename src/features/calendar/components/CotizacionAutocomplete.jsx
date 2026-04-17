@@ -126,6 +126,7 @@ export function CotizacionAutocomplete({
           placeholder={placeholder}
           autoComplete="off"
           spellCheck={false}
+          maxLength={90}
           className={cn(
             'w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner',
             isDarkGantt
@@ -137,7 +138,9 @@ export function CotizacionAutocomplete({
         />
         {/* Spinner mientras busca */}
         {isLoading && (
-          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary-400 pointer-events-none" />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-primary-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
         )}
       </div>
 

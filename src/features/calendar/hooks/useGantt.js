@@ -80,7 +80,14 @@ export function useGantt() {
         const flatTasks = scheduleData.data.map(row => {
           let resourceId = row.id_usuario || row.usuario || '';
           if (row.id_usuario) {
-            const tec = validTecnicos.find(t => t.user_id === row.id_usuario);
+            // MATCH EXACT: Some Vehicles and Users share the same database integer ID (e.g. both ID=8).
+            // We use both ID and Name to distinguish them to avoid misplacing tasks on the Gantt chart.
+            let tec = validTecnicos.find(t => t.user_id === row.id_usuario && (t.nombre === row.usuario || t.id === row.usuario));
+            
+            // FALLBACKS: In case naming changed or slight mismatch
+            if (!tec) tec = validTecnicos.find(t => t.nombre === row.usuario); 
+            if (!tec) tec = validTecnicos.find(t => t.user_id === row.id_usuario); 
+            
             if (tec) resourceId = tec.id;
           }
 

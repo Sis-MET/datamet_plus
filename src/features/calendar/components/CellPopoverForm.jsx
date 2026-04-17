@@ -572,6 +572,7 @@ export function CellPopoverForm({
                 </div>
                 <div className="flex gap-2">
                   <CotizacionAutocomplete
+                    key={event?.rowId ?? 'new'}
                     value={morning}
                     onChange={setMorning}
                     placeholder="EJ: 260001.COT01 · EMBOL"
