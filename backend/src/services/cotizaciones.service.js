@@ -27,7 +27,7 @@ const searchCotizaciones = async (searchTerm) => {
         ) AS codigo_planta,
         ISNULL(c.cliente, '')    AS nombre_cliente,
         ISNULL(p.dir, '')        AS nombre_planta
-      FROM DATA_COTIZACIONES cot
+      FROM DATA_COTIZACION cot
       LEFT JOIN DATA_PLANTAS p
         ON p.codigo_planta = LEFT(
              cot.cod_contacto,

@@ -115,7 +115,8 @@ export function useGantt() {
             horaInicio: row.hora_inicio ? row.hora_inicio.substring(0, 5) : '',
             horaFin:    row.hora_fin    ? row.hora_fin.substring(0, 5)    : '',
             author: row.actualizado_por || row.creado_por || '',
-            timestampUpdated: formattedTimestamp
+            timestampUpdated: formattedTimestamp,
+            creadoEn: row.creado_en || ''
           };
         }).filter(Boolean);
 
@@ -176,7 +177,8 @@ export function useGantt() {
            horaFin:      payload.horaFin      || '',
            lastModified: payload.lastModified || null,
            rowId:        payload.rowId        || null,
-           autor: autorText
+           autor: autorText,
+           creado_en:    'CronoMET'
         };
     }
 

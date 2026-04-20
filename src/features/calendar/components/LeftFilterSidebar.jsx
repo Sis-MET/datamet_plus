@@ -60,23 +60,17 @@ export function LeftFilterSidebar({
 
   const tecnicoMap = {};
   selectedDayEvents.forEach(evt => {
-    const key = evt.client;
-    if (!tecnicoMap[key]) {
-      tecnicoMap[key] = {
-        client: key,
-        morning: evt.morning || '',
-        afternoon: evt.afternoon || '',
-        colorAM: evt.colorAM || '',
-        colorPM: evt.colorPM || '',
-        estadoAM: evt.estadoAM || 'Pendiente',
-        estadoPM: evt.estadoPM || 'Pendiente',
+    // Buscar nombre real del tecnico
+    const tecObj = tecnicos.find(t => t.id === evt.client);
+    const tecName = tecObj ? tecObj.nombre : evt.client;
+    
+    if (!tecnicoMap[tecName]) {
+      tecnicoMap[tecName] = {
+        name: tecName,
+        tasks: []
       };
-    } else {
-      if (!tecnicoMap[key].morning && evt.morning) { tecnicoMap[key].morning = evt.morning; tecnicoMap[key].estadoAM = evt.estadoAM || 'Pendiente'; }
-      if (!tecnicoMap[key].afternoon && evt.afternoon) { tecnicoMap[key].afternoon = evt.afternoon; tecnicoMap[key].estadoPM = evt.estadoPM || 'Pendiente'; }
-      if (!tecnicoMap[key].colorAM && evt.colorAM) tecnicoMap[key].colorAM = evt.colorAM;
-      if (!tecnicoMap[key].colorPM && evt.colorPM) tecnicoMap[key].colorPM = evt.colorPM;
     }
+    tecnicoMap[tecName].tasks.push(evt);
   });
   const tecnicosDelDia = Object.values(tecnicoMap);
 
@@ -131,37 +125,36 @@ export function LeftFilterSidebar({
           </div>
         ) : (
           <div className="flex flex-col gap-1 overflow-y-auto max-h-[280px] custom-scrollbar pr-1">
-            {tecnicosDelDia.map((evt, idx) => {
-              const hasMorning   = evt.morning   && evt.morning.trim()   !== '';
-              const hasAfternoon = evt.afternoon && evt.afternoon.trim() !== '';
+            {tecnicosDelDia.map((tecnico, idx) => {
               return (
                 <div key={idx} className={`border rounded-xl px-3 py-2 transition-all ${isDarkGantt ? 'border-white/[0.07] hover:border-white/15 hover:bg-white/[0.03]' : 'border-gray-200 hover:border-gray-300 hover:bg-black/[0.03]'}`} style={glassStyle}>
-                  {/* Nombre + dots de turno */}
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className={`text-[11px] font-bold truncate leading-none capitalize ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>
-                      {evt.client?.replace(/_/g, ' ')}
+                  {/* Nombre */}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className={`text-[13px] font-bold truncate leading-none capitalize ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>
+                      {tecnico.name?.replace(/_/g, ' ')}
                     </span>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {hasMorning   && <div className="w-1.5 h-1.5 rounded-full ring-1 ring-black/20" style={{ backgroundColor: evt.colorAM || '#10B981' }} title="Mañana" />}
-                      {hasAfternoon && <div className="w-1.5 h-1.5 rounded-full ring-1 ring-black/20" style={{ backgroundColor: evt.colorPM || '#F59E0B' }} title="Tarde" />}
+                      {tecnico.tasks.map((t, i) => (
+                        <div key={i} className="w-2 h-2 rounded-full ring-1 ring-black/20" style={{ backgroundColor: t.colorAM || '#10B981' }} title={t.estadoAM || 'Pendiente'} />
+                      ))}
                     </div>
                   </div>
-                  {/* Turnos en filas compactas */}
-                  <div className="flex flex-col gap-0.5">
-                    {hasMorning && (
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[8px] font-bold uppercase w-3 flex-shrink-0 ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>AM</span>
-                        <p className={`text-[10px] truncate flex-1 leading-tight ${isDarkGantt ? 'text-gray-400' : 'text-gray-700'}`}>{evt.morning}</p>
-                        <span className={getStateBadgeClass(evt.estadoAM)}>{evt.estadoAM || 'Pendiente'}</span>
+                  {/* Tareas en filas compactas */}
+                  <div className="flex flex-col gap-2.5 mt-2">
+                    {tecnico.tasks.map((task, i) => (
+                      <div key={i} className="flex items-start gap-2.5">
+                        <div className={`w-2 h-2 rounded-full shrink-0 mt-[5px] animate-pulse`} style={{ backgroundColor: task.colorAM || '#10B981' }} />
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <p className={`text-xs font-bold truncate leading-tight ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>{task.morning}</p>
+                          {(task.horaInicio || task.horaFin) && (
+                            <p className={`text-[10px] font-mono font-semibold leading-none mt-1 opacity-80 ${isDarkGantt ? 'text-blue-300' : 'text-blue-600'}`}>
+                              {task.horaInicio || '08:30'} {task.horaFin ? `→ ${task.horaFin}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <span className={`${getStateBadgeClass(task.estadoAM)} whitespace-nowrap mt-0.5`}>{task.estadoAM || 'Pendiente'}</span>
                       </div>
-                    )}
-                    {hasAfternoon && (
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[8px] font-bold uppercase w-3 flex-shrink-0 ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>PM</span>
-                        <p className={`text-[10px] truncate flex-1 leading-tight ${isDarkGantt ? 'text-gray-400' : 'text-gray-700'}`}>{evt.afternoon}</p>
-                        <span className={getStateBadgeClass(evt.estadoPM)}>{evt.estadoPM || 'Pendiente'}</span>
-                      </div>
-                    )}
+                    ))}
                   </div>
                 </div>
               );

@@ -15,7 +15,7 @@ async function run() {
           ) AS codigo_planta,
           ISNULL(c.cliente, '')    AS nombre_cliente,
           ISNULL(p.dir, '')        AS nombre_planta
-        FROM DataMET_prueba.dbo.DATA_COTIZACIONES cot
+        FROM DataMET_prueba.dbo.DATA_COTIZACION cot
         LEFT JOIN DataMET_prueba.dbo.DATA_PLANTAS p
           ON p.codigo_planta = LEFT(
                cot.cod_contacto,

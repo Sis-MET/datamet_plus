@@ -168,10 +168,16 @@ export function CalendarPage() {
      const isVehiculoTarget = targetResourceObj && targetResourceObj.area === 'VEHÍCULOS';
 
      if (isVehiculoTarget) {
-         const authorName = task.author?.trim();
-         const currentUserName = user?.nombre?.trim() || user?.usuario?.trim();
-         if (authorName && currentUserName && authorName !== currentUserName && authorName !== 'Sistema') {
-             sileo.error({ description: `Acceso denegado: Solo el creador original (${authorName}) puede borrar esta asignación de vehículo.`, duration: 6000 });
+         const authorName = (task.author || '').trim().toLowerCase();
+         const currentNombre = (user?.nombre || '').trim().toLowerCase();
+         const currentUsuario = (user?.usuario || '').trim().toLowerCase();
+         
+         const isSystem = authorName === 'sistema';
+         const isMatch = (currentNombre && authorName === currentNombre) || (currentUsuario && authorName === currentUsuario);
+         
+         // Permitimos borrar si es el creador original, si el creador fue 'Sistema', o si el usuario actual es un Administrador
+         if (authorName && !isMatch && !isSystem && !isAdmin) {
+             sileo.error({ description: `Acceso denegado: Solo el creador original (${task.author}) o un administrador puede borrar esta asignación.`, duration: 6000 });
              return;
          }
      }
@@ -234,7 +240,9 @@ export function CalendarPage() {
             rowId: sourceTask.rowId,
             morning: sourceTask.morning,
             colorAM: sourceTask.colorAM,
-            estadoAM: sourceTask.estadoAM
+            estadoAM: sourceTask.estadoAM,
+            horaInicio: sourceTask.horaInicio,
+            horaFin: sourceTask.horaFin
           }, true);
           
           await new Promise(r => setTimeout(r, 400));
@@ -246,7 +254,9 @@ export function CalendarPage() {
             rowId: null,
             morning: sourceTask.morning,
             colorAM: sourceTask.colorAM,
-            estadoAM: sourceTask.estadoAM
+            estadoAM: sourceTask.estadoAM,
+            horaInicio: sourceTask.horaInicio,
+            horaFin: sourceTask.horaFin
           }, true);
 
           await new Promise(r => setTimeout(r, 400));
@@ -327,6 +337,8 @@ export function CalendarPage() {
          morning: task.morning,
          colorAM: task.colorAM,
          estadoAM: newState,
+         horaInicio: task.horaInicio,
+         horaFin: task.horaFin,
          lastModified: task.timestampUpdated || null
       }, false);
       sileo.success({ description: `Estado actualizado a ${newState}` });
@@ -393,7 +405,9 @@ export function CalendarPage() {
                rowId: null,
                morning: sCell.morning,
                colorAM: sCell.colorAM,
-               estadoAM: 'Reprogramado'
+               estadoAM: 'Reprogramado',
+               horaInicio: sCell.horaInicio,
+               horaFin: sCell.horaFin
             }, true);
          }
 
@@ -553,6 +567,8 @@ export function CalendarPage() {
                          morning: dt.tCell.morning,
                          colorAM: dt.tCell.colorAM,
                          estadoAM: dt.tCell.estadoAM,
+                         horaInicio: dt.tCell.horaInicio,
+                         horaFin: dt.tCell.horaFin
                      }, true);
                  }
              }
@@ -711,6 +727,7 @@ export function CalendarPage() {
         prefilledDate={prefilledDate}
         prefilledResource={prefilledResource}
         existingTasks={tasksForCell(prefilledResource, prefilledDate)}
+        tecnicos={tecnicos}
       />
       
       {/* ── UX Flotantes ── */}

@@ -23,6 +23,7 @@ const getSchedule = async (start, end) => {
         CONVERT(varchar(8), hora_inicio, 8) as hora_inicio,
         CONVERT(varchar(8), hora_fin,    8) as hora_fin,
         creado_por,
+        creado_en,
         CONVERT(varchar, fecha_creacion, 23) as fecha_creacion,
         CONVERT(varchar, hora_creacion, 8) as hora_creacion,
         actualizado_por,
@@ -48,7 +49,9 @@ const getTecnicos = async () => {
         REPLACE(TRIM(ISNULL(nombre1, 'SIN_NOMBRE')), ' ', '_') + '_' + REPLACE(TRIM(ISNULL(apellido1, 'SIN_APELLIDO')), ' ', '_') AS id,
         CONCAT(TRIM(nombre1), ' ', TRIM(apellido1)) AS nombre,
         cargo,
-        area
+        area,
+        CONVERT(varchar(8), hora_ingreso, 8) as hora_ingreso,
+        CONVERT(varchar(8), hora_salida, 8) as hora_salida
       FROM DATA_USERS
       WHERE estado = 'ACTIVO'
       
@@ -59,7 +62,9 @@ const getTecnicos = async () => {
         REPLACE(TRIM(ISNULL(identificacion, 'SIN_IDENTIFICACION')), ' ', '_') AS id,
         TRIM(ISNULL(identificacion, 'SIN_IDENTIFICACION')) AS nombre,
         categoria AS cargo,
-        'VEHÍCULOS' AS area
+        'VEHÍCULOS' AS area,
+        NULL as hora_ingreso,
+        NULL as hora_salida
       FROM DATA_ACTIVOS
       WHERE categoria = 'VEHICULO' 
         AND estado = 'ACTIVO' 
@@ -93,6 +98,7 @@ const upsertScheduleCell = async (data) => {
   const rowId        = payload ? (payload.rowId   || null) : null;
   const horaInicio   = payload ? (payload.horaInicio || '') : '';
   const horaFin      = payload ? (payload.horaFin    || '') : '';
+  const creadoEn     = payload ? (payload.creado_en  || null) : null;
 
   let id_usuario     = null;
   let usuario_nombre = null;
@@ -147,7 +153,8 @@ const upsertScheduleCell = async (data) => {
     .input('est',     sql.NVarChar, estado)
     .input('autor',   sql.VarChar,  autor)
     .input('hinicio', sql.VarChar,  horaInicio || null)
-    .input('hfin',    sql.VarChar,  horaFin    || null);
+    .input('hfin',    sql.VarChar,  horaFin    || null)
+    .input('creado_en', sql.VarChar, creadoEn   || null);
 
   if (!rowId) {
     // ── INSERT nuevo ──
@@ -187,14 +194,15 @@ const upsertScheduleCell = async (data) => {
     await upsertReq.query(`
       INSERT INTO DATA_CRONOGRAMA
         (id_usuario, usuario, fecha, descripcion, turno, color, estado, hora_inicio, hora_fin,
-         creado_por, fecha_creacion, hora_creacion)
+         creado_por, fecha_creacion, hora_creacion, creado_en)
       VALUES
         (@id_us, @usr, @f, @desc, @trn, @col, @est,
          CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
          CASE WHEN @hfin    IS NULL OR @hfin    = '' THEN NULL ELSE CAST(@hfin    AS time(7)) END,
          @autor,
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
-         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME))
+         CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),
+         @creado_en)
     `);
 
     return { status: 'inserted', resource };

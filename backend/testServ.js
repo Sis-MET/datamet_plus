@@ -1,0 +1,1 @@
+﻿const { connectDB } = require('./src/config/db'); const calServ = require('./src/services/calendar.service'); async function run() { await connectDB(); const t = await calServ.getTecnicos(); console.log(t.slice(0, 2)); process.exit(0); } run();

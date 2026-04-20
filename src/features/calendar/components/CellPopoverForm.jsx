@@ -13,13 +13,10 @@ const PRESET_COLORS = [
   '#dadd12ff', '#1d2e8fff', '#424242ff', '#ce1515ff', '#621fceff', '#44bfefff'
 ];
 
-/** Jornada laboral: 08:30 → 18:30 en pasos de 30 min (21 slots) */
-const JORNADA_INICIO = '08:30';
-const JORNADA_FIN   = '18:30';
-
+// Slots genericos de tiempo 00:00 a 23:30 para cualquier jornada
 const TIME_SLOTS = (() => {
   const slots = [];
-  for (let mins = 8 * 60 + 30; mins <= 18 * 60 + 30; mins += 30) {
+  for (let mins = 0; mins < 24 * 60; mins += 30) {
     slots.push(
       `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
     );
@@ -33,17 +30,14 @@ const timeToMinutes = (t) => {
   return h * 60 + m;
 };
 
-const JORNADA_TOTAL_MIN = timeToMinutes(JORNADA_FIN) - timeToMinutes(JORNADA_INICIO); // 600
-
 /**
  * Construye bloques ocupados a partir de las tareas existentes.
- * Usa task.turno como inicio y task.horaDuracion como fin.
  */
-const buildOccupiedBlocks = (existingTasks, editingRowId) => {
+const buildOccupiedBlocks = (existingTasks, editingRowId, jornadaInicio) => {
   return (existingTasks || [])
     .filter(t => t.rowId !== editingRowId && t.horaFin)
     .map(t => ({
-      start: t.horaInicio || JORNADA_INICIO,
+      start: t.horaInicio || jornadaInicio,
       end: t.horaFin,
       color: t.colorAM || '#37A65F',
       label: t.morning || '',
@@ -51,17 +45,17 @@ const buildOccupiedBlocks = (existingTasks, editingRowId) => {
 };
 
 /**
- * Calcula el primer tramo libre desde el fin del último bloque (o 08:30).
+ * Calcula el primer tramo libre desde el fin del último bloque
  */
-const computeSuggestedStart = (existingTasks, editingRowId) => {
+const computeSuggestedStart = (existingTasks, editingRowId, jornadaInicio) => {
   const others = (existingTasks || []).filter(
     t => t.horaFin && t.rowId !== editingRowId
   );
-  if (others.length === 0) return JORNADA_INICIO;
+  if (others.length === 0) return jornadaInicio;
   const maxEnd = others.reduce((max, t) => {
     const mins = timeToMinutes(t.horaFin);
     return mins > timeToMinutes(max) ? t.horaFin : max;
-  }, JORNADA_INICIO);
+  }, jornadaInicio);
   return maxEnd;
 };
 
@@ -149,10 +143,11 @@ function TimeSelect({ value, onChange, slots, isDarkGantt }) {
 }
 
 /** Barra de timeline visual — estilo Gantt premium */
-function TimelineBar({ occupiedBlocks, horaInicio, horaFin, isDarkGantt }) {
-  const OFFSET = timeToMinutes(JORNADA_INICIO); // 510
+function TimelineBar({ occupiedBlocks, horaInicio, horaFin, isDarkGantt, jInicio, jFin }) {
+  const OFFSET = timeToMinutes(jInicio);
+  const totalMin = timeToMinutes(jFin) - OFFSET;
   const clamp  = (v) => Math.max(0, Math.min(100, v));
-  const toPercent = (t) => clamp(((timeToMinutes(t) - OFFSET) / JORNADA_TOTAL_MIN) * 100);
+  const toPercent = (t) => clamp(((timeToMinutes(t) - OFFSET) / (totalMin || 600)) * 100);
 
   const selLeft  = toPercent(horaInicio);
   const selWidth = Math.max(0, toPercent(horaFin) - selLeft);
@@ -167,8 +162,10 @@ function TimelineBar({ occupiedBlocks, horaInicio, horaFin, isDarkGantt }) {
 
   // Marcas de hora: 09, 10, 11 … 18 (cada hora completa dentro de la jornada)
   const hourTicks = [];
-  for (let h = 9; h <= 18; h++) {
-    const pct = clamp(((h * 60 - OFFSET) / JORNADA_TOTAL_MIN) * 100);
+  const startH = Math.ceil(timeToMinutes(jInicio) / 60);
+  const endH   = Math.floor(timeToMinutes(jFin) / 60);
+  for (let h = startH; h <= endH; h++) {
+    const pct = clamp(((h * 60 - OFFSET) / (totalMin || 600)) * 100);
     hourTicks.push({ h, pct });
   }
 
@@ -268,12 +265,12 @@ function TimelineBar({ occupiedBlocks, horaInicio, horaFin, isDarkGantt }) {
               {String(h).padStart(2, '0')}
             </span>
           ))}
-          {/* Etiquetas 08:30 y 18:30 fijas */}
+          {/* Etiquetas inicio y fin fijas */}
           <span className={`absolute text-[8px] font-mono top-0 left-0 ${isDarkGantt ? 'text-gray-600' : 'text-gray-300'}`}>
-            08
+            {jInicio.split(':')[0]}
           </span>
           <span className={`absolute text-[8px] font-mono top-0 right-0 translate-x-1/2 ${isDarkGantt ? 'text-gray-600' : 'text-gray-300'}`}>
-            18
+            {jFin.split(':')[0]}
           </span>
         </div>
       </div>
@@ -289,15 +286,21 @@ export function CellPopoverForm({
   prefilledDate,
   prefilledResource,
   existingTasks = [],
+  tecnicos = []
 }) {
   const { isDarkGantt } = useTheme();
   const [morning, setMorning]   = useState('');
   const [colorAM, setColorAM]   = useState('');
   const [estadoAM, setEstadoAM] = useState('Pendiente');
 
+  // Buscar el tecnico para extraer las horas dinámicas
+  const _tec = tecnicos.find(t => t.id === prefilledResource);
+  const userJInicio = (_tec && _tec.hora_ingreso) ? _tec.hora_ingreso.substring(0, 5) : '08:30';
+  const userJFin    = (_tec && _tec.hora_salida)  ? _tec.hora_salida.substring(0, 5)  : '18:30';
+
   // Rango horario
-  const [horaInicio, setHoraInicio] = useState(JORNADA_INICIO);
-  const [horaFin,    setHoraFin]    = useState(JORNADA_FIN);
+  const [horaInicio, setHoraInicio] = useState(userJInicio);
+  const [horaFin,    setHoraFin]    = useState(userJFin);
 
   const [isSubmitting, setIsSubmitting]     = useState(false);
   const [activeColorPicker, setActiveColorPicker] = useState(null);
@@ -341,7 +344,7 @@ export function CellPopoverForm({
     if (!isOpen) return;
 
     // Calcular bloques ocupados en el momento de la apertura
-    const blocks = buildOccupiedBlocks(existingTasks, event?.rowId);
+    const blocks = buildOccupiedBlocks(existingTasks, event?.rowId, userJInicio);
 
     // --- Función auxiliar: obtener primer tramo libre válido ---
     const getFirstFreeSlot = () => {
@@ -349,7 +352,7 @@ export function CellPopoverForm({
       const sorted = [...blocks].sort(
         (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start)
       );
-      let cursor = JORNADA_INICIO;
+      let cursor = userJInicio;
       for (const blk of sorted) {
         if (timeToMinutes(blk.start) > timeToMinutes(cursor)) break; // hay hueco antes de este bloque
         if (timeToMinutes(blk.end) > timeToMinutes(cursor)) cursor = blk.end;
@@ -363,7 +366,7 @@ export function CellPopoverForm({
       const nextBlock = blocks
         .filter(b => timeToMinutes(b.start) > inicioMins)
         .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))[0];
-      return nextBlock ? nextBlock.start : JORNADA_FIN;
+      return nextBlock ? nextBlock.start : userJFin;
     };
 
     if (event) {
@@ -371,7 +374,7 @@ export function CellPopoverForm({
       setColorAM(event.colorAM || event.color || '');
       setEstadoAM(event.estadoAM || 'Pendiente');
       setHoraInicio(event.horaInicio || getFirstFreeSlot());
-      setHoraFin(event.horaFin || JORNADA_FIN);
+      setHoraFin(event.horaFin || userJFin);
     } else {
       setMorning('');
       setColorAM('');
@@ -386,16 +389,16 @@ export function CellPopoverForm({
 
   // ── Datos calculados para la UI ──
   const occupiedBlocks = useMemo(
-    () => buildOccupiedBlocks(existingTasks, event?.rowId),
-    [existingTasks, event?.rowId]
+    () => buildOccupiedBlocks(existingTasks, event?.rowId, userJInicio),
+    [existingTasks, event?.rowId, userJInicio]
   );
 
   const suggestedStart = useMemo(
-    () => computeSuggestedStart(existingTasks, event?.rowId),
-    [existingTasks, event?.rowId]
+    () => computeSuggestedStart(existingTasks, event?.rowId, userJInicio),
+    [existingTasks, event?.rowId, userJInicio]
   );
 
-  const isJornadaFull = timeToMinutes(suggestedStart) >= timeToMinutes(JORNADA_FIN);
+  const isJornadaFull = timeToMinutes(suggestedStart) >= timeToMinutes(userJFin);
 
   // ── Slots de hora con filtrado inteligente (excluye rangos ocupados) ──
 
@@ -417,13 +420,13 @@ export function CellPopoverForm({
     const next = occupiedBlocks
       .filter(b => timeToMinutes(b.start) > inicioMins)
       .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))[0];
-    return next ? timeToMinutes(next.start) : timeToMinutes(JORNADA_FIN);
+    return next ? timeToMinutes(next.start) : timeToMinutes(userJFin);
   })();
 
   // Slots inicio: excluye horas dentro de un bloque ocupado
   const horaInicioSlots = TIME_SLOTS.filter(t => {
-    if (timeToMinutes(t) >= timeToMinutes(JORNADA_FIN)) return false;
-    return !isInsideOccupied(t);
+    if (timeToMinutes(t) >= timeToMinutes(userJFin)) return false;
+    return !isInsideOccupied(t) && timeToMinutes(t) >= timeToMinutes(userJInicio);
   });
 
   // Slots fin: > horaInicio y sin sobrepasar el siguiente bloque ocupado
@@ -704,6 +707,8 @@ export function CellPopoverForm({
               horaInicio={horaInicio}
               horaFin={horaFin}
               isDarkGantt={isDarkGantt}
+              jInicio={userJInicio}
+              jFin={userJFin}
             />
 
             {/* Info de disponibilidad */}
@@ -711,7 +716,7 @@ export function CellPopoverForm({
               <p className={`text-[9px] font-medium ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
                 Próximo tiempo libre:{' '}
                 <span className={`font-bold ${isDarkGantt ? 'text-blue-400' : 'text-blue-600'}`}>
-                  {suggestedStart} → {JORNADA_FIN}
+                  {suggestedStart} → {userJFin}
                 </span>
               </p>
             )}

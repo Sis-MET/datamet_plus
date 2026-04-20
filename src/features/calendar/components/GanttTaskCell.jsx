@@ -117,7 +117,9 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
             rowId: task.rowId,
             morning: task.morning,
             colorAM: task.colorAM,
-            estadoAM: task.estadoAM
+            estadoAM: task.estadoAM,
+            horaInicio: task.horaInicio,
+            horaFin: task.horaFin
           });
           e.dataTransfer.setData('application/json', dragData);
           e.dataTransfer.effectAllowed = 'copyMove';
@@ -133,20 +135,38 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         style={{ touchAction: 'none' }}
-        className={`w-full mt-0.5 h-8 border rounded-md overflow-hidden text-[10px] shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in select-none ${
+        className={`w-full mt-0.5 min-h-[40px] border rounded-md overflow-hidden shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in select-none ${
           isDarkGantt
             ? 'border-white/10 text-white hover:ring-white/30'
             : 'border-white/20 text-white hover:ring-black/20'
         }`}
       >
         <div
-          className={`flex-1 flex flex-col justify-center px-1.5 relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''}`}
+          className={`flex-1 flex flex-col justify-center px-1.5 py-1 relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''}`}
           style={task.morning && task.colorAM ? { backgroundColor: task.colorAM } : {}}
         >
           {task.morning && task.colorAM && <div className={`absolute inset-0 pointer-events-none opacity-50 bg-gradient-to-b ${isDarkGantt ? 'from-white/10 to-transparent' : 'from-white/20 to-transparent'}`} />}
           {task.morning && (
-            <div className="flex items-center gap-1.5 relative z-10 w-full">
-              <span className="line-clamp-1 break-all font-bold leading-none">{task.morning}</span>
+            <div className="flex items-start gap-1.5 relative z-10 w-full overflow-hidden">
+              <div 
+                className={`w-2 h-2 rounded-full shrink-0 mt-[4px] animate-pulse ${
+                  task.estadoAM === 'Completado' ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :
+                  task.estadoAM === 'Cancelado' ? 'bg-red-400 shadow-[0_0_5px_rgba(248,113,113,0.8)]' :
+                  task.estadoAM === 'Reprogramado' ? 'bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]' :
+                  'bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.8)]'
+                }`}
+                title={task.estadoAM || 'Pendiente'}
+              />
+              <div className="flex flex-col flex-1 min-w-0 justify-center h-full">
+                <span className="line-clamp-1 break-all font-bold text-xs leading-tight" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                  {task.morning}
+                </span>
+                {(task.horaInicio || task.horaFin) && (
+                  <span className="text-[10px] text-white/90 leading-tight truncate font-bold font-mono tracking-tight mt-[1px]" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                    {task.horaInicio || '08:30'} {task.horaFin ? `→ ${task.horaFin}` : ''}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -192,11 +212,12 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
             </div>
           </div>
 
-          {(task.author || task.timestampUpdated) && (
+          {(task.author || task.timestampUpdated || task.creadoEn) && (
             <div className={`mt-4 pt-3 border-t ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
               <p className={`text-[9px] font-mono tracking-wide leading-tight ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
                 {task.author && <span>Actualizado por: <span className={`font-medium ${isDarkGantt ? 'text-gray-300' : 'text-gray-600'}`}>{task.author}</span><br/></span>}
-                {task.timestampUpdated && <span>El {task.timestampUpdated}</span>}
+                {task.timestampUpdated && <span>El {task.timestampUpdated}{task.creadoEn ? <br/> : null}</span>}
+                {task.creadoEn && <span className="mt-1 inline-block">Origen: <span className={`font-bold px-1 rounded-sm ${isDarkGantt ? 'bg-[#10b981]/20 text-[#10b981]' : 'bg-[#10b981]/10 text-emerald-600'}`}>{task.creadoEn}</span></span>}
               </p>
             </div>
           )}
