@@ -214,7 +214,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
 
           {(task.author || task.timestampUpdated || task.creadoEn) && (
             <div className={`mt-4 pt-3 border-t ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
-              <p className={`text-[9px] font-mono tracking-wide leading-tight ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+              <p className={`text-[10px] font-mono tracking-wide leading-tight ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
                 {task.author && <span>Actualizado por: <span className={`font-medium ${isDarkGantt ? 'text-gray-300' : 'text-gray-600'}`}>{task.author}</span><br/></span>}
                 {task.timestampUpdated && <span>El {task.timestampUpdated}{task.creadoEn ? <br/> : null}</span>}
                 {task.creadoEn && <span className="mt-1 inline-block">Origen: <span className={`font-bold px-1 rounded-sm ${isDarkGantt ? 'bg-[#10b981]/20 text-[#10b981]' : 'bg-[#10b981]/10 text-emerald-600'}`}>{task.creadoEn}</span></span>}
