@@ -8,7 +8,7 @@ import { HexColorPicker } from 'react-colorful';
 import { safeStorage } from '../../../shared/utils/storage';
 import { useTheme } from '../../../shared/context/ThemeContext';
 import { CotizacionAutocomplete } from './CotizacionAutocomplete';
-
+import { createBitrixDeal } from '../utils/bitrixService';
 const PRESET_COLORS = [
   '#dadd12ff', '#1d2e8fff', '#424242ff', '#ce1515ff', '#621fceff', '#44bfefff'
 ];
@@ -482,6 +482,25 @@ export function CellPopoverForm({
         horaFin,
         lastModified: event ? (event.timestampUpdated || null) : null,
       });
+
+      // === INTEGRACIÓN BITRIX24 ===
+      // Si estamos creando una nueva actividad (o también puedes hacerlo al editar si le quitas el if)
+      if (!event) {
+        try {
+          await createBitrixDeal({
+            morning: morning.trim().toUpperCase(),
+            tecnico: prefilledResource?.replace(/_/g, ' '),
+            fecha: prefilledDate ? format(prefilledDate, 'yyyy-MM-dd') : '',
+            horaInicio,
+            horaFin,
+          });
+          sileo.success({ description: 'Actividad enviada a Bitrix24 exitosamente.' });
+        } catch (bitrixErr) {
+          // No bloqueamos el flujo principal si falla Bitrix, pero avisamos al usuario
+          sileo.error({ description: 'La actividad se guardó localmente pero falló el envío a Bitrix24.' });
+        }
+      }
+      
     } catch (err) {
       // Mostrar el error recibido del backend
       const msg = err?.message || 'Error al guardar. Intente nuevamente.';
