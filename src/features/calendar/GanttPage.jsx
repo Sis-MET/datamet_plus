@@ -5,6 +5,7 @@ import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
 import { GanttRow } from './components/GanttRow';
 import { GanttLegend } from './components/GanttLegend';
+import { GanttHelpButton } from './components/GanttHelpButton';
 import { useTheme } from '../../shared/context/ThemeContext';
 
 /**
@@ -275,6 +276,9 @@ export function GanttPage({
 
       {/* ── Leyenda ── */}
       <GanttLegend />
+
+      {/* ── Botón de ayuda flotante ── */}
+      <GanttHelpButton />
     </div>
   );
 }
