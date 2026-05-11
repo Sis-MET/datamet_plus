@@ -134,7 +134,7 @@ export function EventFormModal({
 
             {/* Texto Libre */}
             <div className="space-y-1 pt-2">
-              <label className="text-sm font-medium text-gray-300">Actividad / Cliente</label>
+              <label className="text-sm font-medium text-gray-300">Tarea / Cliente</label>
               <textarea 
                 name="text" 
                 value={formData.text} 

@@ -10,6 +10,33 @@ import { useTheme } from '../../../shared/context/ThemeContext';
 const MAX_TASKS_PER_CELL = 4;
 
 /**
+ * Calcula si el texto debe ser oscuro o claro según el color de fondo.
+ * Usa la fórmula de luminancia relativa (WCAG 2.1).
+ * @param {string} hexColor - Color en formato #RRGGBB o #RGB
+ * @returns {{ text: string, textSecondary: string, shadow: string }}
+ */
+function getContrastColors(hexColor) {
+  if (!hexColor) return { text: '#ffffff', textSecondary: 'rgba(255,255,255,0.85)', shadow: '0 1px 2px rgba(0,0,0,0.4)' };
+  // Normalizar a #RRGGBB
+  let hex = hexColor.replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length !== 6) return { text: '#ffffff', textSecondary: 'rgba(255,255,255,0.85)', shadow: '0 1px 2px rgba(0,0,0,0.4)' };
+  const r = parseInt(hex.substring(0, 2), 16) / 255;
+  const g = parseInt(hex.substring(2, 4), 16) / 255;
+  const b = parseInt(hex.substring(4, 6), 16) / 255;
+  // Linearizar canales
+  const toLinear = (c) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  const L = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+  // Umbral: > 0.35 = fondo claro → texto oscuro
+  const isDark = L > 0.35;
+  return {
+    text: isDark ? '#1a1a1a' : '#ffffff',
+    textSecondary: isDark ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.85)',
+    shadow: isDark ? '0 1px 1px rgba(255,255,255,0.3)' : '0 1px 2px rgba(0,0,0,0.4)',
+  };
+}
+
+/**
  * Hook de long-press: dispara onLongPress tras `delay` ms de presion sostenida.
  * Cancela si el dedo se mueve mas de 10px (scroll). Solo actua en touch/pen.
  */
@@ -137,39 +164,50 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
         style={{ touchAction: 'none' }}
         className={`w-full mt-0.5 min-h-[40px] border rounded-md overflow-hidden shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in select-none ${
           isDarkGantt
-            ? 'border-white/10 text-white hover:ring-white/30'
-            : 'border-white/20 text-white hover:ring-black/20'
+            ? 'border-white/10 hover:ring-white/30'
+            : 'border-white/20 hover:ring-black/20'
         }`}
       >
-        <div
-          className={`flex-1 flex flex-col justify-center px-1.5 py-1 relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''}`}
-          style={task.morning && task.colorAM ? { backgroundColor: task.colorAM } : {}}
-        >
-          {task.morning && task.colorAM && <div className={`absolute inset-0 pointer-events-none opacity-50 bg-gradient-to-b ${isDarkGantt ? 'from-white/10 to-transparent' : 'from-white/20 to-transparent'}`} />}
-          {task.morning && (
-            <div className="flex items-start gap-1.5 relative z-10 w-full overflow-hidden">
-              <div 
-                className={`w-2 h-2 rounded-full shrink-0 mt-[4px] animate-pulse ${
-                  task.estadoAM === 'Completado' ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :
-                  task.estadoAM === 'Cancelado' ? 'bg-red-400 shadow-[0_0_5px_rgba(248,113,113,0.8)]' :
-                  task.estadoAM === 'Reprogramado' ? 'bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]' :
-                  'bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.8)]'
-                }`}
-                title={task.estadoAM || 'Pendiente'}
-              />
-              <div className="flex flex-col flex-1 min-w-0 justify-center h-full">
-                <span className="line-clamp-1 break-all font-bold text-xs leading-tight" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-                  {task.morning}
-                </span>
-                {(task.horaInicio || task.horaFin) && (
-                  <span className="text-[10px] text-white/90 leading-tight truncate font-bold font-mono tracking-tight mt-[1px]" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-                    {task.horaInicio || '08:30'} {task.horaFin ? `→ ${task.horaFin}` : ''}
-                  </span>
-                )}
-              </div>
+        {(() => {
+          const contrast = getContrastColors(task.colorAM);
+          return (
+            <div
+              className={`flex-1 flex flex-col justify-center px-1.5 py-1 relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''}`}
+              style={task.morning && task.colorAM ? { backgroundColor: task.colorAM } : {}}
+            >
+              {task.morning && task.colorAM && <div className={`absolute inset-0 pointer-events-none opacity-40 bg-gradient-to-b from-white/20 to-transparent`} />}
+              {task.morning && (
+                <div className="flex items-start gap-1.5 relative z-10 w-full overflow-hidden">
+                  <div 
+                    className={`w-2 h-2 rounded-full shrink-0 mt-[4px] animate-pulse ${
+                      task.estadoAM === 'Completado' ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :
+                      task.estadoAM === 'Cancelado' ? 'bg-red-400 shadow-[0_0_5px_rgba(248,113,113,0.8)]' :
+                      task.estadoAM === 'Reprogramado' ? 'bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]' :
+                      'bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.8)]'
+                    }`}
+                    title={task.estadoAM || 'Pendiente'}
+                  />
+                  <div className="flex flex-col flex-1 min-w-0 justify-center h-full">
+                    <span
+                      className="line-clamp-1 break-all font-bold text-xs leading-tight"
+                      style={{ color: task.colorAM ? contrast.text : undefined, textShadow: contrast.shadow }}
+                    >
+                      {task.morning}
+                    </span>
+                    {(task.horaInicio || task.horaFin) && (
+                      <span
+                        className="text-[10px] leading-tight truncate font-bold font-mono tracking-tight mt-[1px]"
+                        style={{ color: task.colorAM ? contrast.textSecondary : undefined, textShadow: contrast.shadow }}
+                      >
+                        {task.horaInicio || '08:30'} {task.horaFin ? `→ ${task.horaFin}` : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
       </div>
 
       {/* Tooltip por tarjeta - portalled */}
@@ -198,10 +236,10 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: task.colorAM || '#37A65F' }} />
               <div className="flex-1">
                 <div className="flex justify-between items-center mb-0.5">
-                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Actividad</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Tarea</p>
                   {task.morning && <span className={getStateBadgeClass(task.estadoAM)}>{task.estadoAM || 'Pendiente'}</span>}
                 </div>
-                <p className={`text-sm font-medium break-words leading-snug ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{task.morning || '(Sin actividad)'}</p>
+                <p className={`text-sm font-medium break-words leading-snug ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{task.morning || '(Sin tarea)'}</p>
                 {/* Rango horario */}
                 {task.horaFin && (
                   <p className={`text-[12px] font-mono mt-1.5 ${isDarkGantt ? 'text-blue-400/80' : 'text-blue-600/80'}`}>
@@ -366,7 +404,7 @@ export function GanttTaskCell({
             'bg-[#10b981] hover:bg-[#059669] text-white',
             'shadow-[0_2px_8px_rgba(16,185,129,0.5)] hover:shadow-[0_3px_12px_rgba(16,185,129,0.7)]'
           )}
-          title={`Agregar tarea (${validTasks.length}/${MAX_TASKS_PER_CELL})`}
+          title={`Agregar Tarea (${validTasks.length}/${MAX_TASKS_PER_CELL})`}
         >
           <span className="text-[12px] font-bold leading-none">+</span>
         </div>
@@ -382,7 +420,7 @@ export function GanttTaskCell({
               ? 'bg-white/10 text-white/40 ring-1 ring-white/15'
               : 'bg-gray-200 text-gray-400 ring-1 ring-gray-300'
           )}
-          title={`Máximo de fichas alcanzado (${MAX_TASKS_PER_CELL}/${MAX_TASKS_PER_CELL})`}
+          title={`Máximo de tareas alcanzado (${MAX_TASKS_PER_CELL}/${MAX_TASKS_PER_CELL})`}
         >
           <span className="text-[9px] font-bold leading-none">✕</span>
         </div>

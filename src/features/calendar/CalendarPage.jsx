@@ -144,7 +144,7 @@ export function CalendarPage() {
       if (!text || (typeof text === 'object' && !text.morning && !text.afternoon) || (typeof text === 'string' && text.trim() === '')) {
         sileo.success({ description: "Celda limpiada correctamente." });
       } else {
-        sileo.success({ description: "Actividad guardada correctamente." });
+        sileo.success({ description: "Tarea guardada correctamente." });
       }
     } catch (err) {
       const isConcurrencyError = err.message?.includes('Otro usuario') || err.message?.includes('otro proceso');
@@ -182,7 +182,7 @@ export function CalendarPage() {
          }
      }
 
-     sileo.success({ description: "Borrando ficha...", duration: 500 }); 
+     sileo.success({ description: "Borrando tarea...", duration: 500 }); 
      try {
        const dateObj = new Date(date);
        await upsertScheduleCell(dateObj, resourceId, {
@@ -210,9 +210,9 @@ export function CalendarPage() {
 
        await new Promise(r => setTimeout(r, 400));
        if (typeof refetch === 'function') refetch();
-       sileo.success({ description: "Ficha eliminada" });
+       sileo.success({ description: "Tarea eliminada" });
      } catch (err) {
-       sileo.error({ description: err.message || "Error al borrar ficha" });
+       sileo.error({ description: err.message || "Error al borrar tarea" });
      }
   };
 
@@ -247,7 +247,7 @@ export function CalendarPage() {
           
           await new Promise(r => setTimeout(r, 400));
           if (typeof refetch === 'function') refetch();
-          sileo.success({ description: "Actividad movida correctamente." });
+          sileo.success({ description: "Tarea movida correctamente." });
         } else {
           // Copia Normal: Crea un nuevo rowId
           await upsertScheduleCell(targetDateObj, targetResource, {
@@ -261,10 +261,10 @@ export function CalendarPage() {
 
           await new Promise(r => setTimeout(r, 400));
           if (typeof refetch === 'function') refetch();
-          sileo.success({ description: "Actividad copiada correctamente." });
+          sileo.success({ description: "Tarea copiada correctamente." });
         }
       } catch (err) {
-        sileo.error({ description: err.message || "Error al procesar la actividad" });
+        sileo.error({ description: err.message || "Error al procesar la tarea" });
       }
     };
 
@@ -287,7 +287,7 @@ export function CalendarPage() {
         description: (
           <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
             <span className="text-[13px] text-gray-600 leading-snug">
-              Vas a {isMoveKey ? "mover" : "copiar"} esta ficha a <strong className="font-semibold text-gray-800">{targetName}</strong>. ¿Estás seguro?
+              Vas a {isMoveKey ? "mover" : "copiar"} esta tarea a <strong className="font-semibold text-gray-800">{targetName}</strong>. ¿Estás seguro?
             </span>
             <div className="flex items-center gap-2">
               <div
@@ -377,7 +377,7 @@ export function CalendarPage() {
          if (existingTask) {
             const isSource = sourceCells.find(src => src.id === existingTask.id);
             if (!isSource) {
-               if (existingTask.morning?.trim() && existingTask.morning !== sc.morning) collision = { date: destDate, res: sc.Tecnico, part: 'Actividad' };
+               if (existingTask.morning?.trim() && existingTask.morning !== sc.morning) collision = { date: destDate, res: sc.Tecnico, part: 'Tarea' };
             }
          }
          destinationCells.push({ originCell: sc, destDate });
@@ -391,7 +391,7 @@ export function CalendarPage() {
          });
       }
 
-      sileo.success({ description: `Moviendo ${sourceCells.length} ficha(s)...`, duration: 4000 });
+      sileo.success({ description: `Moviendo ${sourceCells.length} tarea(s)...`, duration: 4000 });
       try {
          for (const sCell of sourceCells) {
             await upsertScheduleCell(sCell.fecha, sCell.Tecnico, {
@@ -412,7 +412,7 @@ export function CalendarPage() {
          }
 
          if (typeof refetch === 'function') refetch();
-         sileo.success({ description: `Fichas reprogramadas exitosamente.` });
+         sileo.success({ description: `Tareas reprogramadas exitosamente.` });
       } catch (e) {
          sileo.error({ description: `Error al reprogramar: ${e.message}` });
          if (typeof refetch === 'function') refetch();
@@ -437,7 +437,7 @@ export function CalendarPage() {
          description: (
             <form onSubmit={onSubmit} className="flex flex-col gap-3 mt-2" onPointerDown={e => e.stopPropagation()}>
                <p className="text-[13px] text-gray-600 leading-snug">
-                  Se reprogramarán las fichas vinculadas de la semana actual.
+                  Se reprogramarán las tareas vinculadas de la semana actual.
                </p>
                <input 
                  type="date" 
@@ -601,7 +601,7 @@ export function CalendarPage() {
             description: (
               <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
                 <span className="text-[13px] text-gray-600 leading-snug">
-                  <strong className="font-semibold text-gray-800">{targetName}</strong> ya está ocupando <strong className="font-semibold text-gray-800">{techVehicleWarning.vehicleName}</strong> para la actividad <strong className="font-semibold text-gray-800">"{techVehicleWarning.activity}"</strong> el {format(techVehicleWarning.date, 'EEEE d', { locale: es })}. ¿Deseas asignarle también este vehículo?
+                  <strong className="font-semibold text-gray-800">{targetName}</strong> ya está ocupando <strong className="font-semibold text-gray-800">{techVehicleWarning.vehicleName}</strong> para la tarea <strong className="font-semibold text-gray-800">"{techVehicleWarning.activity}"</strong> el {format(techVehicleWarning.date, 'EEEE d', { locale: es })}. ¿Deseas asignarle también este vehículo?
                 </span>
                 <div className="flex items-center gap-2">
                   <div
@@ -736,7 +736,7 @@ export function CalendarPage() {
            className="fixed z-[9999] pointer-events-none px-2.5 py-1.5 rounded-md bg-blue-600/90 text-white text-[11px] font-bold shadow-lg flex items-center gap-1.5 transition-opacity"
            style={{ left: dragPos.x + 15, top: dragPos.y + 15 }}
          >
-           <ArrowRightLeft className="w-3.5 h-3.5" /> Mover Ficha
+           <ArrowRightLeft className="w-3.5 h-3.5" /> Mover Tarea
          </div>
       )}
 
@@ -818,7 +818,7 @@ export function CalendarPage() {
                 className={`w-full text-left px-3 py-2 flex items-center gap-2 text-[11px] font-semibold transition-colors mb-0.5 ${isDarkGantt ? 'text-red-500 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'}`}
                 onClick={(e) => { e.stopPropagation(); handleDeleteTask(contextMenu.task, contextMenu.date, contextMenu.resourceId); }}
               >
-                 <Trash2 className="w-3.5 h-3.5" /> Eliminar Ficha
+                 <Trash2 className="w-3.5 h-3.5" /> Eliminar Tarea
               </button>
            </div>
          </>

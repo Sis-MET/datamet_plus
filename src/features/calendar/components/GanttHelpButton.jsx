@@ -11,20 +11,20 @@ import { useTheme } from '../../../shared/context/ThemeContext';
 
 const HELP_SECTIONS = [
   {
-    id: 'actividades',
-    label: 'Actividades',
+    id: 'tareas',
+    label: 'Tareas',
     Icon: ClipboardList,
     color: 'blue',
     items: [
       {
         Icon: MousePointer2,
         action: 'Click en celda vacía',
-        description: 'Abre el formulario para crear una nueva actividad en esa fecha y técnico.',
+        description: 'Abre el formulario para crear una nueva tarea en esa fecha y técnico.',
       },
       {
         Icon: Pencil,
-        action: 'Click en una ficha',
-        description: 'Abre el formulario para editar los datos de esa actividad.',
+        action: 'Click en una Tarea',
+        description: 'Abre el formulario para editar los datos de esa tarea.',
       },
     ],
   },
@@ -36,22 +36,22 @@ const HELP_SECTIONS = [
     items: [
       {
         Icon: MousePointer2,
-        action: 'Click derecho en una ficha',
-        description: 'Despliega el menú rápido: cambiar estado, asignar vehículo o eliminar la ficha.',
+        action: 'Click derecho en una Tarea',
+        description: 'Despliega el menú rápido: cambiar estado, asignar vehículo o eliminar la tarea.',
         highlight: true,
       },
     ],
   },
   {
     id: 'mover',
-    label: 'Mover ficha',
+    label: 'Mover Tarea',
     Icon: ArrowLeftRight,
     color: 'green',
     items: [
       {
         Icon: Keyboard,
-        action: 'Ctrl + Arrastrar ficha',
-        description: 'Mantén presionado Ctrl, haz clic y arrastra la ficha a otra celda para moverla.',
+        action: 'Ctrl + Arrastrar Tarea',
+        description: 'Mantén presionado Ctrl, haz clic y arrastra la tarea a otra celda para moverla.',
         kbd: ['Ctrl', 'Drag'],
         highlight: true,
       },
@@ -59,14 +59,14 @@ const HELP_SECTIONS = [
   },
   {
     id: 'copiar',
-    label: 'Copiar ficha',
+    label: 'Copiar Tarea',
     Icon: Copy,
     color: 'amber',
     items: [
       {
         Icon: GripHorizontal,
         action: 'Arrastrar a otro técnico',
-        description: 'Arrastra una ficha hacia otro técnico para copiar la actividad al destino.',
+        description: 'Arrastra una Tarea hacia otro técnico para copiar la Tarea al destino.',
         highlight: true,
       },
     ],

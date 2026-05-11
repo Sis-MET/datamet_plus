@@ -1,6 +1,6 @@
 // src/features/calendar/utils/bitrixService.js
 //
-// ⚠️  INTEGRACIÓN BITRIX24 — SUSPENDIDA TEMPORALMENTE
+//     INTEGRACIÓN BITRIX24 — SUSPENDIDA TEMPORALMENTE
 //     Pendiente de definición de lineamientos.
 //     Para reactivar, descomenta todo el bloque a continuación.
 // ─────────────────────────────────────────────────────────────────────────────

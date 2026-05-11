@@ -454,7 +454,7 @@ export function CellPopoverForm({
 
     // ── Validaciones previas al envío ──
     if (!morning.trim()) {
-      sileo.error({ description: 'Debe ingresar al menos una actividad.' });
+      sileo.error({ description: 'Debe ingresar al menos una tarea.' });
       return;
     }
     if (timeToMinutes(horaFin) <= timeToMinutes(horaInicio)) {
@@ -463,7 +463,7 @@ export function CellPopoverForm({
     }
     if (hasOverlap()) {
       sileo.error({
-        description: `El rango ${horaInicio}–${horaFin} se superpone con una actividad ya registrada. Por favor elige un tramo libre.`,
+        description: `El rango ${horaInicio}–${horaFin} se superpone con una tarea ya registrada. Por favor elige un tramo libre.`,
       });
       return;
     }
@@ -579,7 +579,7 @@ export function CellPopoverForm({
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-2">
                   <label className={`text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Actividad
+                    Tarea
                   </label>
                   <button
                     type="button"
@@ -589,7 +589,7 @@ export function CellPopoverForm({
                         ? 'text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300'
                         : 'text-red-600 bg-red-50 hover:bg-red-100'
                     }`}
-                    title="Limpiar Ficha"
+                    title="Limpiar Tarea"
                   >
                     <Trash2 className="w-3 h-3" /> Limpiar
                   </button>

@@ -206,7 +206,7 @@ export function SidebarWidgets({
                       </div>
                     )}
                     {!hasMorning && !hasAfternoon && (
-                      <p className="text-[10px] text-gray-600 italic">Sin actividad registrada</p>
+                      <p className="text-[10px] text-gray-600 italic">Sin tarea registrada</p>
                     )}
                   </div>
                 </div>
