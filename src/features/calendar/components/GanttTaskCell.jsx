@@ -356,18 +356,19 @@ export function GanttTaskCell({
         <div
           onClick={(e) => { e.stopPropagation(); onTaskClick(null, date, resourceId); }}
           className={cn(
-            'absolute bottom-0.5 right-0.5 rounded-md flex items-center justify-center cursor-pointer z-10 transition-all duration-150 select-none',
-            // Desktop (hover disponible): w-5 h-5, invisible hasta hover
-            'w-5 h-5 opacity-0 group-hover:opacity-100',
-            // Touch (sin hover): w-7 h-7 siempre visible al 80%
-            '[@media(hover:none)]:opacity-80 [@media(hover:none)]:w-7 [@media(hover:none)]:h-7',
-            isDarkGantt
-              ? 'bg-white/15 hover:bg-white/30 text-white/80 hover:text-white'
-              : 'bg-black/10 hover:bg-black/25 text-gray-700 hover:text-gray-900'
+            'absolute bottom-0.5 right-0.5 rounded-md flex items-center justify-center cursor-pointer z-10 select-none',
+            'transition-all duration-200 ease-out',
+            // Desktop: oculto hasta hover, aparece con escala
+            'w-5 h-5 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100',
+            // Touch (sin hover): siempre visible
+            '[@media(hover:none)]:opacity-100 [@media(hover:none)]:scale-100 [@media(hover:none)]:w-7 [@media(hover:none)]:h-7',
+            // Estilo sólido y visible
+            'bg-[#10b981] hover:bg-[#059669] text-white',
+            'shadow-[0_2px_8px_rgba(16,185,129,0.5)] hover:shadow-[0_3px_12px_rgba(16,185,129,0.7)]'
           )}
-          title={`Agregar ficha (${validTasks.length}/${MAX_TASKS_PER_CELL})`}
+          title={`Agregar tarea (${validTasks.length}/${MAX_TASKS_PER_CELL})`}
         >
-          <span className="text-[11px] font-bold leading-none">+</span>
+          <span className="text-[12px] font-bold leading-none">+</span>
         </div>
       )}
 
@@ -375,13 +376,15 @@ export function GanttTaskCell({
       {!canAddMore && onTaskClick && (
         <div
           className={cn(
-            'absolute bottom-1 right-1 w-4 h-4 rounded flex items-center justify-center',
-            'opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10 cursor-default',
-            isDarkGantt ? 'bg-white/5 text-white/30' : 'bg-black/5 text-gray-400'
+            'absolute bottom-0.5 right-0.5 w-5 h-5 rounded-md flex items-center justify-center',
+            'opacity-0 group-hover:opacity-100 transition-all duration-150 z-10 cursor-default',
+            isDarkGantt
+              ? 'bg-white/10 text-white/40 ring-1 ring-white/15'
+              : 'bg-gray-200 text-gray-400 ring-1 ring-gray-300'
           )}
           title={`Máximo de fichas alcanzado (${MAX_TASKS_PER_CELL}/${MAX_TASKS_PER_CELL})`}
         >
-          <span className="text-[8px] font-bold leading-none">✕</span>
+          <span className="text-[9px] font-bold leading-none">✕</span>
         </div>
       )}
     </div>
