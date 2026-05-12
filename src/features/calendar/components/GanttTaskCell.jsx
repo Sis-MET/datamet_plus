@@ -194,6 +194,14 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
                     >
                       {task.morning}
                     </span>
+                    {task.descripcion && (
+                      <span
+                        className="line-clamp-1 break-all text-[10px] leading-tight mt-[1px] opacity-80"
+                        style={{ color: task.colorAM ? contrast.textSecondary : undefined, textShadow: contrast.shadow }}
+                      >
+                        {task.descripcion}
+                      </span>
+                    )}
                     {(task.horaInicio || task.horaFin) && (
                       <span
                         className="text-[10px] leading-tight truncate font-bold font-mono tracking-tight mt-[1px]"
@@ -236,10 +244,16 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: task.colorAM || '#37A65F' }} />
               <div className="flex-1">
                 <div className="flex justify-between items-center mb-0.5">
-                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Tarea</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Cotización</p>
                   {task.morning && <span className={getStateBadgeClass(task.estadoAM)}>{task.estadoAM || 'Pendiente'}</span>}
                 </div>
-                <p className={`text-sm font-medium break-words leading-snug ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{task.morning || '(Sin tarea)'}</p>
+                <p className={`text-sm font-semibold break-words leading-snug font-mono ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{task.morning || '(Sin tarea)'}</p>
+                {/* Descripción */}
+                {task.descripcion && (
+                  <p className={`text-xs mt-1 break-words leading-snug ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {task.descripcion}
+                  </p>
+                )}
                 {/* Rango horario */}
                 {task.horaFin && (
                   <p className={`text-[12px] font-mono mt-1.5 ${isDarkGantt ? 'text-blue-400/80' : 'text-blue-600/80'}`}>

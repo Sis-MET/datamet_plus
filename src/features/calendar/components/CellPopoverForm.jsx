@@ -290,9 +290,10 @@ export function CellPopoverForm({
   tecnicos = []
 }) {
   const { isDarkGantt } = useTheme();
-  const [morning, setMorning]   = useState('');
-  const [colorAM, setColorAM]   = useState('');
-  const [estadoAM, setEstadoAM] = useState('Pendiente');
+  const [morning, setMorning]         = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [colorAM, setColorAM]         = useState('');
+  const [estadoAM, setEstadoAM]       = useState('Pendiente');
 
   // Buscar el tecnico para extraer las horas dinámicas
   const _tec = tecnicos.find(t => t.id === prefilledResource);
@@ -372,12 +373,14 @@ export function CellPopoverForm({
 
     if (event) {
       setMorning(event.morning || '');
+      setDescripcion(event.descripcion || '');
       setColorAM(event.colorAM || event.color || '');
       setEstadoAM(event.estadoAM || 'Pendiente');
       setHoraInicio(event.horaInicio || getFirstFreeSlot());
       setHoraFin(event.horaFin || userJFin);
     } else {
       setMorning('');
+      setDescripcion('');
       setColorAM('');
       setEstadoAM('Pendiente');
       const freeStart = getFirstFreeSlot();
@@ -454,7 +457,7 @@ export function CellPopoverForm({
 
     // ── Validaciones previas al envío ──
     if (!morning.trim()) {
-      sileo.error({ description: 'Debe ingresar al menos una tarea.' });
+      sileo.error({ description: 'Debe ingresar al menos una cotización.' });
       return;
     }
     if (timeToMinutes(horaFin) <= timeToMinutes(horaInicio)) {
@@ -473,7 +476,11 @@ export function CellPopoverForm({
       saveToRecent(colorAM);
       await onSave(prefilledDate, prefilledResource, {
         rowId: event ? event.rowId : null,
-        morning: morning.trim().toUpperCase(),
+        // cotizacion: campo principal (ex-descripcion)
+        cotizacion: morning.trim().toUpperCase(),
+        morning: morning.trim().toUpperCase(), // compatibilidad backward
+        // descripcion: campo libre adicional
+        descripcion: descripcion.trim(),
         afternoon: '',
         colorAM,
         colorPM: colorAM,
@@ -517,7 +524,9 @@ export function CellPopoverForm({
     try {
       await onSave(prefilledDate, prefilledResource, {
         rowId: event ? event.rowId : null,
+        cotizacion: '',
         morning: '', afternoon: '', colorAM: '', colorPM: '',
+        descripcion: '',
         estadoAM: null, estadoPM: null,
         turno: '', horaDuracion: '',
       });
@@ -574,22 +583,24 @@ export function CellPopoverForm({
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
 
           {/* ── Actividad ── */}
-          <div className="space-y-4 pt-1">
+          <div className="space-y-3 pt-1">
+
+            {/* ── Fila 1: Cotización (autocompletado) + Color ── */}
             <div className="flex items-start gap-3">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-2">
                   <label className={`text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Tarea
+                    Cotización o Tarea Asignada
                   </label>
                   <button
                     type="button"
-                    onClick={() => { setMorning(''); setColorAM(''); }}
+                    onClick={() => { setMorning(''); setDescripcion(''); setColorAM(''); }}
                     className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
                       isDarkGantt
                         ? 'text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300'
                         : 'text-red-600 bg-red-50 hover:bg-red-100'
                     }`}
-                    title="Limpiar Tarea"
+                    title="Limpiar campos"
                   >
                     <Trash2 className="w-3 h-3" /> Limpiar
                   </button>
@@ -599,12 +610,13 @@ export function CellPopoverForm({
                     key={event?.rowId ?? 'new'}
                     value={morning}
                     onChange={setMorning}
-                    placeholder="EJ: 260001.COT01 · EMBOL"
+                    onDescripcionChange={setDescripcion}
+                    placeholder="EJ: 260001.COT01"
                     isDarkGantt={isDarkGantt}
                   />
 
                   {/* Color Picker */}
-                  <div className="relative" ref={colorPickerRefAM}>
+                  <div className="relative shrink-0" ref={colorPickerRefAM}>
                     <button
                       type="button"
                       onClick={() => setActiveColorPicker(activeColorPicker === 'am' ? null : 'am')}
@@ -661,6 +673,32 @@ export function CellPopoverForm({
                 </div>
               </div>
             </div>
+
+            {/* ── Fila 2: Descripción (texto libre adicional) ── */}
+            <div>
+              <label className={`text-[10px] font-bold uppercase tracking-widest block mb-2 ${
+                isDarkGantt ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                Descripción <span className={`normal-case font-normal text-[9px] ${
+                  isDarkGantt ? 'text-gray-600' : 'text-gray-400'
+                }`}>(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Detalles adicionales..."
+                maxLength={200}
+                spellCheck={false}
+                className={cn(
+                  'w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all shadow-inner',
+                  isDarkGantt
+                    ? 'bg-[#111111] border-white/5 text-gray-200 placeholder-gray-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'
+                )}
+              />
+            </div>
+
           </div>
 
           {/* ── Separador ── */}

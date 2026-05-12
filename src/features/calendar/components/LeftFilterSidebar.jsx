@@ -145,7 +145,12 @@ export function LeftFilterSidebar({
                       <div key={i} className="flex items-start gap-2.5">
                         <div className={`w-2 h-2 rounded-full shrink-0 mt-[5px] animate-pulse`} style={{ backgroundColor: task.colorAM || '#10B981' }} />
                         <div className="flex flex-col flex-1 min-w-0">
-                          <p className={`text-xs font-bold truncate leading-tight ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>{task.morning}</p>
+                          <p className={`text-xs font-bold truncate leading-tight font-mono ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>{task.morning}</p>
+                          {task.descripcion && (
+                            <p className={`text-[10px] truncate leading-tight mt-0.5 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+                              {task.descripcion}
+                            </p>
+                          )}
                           {(task.horaInicio || task.horaFin) && (
                             <p className={`text-[10px] font-mono font-semibold leading-none mt-1 opacity-80 ${isDarkGantt ? 'text-blue-300' : 'text-blue-600'}`}>
                               {task.horaInicio || '08:30'} {task.horaFin ? `→ ${task.horaFin}` : ''}

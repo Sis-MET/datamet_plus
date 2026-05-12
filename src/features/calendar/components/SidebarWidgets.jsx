@@ -56,6 +56,7 @@ export function SidebarWidgets({
         client: key,
         morning: evt.morning || '',
         afternoon: evt.afternoon || '',
+        descripcion: evt.descripcion || '',
         colorAM: evt.colorAM || '',
         colorPM: evt.colorPM || '',
         estadoAM: evt.estadoAM || 'Pendiente',
@@ -66,6 +67,7 @@ export function SidebarWidgets({
       if (!tecnicoMap[key].morning && evt.morning) {
          tecnicoMap[key].morning = evt.morning;
          tecnicoMap[key].estadoAM = evt.estadoAM || 'Pendiente';
+         if (!tecnicoMap[key].descripcion && evt.descripcion) tecnicoMap[key].descripcion = evt.descripcion;
       }
       if (!tecnicoMap[key].afternoon && evt.afternoon) {
          tecnicoMap[key].afternoon = evt.afternoon;
@@ -183,11 +185,14 @@ export function SidebarWidgets({
                               className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white/20"
                               style={{ backgroundColor: evt.colorAM || '#10B981' }}
                             />
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Mañana</span>
+                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Cotización</span>
                           </div>
                           <span className={getStateBadgeClass(evt.estadoAM)}>{evt.estadoAM || 'Pendiente'}</span>
                         </div>
-                        <p className="text-[11px] text-gray-300 font-medium leading-tight pl-3.5">{evt.morning}</p>
+                        <p className="text-[11px] text-gray-300 font-semibold font-mono leading-tight pl-3.5">{evt.morning}</p>
+                        {evt.descripcion && (
+                          <p className="text-[10px] text-gray-500 leading-tight pl-3.5 mt-0.5">{evt.descripcion}</p>
+                        )}
                       </div>
                     )}
                     {hasAfternoon && (

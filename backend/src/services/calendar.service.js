@@ -16,6 +16,7 @@ const getSchedule = async (start, end) => {
         id_usuario,
         usuario,
         CONVERT(varchar, fecha, 23) as fecha,
+        cotizacion,
         descripcion,
         turno,
         color,
@@ -82,14 +83,15 @@ const getTecnicos = async () => {
  * Cada fila = 1 actividad independiente.
  * 
  * - Si rowId es null  → INSERT nueva fila
- * - Si rowId existe y descripcion vacía → DELETE esa fila
- * - Si rowId existe y hay descripcion   → UPDATE esa fila
+ * - Si rowId existe y cotizacion vacía → DELETE esa fila
+ * - Si rowId existe y hay cotizacion   → UPDATE esa fila
  */
 const upsertScheduleCell = async (data) => {
   const pool = getPool();
   const { date, resource, payload } = data;
   
-  const descripcion  = payload ? (payload.morning || payload.descripcion || '') : '';
+  const cotizacion   = payload ? (payload.cotizacion || payload.morning || '') : '';
+  const descripcion  = payload ? (payload.descripcion || '') : '';
   const turno        = payload ? (payload.turno   || '')  : '';
   const color        = payload ? (payload.color   || payload.colorAM || '#10B981') : '#10B981';
   const estado       = payload ? (payload.estado  || payload.estadoAM || 'Pendiente') : 'Pendiente';
@@ -147,7 +149,8 @@ const upsertScheduleCell = async (data) => {
     .input('id_us',   sql.Int,      id_usuario)
     .input('usr',     sql.VarChar,  usuario_nombre)
     .input('f',       sql.Date,     date)
-    .input('desc',    sql.NVarChar, descripcion)
+    .input('cot',     sql.NVarChar, cotizacion)
+    .input('desc',    sql.NVarChar, descripcion || null)
     .input('trn',     sql.NVarChar, turno)
     .input('col',     sql.VarChar,  color)
     .input('est',     sql.NVarChar, estado)
@@ -159,7 +162,7 @@ const upsertScheduleCell = async (data) => {
   if (!rowId) {
     // ── INSERT nuevo ──
     // Prevenir inserción de filas vacías
-    if (!descripcion.trim()) {
+    if (!cotizacion.trim()) {
       return { status: 'ignored_empty_insert' };
     }
 
@@ -193,10 +196,10 @@ const upsertScheduleCell = async (data) => {
 
     await upsertReq.query(`
       INSERT INTO DATA_CRONOGRAMA
-        (id_usuario, usuario, fecha, descripcion, turno, color, estado, hora_inicio, hora_fin,
+        (id_usuario, usuario, fecha, cotizacion, descripcion, turno, color, estado, hora_inicio, hora_fin,
          creado_por, fecha_creacion, hora_creacion, creado_en)
       VALUES
-        (@id_us, @usr, @f, @desc, @trn, @col, @est,
+        (@id_us, @usr, @f, @cot, @desc, @trn, @col, @est,
          CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
          CASE WHEN @hfin    IS NULL OR @hfin    = '' THEN NULL ELSE CAST(@hfin    AS time(7)) END,
          @autor,
@@ -225,8 +228,8 @@ const upsertScheduleCell = async (data) => {
     return { status: 'ignored_not_found', resource };
   }
 
-  // Si descripcion vacía → DELETE
-  if (!descripcion.trim()) {
+  // Si cotizacion vacía → DELETE
+  if (!cotizacion.trim()) {
     await upsertReq.query(`DELETE FROM DATA_CRONOGRAMA WHERE id = @row_id`);
     return { status: 'deleted', resource };
   }
@@ -288,7 +291,8 @@ const upsertScheduleCell = async (data) => {
   // ── UPDATE ──
   const result = await upsertReq.query(`
     UPDATE DATA_CRONOGRAMA
-    SET descripcion        = @desc,
+    SET cotizacion         = @cot,
+        descripcion        = @desc,
         turno              = @trn,
         color              = @col,
         estado             = @est,

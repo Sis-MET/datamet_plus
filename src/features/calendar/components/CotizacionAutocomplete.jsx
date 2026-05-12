@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MapPin } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 
 const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
@@ -7,19 +7,23 @@ const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${
 /**
  * Input de autocompletado para cotizaciones.
  * Busca en /api/cotizaciones/search?q=... con debounce de 300ms.
- * Al seleccionar, construye el label: "260001.COT01 | EMBOL S.A. - EL ALTO"
- * También permite texto libre (compatible con valores legacy).
+ * Al seleccionar:
+ *   - El valor guardado es SOLO el código: "260001.COT01"
+ *   - La planta se envía a `onDescripcionChange` (pre-rellena el campo descripción)
+ *   - El cliente se muestra como ayuda visual bajo el input (NO se guarda)
  *
- * @param {string}   value        - Valor controlado (texto actual del campo)
- * @param {Function} onChange     - Callback al cambiar el valor
- * @param {string}   placeholder  - Placeholder del input
- * @param {boolean}  isDarkGantt  - Tema oscuro/claro
- * @param {string}   className    - Clases adicionales para el input
+ * @param {string}   value                 - Valor controlado (código de cotización)
+ * @param {Function} onChange              - Callback al cambiar el valor del código
+ * @param {Function} onDescripcionChange  - Callback para pre-rellenar la descripción con la planta
+ * @param {string}   placeholder          - Placeholder del input
+ * @param {boolean}  isDarkGantt          - Tema oscuro/claro
+ * @param {string}   className            - Clases adicionales para el input
  */
 export function CotizacionAutocomplete({
   value,
   onChange,
-  placeholder = 'EJ: 260001.COT01 · EMBOL',
+  onDescripcionChange,
+  placeholder = 'EJ: 260001.COT01',
   isDarkGantt = true,
   className = '',
 }) {
@@ -27,12 +31,16 @@ export function CotizacionAutocomplete({
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  // Cliente seleccionado — ayuda visual bajo el input (no se persiste)
+  const [clienteHint, setClienteHint] = useState('');
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Sincronizar si el padre cambia el valor (ej: botón "Limpiar" o "Copiar a Tarde")
+  // Sincronizar si el padre cambia el valor (ej: botón "Limpiar" o edición de tarea)
   useEffect(() => {
     setQuery(value || '');
+    // Si el padre limpia el valor, también limpiamos el hint del cliente
+    if (!value) setClienteHint('');
   }, [value]);
 
   // Cerrar dropdown al hacer click fuera del componente
@@ -77,6 +85,7 @@ export function CotizacionAutocomplete({
     const text = e.target.value.toUpperCase();
     setQuery(text);
     onChange(text); // actualiza el padre de inmediato (texto libre)
+    setClienteHint(''); // al tipear manualmente, limpiamos el hint del cliente
 
     clearTimeout(debounceRef.current);
     if (text.length >= 2) {
@@ -91,14 +100,20 @@ export function CotizacionAutocomplete({
 
   const handleSelect = (item) => {
     const clienteLabel = (item.nombre_cliente || '').trim().toUpperCase();
-    const plantaLabel  = (item.nombre_planta  || '').trim().toUpperCase();
-    // Formato: "260001.COT01 | EMBOL S.A. - EL ALTO"
-    const combined = plantaLabel
-      ? `${item.cod_cotizacion} | ${clienteLabel} - ${plantaLabel}`
-      : `${item.cod_cotizacion} | ${clienteLabel}`;
+    const plantaLabel  = (item.nombre_planta  || '').trim();
 
-    setQuery(combined);
-    onChange(combined);
+    // Valor guardado en cotizacion: SOLO el código
+    const code = item.cod_cotizacion;
+
+    setQuery(code);
+    onChange(code);
+
+    // La planta va al campo "descripción" (editable por el usuario)
+    if (onDescripcionChange) onDescripcionChange(plantaLabel);
+
+    // El cliente se muestra como ayuda visual bajo el input (no se guarda)
+    setClienteHint(clienteLabel);
+
     setSuggestions([]);
     setShowDropdown(false);
   };
@@ -143,6 +158,18 @@ export function CotizacionAutocomplete({
           </div>
         )}
       </div>
+
+      {/* Pista visual del CLIENTE — solo informativo, no se guarda */}
+      {clienteHint && (
+        <div className="flex items-center gap-1 mt-1 px-1">
+          <span className={cn(
+            'text-[10px] font-semibold truncate',
+            isDarkGantt ? 'text-gray-500' : 'text-gray-400'
+          )}>
+            {clienteHint}
+          </span>
+        </div>
+      )}
 
       {/* Dropdown de sugerencias */}
       {showDropdown && suggestions.length > 0 && (
@@ -190,9 +217,9 @@ export function CotizacionAutocomplete({
                     </span>
                   )}
                 </div>
-                {/* Fila 2: Cliente + Planta */}
+                {/* Fila 2: Cliente (negrita) + Planta (secundaria, solo visual) */}
                 {(clienteLabel || plantaLabel) && (
-                  <div className="flex items-center gap-1 mt-0.5">
+                  <div className="flex items-center gap-1.5 mt-0.5">
                     {clienteLabel && (
                       <span className={cn(
                         'text-xs font-semibold truncate',
@@ -201,16 +228,17 @@ export function CotizacionAutocomplete({
                         {clienteLabel}
                       </span>
                     )}
-                    {clienteLabel && plantaLabel && (
-                      <span className={cn('text-[10px]', isDarkGantt ? 'text-gray-600' : 'text-gray-400')}>—</span>
-                    )}
                     {plantaLabel && (
-                      <span className={cn(
-                        'text-xs truncate',
-                        isDarkGantt ? 'text-gray-500' : 'text-gray-500'
-                      )}>
-                        {plantaLabel}
-                      </span>
+                      <>
+                        <span className={cn('text-[10px]', isDarkGantt ? 'text-gray-600' : 'text-gray-400')}>·</span>
+                        <span className={cn(
+                          'flex items-center gap-0.5 text-[10px] truncate',
+                          isDarkGantt ? 'text-gray-500' : 'text-gray-400'
+                        )}>
+                          <MapPin className="w-2.5 h-2.5 shrink-0" />
+                          {plantaLabel}
+                        </span>
+                      </>
                     )}
                   </div>
                 )}

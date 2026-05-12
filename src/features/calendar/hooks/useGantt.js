@@ -108,7 +108,9 @@ export function useGantt() {
             rowId: row.id,
             Tecnico: resourceId,
             fecha: rowDate,
-            morning: row.descripcion || '',
+            // cotizacion es el campo principal (antes: descripcion)
+            morning: row.cotizacion || row.descripcion || '',
+            descripcion: row.descripcion || '',
             turno: row.turno || '',
             colorAM: row.color || '#37A65F',
             estadoAM: row.estado || 'Pendiente',
@@ -169,7 +171,10 @@ export function useGantt() {
         }
 
         payloadObj = {
-           morning:      payload.morning      || '',
+           cotizacion:   payload.cotizacion   || payload.morning || '',
+           descripcion:  payload.descripcion  || '',
+           // morning se mantiene para compatibilidad con el backend (fallback)
+           morning:      payload.cotizacion   || payload.morning || '',
            turno:        '',
            colorAM:      payload.colorAM      || '',
            estadoAM:     payload.estadoAM     || 'Pendiente',
