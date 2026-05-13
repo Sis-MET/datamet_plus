@@ -491,7 +491,6 @@ export function CellPopoverForm({
         lastModified: event ? (event.timestampUpdated || null) : null,
       });
 
-      // ⚠️  INTEGRACIÓN BITRIX24 — SUSPENDIDA TEMPORALMENTE (pendiente de lineamientos)
       // === INTEGRACIÓN BITRIX24 ===
       // Si estamos creando una nueva actividad (o también puedes hacerlo al editar si le quitas el if)
       // if (!event) {
@@ -509,7 +508,7 @@ export function CellPopoverForm({
       //     sileo.error({ description: 'La actividad se guardó localmente pero falló el envío a Bitrix24.' });
       //   }
       // }
-      
+
     } catch (err) {
       // Mostrar el error recibido del backend
       const msg = err?.message || 'Error al guardar. Intente nuevamente.';

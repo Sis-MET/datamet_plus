@@ -43,7 +43,7 @@
   .gantt-scroll-container {
     @apply rounded-2xl border border-gray-700/50 shadow-2xl;
     overflow: auto;
-    max-height: calc(100vh - 200px);
+    max-height: calc(100dvh - 160px);
     background: #1a1a1d;
   }
 
@@ -346,13 +346,10 @@
 }
 
 @media (max-width: 1023px) {
-  /* Reducimos el tamaño base de fuente para que todos los
-     tamaños rem de Tailwind (text-sm, text-xs, etc.) encogen */
   html {
-    font-size: 87.5%; /* 14px en vez de 16px */
+    font-size: 87.5%;
   }
 
-  /* ── Clases custom del Gantt (usan px fijos, deben sobreescribirse) ── */
   .gantt-tecnico-name  { font-size: 11px !important; }
   .gantt-tecnico-cargo { font-size: 9px  !important; }
   .gantt-task-chip     { font-size: 9px  !important; }
@@ -362,6 +359,19 @@
   .gantt-name-col      { min-width: 130px; max-width: 130px; }
   .gantt-day-header-cell, .gantt-cell { min-width: 90px; width: 90px; }
 
-  /* ── Header de la app ── */
   .gantt-mock-badge { font-size: 9px !important; }
+}
+
+/* ── Portrait muy angosto (< 480px): celdas más compactas ── */
+@media (max-width: 479px) {
+  .gantt-name-col      { min-width: 110px; max-width: 110px; }
+  .gantt-day-header-cell, .gantt-cell { min-width: 72px; width: 72px; }
+  .gantt-day-number    { font-size: 13px !important; }
+}
+
+/* ── Landscape móvil: permitir scroll vertical completo ── */
+@media (orientation: landscape) and (max-height: 600px) {
+  .gantt-scroll-container {
+    max-height: calc(100dvh - 100px) !important;
+  }
 }

@@ -102,7 +102,7 @@ export function GanttPage({
     <div>
       {/* ── Controles de Semana y Recarga ── */}
       {currentWeekStart && (
-        <div className="flex items-center gap-2 mb-2 px-0.5">
+        <div className="flex flex-wrap items-center gap-2 mb-2 px-0.5">
           <button
             onClick={goToCurrentWeek}
             className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden border ${isDarkGantt ? 'text-gray-300 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-gray-700 hover:text-gray-900 bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
