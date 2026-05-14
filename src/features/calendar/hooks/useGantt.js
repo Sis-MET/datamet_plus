@@ -95,6 +95,8 @@ export function useGantt() {
 
           // row.fecha viene como YYYY-MM-DD
           const rowDate = new Date(row.fecha + 'T12:00:00');
+          
+          if (row.estado && row.estado.toLowerCase() === 'anulado') return null;
 
           let formattedTimestamp = '';
           if (row.fecha_modificacion) {
@@ -103,9 +105,14 @@ export function useGantt() {
              formattedTimestamp = `${row.fecha_creacion} ${row.hora_creacion || ''}`.trim();
           }
 
+          let mappedEstado = row.estado || 'Pendiente';
+          if (mappedEstado.toLowerCase() === 'solicitud') mappedEstado = 'Pendiente';
+          if (mappedEstado.toLowerCase() === 'aceptación' || mappedEstado.toLowerCase() === 'aceptacion') mappedEstado = 'Completado';
+
           return {
             id: `task_${row.id}`,
             rowId: row.id,
+            id_usuario: row.id_usuario,
             Tecnico: resourceId,
             fecha: rowDate,
             // cotizacion es el campo principal (antes: descripcion)
@@ -113,7 +120,7 @@ export function useGantt() {
             descripcion: row.descripcion || '',
             turno: row.turno || '',
             colorAM: row.color || '#37A65F',
-            estadoAM: row.estado || 'Pendiente',
+            estadoAM: mappedEstado,
             horaInicio: row.hora_inicio ? row.hora_inicio.substring(0, 5) : '',
             horaFin:    row.hora_fin    ? row.hora_fin.substring(0, 5)    : '',
             author: row.actualizado_por || row.creado_por || '',

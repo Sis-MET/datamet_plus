@@ -32,6 +32,7 @@ const getSchedule = async (start, end) => {
         CONVERT(varchar, hora_modificacion, 8) as hora_modificacion
       FROM DATA_CRONOGRAMA
       WHERE fecha >= @start AND fecha <= @end
+        AND ISNULL(estado, '') <> 'Anulado'
     `);
 
   return result.recordset;
@@ -228,9 +229,16 @@ const upsertScheduleCell = async (data) => {
     return { status: 'ignored_not_found', resource };
   }
 
-  // Si cotizacion vacía → DELETE
+  // Si cotizacion vacía → Cambiar estado a 'Anulado' en vez de eliminar
   if (!cotizacion.trim()) {
-    await upsertReq.query(`DELETE FROM DATA_CRONOGRAMA WHERE id = @row_id`);
+    await upsertReq.query(`
+      UPDATE DATA_CRONOGRAMA 
+      SET estado = 'Anulado',
+          actualizado_por = @autor,
+          fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
+          hora_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
+      WHERE id = @row_id
+    `);
     return { status: 'deleted', resource };
   }
 

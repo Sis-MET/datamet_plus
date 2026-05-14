@@ -116,6 +116,70 @@ export function CalendarPage() {
     isSameMonth,
   } = useCalendar(tasks);
 
+  const isPastDate = (date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() < today.getTime();
+  };
+
+  const canModifyTask = (date) => {
+    if (isDev) return true; // Dev puede todo
+    if (!isAdmin) return false; // Normales no pueden
+    if (isPastDate(date)) return false; // Admins no pueden editar pasado
+    return true;
+  };
+
+  // Alerta de tareas pasadas pendientes del usuario
+  React.useEffect(() => {
+    if (!user || !user.id || !tasks || tasks.length === 0) return;
+    
+    // Buscar tareas pendientes de fechas pasadas para el usuario logueado
+    const pastPendingTasks = tasks.filter(t => {
+       if (t.estadoAM !== 'Pendiente' && t.estadoAM !== 'En Proceso') return false;
+       if (!isPastDate(t.fecha)) return false;
+       // El ID del usuario en DATA_USERS está en user.id. El id_usuario de la tarea está en t.id_usuario.
+       return String(t.id_usuario) === String(user.id);
+    });
+
+    if (pastPendingTasks.length > 0) {
+      // Tomamos la primera para la alerta
+      const alertTask = pastPendingTasks[0];
+      const taskDateStr = format(alertTask.fecha, "EEEE d 'de' MMMM", { locale: es });
+      
+      sileo.action({
+        title: "Tareas Pendientes Atrasadas",
+        duration: 20000,
+        description: (
+          <div className="flex flex-col gap-2 mt-1">
+            <span className="text-[13px] text-gray-700">
+              Tienes la tarea <strong>{alertTask.morning}</strong> del {taskDateStr} que aún está como pendiente. Por favor, actualiza su estado.
+            </span>
+            <button 
+              onClick={() => {
+                sileo.clear();
+                goToDate(alertTask.fecha);
+                setContextMenu({
+                  visible: true, 
+                  x: window.innerWidth / 2 - 90, 
+                  y: window.innerHeight / 2, 
+                  task: alertTask, 
+                  date: alertTask.fecha, 
+                  resourceId: alertTask.Tecnico, 
+                  showVehicles: false
+                });
+              }}
+              className="mt-2 py-1.5 px-3 bg-[#10b981] hover:bg-[#059669] text-white rounded-lg text-xs font-bold transition-colors w-max"
+            >
+              Ir a la Tarea
+            </button>
+          </div>
+        )
+      });
+    }
+  }, [tasks, user, goToDate]);
+
   // ── Auto-Refetch (cada 30 segundos) ──
   React.useEffect(() => {
     const intervalId = setInterval(() => {
@@ -239,6 +303,7 @@ export function CalendarPage() {
           await upsertScheduleCell(targetDateObj, targetResource, {
             rowId: sourceTask.rowId,
             morning: sourceTask.morning,
+            descripcion: sourceTask.descripcion,
             colorAM: sourceTask.colorAM,
             estadoAM: sourceTask.estadoAM,
             horaInicio: sourceTask.horaInicio,
@@ -253,6 +318,7 @@ export function CalendarPage() {
           await upsertScheduleCell(targetDateObj, targetResource, {
             rowId: null,
             morning: sourceTask.morning,
+            descripcion: sourceTask.descripcion,
             colorAM: sourceTask.colorAM,
             estadoAM: sourceTask.estadoAM,
             horaInicio: sourceTask.horaInicio,
@@ -335,6 +401,7 @@ export function CalendarPage() {
       await upsertScheduleCell(dateObj, resourceId, {
          rowId: task.rowId,
          morning: task.morning,
+         descripcion: task.descripcion,
          colorAM: task.colorAM,
          estadoAM: newState,
          horaInicio: task.horaInicio,
@@ -404,6 +471,7 @@ export function CalendarPage() {
             await upsertScheduleCell(destDate, sCell.Tecnico, {
                rowId: null,
                morning: sCell.morning,
+               descripcion: sCell.descripcion,
                colorAM: sCell.colorAM,
                estadoAM: 'Reprogramado',
                horaInicio: sCell.horaInicio,
@@ -565,6 +633,7 @@ export function CalendarPage() {
                      await upsertScheduleCell(dt.date, vehiculo.id, {
                          rowId: null, // Create new row for the vehicle
                          morning: dt.tCell.morning,
+                         descripcion: dt.tCell.descripcion,
                          colorAM: dt.tCell.colorAM,
                          estadoAM: dt.tCell.estadoAM,
                          horaInicio: dt.tCell.horaInicio,
@@ -692,17 +761,46 @@ export function CalendarPage() {
             tasksForCell={tasksForCell}
             isToday={isTodayGantt}
             selectedDay={selectedDay}
-            onTaskClick={isAdmin ? handleOpenForm : undefined}
-            onTaskDrop={isAdmin ? handleTaskDrop : undefined}
+            onTaskClick={isAdmin ? (evt, date, res) => {
+               if (!canModifyTask(date)) {
+                  sileo.error({ description: 'No puedes modificar tareas de fechas pasadas.', duration: 3000 });
+                  return;
+               }
+               handleOpenForm(evt, date, res);
+            } : undefined}
+            onTaskDrop={isAdmin ? (sourceTask, targetDate, targetResource, isMoveKey) => {
+               if (!canModifyTask(targetDate)) {
+                  sileo.error({ description: 'No puedes mover o copiar a fechas pasadas.', duration: 3000 });
+                  return;
+               }
+               if (sourceTask?.sourceDate && !canModifyTask(sourceTask.sourceDate)) {
+                  sileo.error({ description: 'No puedes mover tareas de fechas pasadas.', duration: 3000 });
+                  return;
+               }
+               handleTaskDrop(sourceTask, targetDate, targetResource, isMoveKey);
+            } : undefined}
             onTaskContextMenu={isAdmin ? (e, task, date, res) => {
                e.preventDefault();
+               
+               // Permitir context menu si es una alerta pendiente (la validación del estado se omitirá para cambiar de estado)
+               // En este caso dejamos abrir el context menu, pero si intentan reprogramar (mover), fallará.
+               // Validemos:
+               const isOwnPendingTask = String(task?.id_usuario) === String(user?.id) && (task?.estadoAM === 'Pendiente' || task?.estadoAM === 'En Proceso');
+               
+               if (!canModifyTask(date) && !isOwnPendingTask) {
+                  sileo.error({ description: 'No puedes modificar tareas de fechas pasadas.', duration: 3000 });
+                  return;
+               }
+
                const menuW = 180;
                const menuH = 220;
                const x = e.clientX + menuW > window.innerWidth ? window.innerWidth - menuW - 10 : e.clientX;
                const y = e.clientY + menuH > window.innerHeight ? window.innerHeight - menuH - 10 : e.clientY;
                setContextMenu({ visible: true, x, y, task, date, resourceId: res, showVehicles: false });
             } : undefined}
-            onTaskDragStart={isAdmin ? () => setIsDragging(true) : undefined}
+            onTaskDragStart={isAdmin ? () => {
+               setIsDragging(true);
+            } : undefined}
             onTaskDragEnd={isAdmin ? () => setIsDragging(false) : undefined}
             currentWeekStart={weekStart}
             currentWeekEnd={weekEnd}
