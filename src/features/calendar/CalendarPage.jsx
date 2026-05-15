@@ -4,7 +4,8 @@ import { es } from 'date-fns/locale';
 import {
   ChevronLeft, ChevronRight, LayoutList, Loader2, DatabaseZap, RefreshCw, ArrowRightLeft, Trash2, CheckCircle2, CalendarClock, XCircle, Car
 } from 'lucide-react';
-import { sileo } from 'sileo';
+
+import { toast } from 'sonner';
 
 import { useCalendar } from './hooks/useCalendar';
 import { useGantt } from './hooks/useGantt';
@@ -34,6 +35,9 @@ export function CalendarPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null });
+
+  // Ref para disparar la alerta de tareas pendientes solo una vez por sesión
+  const pendingAlertFiredRef = React.useRef(false);
 
   useEffect(() => {
     const down = (e) => { if (e.key === 'Control') setIsCtrlPressed(true); };
@@ -131,51 +135,64 @@ export function CalendarPage() {
     return true;
   };
 
-  // Alerta de tareas pasadas pendientes del usuario
+  // Alerta de tareas pasadas pendientes del usuario (solo se dispara una vez por sesión)
   React.useEffect(() => {
     if (!user || !user.id || !tasks || tasks.length === 0) return;
+    // Ya se notificó en esta sesión: no volver a molestar al usuario
+    if (pendingAlertFiredRef.current) return;
     
     // Buscar tareas pendientes de fechas pasadas para el usuario logueado
     const pastPendingTasks = tasks.filter(t => {
        if (t.estadoAM !== 'Pendiente' && t.estadoAM !== 'En Proceso') return false;
        if (!isPastDate(t.fecha)) return false;
-       // El ID del usuario en DATA_USERS está en user.id. El id_usuario de la tarea está en t.id_usuario.
        return String(t.id_usuario) === String(user.id);
     });
 
     if (pastPendingTasks.length > 0) {
-      // Tomamos la primera para la alerta
+      pendingAlertFiredRef.current = true; // Marcar como disparado para no repetir
       const alertTask = pastPendingTasks[0];
+      const totalCount = pastPendingTasks.length;
       const taskDateStr = format(alertTask.fecha, "EEEE d 'de' MMMM", { locale: es });
       
-      sileo.action({
-        title: "Tareas Pendientes Atrasadas",
-        duration: 20000,
-        description: (
-          <div className="flex flex-col gap-2 mt-1">
-            <span className="text-[13px] text-gray-700">
-              Tienes la tarea <strong>{alertTask.morning}</strong> del {taskDateStr} que aún está como pendiente. Por favor, actualiza su estado.
-            </span>
-            <button 
-              onClick={() => {
-                sileo.clear();
-                goToDate(alertTask.fecha);
-                setContextMenu({
-                  visible: true, 
-                  x: window.innerWidth / 2 - 90, 
-                  y: window.innerHeight / 2, 
-                  task: alertTask, 
-                  date: alertTask.fecha, 
-                  resourceId: alertTask.Tecnico, 
-                  showVehicles: false
-                });
-              }}
-              className="mt-2 py-1.5 px-3 bg-[#10b981] hover:bg-[#059669] text-white rounded-lg text-xs font-bold transition-colors w-max"
-            >
-              Ir a la Tarea
-            </button>
-          </div>
-        )
+      toast(`Tienes ${totalCount > 1 ? `${totalCount} tareas pendientes atrasadas` : 'una tarea pendiente atrasada'}`, {
+        description: `La más reciente: ${alertTask.morning} del ${taskDateStr}. Por favor, actualiza su estado.`,
+        duration: 12000,
+        action: {
+          label: "Ir a la tarea →",
+          onClick: () => {
+            // Navegar a la semana de la tarea y luego abrir el context menu
+            goToDate(alertTask.fecha);
+            // Pequeño delay para que el Gantt se re-renderice en la semana correcta
+            setTimeout(() => {
+              const taskEl = document.querySelector(`[data-task-id="${alertTask.id}"]`);
+              let x = Math.max(10, window.innerWidth / 2 - 90);
+              let y = Math.max(10, window.innerHeight / 2 - 60);
+
+              if (taskEl) {
+                const rect = taskEl.getBoundingClientRect();
+                // Posicionar justo debajo y centrado horizontalmente
+                x = rect.left + (rect.width / 2);
+                y = rect.bottom + 5;
+              }
+
+              // Prevenir que el menú se salga de los bordes de la ventana
+              const menuW = 180;
+              const menuH = 220;
+              if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 10;
+              if (y + menuH > window.innerHeight) y = window.innerHeight - menuH - 10;
+
+              setContextMenu({
+                visible: true, 
+                x, 
+                y, 
+                task: alertTask, 
+                date: alertTask.fecha, 
+                resourceId: alertTask.Tecnico, 
+                showVehicles: false
+              });
+            }, 400); // 400ms para asegurar que el Gantt haya transicionado la fecha
+          }
+        }
       });
     }
   }, [tasks, user, goToDate]);
@@ -206,15 +223,13 @@ export function CalendarPage() {
       setIsFormOpen(false);
       
       if (!text || (typeof text === 'object' && !text.morning && !text.afternoon) || (typeof text === 'string' && text.trim() === '')) {
-        sileo.success({ description: "Celda limpiada correctamente." });
+        toast.success("Celda limpiada correctamente.");
       } else {
-        sileo.success({ description: "Tarea guardada correctamente." });
+        toast.success("Tarea guardada correctamente.");
       }
     } catch (err) {
       const isConcurrencyError = err.message?.includes('Otro usuario') || err.message?.includes('otro proceso');
-      sileo.error({ 
-        description: err.message || "Error al guardar en el calendario",
-        // Si es error de concurrencia, mostrarlo más tiempo para que el usuario lo lea
+      toast.error(err.message || "Error al guardar en el calendario", { 
         duration: isConcurrencyError ? 8000 : 4000,
       });
       // Solo cerramos el form si NO es un problema de concurrencia
@@ -241,12 +256,12 @@ export function CalendarPage() {
          
          // Permitimos borrar si es el creador original, si el creador fue 'Sistema', o si el usuario actual es un Administrador
          if (authorName && !isMatch && !isSystem && !isAdmin) {
-             sileo.error({ description: `Acceso denegado: Solo el creador original (${task.author}) o un administrador puede borrar esta asignación.`, duration: 6000 });
+             toast.error(`Acceso denegado: Solo el creador original (${task.author}) o un administrador puede borrar esta asignación.`, { duration: 6000 });
              return;
          }
      }
 
-     sileo.success({ description: "Borrando tarea...", duration: 500 }); 
+     toast.success("Borrando tarea...", { duration: 500 }); 
      try {
        const dateObj = new Date(date);
        await upsertScheduleCell(dateObj, resourceId, {
@@ -274,9 +289,9 @@ export function CalendarPage() {
 
        await new Promise(r => setTimeout(r, 400));
        if (typeof refetch === 'function') refetch();
-       sileo.success({ description: "Tarea eliminada" });
+       toast.success("Tarea eliminada");
      } catch (err) {
-       sileo.error({ description: err.message || "Error al borrar tarea" });
+       toast.error(err.message || "Error al borrar tarea");
      }
   };
 
@@ -312,7 +327,7 @@ export function CalendarPage() {
           
           await new Promise(r => setTimeout(r, 400));
           if (typeof refetch === 'function') refetch();
-          sileo.success({ description: "Tarea movida correctamente." });
+          toast.success("Tarea movida correctamente.");
         } else {
           // Copia Normal: Crea un nuevo rowId
           await upsertScheduleCell(targetDateObj, targetResource, {
@@ -327,10 +342,10 @@ export function CalendarPage() {
 
           await new Promise(r => setTimeout(r, 400));
           if (typeof refetch === 'function') refetch();
-          sileo.success({ description: "Tarea copiada correctamente." });
+          toast.success("Tarea copiada correctamente.");
         }
       } catch (err) {
-        sileo.error({ description: err.message || "Error al procesar la tarea" });
+        toast.error(err.message || "Error al procesar la tarea");
       }
     };
 
@@ -339,16 +354,15 @@ export function CalendarPage() {
       const handleConfirm = (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
         executeAction();
-        sileo.clear();
+        toast.dismiss();
       };
 
       const handleCancel = (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
-        sileo.clear();
+        toast.dismiss();
       };
 
-      sileo.action({
-        title: isMoveKey ? "¿Mover a otro técnico?" : "¿Copiar a otro técnico?",
+      toast(isMoveKey ? "¿Mover a otro técnico?" : "¿Copiar a otro técnico?", {
         duration: 10000,
         description: (
           <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
@@ -395,7 +409,7 @@ export function CalendarPage() {
        return handleRescheduleInit(task, date, resourceId);
     }
     
-    sileo.success({ description: `Marcando como ${newState}...`, duration: 500 });
+    toast.success(`Marcando como ${newState}...`, { duration: 500 });
     try {
       const dateObj = new Date(date);
       await upsertScheduleCell(dateObj, resourceId, {
@@ -408,15 +422,15 @@ export function CalendarPage() {
          horaFin: task.horaFin,
          lastModified: task.timestampUpdated || null
       }, false);
-      sileo.success({ description: `Estado actualizado a ${newState}` });
+      toast.success(`Estado actualizado a ${newState}`);
     } catch (err) {
-      sileo.error({ description: err.message || "Error al actualizar estado" });
+      toast.error(err.message || "Error al actualizar estado");
     }
   };
 
   const executeIntelligentReschedule = async (part, serviceStr, sourceTask, oldDate, newDate) => {
       const diffTime = Math.round((newDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffTime === 0) return sileo.success({ description: "No se seleccionó una fecha diferente." });
+      if (diffTime === 0) return toast.success("No se seleccionó una fecha diferente.");
 
       const sourceCells = [];
       const isWithinCurrentWeek = (d) => d >= weekStart && d <= weekEnd;
@@ -452,13 +466,13 @@ export function CalendarPage() {
 
       if (collision) {
          const tecName = tecnicos.find(t => t.id === collision.res)?.nombre || collision.res;
-         return sileo.error({ 
-            description: `Colisión detectada: El ${format(collision.date, 'EEEE d', { locale: es })} hay otro servicio agendado por la ${collision.part} para ${tecName}. Reprogramación cancelada.`,
-            duration: 8000
-         });
+         return toast.error(
+            `Colisión detectada: El ${format(collision.date, 'EEEE d', { locale: es })} hay otro servicio agendado por la ${collision.part} para ${tecName}. Reprogramación cancelada.`,
+            { duration: 8000 }
+         );
       }
 
-      sileo.success({ description: `Moviendo ${sourceCells.length} tarea(s)...`, duration: 4000 });
+      toast.success(`Moviendo ${sourceCells.length} tarea(s)...`, { duration: 4000 });
       try {
          for (const sCell of sourceCells) {
             await upsertScheduleCell(sCell.fecha, sCell.Tecnico, {
@@ -480,9 +494,9 @@ export function CalendarPage() {
          }
 
          if (typeof refetch === 'function') refetch();
-         sileo.success({ description: `Tareas reprogramadas exitosamente.` });
+         toast.success(`Tareas reprogramadas exitosamente.`);
       } catch (e) {
-         sileo.error({ description: `Error al reprogramar: ${e.message}` });
+         toast.error(`Error al reprogramar: ${e.message}`);
          if (typeof refetch === 'function') refetch();
       }
   };
@@ -492,15 +506,16 @@ export function CalendarPage() {
 
       const onSubmit = (e) => {
          e.preventDefault();
-         sileo.clear();
+         toast.dismiss();
          const newDateObj = new Date(selectedDateStr + 'T12:00:00');
          const oldDateNoon = new Date(date);
          oldDateNoon.setHours(12, 0, 0, 0);
          executeIntelligentReschedule(part, serviceStr, task, oldDateNoon, newDateObj);
       };
 
-      sileo.action({
-         title: "Seleccionar nueva fecha",
+      // Limpiar cualquier notificación previa antes de mostrar el formulario
+      toast.dismiss();
+      toast("Seleccionar nueva fecha", {
          duration: 30000,
          description: (
             <form onSubmit={onSubmit} className="flex flex-col gap-3 mt-2" onPointerDown={e => e.stopPropagation()}>
@@ -518,7 +533,7 @@ export function CalendarPage() {
                  <button type="submit" className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors">
                     Continuar
                  </button>
-                 <button type="button" onClick={() => sileo.clear()} className="flex-1 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-bold transition-colors">
+                 <button type="button" onClick={() => toast.dismiss()} className="flex-1 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-bold transition-colors">
                     Cancelar
                  </button>
                </div>
@@ -535,7 +550,7 @@ export function CalendarPage() {
       const { task, date, resourceId } = contextMenu;
       setContextMenu({ ...contextMenu, visible: false, showVehicles: false });
 
-      sileo.clear();
+      toast.dismiss();
       const oldDateNoon = new Date(date);
       oldDateNoon.setHours(12, 0, 0, 0);
       executeIntelligentVehicleAssign('ambos', task.morning, task, oldDateNoon, resourceId, vehiculo);
@@ -590,10 +605,10 @@ export function CalendarPage() {
              if (culprit) conflictMessage = `${culprit.nombre} (${culprit.area})`;
          }
 
-         return sileo.error({
-             description: `Cancelado: El ${format(collision.date, 'EEEE d', { locale: es })} el vehículo ya está en uso ocupando "${collision.service}" asignado por ${conflictMessage}.`,
-             duration: 9000
-         });
+         return toast.error(
+             `Cancelado: El ${format(collision.date, 'EEEE d', { locale: es })} el vehículo ya está en uso ocupando "${collision.service}" asignado por ${conflictMessage}.`,
+             { duration: 9000 }
+         );
       }
 
       // Check for existing vehicle assignment for the SAME technician on the SAME days for DIFFERENT activities
@@ -626,7 +641,7 @@ export function CalendarPage() {
       }
 
       const performAssignment = async () => {
-          sileo.success({ description: `Asignando vehículo en ${associatedDates.length} jornada(s)...`, duration: 4000 });
+          toast.success(`Asignando vehículo en ${associatedDates.length} jornada(s)...`, { duration: 4000 });
           try {
              for (const dt of associatedDates) {
                  if (!tasks.find(t => isSameDay(t.fecha, dt.date) && t.Tecnico === vehiculo.id && t.morning === dt.tCell.morning)) {
@@ -643,9 +658,9 @@ export function CalendarPage() {
              }
              
              if (typeof refetch === 'function') refetch();
-             sileo.success({ description: "Vehículo asignado correctamente." });
+             toast.success("Vehículo asignado correctamente.");
           } catch (err) {
-             sileo.error({ description: `Error al asignar: ${err.message}` });
+             toast.error(`Error al asignar: ${err.message}`);
              if (typeof refetch === 'function') refetch();
           }
       };
@@ -656,16 +671,15 @@ export function CalendarPage() {
           const handleConfirm = (e) => {
               if (e) { e.preventDefault(); e.stopPropagation(); }
               performAssignment();
-              sileo.clear();
+              toast.dismiss();
           };
 
           const handleCancel = (e) => {
               if (e) { e.preventDefault(); e.stopPropagation(); }
-              sileo.clear();
+              toast.dismiss();
           };
 
-          sileo.action({
-            title: "Advertencia de Asignación Múltiple",
+          toast("Advertencia de Asignación Múltiple", {
             duration: 15000,
             description: (
               <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
@@ -763,18 +777,18 @@ export function CalendarPage() {
             selectedDay={selectedDay}
             onTaskClick={isAdmin ? (evt, date, res) => {
                if (!canModifyTask(date)) {
-                  sileo.error({ description: 'No puedes modificar tareas de fechas pasadas.', duration: 3000 });
+                  toast.error('No puedes modificar tareas de fechas pasadas.', { duration: 3000 });
                   return;
                }
                handleOpenForm(evt, date, res);
             } : undefined}
             onTaskDrop={isAdmin ? (sourceTask, targetDate, targetResource, isMoveKey) => {
                if (!canModifyTask(targetDate)) {
-                  sileo.error({ description: 'No puedes mover o copiar a fechas pasadas.', duration: 3000 });
+                  toast.error('No puedes mover o copiar a fechas pasadas.', { duration: 3000 });
                   return;
                }
                if (sourceTask?.sourceDate && !canModifyTask(sourceTask.sourceDate)) {
-                  sileo.error({ description: 'No puedes mover tareas de fechas pasadas.', duration: 3000 });
+                  toast.error('No puedes mover tareas de fechas pasadas.', { duration: 3000 });
                   return;
                }
                handleTaskDrop(sourceTask, targetDate, targetResource, isMoveKey);
@@ -788,7 +802,7 @@ export function CalendarPage() {
                const isOwnPendingTask = String(task?.id_usuario) === String(user?.id) && (task?.estadoAM === 'Pendiente' || task?.estadoAM === 'En Proceso');
                
                if (!canModifyTask(date) && !isOwnPendingTask) {
-                  sileo.error({ description: 'No puedes modificar tareas de fechas pasadas.', duration: 3000 });
+                  toast.error('No puedes modificar tareas de fechas pasadas.', { duration: 3000 });
                   return;
                }
 
@@ -809,7 +823,7 @@ export function CalendarPage() {
             nextWeek={nextWeek}
             onRefetch={() => {
                refetch();
-               sileo.success({ description: "Cronograma actualizado", duration: 1500 });
+               toast.success("Cronograma actualizado", { duration: 1500 });
             }}
             loading={loading}
           />

@@ -123,6 +123,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
   return (
     <>
       <div
+        data-task-id={task.id}
         draggable={!!onTaskDrop}
         {...otherLongPressHandlers}
         onClick={(e) => {

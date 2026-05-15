@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Trash2, Clock, ChevronDown } from 'lucide-react';
-import { sileo } from 'sileo';
+import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -457,17 +457,15 @@ export function CellPopoverForm({
 
     // ── Validaciones previas al envío ──
     if (!morning.trim()) {
-      sileo.error({ description: 'Debe ingresar al menos una cotización.' });
+      toast.error('Debe ingresar al menos una cotización.');
       return;
     }
     if (timeToMinutes(horaFin) <= timeToMinutes(horaInicio)) {
-      sileo.error({ description: 'La hora de fin debe ser posterior a la hora de inicio.' });
+      toast.error('La hora de fin debe ser posterior a la hora de inicio.');
       return;
     }
     if (hasOverlap()) {
-      sileo.error({
-        description: `El rango ${horaInicio}–${horaFin} se superpone con una tarea ya registrada. Por favor elige un tramo libre.`,
-      });
+      toast.error(`El rango ${horaInicio}–${horaFin} se superpone con una tarea ya registrada. Por favor elige un tramo libre.`);
       return;
     }
 
@@ -502,17 +500,17 @@ export function CellPopoverForm({
       //       horaInicio,
       //       horaFin,
       //     });
-      //     sileo.success({ description: 'Actividad enviada a Bitrix24 exitosamente.' });
+      //     toast.success('Actividad enviada a Bitrix24 exitosamente.');
       //   } catch (bitrixErr) {
       //     // No bloqueamos el flujo principal si falla Bitrix, pero avisamos al usuario
-      //     sileo.error({ description: 'La actividad se guardó localmente pero falló el envío a Bitrix24.' });
+      //     toast.error('La actividad se guardó localmente pero falló el envío a Bitrix24.');
       //   }
       // }
 
     } catch (err) {
       // Mostrar el error recibido del backend
       const msg = err?.message || 'Error al guardar. Intente nuevamente.';
-      sileo.error({ description: msg });
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }

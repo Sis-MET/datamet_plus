@@ -1,18 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { Toaster } from 'sileo';
+import { Toaster as SonnerToaster } from 'sonner';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { Header } from './shared/components/layout/Header';
 import { RimFormPage } from './features/rim/RimFormPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
 import { LoginPage } from './features/auth/LoginPage';
 import bgImage from './assets/soporte_tecnico.svg';
 import { safeStorage } from './shared/utils/storage';
-import { ThemeProvider } from './shared/context/ThemeContext';
+import { ThemeProvider, useTheme } from './shared/context/ThemeContext';
 
 // ── Componente interno: puede leer el contexto de tema ──
 function AppContent({ activeView, setActiveView, currentUser, handleLogout, renderView }) {
+  const { isDarkGantt } = useTheme();
+
   return (
     <>
-      <Toaster position="bottom-right" theme="dark" />
+      <SonnerToaster 
+        position="bottom-right" 
+        theme={isDarkGantt ? 'dark' : 'light'}
+        toastOptions={{
+          className: isDarkGantt ? 'border-white/10' : 'border-gray-200',
+          style: {
+            background: isDarkGantt ? 'rgba(22, 22, 28, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            boxShadow: isDarkGantt ? '0 8px 32px rgba(0,0,0,0.6)' : '0 8px 32px rgba(0,0,0,0.15)',
+            color: isDarkGantt ? '#fff' : '#111827',
+          }
+        }}
+        icons={{
+          success: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
+          info: <Info className="w-5 h-5 text-blue-500" />,
+          warning: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+          error: <AlertCircle className="w-5 h-5 text-red-500" />,
+          loading: <Loader2 className="w-5 h-5 animate-spin text-gray-500" />,
+        }}
+      />
       {/* Background layer — siempre oscuro, sin cambios por el tema */}
       <div
         className="fixed inset-0 z-[-1] bg-cover bg-center"
