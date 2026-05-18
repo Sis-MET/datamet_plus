@@ -55,7 +55,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
             <img src={logoMetrica} alt="Métrica LTDA" className="h-8 w-auto object-contain" />
             <div className={`hidden md:block border-l pl-3 ${isDarkGantt ? 'border-white/10' : 'border-gray-300'}`}>
               <h1 className={`text-[15px] font-semibold leading-none tracking-wide ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>
-                {activeView === 'rim' ? 'FORMULARIO RIM' : 'CRONOGRAMA METRICA'}
+                {activeView === 'rim' ? 'FORMULARIO RIM' : activeView === 'departures' ? 'SALIDAS DEL PERSONAL' : 'CRONOGRAMA METRICA'}
               </h1>
             </div>
           </div>
@@ -160,7 +160,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                   }`}
                 >
                   <LayoutGrid className="h-4 w-4" />
-                  <span className="hidden lg:inline">{activeView === 'rim' ? 'Formulario RIM' : 'Calendario'}</span>
+                  <span className="hidden lg:inline">{activeView === 'rim' ? 'Formulario RIM' : activeView === 'departures' ? 'Salidas del Personal' : 'Calendario'}</span>
                   <ChevronDown className={`h-3 w-3 opacity-70 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isDropdownOpen && (
@@ -170,6 +170,9 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                     </button>
                     <button onClick={() => handleViewChange('calendar')} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors ${activeView === 'calendar' ? (isDarkGantt ? 'text-green-400 bg-green-500/10' : 'text-green-600 bg-green-50/50') : (isDarkGantt ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50')}`}>
                       Cronograma Metrica
+                    </button>
+                    <button onClick={() => handleViewChange('departures')} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors ${activeView === 'departures' ? (isDarkGantt ? 'text-purple-400 bg-purple-500/10' : 'text-purple-600 bg-purple-50/50') : (isDarkGantt ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50')}`}>
+                      Salidas del Personal
                     </button>
                   </div>
                 )}
@@ -225,6 +228,9 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                     </button>
                     <button onClick={() => handleViewChange('calendar')} className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${activeView === 'calendar' ? (isDarkGantt ? 'bg-green-500/15 text-green-400' : 'bg-green-50 text-green-600') : (isDarkGantt ? 'text-gray-300 hover:bg-white/8' : 'text-gray-700 hover:bg-gray-100')}`}>
                       <LayoutGrid className="h-3.5 w-3.5 flex-shrink-0" />Cronograma Metrica
+                    </button>
+                    <button onClick={() => handleViewChange('departures')} className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${activeView === 'departures' ? (isDarkGantt ? 'bg-purple-500/15 text-purple-400' : 'bg-purple-50 text-purple-600') : (isDarkGantt ? 'text-gray-300 hover:bg-white/8' : 'text-gray-700 hover:bg-gray-100')}`}>
+                      <LayoutGrid className="h-3.5 w-3.5 flex-shrink-0" />Salidas del Personal
                     </button>
 
                     <div className={`h-px w-full my-1 ${isDarkGantt ? 'bg-white/10' : 'bg-gray-200'}`} />

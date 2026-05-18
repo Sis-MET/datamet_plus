@@ -4,6 +4,7 @@ import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-
 import { Header } from './shared/components/layout/Header';
 import { RimFormPage } from './features/rim/RimFormPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
+import { DeparturesPage } from './features/departures/DeparturesPage';
 import { LoginPage } from './features/auth/LoginPage';
 import bgImage from './assets/soporte_tecnico.svg';
 import { safeStorage } from './shared/utils/storage';
@@ -144,6 +145,8 @@ function App() {
     switch (activeView) {
       case 'calendar':
         return <CalendarPage />;
+      case 'departures':
+        return <DeparturesPage />;
       case 'rim':
       default:
         return <RimFormPage currentUser={currentUser} />;
