@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Truck } from 'lucide-react';
+import { Truck, MapPin } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
 import { useTheme } from '../../../shared/context/ThemeContext';
@@ -83,6 +83,9 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
       case 'Completado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30';
       case 'En Proceso': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30';
       case 'Cancelado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-red-500/20 text-red-400 ring-1 ring-red-500/30';
+      case 'Aprobado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30';
+      case 'Aceptado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30';
+      case 'Solicitud': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/30';
       default: return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/30';
     }
   };
@@ -147,7 +150,8 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
             colorAM: task.colorAM,
             estadoAM: task.estadoAM,
             horaInicio: task.horaInicio,
-            horaFin: task.horaFin
+            horaFin: task.horaFin,
+            creadoEn: task.creadoEn
           });
           e.dataTransfer.setData('application/json', dragData);
           e.dataTransfer.effectAllowed = 'copyMove';
@@ -181,9 +185,9 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
                 <div className="flex items-start gap-1.5 relative z-10 w-full overflow-hidden">
                   <div 
                     className={`w-2 h-2 rounded-full shrink-0 mt-[4px] animate-pulse ${
-                      task.estadoAM === 'Completado' ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :
+                      (task.estadoAM === 'Completado' || task.estadoAM === 'Aprobado') ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :
                       task.estadoAM === 'Cancelado' ? 'bg-red-400 shadow-[0_0_5px_rgba(248,113,113,0.8)]' :
-                      task.estadoAM === 'Reprogramado' ? 'bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]' :
+                      (task.estadoAM === 'Reprogramado' || task.estadoAM === 'Aceptado') ? 'bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]' :
                       'bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.8)]'
                     }`}
                     title={task.estadoAM || 'Pendiente'}
@@ -193,6 +197,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
                       className="line-clamp-1 break-all font-bold text-xs leading-tight"
                       style={{ color: task.colorAM ? contrast.text : undefined, textShadow: contrast.shadow }}
                     >
+                      {task.creadoEn === 'Salida Personal' && <MapPin className="w-3 h-3 inline-block mr-1 opacity-80" />}
                       {task.morning}
                     </span>
                     {task.descripcion && (

@@ -14,6 +14,7 @@ import { CellPopoverForm } from './components/CellPopoverForm';
 import { GanttPage } from './GanttPage';
 import { safeStorage } from '../../shared/utils/storage';
 import { useTheme } from '../../shared/context/ThemeContext';
+import { DepartureReadOnlyModal } from '../departures/components/DepartureReadOnlyModal';
 
 function parseJwt(token) {
   try { return JSON.parse(atob(token.split('.')[1])); }
@@ -25,6 +26,7 @@ export function CalendarPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedArea, setSelectedArea] = useState('Todas');
+  const [selectedDeparture, setSelectedDeparture] = useState(null);
   
   // Guardar la cede de click de la grilla (para nuevas tareas)
   const [prefilledDate, setPrefilledDate] = useState(new Date());
@@ -776,6 +778,10 @@ export function CalendarPage() {
             isToday={isTodayGantt}
             selectedDay={selectedDay}
             onTaskClick={isAdmin ? (evt, date, res) => {
+               if (evt && (evt.creadoEn === 'Salida Personal' || evt.creadoEn === 'SalidaMET')) {
+                 setSelectedDeparture({ task: evt, date, resourceId: res });
+                 return;
+               }
                if (!canModifyTask(date)) {
                   toast.error('No puedes modificar tareas de fechas pasadas.', { duration: 3000 });
                   return;
@@ -783,6 +789,10 @@ export function CalendarPage() {
                handleOpenForm(evt, date, res);
             } : undefined}
             onTaskDrop={isAdmin ? (sourceTask, targetDate, targetResource, isMoveKey) => {
+               if (sourceTask?.creadoEn === 'Salida Personal' || sourceTask?.creadoEn === 'SalidaMET' || sourceTask?.estadoAM === 'Salida Personal') {
+                  toast.error('Las salidas del personal no se pueden mover ni copiar desde el calendario.', { duration: 3000 });
+                  return;
+               }
                if (!canModifyTask(targetDate)) {
                   toast.error('No puedes mover o copiar a fechas pasadas.', { duration: 3000 });
                   return;
@@ -831,16 +841,31 @@ export function CalendarPage() {
       </div>
 
       {/* ══ Modal Flotante de Formulario (Crear/Editar Celda) ══ */}
-      <CellPopoverForm
-        isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        onSave={handleSaveForm}
-        event={editingEvent}
-        prefilledDate={prefilledDate}
-        prefilledResource={prefilledResource}
-        existingTasks={tasksForCell(prefilledResource, prefilledDate)}
-        tecnicos={tecnicos}
-      />
+      {isFormOpen && (
+        <CellPopoverForm
+          isOpen={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          onSave={handleSaveForm}
+          event={editingEvent}
+          prefilledDate={prefilledDate}
+          prefilledResource={prefilledResource}
+          existingTasks={tasksForCell(prefilledResource, prefilledDate)}
+          tecnicos={tecnicos}
+        />
+      )}
+
+      {selectedDeparture && (
+        <DepartureReadOnlyModal
+          task={selectedDeparture.task}
+          date={selectedDeparture.date}
+          resourceName={
+            selectedDeparture.resourceId
+              ? (tecnicos.find(t => t.id === selectedDeparture.resourceId)?.nombre || selectedDeparture.resourceId)
+              : null
+          }
+          onClose={() => setSelectedDeparture(null)}
+        />
+      )}
       
       {/* ── UX Flotantes ── */}
       {isDragging && isCtrlPressed && (

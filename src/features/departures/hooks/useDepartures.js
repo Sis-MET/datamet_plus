@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { safeStorage } from '../../../shared/utils/storage';
 import { API_BASE } from '../../../config/api';
 
-const SOURCE_TAG = 'SalidaMET';
+const SOURCE_TAG = 'Salida Personal';
 
 function getAutorFromToken(token) {
   try {
@@ -95,13 +95,12 @@ export function useDepartures() {
    * @param {Date[]}   params.dates        - Array de fechas seleccionadas
    * @param {string}   params.tipoSalida
    * @param {string}   params.motivo
-   * @param {string}   params.horaInicio
-   * @param {string}   params.horaFin
+   * @param {Object}   params.daySchedules - Objeto con { inicio, fin } por cada fecha
    * @param {string}   params.estado       - 'Solicitud' por defecto
    * @param {string}   params.color
    */
   const saveDeparture = useCallback(async ({
-    tecnicoIds, dates, tipoSalida, motivo, horaInicio, horaFin, estado, color
+    tecnicoIds, dates, tipoSalida, motivo, daySchedules, estado, color
   }) => {
     const token = getToken();
     if (!token) throw new Error('No autenticado');
@@ -114,6 +113,7 @@ export function useDepartures() {
       for (const tecnicoId of tecnicoIds) {
         for (const date of dates) {
           const dateStr = format(date, 'yyyy-MM-dd');
+          const sched = daySchedules && daySchedules[dateStr] ? daySchedules[dateStr] : { inicio: '08:30', fin: '18:30' };
 
           const payloadObj = {
             cotizacion:  tipoSalida,
@@ -121,8 +121,8 @@ export function useDepartures() {
             descripcion: motivo,
             colorAM:     color,
             estadoAM:    estado || 'Solicitud',
-            horaInicio,
-            horaFin,
+            horaInicio:  sched.inicio,
+            horaFin:     sched.fin,
             rowId:       null,         // null = INSERT, no UPDATE
             autor,
             creado_en:   SOURCE_TAG,

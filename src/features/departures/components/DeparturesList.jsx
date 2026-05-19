@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Clock, Loader2, ChevronDown } from 'lucide-react';
@@ -12,8 +13,54 @@ function estadoBadge(estado, dark) {
   switch (estado) {
     case 'Aceptado':  return dark ? 'bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/30'     : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200';
     case 'Aprobado':  return dark ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30' : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
-    default:          return dark ? 'bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/30'  : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200'; // Solicitud
+    default:          return dark ? 'bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/30'  : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200';
   }
+}
+
+/** Dropdown renderizado en document.body vía portal — evita el clipping por backdrop-filter */
+function StateDropdown({ anchorRef, open, onClose, children, isDarkGantt }) {
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+
+  useEffect(() => {
+    if (!open || !anchorRef.current) return;
+
+    const recalc = () => {
+      if (anchorRef.current) {
+        const r = anchorRef.current.getBoundingClientRect();
+        setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+      }
+    };
+
+    recalc(); // posición inicial
+
+    // Actualizar en scroll de CUALQUIER contenedor scrollable y en resize
+    window.addEventListener('scroll', recalc, true);
+    window.addEventListener('resize', recalc);
+    return () => {
+      window.removeEventListener('scroll', recalc, true);
+      window.removeEventListener('resize', recalc);
+    };
+  }, [open, anchorRef]);
+
+  if (!open) return null;
+
+  return ReactDOM.createPortal(
+    <>
+      <div className="fixed inset-0 z-[9990]" onClick={onClose} />
+      <div
+        className={`fixed z-[9991] w-32 rounded-xl border shadow-2xl overflow-hidden ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}
+        style={{
+          top:       pos.top,
+          right:     pos.right,
+          background: isDarkGantt ? 'rgba(30,30,35,0.98)' : 'rgba(255,255,255,0.98)',
+          backdropFilter: 'blur(16px)',
+        }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body
+  );
 }
 
 function DepartureCard({ dep, tecnicos, onChangeState, isAdmin }) {
@@ -21,6 +68,7 @@ function DepartureCard({ dep, tecnicos, onChangeState, isAdmin }) {
   const [stateOpen, setStateOpen] = useState(false);
   const [localState, setLocalState] = useState(dep.estado);
   const [updating,   setUpdating]   = useState(false);
+  const buttonRef = useRef(null);
 
   const tecnico  = tecnicos.find(t => t.id === dep.tecnicoId);
   const tipoInfo = TIPOS_SALIDA.find(t => t.value === dep.tipoSalida);
@@ -37,52 +85,52 @@ function DepartureCard({ dep, tecnicos, onChangeState, isAdmin }) {
   };
 
   return (
-    <div className={`rounded-xl border transition-all hover:border-white/20 ${isDarkGantt ? 'border-white/[0.07] hover:bg-white/[0.02]' : 'border-gray-200 hover:border-gray-300 hover:bg-black/[0.01]'}`}
-      style={{ background: isDarkGantt ? 'rgba(73,73,73,0.18)' : 'rgba(255,255,255,0.85)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
+    <div
+      className={`rounded-xl border transition-all hover:border-white/20 ${isDarkGantt ? 'border-white/[0.07] hover:bg-white/[0.02]' : 'border-gray-200 hover:border-gray-300 hover:bg-black/[0.01]'}`}
+      style={{
+        background: isDarkGantt ? 'rgba(73,73,73,0.18)' : 'rgba(255,255,255,0.85)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderTopColor: color,
+        borderTopWidth: '2px',
+      }}>
 
-      {/* Stripe de color del tipo de salida */}
-      <div className="h-0.5 rounded-t-xl" style={{ background: color }} />
 
       <div className="px-3 py-2.5">
         {/* Fila 1: persona + fecha + estado */}
         <div className="flex items-center justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-2 min-w-0">
-            {/* Inicial con color del tipo */}
-            <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-black text-white shadow-sm"
-              style={{ background: color }}>
-              {(tecnico?.nombre || '?')[0].toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className={`text-[13px] font-bold truncate leading-none ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>
-                {tecnico?.nombre || dep.tecnicoId}
-              </p>
-              <p className={`text-[10px] capitalize mt-0.5 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>{dateLabel}</p>
-            </div>
+          <div className="min-w-0 flex-1">
+            <p className={`text-[13px] font-bold truncate leading-none ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>
+              {tecnico?.nombre || dep.tecnicoId}
+            </p>
+            <p className={`text-[10px] capitalize mt-0.5 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>{dateLabel}</p>
           </div>
 
-          {/* Estado badge / selector — mismo patrón del LeftFilterSidebar */}
+          {/* Estado badge / selector */}
           <div className="relative flex-shrink-0">
             {isAdmin ? (
               <>
-                <button onClick={() => setStateOpen(o => !o)} disabled={updating}
+                <button
+                  ref={buttonRef}
+                  onClick={() => setStateOpen(o => !o)}
+                  disabled={updating}
                   className={`flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest transition-all ${estadoBadge(localState, isDarkGantt)} ${updating ? 'opacity-60' : 'cursor-pointer hover:opacity-80'}`}>
                   {updating ? <Loader2 size={8} className="animate-spin" /> : localState}
                   <ChevronDown size={8} className={`transition-transform ${stateOpen ? 'rotate-180' : ''}`} />
                 </button>
-                {stateOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setStateOpen(false)} />
-                    <div className={`absolute right-0 top-[calc(100%+4px)] z-50 w-32 rounded-xl border shadow-2xl overflow-hidden ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}
-                      style={{ background: isDarkGantt ? 'rgba(30,30,35,0.95)' : 'rgba(255,255,255,0.95)', backdropFilter: 'blur(16px)' }}>
-                      {ESTADOS_SALIDA.map(s => (
-                        <button key={s} onClick={() => handleStateChange(s)}
-                          className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors ${s === localState ? (isDarkGantt ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700') : (isDarkGantt ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100')}`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                <StateDropdown
+                  anchorRef={buttonRef}
+                  open={stateOpen}
+                  onClose={() => setStateOpen(false)}
+                  isDarkGantt={isDarkGantt}
+                >
+                  {ESTADOS_SALIDA.map(s => (
+                    <button key={s} onClick={() => handleStateChange(s)}
+                      className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors ${s === localState ? (isDarkGantt ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700') : (isDarkGantt ? 'text-gray-300 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100')}`}>
+                      {s}
+                    </button>
+                  ))}
+                </StateDropdown>
               </>
             ) : (
               <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest ${estadoBadge(localState, isDarkGantt)}`}>{localState}</span>

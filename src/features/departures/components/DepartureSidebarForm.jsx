@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Trash2, ChevronDown, Clock, Calendar, Users, MapPin, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Trash2, ChevronDown, Clock, Calendar, Users, MapPin, ChevronLeft, ChevronRight, Check, AlertTriangle } from 'lucide-react';
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, isWeekend
@@ -8,6 +8,8 @@ import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useTheme } from '../../../shared/context/ThemeContext';
 import { TIPOS_SALIDA } from '../constants';
+import { API_BASE } from '../../../config/api';
+import { safeStorage } from '../../../shared/utils/storage';
 
 const TIME_SLOTS = (() => {
   const s = [];
@@ -138,19 +140,19 @@ function MultiDatePicker({ selectedDates, onChange, isDarkGantt }) {
   );
 }
 
-// ── Formulario lateral — estilo CellPopoverForm ──
 export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
   const { isDarkGantt } = useTheme();
   const [tecnicoIds,    setTecnicoIds]    = useState([]);
   const [tipoSalida,    setTipoSalida]    = useState('');
   const [motivo,        setMotivo]        = useState('');
   const [selectedDates, setSelectedDates] = useState([]);
-  const [horaInicio,    setHoraInicio]    = useState('08:30');
-  const [horaFin,       setHoraFin]       = useState('18:30');
   const [tipoOpen,      setTipoOpen]      = useState(false);
   const tipoRef = useRef(null);
 
-  // Agrupar técnicos por área
+  const [defaultSchedule, setDefaultSchedule] = useState({ inicio: '08:30', fin: '18:30' });
+  const [daySchedules, setDaySchedules] = useState({});
+  const [conflicts, setConflicts] = useState([]);
+
   const grupos = useMemo(() => {
     const map = {};
     tecnicos.forEach(t => {
@@ -161,11 +163,9 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [tecnicos]);
 
-  // Recalcular horario por defecto (min ingreso y max salida de los seleccionados)
   useEffect(() => {
     if (tecnicoIds.length === 0) {
-      setHoraInicio('08:30');
-      setHoraFin('18:30');
+      setDefaultSchedule({ inicio: '08:30', fin: '18:30' });
       return;
     }
     const selectedTecs = tecnicos.filter(t => tecnicoIds.includes(t.id));
@@ -186,9 +186,60 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     };
     
-    setHoraInicio(formatTime(minI));
-    setHoraFin(formatTime(maxF));
+    const newDefault = { inicio: formatTime(minI), fin: formatTime(maxF) };
+    setDefaultSchedule(newDefault);
+    
+    setDaySchedules(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => {
+         next[k] = { ...newDefault };
+      });
+      return next;
+    });
   }, [tecnicoIds, tecnicos]);
+
+  useEffect(() => {
+    if (selectedDates.length === 0 || tecnicoIds.length === 0) {
+      setConflicts([]);
+      return;
+    }
+    const check = async () => {
+      try {
+        const datesStr = selectedDates.map(d => format(d, 'yyyy-MM-dd')).sort();
+        const minDate = datesStr[0];
+        const maxDate = datesStr[datesStr.length - 1];
+
+        const token = safeStorage.getItem('rimmet_token');
+        const res = await fetch(`${API_BASE}/calendar/cronograma?start=${minDate}&end=${maxDate}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error('Error al cargar cronograma');
+        const json = await res.json();
+        const rows = Array.isArray(json) ? json : (json.data || []);
+
+        const found = [];
+        rows.forEach(row => {
+           if (row.estado && row.estado.toLowerCase() === 'anulado') return;
+           // tecnicoIds son strings "NOMBRE_APELLIDO"; row.id_usuario es el ID numérico
+           // → buscamos el técnico por su string-id y comparamos su user_id numérico
+           const matchedTec = tecnicos.find(t =>
+             tecnicoIds.includes(t.id) && t.user_id === row.id_usuario
+           );
+           if (!matchedTec) return;
+           const rowDate = row.fecha;
+           if (datesStr.includes(rowDate)) {
+             found.push({ tecName: matchedTec.nombre, date: rowDate, title: row.cotizacion || row.descripcion || 'Actividad' });
+           }
+        });
+        setConflicts(found);
+      } catch(e) {
+        console.error("Error validando conflictos:", e);
+      }
+    };
+
+    const timeout = setTimeout(check, 500);
+    return () => clearTimeout(timeout);
+  }, [selectedDates, tecnicoIds, tecnicos]);
 
   useEffect(() => {
     if (!tipoOpen) return;
@@ -198,9 +249,6 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
   }, [tipoOpen]);
 
   const selectedTipo = TIPOS_SALIDA.find(t => t.value === tipoSalida);
-  // Permitimos todas las horas para que si DATA_USERS está mal, igual puedan registrar
-  const horaInicioSlots  = TIME_SLOTS;
-  const horaFinSlots     = TIME_SLOTS.filter(t => toMin(t) > toMin(horaInicio));
 
   const toggleTecnico = (id) => {
     setTecnicoIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -216,9 +264,25 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
     }
   };
 
+  const handleDatesChange = (dates) => {
+    setSelectedDates(dates);
+    setDaySchedules(prev => {
+      const next = { ...prev };
+      dates.forEach(d => {
+        const k = format(d, 'yyyy-MM-dd');
+        if (!next[k]) next[k] = { ...defaultSchedule };
+      });
+      Object.keys(next).forEach(k => {
+        if (!dates.some(d => format(d, 'yyyy-MM-dd') === k)) delete next[k];
+      });
+      return next;
+    });
+  };
+
   const handleReset = () => {
     setTecnicoIds([]); setTipoSalida(''); setMotivo('');
-    setSelectedDates([]); setHoraInicio('08:30'); setHoraFin('18:30');
+    setSelectedDates([]); setDaySchedules({});
+    setConflicts([]);
   };
 
   const handleSubmit = async (e) => {
@@ -227,22 +291,28 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
     if (!tipoSalida)                { toast.error('Selecciona el tipo de salida.'); return; }
     if (!motivo.trim())             { toast.error('Ingresa el motivo o lugar.'); return; }
     if (selectedDates.length === 0) { toast.error('Selecciona al menos una fecha.'); return; }
-    if (toMin(horaFin) <= toMin(horaInicio)) { toast.error('La hora de retorno debe ser posterior a la hora de salida.'); return; }
+
+    for (const d of selectedDates) {
+      const k = format(d, 'yyyy-MM-dd');
+      const sched = daySchedules[k];
+      if (sched && toMin(sched.fin) <= toMin(sched.inicio)) {
+        toast.error(`La hora de retorno del ${format(d, 'd MMM')} debe ser posterior a su salida.`);
+        return;
+      }
+    }
 
     await onSaved({
       tecnicoIds,
       dates: selectedDates,
       tipoSalida,
       motivo: motivo.trim(),
-      horaInicio,
-      horaFin,
+      daySchedules,
       estado: 'Solicitud',
       color: selectedTipo?.color || '#7c3aed',
     });
     handleReset();
   };
 
-  // ── Mismo fondo sólido que CellPopoverForm ──
   const bgClass  = isDarkGantt ? 'bg-[#1a1a1d] border-gray-700/50' : 'bg-white border-gray-200';
   const lblClass = `text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`;
   const inputClass = `w-full border rounded-xl px-3 py-2 text-sm focus:outline-none transition-all ${isDarkGantt ? 'bg-[#111111] border-white/5 text-gray-200 placeholder-gray-700 focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20'}`;
@@ -251,7 +321,6 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
   return (
     <div className={`flex flex-col border rounded-2xl shadow-2xl overflow-hidden flex-shrink-0 w-full h-full ${bgClass}`}>
 
-      {/* ── Header — igual al CellPopoverForm ── */}
       <div className={`flex items-center justify-between px-5 py-4 border-b shrink-0 ${isDarkGantt ? 'border-gray-800 bg-[#1e1e22]' : 'border-gray-200 bg-gray-50'}`}>
         <div>
           <h3 className={`text-[11px] font-semibold uppercase tracking-widest mb-1 ${isDarkGantt ? 'text-gray-100' : 'text-gray-800'}`}>
@@ -267,10 +336,8 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
         </button>
       </div>
 
-      {/* ── Body ── */}
       <form onSubmit={handleSubmit} className="p-5 space-y-5 overflow-y-auto custom-scrollbar flex-1">
 
-        {/* Personal Multiselect */}
         <div className="space-y-2 flex flex-col shrink-0">
           <label className={`flex items-center justify-between ${lblClass}`}>
             <span className="flex items-center gap-1.5"><Users size={10} />Personal Seleccionado</span>
@@ -310,7 +377,6 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
 
         <div className={dividerClass} />
 
-        {/* Tipo de salida */}
         <div className="space-y-2 shrink-0" ref={tipoRef}>
           <label className={`flex items-center gap-1.5 ${lblClass}`}><MapPin size={10} />Tipo de Salida</label>
           <div className="relative">
@@ -319,7 +385,7 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
               <div className="flex items-center gap-2 min-w-0">
                 {selectedTipo
                   ? <><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: selectedTipo.color }} /><span className="truncate">{selectedTipo.label}</span></>
-                  : <span className={isDarkGantt ? 'text-gray-600' : 'text-gray-400'}>— Seleccionar —</span>}
+                  : <span className={isDarkGantt ? 'text-gray-600' : 'text-gray-400'}>Seleccionar</span>}
               </div>
               <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${tipoOpen ? 'rotate-180' : ''} ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`} />
             </button>
@@ -340,48 +406,87 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
 
         <div className={dividerClass} />
 
-        {/* Motivo */}
         <div className="space-y-2 shrink-0">
           <label className={`flex items-center justify-between ${lblClass}`}>
             <span>Motivo / Lugar</span>
             <span className={motivo.length > 90 ? 'text-red-400' : (isDarkGantt ? 'text-gray-700' : 'text-gray-300')}>{motivo.length}/100</span>
           </label>
           <textarea value={motivo} onChange={e => setMotivo(e.target.value)} maxLength={100} rows={2} required
-            placeholder="Ej: Visita a cliente, entrega de equipos..."
+            placeholder="Ej: Visita a cliente..."
             className={`${inputClass} resize-none`} />
         </div>
 
         <div className={dividerClass} />
 
-        {/* Fechas */}
         <div className="space-y-2 shrink-0">
           <label className={`flex items-center gap-1.5 ${lblClass}`}><Calendar size={10} />Fecha(s) de Salida</label>
-          <MultiDatePicker selectedDates={selectedDates} onChange={setSelectedDates} isDarkGantt={isDarkGantt} />
+          <MultiDatePicker selectedDates={selectedDates} onChange={handleDatesChange} isDarkGantt={isDarkGantt} />
         </div>
+
+        {conflicts.length > 0 && (
+          <div className={`shrink-0 p-3 rounded-xl border ${isDarkGantt ? 'bg-orange-500/10 border-orange-500/20' : 'bg-orange-50 border-orange-200'}`}>
+            <p className={`text-xs font-bold mb-1 flex items-center gap-1.5 ${isDarkGantt ? 'text-orange-400' : 'text-orange-600'}`}>
+              <AlertTriangle size={12} /> Alerta de Disponibilidad
+            </p>
+            <p className={`text-[10px] leading-tight mb-2 ${isDarkGantt ? 'text-orange-300' : 'text-orange-700'}`}>
+              El personal seleccionado ya tiene actividades en estas fechas:
+            </p>
+            <ul className={`text-[10px] list-disc pl-4 space-y-0.5 max-h-24 overflow-y-auto custom-scrollbar ${isDarkGantt ? 'text-orange-200/80' : 'text-orange-800/80'}`}>
+               {conflicts.map((c, i) => (
+                 <li key={i}><strong>{c.tecName}</strong> el {c.date}: {c.title}</li>
+               ))}
+            </ul>
+          </div>
+        )}
 
         <div className={dividerClass} />
 
-        {/* Rango horario — mismo layout exacto que CellPopoverForm */}
-        <div className="space-y-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <Clock className={`w-3 h-3 ${isDarkGantt ? 'text-blue-400' : 'text-blue-500'}`} />
-            <label className={lblClass}>Rango Horario</label>
-          </div>
-          <div className={`flex items-center rounded-xl border overflow-visible ${isDarkGantt ? 'bg-[#111]/60 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-            <div className="flex items-center gap-1.5 pl-3 pr-2 py-0.5 flex-1 min-w-0">
-              <span className={`text-[9px] font-bold uppercase tracking-widest shrink-0 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>De</span>
-              <TimeSelect value={horaInicio} slots={horaInicioSlots} isDarkGantt={isDarkGantt}
-                onChange={(v) => { setHoraInicio(v); if (toMin(horaFin) <= toMin(v)) { const nxt = TIME_SLOTS.find(t => toMin(t) > toMin(v)); if (nxt) setHoraFin(nxt); } }} />
+        {selectedDates.length > 0 && (
+          <div className="space-y-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <Clock className={`w-3 h-3 ${isDarkGantt ? 'text-blue-400' : 'text-blue-500'}`} />
+              <label className={lblClass}>Horarios Asignados</label>
             </div>
-            <div className={`w-px self-stretch ${isDarkGantt ? 'bg-white/10' : 'bg-gray-200'}`} />
-            <div className="flex items-center gap-1.5 pl-3 pr-2 py-0.5 flex-1 min-w-0">
-              <span className={`text-[9px] font-bold uppercase tracking-widest shrink-0 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>A</span>
-              <TimeSelect value={horaFin} slots={horaFinSlots} isDarkGantt={isDarkGantt} onChange={setHoraFin} />
-            </div>
-          </div>
-        </div>
+            <div className="flex flex-col gap-2">
+              {[...selectedDates].sort((a,b)=>a-b).map(date => {
+                const k = format(date, 'yyyy-MM-dd');
+                const sched = daySchedules[k] || defaultSchedule;
+                const setSched = (field, val) => {
+                  setDaySchedules(prev => ({ ...prev, [k]: { ...prev[k], [field]: val } }));
+                };
+                const inicioSlots = TIME_SLOTS;
+                const finSlots = TIME_SLOTS.filter(t => toMin(t) > toMin(sched.inicio));
 
-        {/* Submit */}
+                return (
+                  <div key={k} className={`flex items-center justify-between p-2 rounded-xl border ${isDarkGantt ? 'bg-[#111]/60 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                    <span className={`text-[10px] font-bold w-12 shrink-0 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {format(date, 'd MMM', { locale: es })}
+                    </span>
+                    <div className="flex items-center flex-1 min-w-0">
+                      <div className="flex items-center gap-1 flex-1 min-w-0 px-2">
+                        <span className={`text-[9px] font-bold uppercase tracking-widest shrink-0 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>De</span>
+                        <TimeSelect value={sched.inicio} slots={inicioSlots} isDarkGantt={isDarkGantt}
+                          onChange={(v) => { 
+                            setSched('inicio', v); 
+                            if (toMin(sched.fin) <= toMin(v)) { 
+                              const nxt = TIME_SLOTS.find(t => toMin(t) > toMin(v)); 
+                              if (nxt) setSched('fin', nxt); 
+                            } 
+                          }} />
+                      </div>
+                      <div className={`w-px h-6 shrink-0 ${isDarkGantt ? 'bg-white/10' : 'bg-gray-200'}`} />
+                      <div className="flex items-center gap-1 flex-1 min-w-0 px-2">
+                        <span className={`text-[9px] font-bold uppercase tracking-widest shrink-0 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>A</span>
+                        <TimeSelect value={sched.fin} slots={finSlots} isDarkGantt={isDarkGantt} onChange={(v) => setSched('fin', v)} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <button type="submit" disabled={saving}
           className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all shrink-0 mt-4 ${saving ? 'opacity-60 cursor-wait' : 'hover:opacity-90 active:scale-[0.98]'} ${isDarkGantt ? 'bg-[#10b981] text-white shadow-[0_0_12px_rgba(16,185,129,0.3)]' : 'bg-[#10b981] text-white shadow-[0_4px_12px_rgba(16,185,129,0.25)]'}`}>
           <Check size={16} />

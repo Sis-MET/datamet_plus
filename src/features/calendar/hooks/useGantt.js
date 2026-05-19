@@ -106,8 +106,10 @@ export function useGantt() {
           }
 
           let mappedEstado = row.estado || 'Pendiente';
-          if (mappedEstado.toLowerCase() === 'solicitud') mappedEstado = 'Pendiente';
-          if (mappedEstado.toLowerCase() === 'aceptación' || mappedEstado.toLowerCase() === 'aceptacion') mappedEstado = 'Completado';
+          if (row.creado_en !== 'Salida Personal' && row.creado_en !== 'SalidaMET') {
+            if (mappedEstado.toLowerCase() === 'solicitud') mappedEstado = 'Pendiente';
+            if (mappedEstado.toLowerCase() === 'aceptación' || mappedEstado.toLowerCase() === 'aceptacion') mappedEstado = 'Completado';
+          }
 
           return {
             id: `task_${row.id}`,

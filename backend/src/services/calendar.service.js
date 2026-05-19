@@ -190,7 +190,7 @@ const upsertScheduleCell = async (data) => {
         const err = new Error(
           `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este recurso en este día.`
         );
-        err.status = 409;
+        err.statusCode = 409;
         throw err;
       }
     }
@@ -262,7 +262,7 @@ const upsertScheduleCell = async (data) => {
     const concurrencyErr = new Error(
       `Celda modif. por otro proceso. (Servidor: ${currentTimestamp || 'Nulo'} | Tuyo: ${clientTimestamp}). Recarga la página.`
     );
-    concurrencyErr.status = 409;
+    concurrencyErr.statusCode = 409;
     throw concurrencyErr;
   }
 
@@ -291,7 +291,7 @@ const upsertScheduleCell = async (data) => {
       const err = new Error(
         `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este recurso en este día.`
       );
-      err.status = 409;
+      err.statusCode = 409;
       throw err;
     }
   }
@@ -317,7 +317,7 @@ const upsertScheduleCell = async (data) => {
 
   if (result.rowsAffected[0] === 0) {
     const concurrencyErr = new Error('La celda fue modificada por otro proceso. Recarga la página para sincronizar.');
-    concurrencyErr.status = 409;
+    concurrencyErr.statusCode = 409;
     throw concurrencyErr;
   }
 

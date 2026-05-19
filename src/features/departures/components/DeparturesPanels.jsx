@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Clock, Loader2, ChevronDown, CheckCircle2, ClipboardList, UserCheck } from 'lucide-react';
@@ -46,12 +47,58 @@ function estadoBadge(estado, dark) {
     ?? (dark ? 'bg-gray-500/20 text-gray-400 ring-1 ring-gray-500/30' : 'bg-gray-100 text-gray-600');
 }
 
+/** Dropdown en portal — evita clipping por backdrop-filter stacking context */
+function StateDropdown({ anchorRef, open, onClose, children, isDarkGantt }) {
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+
+  useEffect(() => {
+    if (!open || !anchorRef.current) return;
+
+    const recalc = () => {
+      if (anchorRef.current) {
+        const r = anchorRef.current.getBoundingClientRect();
+        setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+      }
+    };
+
+    recalc();
+
+    window.addEventListener('scroll', recalc, true);
+    window.addEventListener('resize', recalc);
+    return () => {
+      window.removeEventListener('scroll', recalc, true);
+      window.removeEventListener('resize', recalc);
+    };
+  }, [open, anchorRef]);
+
+  if (!open) return null;
+
+  return ReactDOM.createPortal(
+    <>
+      <div className="fixed inset-0 z-[9990]" onClick={onClose} />
+      <div
+        className={`fixed z-[9991] w-32 rounded-xl border shadow-2xl overflow-hidden ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}
+        style={{
+          top:   pos.top,
+          right: pos.right,
+          background: isDarkGantt ? 'rgba(30,30,35,0.98)' : 'rgba(255,255,255,0.98)',
+          backdropFilter: 'blur(16px)',
+        }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body
+  );
+}
+
 // ── Tarjeta de una salida individual ──
 function DepartureCard({ dep, tecnicos, onChangeState, isAdmin, panel }) {
   const { isDarkGantt } = useTheme();
   const [stateOpen, setStateOpen] = useState(false);
   const [localState, setLocalState] = useState(dep.estado);
   const [updating,   setUpdating]   = useState(false);
+  const buttonRef = useRef(null);
 
   const tecnico  = tecnicos.find(t => t.id === dep.tecnicoId);
   const tipoInfo = TIPOS_SALIDA.find(t => t.value === dep.tipoSalida);
@@ -68,19 +115,20 @@ function DepartureCard({ dep, tecnicos, onChangeState, isAdmin, panel }) {
   };
 
   return (
-    <div className={`rounded-xl border transition-all ${isDarkGantt ? 'border-white/[0.07] hover:border-white/15 hover:bg-white/[0.03]' : 'border-gray-200 hover:border-gray-300 hover:bg-black/[0.02]'}`}
-      style={{ background: isDarkGantt ? 'rgba(73,73,73,0.18)' : 'rgba(255,255,255,0.85)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
+    <div
+      className={`rounded-xl border transition-all ${isDarkGantt ? 'border-white/[0.07] hover:border-white/15 hover:bg-white/[0.03]' : 'border-gray-200 hover:border-gray-300 hover:bg-black/[0.02]'}`}
+      style={{
+        background: isDarkGantt ? 'rgba(73,73,73,0.18)' : 'rgba(255,255,255,0.85)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderTopColor: color,
+        borderTopWidth: '2px',
+      }}>
 
-      {/* Stripe de color del tipo */}
-      <div className="h-0.5 rounded-t-xl opacity-80" style={{ background: color }} />
 
       <div className="px-3 py-2.5">
         {/* Persona + fecha */}
         <div className="flex items-center gap-2 mb-2">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-black text-white shadow-sm"
-            style={{ background: color }}>
-            {(tecnico?.nombre || '?')[0].toUpperCase()}
-          </div>
           <div className="min-w-0 flex-1">
             <p className={`text-[13px] font-bold truncate leading-none ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>
               {tecnico?.nombre || dep.tecnicoId}
@@ -91,25 +139,27 @@ function DepartureCard({ dep, tecnicos, onChangeState, isAdmin, panel }) {
           <div className="relative flex-shrink-0">
             {isAdmin ? (
               <>
-                <button onClick={() => setStateOpen(o => !o)} disabled={updating}
+                <button
+                  ref={buttonRef}
+                  onClick={() => setStateOpen(o => !o)}
+                  disabled={updating}
                   className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest transition-all ${estadoBadge(localState, isDarkGantt)} ${updating ? 'opacity-60' : 'cursor-pointer hover:opacity-75'}`}>
                   {updating ? <Loader2 size={8} className="animate-spin" /> : localState}
                   <ChevronDown size={8} className={`transition-transform ${stateOpen ? 'rotate-180' : ''}`} />
                 </button>
-                {stateOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setStateOpen(false)} />
-                    <div className={`absolute right-0 top-[calc(100%+4px)] z-50 w-32 rounded-xl border shadow-2xl overflow-hidden`}
-                      style={{ background: isDarkGantt ? 'rgba(30,30,35,0.96)' : 'rgba(255,255,255,0.97)', backdropFilter: 'blur(16px)', borderColor: isDarkGantt ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                      {ESTADOS_SALIDA.map(s => (
-                        <button key={s} onClick={() => handleStateChange(s)}
-                          className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors ${s === localState ? (isDarkGantt ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700') : (isDarkGantt ? 'text-gray-300 hover:bg-white/10 hover:text-white' : 'text-gray-700 hover:bg-gray-100')}`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                <StateDropdown
+                  anchorRef={buttonRef}
+                  open={stateOpen}
+                  onClose={() => setStateOpen(false)}
+                  isDarkGantt={isDarkGantt}
+                >
+                  {ESTADOS_SALIDA.map(s => (
+                    <button key={s} onClick={() => handleStateChange(s)}
+                      className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors ${s === localState ? (isDarkGantt ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700') : (isDarkGantt ? 'text-gray-300 hover:bg-white/10 hover:text-white' : 'text-gray-700 hover:bg-gray-100')}`}>
+                      {s}
+                    </button>
+                  ))}
+                </StateDropdown>
               </>
             ) : (
               <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest ${estadoBadge(localState, isDarkGantt)}`}>{localState}</span>

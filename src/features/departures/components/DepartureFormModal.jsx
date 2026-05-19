@@ -206,7 +206,7 @@ export function DepartureFormModal({ onClose, onSaved, tecnicos = [], saving }) 
             </label>
             <select value={tecnicoId} onChange={e => setTecnicoId(e.target.value)} required
               className={`w-full px-3 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all ${isDarkGantt ? 'bg-white/5 border-white/10 text-gray-200 focus:border-purple-500' : 'bg-gray-50 border-gray-200 text-gray-900 focus:border-purple-500'}`}>
-              <option value="">— Seleccionar personal —</option>
+              <option value="">Seleccionar personal</option>
               {tecnicos.map(t => (
                 <option key={t.id} value={t.id}>{t.nombre} {t.area ? `(${t.area})` : ''}</option>
               ))}
@@ -229,7 +229,7 @@ export function DepartureFormModal({ onClose, onSaved, tecnicos = [], saving }) 
                 <div className="flex items-center gap-2.5 min-w-0">
                   {selectedTipo
                     ? <><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: selectedTipo.color }} /><span className="truncate">{selectedTipo.label}</span></>
-                    : <span className={isDarkGantt ? 'text-gray-500' : 'text-gray-400'}>— Seleccionar tipo —</span>}
+                    : <span className={isDarkGantt ? 'text-gray-500' : 'text-gray-400'}>Seleccionar tipo</span>}
                 </div>
                 <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${tipoOpen ? 'rotate-180' : ''} ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`} />
               </button>
