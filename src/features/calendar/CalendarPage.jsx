@@ -220,25 +220,69 @@ export function CalendarPage() {
   };
 
   const handleSaveForm = async (date, resource, text) => {
+    const doSave = async (finalText) => {
+      try {
+        const promises = [upsertScheduleCell(date, resource, finalText)];
+        
+        if (finalText && finalText.additionalResources && finalText.additionalResources.length > 0) {
+          finalText.additionalResources.forEach(additionalRes => {
+            const additionalPayload = { ...finalText, rowId: null, additionalResources: undefined };
+            promises.push(upsertScheduleCell(date, additionalRes, additionalPayload));
+          });
+        }
+
+        await Promise.all(promises);
+        setIsFormOpen(false);
+        
+        if (!finalText || (typeof finalText === 'object' && !finalText.morning && !finalText.afternoon) || (typeof finalText === 'string' && finalText.trim() === '')) {
+          toast.success("Celda limpiada correctamente.");
+        } else {
+          if (finalText.additionalResources && finalText.additionalResources.length > 0) {
+            toast.success(`Tarea asignada a ${finalText.additionalResources.length + 1} personas.`);
+            if (typeof refetch === 'function') refetch();
+          } else {
+            toast.success("Tarea guardada correctamente.");
+          }
+        }
+      } catch (err) {
+        const isConcurrencyError = err.message?.includes('Otro usuario') || err.message?.includes('otro proceso');
+        toast.error(err.message || "Error al guardar en el calendario", { 
+          duration: isConcurrencyError ? 8000 : 4000,
+        });
+      }
+    };
+
     try {
-      await upsertScheduleCell(date, resource, text);
-      setIsFormOpen(false);
-      
-      if (!text || (typeof text === 'object' && !text.morning && !text.afternoon) || (typeof text === 'string' && text.trim() === '')) {
-        toast.success("Celda limpiada correctamente.");
-      } else {
-        toast.success("Tarea guardada correctamente.");
+      if (!text.rowId && text.morning && text.morning.trim() !== '') {
+        const normalizedMorning = text.morning.trim().toLowerCase();
+        const existingCodeTasks = tasks.filter(t => t.morning?.trim().toLowerCase() === normalizedMorning && t.codigoRegistro);
+        
+        if (existingCodeTasks.length > 0) {
+           const codeToShare = existingCodeTasks[0].codigoRegistro;
+           
+           toast('Unificación de Tareas', {
+             description: `Ya existen tareas registradas con esta cotización bajo el código ${codeToShare}. ¿Deseas unificar esta nueva tarea bajo el mismo código (RSP)?`,
+             duration: 15000,
+             action: {
+               label: 'Sí, unificar',
+               onClick: () => {
+                 text.codigoRegistro = codeToShare;
+                 doSave(text);
+               }
+             },
+             cancel: {
+               label: 'No, crear nuevo',
+               onClick: () => doSave(text)
+             }
+           });
+           
+           return; // Interrumpimos aquí hasta que el usuario decida en el toast
+        }
       }
-    } catch (err) {
-      const isConcurrencyError = err.message?.includes('Otro usuario') || err.message?.includes('otro proceso');
-      toast.error(err.message || "Error al guardar en el calendario", { 
-        duration: isConcurrencyError ? 8000 : 4000,
-      });
-      // Solo cerramos el form si NO es un problema de concurrencia
-      // (en concurrencia, preferimos que el usuario pueda recargar antes de volver a intentar)
-      if (!isConcurrencyError) {
-        // El form permanece abierto si hay otro error técnico
-      }
+
+      await doSave(text);
+    } catch (e) {
+      toast.error("Error al procesar la solicitud.");
     }
   };
 
@@ -304,7 +348,7 @@ export function CalendarPage() {
     const targetTecnico = tecnicos.find(t => t.id === targetResource);
     const targetName = targetTecnico ? targetTecnico.nombre : targetResource;
 
-    const executeAction = async () => {
+    const executeAction = async (copyForOthers = false, otherTasks = []) => {
       try {
         const targetDateObj = targetDate instanceof Date ? targetDate : new Date(targetDate);
         
@@ -332,27 +376,64 @@ export function CalendarPage() {
           toast.success("Tarea movida correctamente.");
         } else {
           // Copia Normal: Crea un nuevo rowId
-          await upsertScheduleCell(targetDateObj, targetResource, {
-            rowId: null,
-            morning: sourceTask.morning,
-            descripcion: sourceTask.descripcion,
-            colorAM: sourceTask.colorAM,
-            estadoAM: sourceTask.estadoAM,
-            horaInicio: sourceTask.horaInicio,
-            horaFin: sourceTask.horaFin
-          }, true);
+          const promises = [
+            upsertScheduleCell(targetDateObj, targetResource, {
+              rowId: null,
+              codigoRegistro: sourceTask.codigoRegistro,
+              morning: sourceTask.morning,
+              descripcion: sourceTask.descripcion,
+              colorAM: sourceTask.colorAM,
+              estadoAM: sourceTask.estadoAM,
+              horaInicio: sourceTask.horaInicio,
+              horaFin: sourceTask.horaFin
+            }, true)
+          ];
+
+          if (copyForOthers && otherTasks.length > 0) {
+            otherTasks.forEach(t => {
+               promises.push(upsertScheduleCell(targetDateObj, t.Tecnico, {
+                  rowId: null,
+                  codigoRegistro: sourceTask.codigoRegistro,
+                  morning: sourceTask.morning,
+                  descripcion: sourceTask.descripcion,
+                  colorAM: sourceTask.colorAM,
+                  estadoAM: sourceTask.estadoAM,
+                  horaInicio: sourceTask.horaInicio,
+                  horaFin: sourceTask.horaFin
+               }, true));
+            });
+          }
+          
+          await Promise.all(promises);
 
           await new Promise(r => setTimeout(r, 400));
           if (typeof refetch === 'function') refetch();
-          toast.success("Tarea copiada correctamente.");
+          toast.success(
+            copyForOthers && otherTasks.length > 0 
+              ? `Tarea unificada y copiada para ${otherTasks.length + 1} personas bajo el mismo código.` 
+              : `Ficha copiada (código unificado: ${sourceTask.codigoRegistro || 'nuevo'}).`,
+            { duration: 5000 }
+          );
         }
       } catch (err) {
         toast.error(err.message || "Error al procesar la tarea");
       }
     };
 
+    const targetDateObj = targetDate instanceof Date ? targetDate : new Date(targetDate);
+    const sourceDateObj = sourceTask.sourceDate ? new Date(sourceTask.sourceDate) : null;
+    
+    let otherUsersWithTask = [];
+    if (!isMoveKey && sourceDateObj && sourceTask.morning) {
+      otherUsersWithTask = tasks.filter(t => 
+        isSameDay(t.fecha, sourceDateObj) && 
+        t.Tecnico !== sourceTask.sourceResource && 
+        t.morning?.trim() === sourceTask.morning?.trim()
+      );
+    }
+
     if (sourceTask.sourceResource && sourceTask.sourceResource !== targetResource) {
-      // Diferente técnico: solicitar confirmación
+      // Diferente técnico: solicitar confirmación original
       const handleConfirm = (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
         executeAction();
@@ -377,7 +458,6 @@ export function CalendarPage() {
                 tabIndex={0}
                 onClick={handleConfirm}
                 onPointerDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleConfirm(e); }}
                 className="flex-1 py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
               >
                 Sí, {isMoveKey ? "Mover" : "Copiar"}
@@ -387,7 +467,6 @@ export function CalendarPage() {
                 tabIndex={0}
                 onClick={handleCancel}
                 onPointerDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCancel(e); }}
                 className="flex-1 py-1.5 px-4 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-[13px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
               >
                 Cancelar
@@ -396,8 +475,72 @@ export function CalendarPage() {
           </div>
         )
       });
+    } else if (!isMoveKey && otherUsersWithTask.length > 0) {
+      // Mismo técnico, pero hay más usuarios con esta tarea
+      const otherNames = otherUsersWithTask.map(t => {
+         const tObj = tecnicos.find(tec => tec.id === t.Tecnico);
+         return tObj ? tObj.nombre.split(' ')[0] : t.Tecnico;
+      }).join(', ');
+
+      const handleCopyAll = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        executeAction(true, otherUsersWithTask);
+        toast.dismiss();
+      };
+
+      const handleCopyOnlyTarget = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        executeAction(false, []);
+        toast.dismiss();
+      };
+      
+      const handleCancel = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        toast.dismiss();
+      };
+
+      toast("¿Copiar para todos los asignados?", {
+        duration: 15000,
+        description: (
+          <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
+            <span className="text-[13px] text-gray-600 leading-snug">
+              Esta tarea también está asignada a <strong className="font-semibold text-gray-800">{otherNames}</strong>. ¿Deseas copiarla para todos al día {format(targetDateObj, 'd MMM', { locale: es })}?
+            </span>
+            <div className="flex flex-col gap-2">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={handleCopyAll}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="w-full py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
+              >
+                Sí, copiar para todos ({otherUsersWithTask.length + 1})
+              </div>
+              <div className="flex items-center gap-2">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleCopyOnlyTarget}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="flex-1 py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
+                >
+                  Solo para mí
+                </div>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleCancel}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="flex-1 py-1.5 px-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer"
+                >
+                  Cancelar
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      });
     } else {
-      // Mismo técnico (diferente día), copiamos o movemos directo sin preguntar
       executeAction();
     }
   };

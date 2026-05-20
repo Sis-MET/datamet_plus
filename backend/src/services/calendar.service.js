@@ -16,6 +16,7 @@ const getSchedule = async (start, end) => {
         id_usuario,
         usuario,
         CONVERT(varchar, fecha, 23) as fecha,
+        codigo_reg,
         cotizacion,
         descripcion,
         turno,
@@ -87,6 +88,24 @@ const getTecnicos = async () => {
  * - Si rowId existe y cotizacion vacía → DELETE esa fila
  * - Si rowId existe y hay cotizacion   → UPDATE esa fila
  */
+
+const getNextRSPCode = async (pool) => {
+  const currentYear = new Date().getFullYear().toString().slice(-2); // ej. '26' para 2026
+  const prefix = `RSP${currentYear}-`;
+  
+  const result = await pool.request()
+    .input('prefixLiteral', sql.VarChar, prefix)
+    .input('prefixLike', sql.VarChar, `${prefix}%`)
+    .query(`
+      SELECT ISNULL(MAX(TRY_CAST(REPLACE(codigo_reg, @prefixLiteral, '') AS INT)), 0) as maxId
+      FROM DATA_CRONOGRAMA
+      WHERE codigo_reg LIKE @prefixLike
+    `);
+    
+  const nextId = result.recordset[0].maxId + 1;
+  return `${prefix}${nextId}`;
+};
+
 const upsertScheduleCell = async (data) => {
   const pool = getPool();
   const { date, resource, payload } = data;
@@ -98,6 +117,7 @@ const upsertScheduleCell = async (data) => {
   const estado       = payload ? (payload.estado  || payload.estadoAM || 'Pendiente') : 'Pendiente';
   const autor        = payload ? (payload.autor   || 'Sistema') : 'Sistema';
   const lastModified = payload ? (payload.lastModified || null) : null;
+  const codigoRegistro = payload ? (payload.codigoRegistro || null) : null;
   const rowId        = payload ? (payload.rowId   || null) : null;
   const horaInicio   = payload ? (payload.horaInicio || '') : '';
   const horaFin      = payload ? (payload.horaFin    || '') : '';
@@ -181,6 +201,7 @@ const upsertScheduleCell = async (data) => {
           WHERE id_usuario  = @ov_id_us
             AND usuario     = @ov_usr
             AND fecha       = @ov_fecha
+            AND (estado IS NULL OR estado != 'Anulado')
             AND hora_inicio IS NOT NULL
             AND hora_fin    IS NOT NULL
             AND CAST(@ov_inicio AS time(7)) < hora_fin
@@ -195,12 +216,17 @@ const upsertScheduleCell = async (data) => {
       }
     }
 
-    await upsertReq.query(`
+    // Usar el código provisto (copia/unificación) o generar uno nuevo
+    const finalCodigoReg = codigoRegistro || await getNextRSPCode(pool);
+
+    await upsertReq
+      .input('cod_reg', sql.VarChar, finalCodigoReg)
+      .query(`
       INSERT INTO DATA_CRONOGRAMA
-        (id_usuario, usuario, fecha, cotizacion, descripcion, turno, color, estado, hora_inicio, hora_fin,
+        (codigo_reg, id_usuario, usuario, fecha, cotizacion, descripcion, turno, color, estado, hora_inicio, hora_fin,
          creado_por, fecha_creacion, hora_creacion, creado_en)
       VALUES
-        (@id_us, @usr, @f, @cot, @desc, @trn, @col, @est,
+        (@cod_reg, @id_us, @usr, @f, @cot, @desc, @trn, @col, @est,
          CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
          CASE WHEN @hfin    IS NULL OR @hfin    = '' THEN NULL ELSE CAST(@hfin    AS time(7)) END,
          @autor,
@@ -209,7 +235,7 @@ const upsertScheduleCell = async (data) => {
          @creado_en)
     `);
 
-    return { status: 'inserted', resource };
+    return { status: 'inserted', resource, codigo_reg: finalCodigoReg };
   }
 
   // ── Operaciones con rowId ──
@@ -282,6 +308,7 @@ const upsertScheduleCell = async (data) => {
           AND usuario     = @ov_usr
           AND fecha       = @ov_fecha
           AND id         != @ov_row_id
+          AND (estado IS NULL OR estado != 'Anulado')
           AND hora_inicio IS NOT NULL
           AND hora_fin    IS NOT NULL
           AND CAST(@ov_inicio AS time(7)) < hora_fin
@@ -312,6 +339,7 @@ const upsertScheduleCell = async (data) => {
         fecha              = @f,
         id_usuario         = @id_us,
         usuario            = @usr
+    OUTPUT INSERTED.codigo_reg
     WHERE id = @row_id
   `);
 
@@ -321,7 +349,8 @@ const upsertScheduleCell = async (data) => {
     throw concurrencyErr;
   }
 
-  return { status: 'upserted', resource };
+  const updatedCodigoReg = result.recordset && result.recordset.length > 0 ? result.recordset[0].codigo_reg : null;
+  return { status: 'upserted', resource, codigo_reg: updatedCodigoReg };
 };
 
 module.exports = {

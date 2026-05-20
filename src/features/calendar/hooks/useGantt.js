@@ -11,6 +11,7 @@ import {
   isToday,
   format,
 } from 'date-fns';
+import { toast } from 'sonner';
 
 import { API_BASE } from '../../../config/api';
 
@@ -117,6 +118,7 @@ export function useGantt() {
             id_usuario: row.id_usuario,
             Tecnico: resourceId,
             fecha: rowDate,
+            codigoRegistro: row.codigo_reg || '',
             // cotizacion es el campo principal (antes: descripcion)
             morning: row.cotizacion || row.descripcion || '',
             descripcion: row.descripcion || '',
@@ -217,6 +219,15 @@ export function useGantt() {
         } catch(e) {}
         throw new Error(errMsg);
     }
+    
+    // Alerta si falta el código de registro (es obligatorio para todas las tareas)
+    try {
+        const d = await res.json();
+        if (d.data && d.data.codigo_reg == null) {
+            toast.error('Atención: La actividad se guardó, pero no tiene asignado un código de registro (RSP).', { duration: 8000 });
+        }
+    } catch (e) {}
+
     if (!skipFetch) {
        await fetchData(); // Refetch para redibujar la grilla plana
     }

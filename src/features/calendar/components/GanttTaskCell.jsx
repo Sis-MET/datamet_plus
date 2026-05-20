@@ -147,6 +147,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
             sourceDate: date,
             rowId: task.rowId,
             morning: task.morning,
+            descripcion: task.descripcion,
             colorAM: task.colorAM,
             estadoAM: task.estadoAM,
             horaInicio: task.horaInicio,
@@ -183,6 +184,13 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               {task.morning && task.colorAM && <div className={`absolute inset-0 pointer-events-none opacity-40 bg-gradient-to-b from-white/20 to-transparent`} />}
               {task.morning && (
                 <div className="flex items-start gap-1.5 relative z-10 w-full overflow-hidden">
+                  {task.codigoRegistro && (
+                     <div className="absolute top-0 right-0 z-20">
+                        <span className="text-[8px] font-mono font-bold px-1 py-0.5 rounded-sm bg-black/30 text-white shadow-sm backdrop-blur-sm">
+                           {task.codigoRegistro}
+                        </span>
+                     </div>
+                  )}
                   <div 
                     className={`w-2 h-2 rounded-full shrink-0 mt-[4px] animate-pulse ${
                       (task.estadoAM === 'Completado' || task.estadoAM === 'Aprobado') ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :
@@ -240,9 +248,16 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
           )}
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
-          <div className={`border-b pb-3 mb-3 flex flex-col gap-1 ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
-            <span className={`text-[10px] font-bold uppercase tracking-widest leading-none ${isDarkGantt ? 'text-primary-400' : 'text-primary-600'}`}>{resourceName || resourceId}</span>
-            <span className={`text-[13px] font-semibold capitalize leading-tight ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>{formattedDateTooltip}</span>
+          <div className={`border-b pb-3 mb-3 flex items-center justify-between gap-2 ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
+            <div className="flex flex-col gap-1">
+              <span className={`text-[10px] font-bold uppercase tracking-widest leading-none ${isDarkGantt ? 'text-primary-400' : 'text-primary-600'}`}>{resourceName || resourceId}</span>
+              <span className={`text-[13px] font-semibold capitalize leading-tight ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>{formattedDateTooltip}</span>
+            </div>
+            {task.codigoRegistro && (
+              <span className={`text-[15px] font-bold font-mono tracking-tight ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>
+                {task.codigoRegistro}
+              </span>
+            )}
           </div>
 
           <div className="space-y-3">
