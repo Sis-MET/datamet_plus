@@ -51,7 +51,7 @@ const getPlantasByCliente = async (codigoCliente) => {
   const result = await pool.request()
     .input('clienteId', sql.Int, parseInt(codigoCliente, 10))
     .query(`
-      SELECT codigo_planta, dir, localidad
+      SELECT codigo_planta, dir, localidad, localidad AS dep
       FROM DATA_PLANTAS
       WHERE cliente_id = @clienteId
       ORDER BY codigo_planta

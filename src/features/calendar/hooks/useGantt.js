@@ -5,7 +5,6 @@ import {
   endOfWeek,
   eachDayOfInterval,
   addWeeks,
-  addDays,
   subWeeks,
   isSameDay,
   isToday,
@@ -122,11 +121,13 @@ export function useGantt() {
             // cotizacion es el campo principal (antes: descripcion)
             morning: row.cotizacion || row.descripcion || '',
             descripcion: row.descripcion || '',
-            turno: row.turno || '',
+            cliente: row.cliente || '',
+            cod_cliente: row.cod_cliente || '',
             colorAM: row.color || '#37A65F',
             estadoAM: mappedEstado,
             horaInicio: row.hora_inicio ? row.hora_inicio.substring(0, 5) : '',
             horaFin:    row.hora_fin    ? row.hora_fin.substring(0, 5)    : '',
+            horaTotal: row.hora_total ?? null,
             author: row.actualizado_por || row.creado_por || '',
             timestampUpdated: formattedTimestamp,
             creadoEn: row.creado_en || ''
@@ -146,7 +147,7 @@ export function useGantt() {
     } finally {
       setLoading(false);
     }
-  }, [weekStart, weekEnd, prevWeekStart, nextWeekEnd]);
+  }, [prevWeekStart, nextWeekEnd]);
 
   useEffect(() => {
     fetchData();
@@ -178,15 +179,18 @@ export function useGantt() {
            try {
               const payloadToken = JSON.parse(atob(token.split('.')[1]));
               autorText = payloadToken.nombre || payloadToken.usuario || 'Sistema';
-           } catch(e) {}
+           } catch {
+              // Mantener autor por defecto si el token no se puede decodificar.
+           }
         }
 
         payloadObj = {
            cotizacion:   payload.cotizacion   || payload.morning || '',
            descripcion:  payload.descripcion  || '',
+           cliente:      payload.cliente      || '',
+           cod_cliente:  payload.cod_cliente  || '',
            // morning se mantiene para compatibilidad con el backend (fallback)
            morning:      payload.cotizacion   || payload.morning || '',
-           turno:        '',
            colorAM:      payload.colorAM      || '',
            estadoAM:     payload.estadoAM     || 'Pendiente',
            horaInicio:   payload.horaInicio   || '',
@@ -216,7 +220,9 @@ export function useGantt() {
         try {
            const d = await res.json();
            if (d.message) errMsg = d.message;
-        } catch(e) {}
+        } catch {
+           // Mantener mensaje generico si la respuesta no es JSON.
+        }
         throw new Error(errMsg);
     }
     
@@ -226,7 +232,9 @@ export function useGantt() {
         if (d.data && d.data.codigo_reg == null) {
             toast.error('Atención: La actividad se guardó, pero no tiene asignado un código de registro (RSP).', { duration: 8000 });
         }
-    } catch (e) {}
+    } catch {
+        // No bloquear el guardado si la respuesta ya fue consumida o no es JSON.
+    }
 
     if (!skipFetch) {
        await fetchData(); // Refetch para redibujar la grilla plana

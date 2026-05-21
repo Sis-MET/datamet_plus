@@ -19,11 +19,13 @@ const getSchedule = async (start, end) => {
         codigo_reg,
         cotizacion,
         descripcion,
-        turno,
+        cliente,
+        cod_cliente,
         color,
         estado,
         CONVERT(varchar(8), hora_inicio, 8) as hora_inicio,
         CONVERT(varchar(8), hora_fin,    8) as hora_fin,
+        hora_total,
         creado_por,
         creado_en,
         CONVERT(varchar, fecha_creacion, 23) as fecha_creacion,
@@ -106,13 +108,36 @@ const getNextRSPCode = async (pool) => {
   return `${prefix}${nextId}`;
 };
 
+const calculateHourTotal = (horaInicio, horaFin) => {
+  if (!horaInicio || !horaFin) return null;
+
+  const [startHour, startMinute] = String(horaInicio).split(':').map(Number);
+  const [endHour, endMinute] = String(horaFin).split(':').map(Number);
+
+  if (
+    Number.isNaN(startHour) || Number.isNaN(startMinute) ||
+    Number.isNaN(endHour) || Number.isNaN(endMinute)
+  ) {
+    return null;
+  }
+
+  const startMinutes = (startHour * 60) + startMinute;
+  const endMinutes = (endHour * 60) + endMinute;
+  const diffMinutes = endMinutes - startMinutes;
+
+  if (diffMinutes <= 0) return null;
+
+  return Number((diffMinutes / 60).toFixed(2));
+};
+
 const upsertScheduleCell = async (data) => {
   const pool = getPool();
   const { date, resource, payload } = data;
   
   const cotizacion   = payload ? (payload.cotizacion || payload.morning || '') : '';
   const descripcion  = payload ? (payload.descripcion || '') : '';
-  const turno        = payload ? (payload.turno   || '')  : '';
+  const cliente      = payload ? (payload.cliente || '') : '';
+  const codCliente   = payload ? (payload.cod_cliente || '') : '';
   const color        = payload ? (payload.color   || payload.colorAM || '#10B981') : '#10B981';
   const estado       = payload ? (payload.estado  || payload.estadoAM || 'Pendiente') : 'Pendiente';
   const autor        = payload ? (payload.autor   || 'Sistema') : 'Sistema';
@@ -121,6 +146,7 @@ const upsertScheduleCell = async (data) => {
   const rowId        = payload ? (payload.rowId   || null) : null;
   const horaInicio   = payload ? (payload.horaInicio || '') : '';
   const horaFin      = payload ? (payload.horaFin    || '') : '';
+  const horaTotal    = calculateHourTotal(horaInicio, horaFin);
   const creadoEn     = payload ? (payload.creado_en  || null) : null;
 
   let id_usuario     = null;
@@ -172,12 +198,14 @@ const upsertScheduleCell = async (data) => {
     .input('f',       sql.Date,     date)
     .input('cot',     sql.NVarChar, cotizacion)
     .input('desc',    sql.NVarChar, descripcion || null)
-    .input('trn',     sql.NVarChar, turno)
+    .input('cliente', sql.NVarChar, cliente || null)
+    .input('cod_cliente', sql.VarChar, codCliente || null)
     .input('col',     sql.VarChar,  color)
     .input('est',     sql.NVarChar, estado)
     .input('autor',   sql.VarChar,  autor)
     .input('hinicio', sql.VarChar,  horaInicio || null)
     .input('hfin',    sql.VarChar,  horaFin    || null)
+    .input('htotal',  sql.Decimal(5, 2), horaTotal)
     .input('creado_en', sql.VarChar, creadoEn   || null);
 
   if (!rowId) {
@@ -223,12 +251,13 @@ const upsertScheduleCell = async (data) => {
       .input('cod_reg', sql.VarChar, finalCodigoReg)
       .query(`
       INSERT INTO DATA_CRONOGRAMA
-        (codigo_reg, id_usuario, usuario, fecha, cotizacion, descripcion, turno, color, estado, hora_inicio, hora_fin,
+        (codigo_reg, id_usuario, usuario, fecha, cotizacion, descripcion, cliente, cod_cliente, color, estado, hora_inicio, hora_fin, hora_total,
          creado_por, fecha_creacion, hora_creacion, creado_en)
       VALUES
-        (@cod_reg, @id_us, @usr, @f, @cot, @desc, @trn, @col, @est,
+        (@cod_reg, @id_us, @usr, @f, @cot, @desc, @cliente, @cod_cliente, @col, @est,
          CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
          CASE WHEN @hfin    IS NULL OR @hfin    = '' THEN NULL ELSE CAST(@hfin    AS time(7)) END,
+         @htotal,
          @autor,
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),
@@ -328,11 +357,13 @@ const upsertScheduleCell = async (data) => {
     UPDATE DATA_CRONOGRAMA
     SET cotizacion         = @cot,
         descripcion        = @desc,
-        turno              = @trn,
+        cliente            = @cliente,
+        cod_cliente        = @cod_cliente,
         color              = @col,
         estado             = @est,
         hora_inicio        = CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
         hora_fin           = CASE WHEN @hfin    IS NULL OR @hfin    = '' THEN NULL ELSE CAST(@hfin    AS time(7)) END,
+        hora_total         = @htotal,
         actualizado_por    = @autor,
         fecha_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
         hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),

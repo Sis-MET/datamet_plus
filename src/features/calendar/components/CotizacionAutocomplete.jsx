@@ -23,6 +23,7 @@ export function CotizacionAutocomplete({
   value,
   onChange,
   onDescripcionChange,
+  onSelect,
   placeholder = 'EJ: 260001.COT01',
   isDarkGantt = true,
   className = '',
@@ -73,7 +74,7 @@ export function CotizacionAutocomplete({
         setSuggestions(data.data || []);
         setShowDropdown((data.data || []).length > 0);
       }
-    } catch (_err) {
+    } catch {
       setSuggestions([]);
       setShowDropdown(false);
     } finally {
@@ -110,6 +111,7 @@ export function CotizacionAutocomplete({
 
     // La planta va al campo "descripción" (editable por el usuario)
     if (onDescripcionChange) onDescripcionChange(plantaLabel);
+    if (onSelect) onSelect(item);
 
     // El cliente se muestra como ayuda visual bajo el input (no se guarda)
     setClienteHint(clienteLabel);

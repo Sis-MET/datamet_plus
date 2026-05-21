@@ -47,7 +47,7 @@ export function SidebarWidgets({
 
   const dayAbbreviations = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'];
 
-  // Agrupar eventos por técnico (los eventos vienen separados por turno AM/PM)
+  // Agrupar eventos por técnico para el resumen lateral del día
   const tecnicoMap = {};
   selectedDayEvents.forEach(evt => {
     const key = evt.client;

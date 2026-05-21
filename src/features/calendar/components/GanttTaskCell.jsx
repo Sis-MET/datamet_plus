@@ -184,13 +184,6 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               {task.morning && task.colorAM && <div className={`absolute inset-0 pointer-events-none opacity-40 bg-gradient-to-b from-white/20 to-transparent`} />}
               {task.morning && (
                 <div className="flex items-start gap-1.5 relative z-10 w-full overflow-hidden">
-                  {task.codigoRegistro && (
-                     <div className="absolute top-0 right-0 z-20">
-                        <span className="text-[8px] font-mono font-bold px-1 py-0.5 rounded-sm bg-black/30 text-white shadow-sm backdrop-blur-sm">
-                           {task.codigoRegistro}
-                        </span>
-                     </div>
-                  )}
                   <div 
                     className={`w-2 h-2 rounded-full shrink-0 mt-[4px] animate-pulse ${
                       (task.estadoAM === 'Completado' || task.estadoAM === 'Aprobado') ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :

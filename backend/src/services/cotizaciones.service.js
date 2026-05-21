@@ -25,6 +25,7 @@ const searchCotizaciones = async (searchTerm) => {
           cot.cod_contacto,
           LEN(cot.cod_contacto) - CHARINDEX('-', REVERSE(cot.cod_contacto))
         ) AS codigo_planta,
+        c.codigo_cliente,
         ISNULL(c.cliente, '')    AS nombre_cliente,
         ISNULL(p.dir, '')        AS nombre_planta
       FROM DATA_COTIZACION cot
