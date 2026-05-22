@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Loader2, Package, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { useTheme } from '../../../shared/context/ThemeContext';
-
-const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
+import { api } from '../../../shared/api/client';
 
 /**
  * Buscador de equipos con lista siempre visible.
@@ -36,10 +35,7 @@ export function EquipoSearch({ planta, clienteId, onSelect }) {
       setQuery('');
       try {
         // q vacío + planta = traer TODOS los equipos de esa planta
-        const res = await fetch(
-          `${API_URL}/api/equipos/search?q=&planta=${encodeURIComponent(planta)}`
-        );
-        const data = await res.json();
+        const data = await api.get('/equipos/search', { q: '', planta });
         if (data.success) setAllEquipos(data.data);
         else setError('Error al cargar los equipos');
       } catch {

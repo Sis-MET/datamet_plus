@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
-
-const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
+import { api } from '../../../shared/api/client';
 
 /**
  * Input de autocompletado para cotizaciones.
@@ -63,17 +62,9 @@ export function CotizacionAutocomplete({
       return;
     }
     try {
-      const token = localStorage.getItem('rimmet_token') || sessionStorage.getItem('rimmet_token') || '';
-      const res = await fetch(
-        `${API_URL}/api/cotizaciones/search?q=${encodeURIComponent(text)}`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      if (!res.ok) throw new Error('Error al buscar cotizaciones');
-      const data = await res.json();
-      if (data.success) {
-        setSuggestions(data.data || []);
-        setShowDropdown((data.data || []).length > 0);
-      }
+      const data = await api.get('/cotizaciones/search', { q: text });
+      setSuggestions(data.data || []);
+      setShowDropdown((data.data || []).length > 0);
     } catch {
       setSuggestions([]);
       setShowDropdown(false);

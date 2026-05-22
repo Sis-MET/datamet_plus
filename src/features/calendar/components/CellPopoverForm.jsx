@@ -7,6 +7,7 @@ import { HexColorPicker } from 'react-colorful';
 import { cn } from '../../../shared/utils/cn';
 import { safeStorage } from '../../../shared/utils/storage';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { api } from '../../../shared/api/client';
 import { CotizacionAutocomplete } from './CotizacionAutocomplete';
 import { AdditionalResourcesPicker } from './AdditionalResourcesPicker';
 import { TimelineBar } from './TimelineBar';
@@ -20,8 +21,6 @@ import {
   hasTimeOverlap,
   timeToMinutes,
 } from '../utils/calendarTime';
-
-const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
 
 // Integracion Bitrix24 suspendida temporalmente.
 // import { createBitrixDeal } from '../utils/bitrixService';
@@ -237,11 +236,7 @@ function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
 
     setIsLoading(true);
     try {
-      const token = safeStorage.getItem('rimmet_token') || safeStorage.getItem('token') || '';
-      const res = await fetch(`${API_URL}/api/clientes/search?q=${encodeURIComponent(text)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await res.json();
+      const data = await api.get('/clientes/search', { q: text });
       const items = data.success ? data.data || [] : [];
       setResults(items);
       setOpen(items.length > 0);
@@ -598,11 +593,7 @@ export function CellPopoverForm({
     const fetchPlantas = async () => {
       setIsLoadingPlantas(true);
       try {
-        const token = safeStorage.getItem('rimmet_token') || '';
-        const res = await fetch(`${API_URL}/api/clientes/${encodeURIComponent(codCliente)}/plantas`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json();
+        const data = await api.get(`/clientes/${encodeURIComponent(codCliente)}/plantas`);
         if (cancelled) return;
         setPlantas(data.success ? data.data || [] : []);
       } catch {

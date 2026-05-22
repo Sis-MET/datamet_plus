@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '../../utils/cn';
 import { useTheme } from '../../context/ThemeContext';
-
-const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
+import { api } from '../../api/client';
 
 export const SearchableInput = React.forwardRef(({
   className,
@@ -46,8 +45,7 @@ export const SearchableInput = React.forwardRef(({
     }
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/clientes/search?q=${encodeURIComponent(searchTerm)}`);
-      const data = await res.json();
+      const data = await api.get('/clientes/search', { q: searchTerm });
       if (data.success) {
         setResults(data.data);
         setIsOpen(data.data.length > 0);

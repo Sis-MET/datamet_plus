@@ -1,32 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { useForm, Controller, useFieldArray } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
+import React from 'react';
+import { Controller } from 'react-hook-form';
 import {
-  CheckCircle,
-  Save,
-  User,
-  Calendar,
-  Building2,
-  Loader2,
-  Search,
-  ChevronRight,
-  ChevronLeft,
-  FileText,
-  ClipboardList,
-  CheckSquare,
-  Plus,
-  Trash2
+  CheckCircle, Save, User, Building2, Loader2, Search,
+  ChevronRight, ChevronLeft, ClipboardList, CheckSquare,
+  Plus, Trash2
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
-
 import { InventoryItem } from './components/InventoryItem';
-import { SignatureField } from './components/SignatureField';
-import { ImageUpload } from './components/ImageUpload';
 import { EquipoSearch } from './components/EquipoSearch';
-import { generateRIMCode } from './utils/rimCode';
-
 import { Input } from '../../shared/components/ui/Input';
 import { Select } from '../../shared/components/ui/Select';
 import { Button } from '../../shared/components/ui/Button';
@@ -35,11 +16,7 @@ import { CheckboxWithLocation } from '../../shared/components/ui/CheckboxWithLoc
 import { TextArea } from '../../shared/components/ui/TextArea';
 import { SearchableInput } from '../../shared/components/ui/SearchableInput';
 import { cn } from '../../shared/utils/cn';
-
-import { formSchema } from '../../utils/validations';
-import { fileToBase64 } from '../../utils/files';
-import { generatePDF } from '../../utils/pdfGenerator.jsx';
-import { useTheme } from '../../shared/context/ThemeContext';
+import { useRimForm } from './hooks/useRimForm';
 
 const STEPS = [
   { id: 1, title: 'Cliente y Planta', icon: Building2 },
@@ -49,128 +26,18 @@ const STEPS = [
 ];
 
 export function RimFormPage({ currentUser }) {
-  const { isDarkGantt } = useTheme();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  // Estado de la planta del cliente
-  const [clienteId, setClienteId] = useState(null);
-  const [showPlanta, setShowPlanta] = useState(false);
-  const [selectedPlanta, setSelectedPlanta] = useState('');
-  const [plantas, setPlantas] = useState([]);
-  const [plantasLoading, setPlantasLoading] = useState(false);
-
-  const fetchPlantas = useCallback(async (id) => {
-    if (!id) return;
-    setPlantasLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/clientes/${id}/plantas`);
-      const data = await res.json();
-      if (data.success) setPlantas(data.data);
-    } catch (e) {
-      console.error('Error al cargar plantas:', e);
-    } finally {
-      setPlantasLoading(false);
-    }
-  }, []);
-
-  const [technicianInfo] = useState({
-    timestamp: new Date(),
-  });
-
-  // Extraer datos del usuario actual
-  const userFullName = currentUser ? `${currentUser.nombre} ${currentUser.apellido}`.trim() : 'Usuario Desconocido';
-  const userRole = currentUser?.cargo || 'TÉCNICO';
-
   const {
-    register,
-    control,
-    handleSubmit,
-    setValue,
-    reset,
-    watch,
-    trigger,
-    formState: { errors }
-  } = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      photos: [],
-      damageTypes: {},
-      dirtTypes: {},
-      affectedAreas: [],
-      inventory: {},
-    }
-  });
+    isDarkGantt, currentStep, isLoading, success,
+    clienteId, showPlanta, selectedPlanta, plantas, plantasLoading,
+    setClienteId, setShowPlanta, setSelectedPlanta,
+    fetchPlantas,
+    userFullName, userRole, rimCode,
+    form, otherFields, appendOther, removeOther,
+    onSubmit, nextStep, prevStep,
+  } = useRimForm(currentUser);
 
-  const { fields: otherFields, append: appendOther, remove: removeOther } = useFieldArray({
-    control,
-    name: 'inventory.otherItems'
-  });
+  const { register, control, setValue, watch, formState: { errors } } = form;
 
-  // Generar código RIM de forma reactiva (en el panel izquierdo)
-  const currentCliente = clienteId; // o el código si se guarda aparte. El clienteId actual es texto (ej: "0121") si viene de SearchableInput
-  const currentPlantaCode = watch('planta');
-  const rimCode = generateRIMCode(currentCliente, currentPlantaCode, technicianInfo.timestamp.getFullYear());
-
-  const onSubmit = async (data) => {
-    setIsLoading(true);
-    try {
-      const processedPhotos = await Promise.all(
-        data.photos.map(async (file) => {
-          const base64 = await fileToBase64(file);
-          return { name: file.name, size: file.size, type: file.type, content: base64 };
-        })
-      );
-      const payload = { ...data, photos: processedPhotos };
-      console.log("=== FORM SUBMISSION ===", payload);
-
-      const pdfResult = await generatePDF(data, rimCode);
-      if (pdfResult.success) {
-        console.log(`PDF generado exitosamente: ${pdfResult.fileName}`);
-      } else {
-        console.error('Error al generar PDF:', pdfResult.error);
-        alert('El formulario se procesó correctamente, pero hubo un error al generar el PDF.');
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setSuccess(true);
-      reset();
-      setCurrentStep(1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setTimeout(() => setSuccess(false), 5000);
-    } catch (error) {
-      alert("Error al procesar el formulario");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const nextStep = async () => {
-    let fieldsToValidate = [];
-    if (currentStep === 1) {
-      fieldsToValidate = ['companyName', 'companyRazonSocial', 'taxId', 'address', 'city', 'clientName', 'clientCargo', 'phone', 'email'];
-    } else if (currentStep === 2) {
-      fieldsToValidate = ['instrument', 'brand', 'model', 'serialNumber', 'maxCapacity', 'unit', 'resolution', 'workArea'];
-    } else if (currentStep === 3) {
-      fieldsToValidate = ['damageLevel', 'cleanlinessLevel'];
-    }
-
-    const isStepValid = await trigger(fieldsToValidate);
-    if (isStepValid) {
-      setCurrentStep(prev => Math.min(prev + 1, 4));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  const prevStep = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // ---------------------------------------------------------------------------
-  // RENDER SECCIONES POR PASO
-  // ---------------------------------------------------------------------------
   const renderStep1 = () => (
     <div className="space-y-6 animate-fade-in-up">
       <div className="mb-6">
@@ -195,11 +62,8 @@ export function RimFormPage({ currentUser }) {
                   if (clienteData.contacto_cargo) setValue('clientCargo', clienteData.contacto_cargo);
                   if (clienteData.contacto_fono) setValue('phone', clienteData.contacto_fono);
                   if (clienteData.contacto_email) setValue('email', clienteData.contacto_email);
-
-                  const newId = clienteData.codigo_cliente;
-                  setClienteId(newId);
+                  setClienteId(clienteData.codigo_cliente);
                   setShowPlanta(false);
-                  setPlantas([]);
                   setValue('planta', '');
                   setSelectedPlanta('');
                 }}
@@ -212,8 +76,6 @@ export function RimFormPage({ currentUser }) {
           <Input label="NIT / RUT" {...register('taxId')} error={errors.taxId} required />
         </div>
       </div>
-
-
 
       <div className="mt-8">
         <h4 className={`text-sm font-semibold font-medium mb-3 flex items-center ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
@@ -281,25 +143,21 @@ export function RimFormPage({ currentUser }) {
                         const val = e.target.value;
                         field.onChange(val);
                         setSelectedPlanta(val);
-                        
-                        // Auto-completar datos de la planta seleccionada
                         const plantaInfo = plantas.find(p => p.codigo_planta === val);
                         if (plantaInfo) {
-                           let rawDir = plantaInfo.dir || '';
-                           let dirPart = rawDir;
-                           let deptPart = plantaInfo.localidad || '';
-                           
-                           if (rawDir.includes('-')) {
-                             const parts = rawDir.split('-');
-                             deptPart = parts.pop().trim();
-                             dirPart = parts.join('-').trim();
-                           }
-                           
-                           setValue('plantaDireccion', dirPart);
-                           setValue('plantaDepartamento', deptPart);
+                          let rawDir = plantaInfo.dir || '';
+                          let dirPart = rawDir;
+                          let deptPart = plantaInfo.localidad || '';
+                          if (rawDir.includes('-')) {
+                            const parts = rawDir.split('-');
+                            deptPart = parts.pop().trim();
+                            dirPart = parts.join('-').trim();
+                          }
+                          setValue('plantaDireccion', dirPart);
+                          setValue('plantaDepartamento', deptPart);
                         } else {
-                           setValue('plantaDireccion', '');
-                           setValue('plantaDepartamento', '');
+                          setValue('plantaDireccion', '');
+                          setValue('plantaDepartamento', '');
                         }
                       }}
                       error={errors.planta}
@@ -311,7 +169,6 @@ export function RimFormPage({ currentUser }) {
                     />
                   )}
                 />
-                
                 {selectedPlanta && (
                   <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl border shadow-inner ${isDarkGantt ? 'bg-[#141414] border-white/5' : 'bg-gray-50 border-gray-200'}`}>
                     <Input label="Código Cliente y Planta" value={selectedPlanta} disabled className="opacity-80" />
@@ -349,7 +206,6 @@ export function RimFormPage({ currentUser }) {
           }}
         />
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Input label="Instrumento" {...register('instrument')} error={errors.instrument} required />
         <Input label="Marca" {...register('brand')} error={errors.brand} required />
@@ -360,7 +216,6 @@ export function RimFormPage({ currentUser }) {
         <Input label="Resolución" {...register('resolution')} error={errors.resolution} required />
         <Input label="Area de Trabajo" className="md:col-span-2" {...register('workArea')} error={errors.workArea} required />
       </div>
-
       <div className="mt-4">
         <TextArea label="Observaciones" {...register('notes')} rows={3} />
       </div>
@@ -383,14 +238,12 @@ export function RimFormPage({ currentUser }) {
                 type="button"
                 onClick={() => {
                   const keys = [
-                    'indicator', 'voltageAdapter', 'powerCable', 'bracket', 'column', 
-                    'weighingPan', 'windShield', 'structure', 'loadCellCable', 
+                    'indicator', 'voltageAdapter', 'powerCable', 'bracket', 'column',
+                    'weighingPan', 'windShield', 'structure', 'loadCellCable',
                     'loadCellConnector', 'junctionBox', 'manual', 'originalPackaging',
                     'loadCells', 'feet'
                   ];
                   keys.forEach(k => setValue(`inventory.${k}`, val, { shouldValidate: true }));
-                  
-                  // Aplicar autocompletado también a los "otros ítems" existentes
                   otherFields.forEach((field, index) => {
                     setValue(`inventory.otherItems.${index}.status`, val, { shouldValidate: true });
                   });
@@ -466,9 +319,9 @@ export function RimFormPage({ currentUser }) {
               {otherFields.map((field, index) => (
                 <div key={field.id} className="flex flex-col lg:flex-row lg:items-center gap-3 bg-[#141414] p-3 rounded-lg border border-gray-700/30 shadow-inner">
                   <div className="flex-1">
-                    <Input 
-                      placeholder="Ej. Cable RS232, Pesa patrón..." 
-                      {...register(`inventory.otherItems.${index}.name`)} 
+                    <Input
+                      placeholder="Ej. Cable RS232, Pesa patrón..."
+                      {...register(`inventory.otherItems.${index}.name`)}
                       className="h-10 text-sm"
                     />
                   </div>
@@ -491,7 +344,6 @@ export function RimFormPage({ currentUser }) {
                   </button>
                 </div>
               ))}
-              
               <Button
                 type="button"
                 variant="outline"
@@ -653,12 +505,11 @@ export function RimFormPage({ currentUser }) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
-        
+      <form onSubmit={onSubmit} className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+
         {/* SIDEBAR IZQUIERDO */}
         <div className="lg:w-1/3 xl:w-1/4 shrink-0 w-full lg:sticky lg:top-8">
           <div className="space-y-6">
-            {/* Info y Estado */}
             <div className={`shadow-2xl border rounded-2xl p-6 ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
               <div className={`flex items-center gap-4 mb-6 pb-6 border-b ${isDarkGantt ? 'border-gray-800' : 'border-gray-200'}`}>
                 <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center shrink-0">
@@ -669,7 +520,6 @@ export function RimFormPage({ currentUser }) {
                   <p className={`text-sm font-semibold font-medium ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>{userFullName}</p>
                 </div>
               </div>
-
               <div className="space-y-4">
                 <p className={`text-xs uppercase tracking-wider font-medium font-semibold mb-2 ${isDarkGantt ? 'text-white' : 'text-gray-700'}`}>Código RIM Generado</p>
                 <div className="bg-primary-900/20 border-2 border-primary-500/30 rounded-xl p-4 flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group">
@@ -678,21 +528,15 @@ export function RimFormPage({ currentUser }) {
                     {rimCode}
                   </p>
                 </div>
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
-                  <p className={`text-[10px] uppercase tracking-wider font-medium ${isDarkGantt ? 'text-white' : 'text-gray-600'}`}>Progreso en vivo</p>
-                </div>
               </div>
             </div>
 
-            {/* Navegación por Pasos Vertical */}
             <div className={`shadow-2xl border rounded-2xl p-4 hidden lg:block ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
               <div className="space-y-2">
                 {STEPS.map((step) => {
                   const isActive = currentStep === step.id;
                   const isCompleted = currentStep > step.id;
                   const StepIcon = step.icon;
-
                   return (
                     <div
                       key={step.id}
@@ -704,7 +548,7 @@ export function RimFormPage({ currentUser }) {
                     >
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                        isActive ? "bg-primary-500 text-white" : 
+                        isActive ? "bg-primary-500 text-white" :
                         isCompleted ? "bg-green-500/20 text-green-400" : (isDarkGantt ? "bg-gray-800 text-white font-medium" : "bg-gray-200 text-gray-700 font-medium")
                       )}>
                         {isCompleted ? <CheckCircle className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
@@ -721,43 +565,39 @@ export function RimFormPage({ currentUser }) {
           </div>
         </div>
 
-        {/* CONTENIDO PRINCIPAL (DERECHA) */}
+        {/* CONTENIDO PRINCIPAL */}
         <div className="flex-1 space-y-1">
-          {/* Header Mobile Steps */}
           <div className={`lg:hidden flex items-center justify-between shadow-2xl p-4 rounded-xl border ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
-             <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {currentStep}
-                </div>
-                <div>
-                  <p className={`text-xs font-medium ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>Paso {currentStep} de {STEPS.length}</p>
-                  <p className={`text-sm font-semibold font-medium ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>{STEPS[currentStep - 1].title}</p>
-                </div>
-             </div>
-             <p className="text-xs text-primary-400 font-mono tracking-wider bg-primary-900/30 px-2 py-1 rounded hidden sm:block">
-                {rimCode}
-             </p>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                {currentStep}
+              </div>
+              <div>
+                <p className={`text-xs font-medium ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>Paso {currentStep} de {STEPS.length}</p>
+                <p className={`text-sm font-semibold font-medium ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>{STEPS[currentStep - 1].title}</p>
+              </div>
+            </div>
+            <p className="text-xs text-primary-400 font-mono tracking-wider bg-primary-900/30 px-2 py-1 rounded hidden sm:block">
+              {rimCode}
+            </p>
           </div>
 
           <div className={`shadow-2xl ring-1 border rounded-2xl p-6 min-h-[500px] ${isDarkGantt ? 'bg-[#151518] ring-white/5 border-gray-700/50' : 'bg-[#F9FAFB] ring-black/5 border-gray-200'}`}>
-             {/* Animación y Renderizado Condicional */}
-             {currentStep === 1 && renderStep1()}
-             {currentStep === 2 && renderStep2()}
-             {currentStep === 3 && renderStep3()}
-             {currentStep === 4 && renderStep4()}
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
+            {currentStep === 3 && renderStep3()}
+            {currentStep === 4 && renderStep4()}
           </div>
 
-          {/* Botonera Guardar / Siguiente */}
           <div className={`shadow-2xl border rounded-2xl p-4 flex items-center justify-between ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={prevStep} 
+            <Button
+              type="button"
+              variant="outline"
+              onClick={prevStep}
               disabled={currentStep === 1 || isLoading}
             >
               <ChevronLeft className="h-4 w-4 mr-2" /> Atrás
             </Button>
-
             {currentStep < 4 ? (
               <Button type="button" onClick={nextStep} className="bg-primary-600 hover:bg-primary-500 text-white">
                 Siguiente <ChevronRight className="h-4 w-4 ml-2" />

@@ -11,8 +11,7 @@ import {
   format,
 } from 'date-fns';
 import { toast } from 'sonner';
-
-import { API_BASE } from '../../../config/api';
+import { api, ApiError, parseToken } from '../../../shared/api/client';
 
 
 export function useGantt() {
@@ -51,23 +50,10 @@ export function useGantt() {
       const startStr = format(prevWeekStart, 'yyyy-MM-dd');
       const endStr   = format(nextWeekEnd,   'yyyy-MM-dd');
 
-      const [scheduleRes, tecnicosRes] = await Promise.all([
-        fetch(`${API_BASE}/calendar/cronograma?start=${startStr}&end=${endStr}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store'
-        }),
-        fetch(`${API_BASE}/calendar/tecnicos`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store'
-        }),
+      const [scheduleData, tecnicosData] = await Promise.all([
+        api.get('/calendar/cronograma', { start: startStr, end: endStr }),
+        api.get('/calendar/tecnicos'),
       ]);
-
-      if (!scheduleRes.ok) console.error('Schedule fetch failed:', await scheduleRes.text());
-      if (!tecnicosRes.ok) console.error('Tecnicos fetch failed:', await tecnicosRes.text());
-      if (!scheduleRes.ok || !tecnicosRes.ok) throw new Error('Server error');
-
-      const scheduleData = await scheduleRes.json();
-      const tecnicosData = await tecnicosRes.json();
 
       let validTecnicos = [];
       if (tecnicosData.success) {
@@ -158,13 +144,9 @@ export function useGantt() {
     return tasks.filter(t => t.Tecnico === tecnicoId && isSameDay(t.fecha, day));
   }, [tasks]);
 
-  // Ahora upsertScheduleCell recibe un objeto con morning, afternoon y color en vez de un solo texto
   const upsertScheduleCell = async (date, resource, payload, skipFetch = false) => {
-    const token = safeStorage.getItem('rimmet_token');
-    // Formatear la fecha como YYYY-MM-DD local
     const dateStr = format(date, 'yyyy-MM-dd');
     
-    // Convertir el payload (sea strig o objeto) a un objeto seguro.
     let payloadObj = null;
     if (typeof payload === 'string' && payload.trim() !== '') {
         payloadObj = {
@@ -174,22 +156,14 @@ export function useGantt() {
            autor: 'Sistema'
         };
     } else if (payload && typeof payload === 'object') {
-        let autorText = 'Sistema';
-        if (token) {
-           try {
-              const payloadToken = JSON.parse(atob(token.split('.')[1]));
-              autorText = payloadToken.nombre || payloadToken.usuario || 'Sistema';
-           } catch {
-              // Mantener autor por defecto si el token no se puede decodificar.
-           }
-        }
+        const tokenData = parseToken();
+        const autorText = tokenData?.nombre || tokenData?.usuario || 'Sistema';
 
         payloadObj = {
            cotizacion:   payload.cotizacion   || payload.morning || '',
            descripcion:  payload.descripcion  || '',
            cliente:      payload.cliente      || '',
            cod_cliente:  payload.cod_cliente  || '',
-           // morning se mantiene para compatibilidad con el backend (fallback)
            morning:      payload.cotizacion   || payload.morning || '',
            colorAM:      payload.colorAM      || '',
            estadoAM:     payload.estadoAM     || 'Pendiente',
@@ -202,38 +176,22 @@ export function useGantt() {
         };
     }
 
-    const res = await fetch(`${API_BASE}/calendar/cronograma`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
+    try {
+      const d = await api.post('/calendar/cronograma', {
         date: dateStr,
         resource,
         payload: payloadObj
-      })
-    });
+      });
 
-    if (!res.ok) {
+      if (d.data && d.data.codigo_reg == null) {
+          toast.error('Atención: La actividad se guardó, pero no tiene asignado un código de registro (RSP).', { duration: 8000 });
+      }
+    } catch (err) {
         let errMsg = 'Error al guardar en el cronograma';
-        try {
-           const d = await res.json();
-           if (d.message) errMsg = d.message;
-        } catch {
-           // Mantener mensaje generico si la respuesta no es JSON.
+        if (err instanceof ApiError && err.data?.message) {
+            errMsg = err.data.message;
         }
         throw new Error(errMsg);
-    }
-    
-    // Alerta si falta el código de registro (es obligatorio para todas las tareas)
-    try {
-        const d = await res.json();
-        if (d.data && d.data.codigo_reg == null) {
-            toast.error('Atención: La actividad se guardó, pero no tiene asignado un código de registro (RSP).', { duration: 8000 });
-        }
-    } catch {
-        // No bloquear el guardado si la respuesta ya fue consumida o no es JSON.
     }
 
     if (!skipFetch) {

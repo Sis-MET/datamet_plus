@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Truck, MapPin } from 'lucide-react';
-import { cn } from '../../../utils/cn';
+import { cn } from '../../../shared/utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
 import { useTheme } from '../../../shared/context/ThemeContext';
 

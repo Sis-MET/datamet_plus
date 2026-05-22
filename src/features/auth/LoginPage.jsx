@@ -4,8 +4,7 @@ import logoMetrica from '../../assets/logo_metrica.svg';
 import soporteSvg from '../../assets/soporte_tecnico.svg';
 import { safeStorage } from '../../shared/utils/storage';
 import { useTheme } from '../../shared/context/ThemeContext';
-
-import { API_BASE } from '../../config/api';
+import { api, ApiError } from '../../shared/api/client';
 const MAX_ATTEMPTS = 3;
 const LOCK_TIME_MS = 60 * 1000;
 
@@ -81,22 +80,9 @@ export function LoginPage({ onLogin }) {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario, pass }),
-      });
-      const data = await res.json();
-      
-      // Controlar código 429 (bloqueo por backend)
-      if (res.status === 429) {
-        const remainingMs = (data.remainingSecs || 60) * 1000;
-        lockAccount(remainingMs);
-        setError(data.message || 'Cuenta bloqueada.');
-        return;
-      }
+      const data = await api.post('/auth/login', { usuario, pass });
 
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         handleFailedAttempt();
         const remAttempts = Math.max(0, MAX_ATTEMPTS - (attempts + 1));
         const remMsg = remAttempts > 0 ? ` (Intentos restantes: ${remAttempts})` : '';
@@ -104,7 +90,6 @@ export function LoginPage({ onLogin }) {
         return;
       }
       
-      // Éxito: limpiar contadores
       const loggedUser = data.data.user;
 
       if (String(loggedUser.acceso_cron) === "0") {
@@ -112,19 +97,23 @@ export function LoginPage({ onLogin }) {
         return;
       }
 
-      // Éxito: limpiar contadores
       setAttempts(0);
       setLockUntil(null);
       safeStorage.removeItem('rimmet_login_attempts');
       safeStorage.removeItem('rimmet_login_lock_until');
       
-      // Pasar a calendar directamente
       safeStorage.setItem('rimmet_token', data.data.token);
       safeStorage.setItem('rimmet_user', JSON.stringify(loggedUser));
       safeStorage.setItem('rimmet_last_view', 'calendar');
       onLogin(loggedUser, 'calendar');
-    } catch {
-      setError('No se pudo conectar al servidor. Intente nuevamente.');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 429) {
+        const remainingMs = (err.data?.remainingSecs || 60) * 1000;
+        lockAccount(remainingMs);
+        setError(err.data?.message || 'Cuenta bloqueada.');
+      } else {
+        setError('No se pudo conectar al servidor. Intente nuevamente.');
+      }
     } finally {
       setLoading(false);
     }

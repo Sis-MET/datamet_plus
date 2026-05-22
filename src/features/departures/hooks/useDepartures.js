@@ -1,18 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
 import { safeStorage } from '../../../shared/utils/storage';
-import { API_BASE } from '../../../config/api';
+import { api } from '../../../shared/api/client';
+import { parseToken } from '../../../shared/api/client';
 
 const SOURCE_TAG = 'Salida Personal';
-
-function getAutorFromToken(token) {
-  try {
-    const p = JSON.parse(atob(token.split('.')[1]));
-    return p.nombre || p.usuario || 'Sistema';
-  } catch {
-    return 'Sistema';
-  }
-}
 
 export function useDepartures() {
   const [departures, setDepartures] = useState([]);
@@ -28,12 +20,7 @@ export function useDepartures() {
     const token = getToken();
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/calendar/tecnicos`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await api.get('/calendar/tecnicos');
       if (data.success) {
         setTecnicos(data.data.filter(t => t.area !== 'VEHÍCULOS'));
       }
@@ -53,13 +40,7 @@ export function useDepartures() {
       const startStr = format(startDate, 'yyyy-MM-dd');
       const endStr   = format(endDate,   'yyyy-MM-dd');
 
-      const res = await fetch(
-        `${API_BASE}/calendar/cronograma?start=${startStr}&end=${endStr}`,
-        { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
-      );
-      if (!res.ok) throw new Error('Error al cargar salidas');
-
-      const json = await res.json();
+      const json = await api.get('/calendar/cronograma', { start: startStr, end: endStr });
       if (json.success) {
         const rows = (json.data || [])
           // Filtrar solo las filas que son del módulo de salidas
@@ -107,7 +88,7 @@ export function useDepartures() {
 
     setSaving(true);
     try {
-      const autor = getAutorFromToken(token);
+      const autor = parseToken()?.nombre || parseToken()?.usuario || 'Sistema';
 
       // Por cada técnico seleccionado × cada fecha → una fila en el cronograma
       for (const tecnicoId of tecnicoIds) {
@@ -128,20 +109,7 @@ export function useDepartures() {
             creado_en:   SOURCE_TAG,
           };
 
-          const res = await fetch(`${API_BASE}/calendar/cronograma`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ date: dateStr, resource: tecnicoId, payload: payloadObj }),
-          });
-
-          if (!res.ok) {
-            let msg = 'Error al guardar salida';
-            try { const d = await res.json(); if (d.message) msg = d.message; } catch {}
-            throw new Error(msg);
-          }
+          await api.post('/calendar/cronograma', { date: dateStr, resource: tecnicoId, payload: payloadObj });
         }
       }
     } finally {
@@ -154,7 +122,8 @@ export function useDepartures() {
     const token = getToken();
     if (!token) throw new Error('No autenticado');
 
-    const autor = getAutorFromToken(token);
+    const tokenData = parseToken();
+    const autor = tokenData?.nombre || tokenData?.usuario || 'Sistema';
 
     const payloadObj = {
       cotizacion:  departure.tipoSalida,
@@ -164,29 +133,16 @@ export function useDepartures() {
       estadoAM:    newEstado,
       horaInicio:  departure.horaInicio,
       horaFin:     departure.horaFin,
-      rowId:       departure.rowId,   // UPDATE de fila existente
+      rowId:       departure.rowId,
       autor,
       creado_en:   SOURCE_TAG,
     };
 
-    const res = await fetch(`${API_BASE}/calendar/cronograma`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        date:     format(departure.fecha, 'yyyy-MM-dd'),
-        resource: departure.tecnicoId,
-        payload:  payloadObj,
-      }),
+    await api.post('/calendar/cronograma', {
+      date:     format(departure.fecha, 'yyyy-MM-dd'),
+      resource: departure.tecnicoId,
+      payload:  payloadObj,
     });
-
-    if (!res.ok) {
-      let msg = 'Error al actualizar estado';
-      try { const d = await res.json(); if (d.message) msg = d.message; } catch {}
-      throw new Error(msg);
-    }
   }, []);
 
   useEffect(() => {

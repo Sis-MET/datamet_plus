@@ -1,9 +1,6 @@
 const calendarService = require('../services/calendar.service');
+const scheduleService = require('../services/schedule.service');
 
-/**
- * @route GET /api/calendar/schedule?start=YYYY-MM-DD&end=YYYY-MM-DD
- * Retorna las tareas del cronograma en el rango dado.
- */
 const getSchedule = async (req, res, next) => {
   try {
     const { start, end } = req.query;
@@ -15,7 +12,6 @@ const getSchedule = async (req, res, next) => {
       });
     }
 
-    // Validar formato
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(start) || !dateRegex.test(end)) {
       return res.status(400).json({
@@ -32,10 +28,6 @@ const getSchedule = async (req, res, next) => {
   }
 };
 
-/**
- * @route GET /api/calendar/tecnicos
- * Retorna todos los usuarios/técnicos para las filas del Gantt.
- */
 const getTecnicos = async (req, res, next) => {
   try {
     const tecnicos = await calendarService.getTecnicos();
@@ -45,20 +37,15 @@ const getTecnicos = async (req, res, next) => {
   }
 };
 
-/**
- * @route POST /api/calendar/cronograma
- * Construye o actualiza una celda en el cronograma (solo Admin)
- */
 const upsertScheduleCell = async (req, res, next) => {
   try {
     const data = req.body;
-    
-    // Básica validación de requeridos
+
     if (!data.date || !data.resource) {
       return res.status(400).json({ success: false, message: 'La fecha y el recurso son requeridos' });
     }
 
-    const updatedRow = await calendarService.upsertScheduleCell(data);
+    const updatedRow = await scheduleService.upsertScheduleCell(data);
     res.status(200).json({ success: true, data: updatedRow });
   } catch (error) {
     if (error.statusCode === 409) {
