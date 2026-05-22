@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Backend API for RimMET built with Node.js and Express",
   "main": "src/server.js",
+  "packageManager": "pnpm@11.2.2",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",

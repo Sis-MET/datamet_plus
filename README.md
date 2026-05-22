@@ -27,18 +27,18 @@ Aplicación web moderna para el registro digital de entregas de balanzas, incluy
 
     ```bash
     cd rim-app
-    npm install
+    corepack pnpm install
     ```
 
 2.  **Iniciar servidor de desarrollo:**
 
     ```bash
-    npm run dev
+    corepack pnpm dev
     ```
 
 3.  **Construir para producción:**
     ```bash
-    npm run build
+    corepack pnpm build
     ```
 
 ## Estructura del Proyecto

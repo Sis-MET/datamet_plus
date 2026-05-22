@@ -13,13 +13,9 @@ Antes de copiar el código, debes asegurarte de que el servidor tenga instaladas
 4. Al finalizar, abre una consola (CMD o PowerShell) y verifica:
    ```cmd
    node -v
-   npm -v
+   corepack pnpm -v
    ```
-   > **Nota:** Si usas PowerShell y al ejecutar `npm` recibes un error indicando que "la ejecución de scripts está deshabilitada", abre PowerShell como Administrador y ejecuta este comando de una sola vez:
-   > ```powershell
-   > Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-   > ```
-   > Luego, acepta con `S` o `Y` y vuelve a intentarlo.
+   > **Nota:** El proyecto usa pnpm mediante Corepack. Si quieres tener el comando `pnpm` disponible directamente, abre PowerShell como Administrador y ejecuta `corepack enable`.
 
 ### B. Instalar y Configurar la Base de Datos (SQL Server)
 *(Si la base de datos no estará en el mismo servidor, puedes saltar este punto. Ignora Docker completamente).*
@@ -48,7 +44,7 @@ El firewall de Windows bloquea conexiones externas por defecto. Debes abrir los 
 1. En el repositorio clonado o la carpeta copiada a tu servidor (ej. `C:\apps\RimMET\backend`), abre una terminal en esa ubicación.
 2. Instala todas las dependencias del proyecto:
    ```cmd
-   npm install
+   corepack pnpm install --prod
    ```
 
 3. Crea el archivo de entorno `.env` basándote en `.env.example`.
@@ -74,16 +70,16 @@ El firewall de Windows bloquea conexiones externas por defecto. Debes abrir los 
 
 ## 4. Levantar la API como Servicio con PM2 (Recomendado)
 
-En producción o en un servidor, no debes levantar tu app corriendo un simple `npm start` en una terminal visible, porque si cierras la ventana o si el servidor se reinicia, tu API se cae. **Usaremos PM2.**
+En producción o en un servidor, no debes levantar tu app corriendo un simple `pnpm start` en una terminal visible, porque si cierras la ventana o si el servidor se reinicia, tu API se cae. **Usaremos PM2.**
 
 1. Abre PowerShell como **Administrador**.
 2. Instala PM2 globalmente:
    ```cmd
-   npm install -g pm2
+   corepack pnpm add -g pm2
    ```
 3. Instala la utilidad para crear servicios de Windows para PM2:
    ```cmd
-   npm install -g pm2-windows-startup
+   corepack pnpm add -g pm2-windows-startup
    pm2-startup install
    ```
 4. Dirígete a la carpeta de tu backend:
