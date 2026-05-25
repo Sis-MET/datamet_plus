@@ -170,6 +170,7 @@ export function useGantt() {
            horaInicio:   payload.horaInicio   || '',
            horaFin:      payload.horaFin      || '',
            lastModified: payload.lastModified || null,
+           codigoRegistro: payload.codigoRegistro || null,
            rowId:        payload.rowId        || null,
            autor: autorText,
            creado_en:    'CronoMET'

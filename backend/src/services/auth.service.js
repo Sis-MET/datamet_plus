@@ -1,6 +1,5 @@
 const { getPool, sql } = require('../config/db');
 const { generateToken } = require('../utils/jwt.utils');
-const { comparePassword, hashPassword } = require('../utils/hash.utils');
 
 // In-memory store para trackear intentos fallidos (usuario -> { attempts: number, lockUntil: timestamp })
 const loginAttemptsMap = new Map();
@@ -54,28 +53,9 @@ const loginUser = async (usuario, pass) => {
       throw new Error('Credenciales inválidas');
     }
 
-    // Gradual bcrypt migration: check format, validate, auto-upgrade legacy
-    let isPasswordValid = false;
-    let needsRehash = false;
-
-    if (user.pass && user.pass.startsWith('$2b$')) {
-      isPasswordValid = await comparePassword(pass, user.pass);
-    } else {
-      isPasswordValid = (user.pass === pass);
-      if (isPasswordValid) needsRehash = true;
-    }
-
-    if (!isPasswordValid) {
+    if (user.pass !== pass) {
       handleFailedAttempt();
       throw new Error('Credenciales inválidas');
-    }
-
-    if (needsRehash) {
-      const hashed = await hashPassword(pass);
-      await pool.request()
-        .input('hashed', sql.VarChar, hashed)
-        .input('userId', sql.Int, user.id)
-        .query('UPDATE DATA_USERS SET pass = @hashed WHERE id = @userId');
     }
 
     // Validación estricta a nivel backend para perfiles sin acceso

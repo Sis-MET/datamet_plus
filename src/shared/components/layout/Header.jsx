@@ -124,20 +124,10 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                       <span className={`text-xs font-semibold uppercase tracking-widest ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>Ajustes</span>
                     </div>
                     <div className="p-3">
-                      <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${isDarkGantt ? 'hover:bg-white/5' : 'hover:bg-gray-100'}`}>
-                        <div className="flex items-center gap-2.5">
-                          {isDarkGantt ? <Moon className="h-4 w-4 text-indigo-400 flex-shrink-0" /> : <Sun className="h-4 w-4 text-amber-500 flex-shrink-0" />}
-                          <div>
-                            <p className={`text-xs font-semibold leading-none mb-0.5 ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>Modo del sistema</p>
-                            <p className={`text-[10px] leading-none ${isDarkGantt ? 'text-gray-500' : 'text-gray-500'}`}>{isDarkGantt ? 'Oscuro (actual)' : 'Claro (actual)'}</p>
-                          </div>
-                        </div>
-                        <button role="switch" aria-checked={!isDarkGantt} onClick={toggleGanttTheme}
-                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!isDarkGantt ? 'bg-amber-400' : 'bg-white/15'}`}
-                        >
-                          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${!isDarkGantt ? 'translate-x-4' : 'translate-x-0'}`} />
-                        </button>
-                      </div>
+                      <button onClick={toggleGanttTheme} className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${isDarkGantt ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'}`}>
+                        {isDarkGantt ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-400" />}
+                        <span>{isDarkGantt ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}</span>
+                      </button>
                     </div>
                     <div className={`px-4 py-2 border-t ${isDarkGantt ? 'border-white/5' : 'border-gray-200'}`}>
                       <p className={`text-[10px] text-center ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>Solo afecta la grilla semanal</p>
@@ -230,17 +220,10 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                     <div className={`h-px w-full my-1 ${isDarkGantt ? 'bg-white/10' : 'bg-gray-200'}`} />
 
                     {/* Ajustes modo */}
-                    <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${isDarkGantt ? 'hover:bg-white/5' : 'hover:bg-gray-100'}`}>
-                      <div className="flex items-center gap-2">
-                        {isDarkGantt ? <Moon className="h-4 w-4 text-indigo-400" /> : <Sun className="h-4 w-4 text-amber-500" />}
-                        <span className={`text-xs font-semibold ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>{isDarkGantt ? 'Modo Oscuro' : 'Modo Claro'}</span>
-                      </div>
-                      <button role="switch" aria-checked={!isDarkGantt} onClick={toggleGanttTheme}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${!isDarkGantt ? 'bg-amber-400' : 'bg-white/15'}`}
-                      >
-                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-200 ${!isDarkGantt ? 'translate-x-4' : 'translate-x-0'}`} />
-                      </button>
-                    </div>
+                    <button onClick={toggleGanttTheme} className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${isDarkGantt ? 'text-gray-300 hover:bg-white/8' : 'text-gray-700 hover:bg-gray-100'}`}>
+                      {isDarkGantt ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-400" />}
+                      <span>{isDarkGantt ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}</span>
+                    </button>
 
                     <div className={`h-px w-full my-1 ${isDarkGantt ? 'bg-white/10' : 'bg-gray-200'}`} />
 

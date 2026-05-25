@@ -17,7 +17,7 @@
     "mssql",
     "rimmet"
   ],
-  "author": "Jhona",
+  "author": "lenash.dev",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^5.1.1",

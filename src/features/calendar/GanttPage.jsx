@@ -8,6 +8,17 @@ import { GanttLegend } from './components/GanttLegend';
 import { GanttHelpButton } from './components/GanttHelpButton';
 import { useTheme } from '../../shared/context/ThemeContext';
 
+const getAreaLabel = (area) => (typeof area === 'string' && area.trim() !== '' ? area.trim() : 'Sin Área');
+
+const sortAreasWithPriority = (preferredArea) => ([areaA], [areaB]) => {
+  if (preferredArea) {
+    if (areaA === preferredArea && areaB !== preferredArea) return -1;
+    if (areaB === preferredArea && areaA !== preferredArea) return 1;
+  }
+
+  return areaA.localeCompare(areaB);
+};
+
 /**
  * Componente presentacional puro: solo renderiza la grilla y la leyenda.
  * Toda la navegación y el título viven en CalendarPage.
@@ -17,6 +28,7 @@ export function GanttPage({
   previewDays = [],
   tecnicos,
   allTecnicos = [],
+  currentUserArea = '',
   selectedArea,
   onSelectArea,
   tasksForCell,
@@ -37,34 +49,35 @@ export function GanttPage({
 }) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const { isDarkGantt } = useTheme();
+  const preferredArea = currentUserArea ? getAreaLabel(currentUserArea) : '';
 
   // ── Estadísticas de áreas ──
   const areaStats = useMemo(() => {
     const stats = {};
     let totalActivos = 0;
     allTecnicos.forEach(t => {
-      const rawArea = typeof t.area === 'string' && t.area.trim() !== '' ? t.area.trim() : 'Sin Área';
+      const rawArea = getAreaLabel(t.area);
       if (!stats[rawArea]) stats[rawArea] = 0;
       stats[rawArea]++;
       totalActivos++;
     });
-    const areasArray = Object.keys(stats).map(areaName => ({
+    const areasArray = Object.entries(stats).sort(sortAreasWithPriority(preferredArea)).map(([areaName, count]) => ({
       name: areaName,
-      count: stats[areaName]
-    })).sort((a, b) => a.name.localeCompare(b.name));
+      count
+    }));
     return { totalActivos, areasArray };
-  }, [allTecnicos]);
+  }, [allTecnicos, preferredArea]);
 
-  // Agrupar técnicos por área, ordenados alfabéticamente por área
+  // Agrupar técnicos por área, priorizando el área del usuario y luego orden alfabético.
   const grupos = React.useMemo(() => {
     const map = {};
     tecnicos.forEach(t => {
-      const area = (typeof t.area === 'string' && t.area.trim()) ? t.area.trim() : 'Sin Área';
+      const area = getAreaLabel(t.area);
       if (!map[area]) map[area] = [];
       map[area].push(t);
     });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
-  }, [tecnicos]);
+    return Object.entries(map).sort(sortAreasWithPriority(preferredArea));
+  }, [tecnicos, preferredArea]);
 
   // Etiquetas de rango para las 3 semanas
   const fmtRange = (start, end) =>
@@ -282,4 +295,3 @@ export function GanttPage({
     </div>
   );
 }
-

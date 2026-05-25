@@ -11,6 +11,7 @@ export function CalendarPage() {
     isDarkGantt,
     tasks, weekStart, weekEnd, weekDays, tecnicos, loading, useMock,
     tasksForCell, refetch, nextWeek, prevWeek, goToCurrentWeek, goToDate, isTodayGantt,
+    currentUserArea,
     currentDate, selectedDay, calendarDays, selectedDayEvents,
     eventsForDay, selectDay, nextMonth, prevMonth, isToday, isSameDay, isSameMonth,
     filteredTecnicos, selectedArea, setSelectedArea,
@@ -23,6 +24,7 @@ export function CalendarPage() {
     handleTaskDrop, handleStateChange,
     handleAssignVehicleInit,
     setIsFormOpen, setSelectedDeparture, setContextMenu,
+    setIsDragging, setDragPos,
   } = useCalendarPage();
 
   return (
@@ -72,6 +74,7 @@ export function CalendarPage() {
             previewDays={[]}
             tecnicos={filteredTecnicos}
             allTecnicos={tecnicos}
+            currentUserArea={currentUserArea}
             selectedArea={selectedArea}
             onSelectArea={setSelectedArea}
             tasksForCell={tasksForCell}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Toaster as SonnerToaster } from 'sonner';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { Header } from './shared/components/layout/Header';
+import { Footer } from './shared/components/layout/Footer';
 import { RimFormPage } from './features/rim/RimFormPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
 import { DeparturesPage } from './features/departures/DeparturesPage';
@@ -43,15 +44,18 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
         style={{ backgroundImage: `linear-gradient(rgba(20, 20, 20, 0.60), rgba(20, 20, 20, 0.80)), url(${bgImage})` }}
       />
 
-      <div className="min-h-screen bg-transparent pb-12 relative z-0">
+      <div className="min-h-screen flex flex-col bg-transparent pb-2 relative z-0">
         <Header
           activeView={activeView}
           onViewChange={setActiveView}
           currentUser={currentUser}
           onLogout={handleLogout}
         />
-        <div className="h-20" />
-        {renderView()}
+        <div className="h-20 flex-shrink-0" />
+        <div className="flex-1">
+          {renderView()}
+        </div>
+        <Footer />
       </div>
     </>
   );
