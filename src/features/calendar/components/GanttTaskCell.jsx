@@ -9,6 +9,9 @@ import { useTheme } from '../../../shared/context/ThemeContext';
 
 const MAX_TASKS_PER_CELL = 4;
 
+const normalizeTaskText = (value) => String(value || '').trim();
+const normalizeForComparison = (value) => normalizeTaskText(value).toLocaleLowerCase();
+
 /**
  * Calcula si el texto debe ser oscuro o claro según el color de fondo.
  * Usa la fórmula de luminancia relativa (WCAG 2.1).
@@ -77,6 +80,12 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState(null);
   const timeoutRef = useRef(null);
+  const descriptionText = normalizeTaskText(task.descripcion);
+  const activityText = normalizeTaskText(task.morning);
+  const primaryText = descriptionText || activityText;
+  const secondaryText = descriptionText && normalizeForComparison(descriptionText) !== normalizeForComparison(activityText)
+    ? activityText
+    : '';
 
   const getStateBadgeClass = (estado) => {
     switch(estado) {
@@ -202,14 +211,14 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
                       style={{ color: task.colorAM ? contrast.text : undefined, textShadow: contrast.shadow }}
                     >
                       {task.creadoEn === 'Salida Personal' && <MapPin className="w-3 h-3 inline-block mr-1 opacity-80" />}
-                      {task.morning}
+                      {primaryText}
                     </span>
-                    {task.descripcion && (
+                    {secondaryText && (
                       <span
                         className="line-clamp-1 break-all text-[10px] leading-tight mt-[1px] opacity-80"
                         style={{ color: task.colorAM ? contrast.textSecondary : undefined, textShadow: contrast.shadow }}
                       >
-                        {task.descripcion}
+                        {secondaryText}
                       </span>
                     )}
                     {(task.horaInicio || task.horaFin) && (
@@ -261,15 +270,21 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: task.colorAM || '#37A65F' }} />
               <div className="flex-1">
                 <div className="flex justify-between items-center mb-0.5">
-                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>Cotización</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>
+                    {descriptionText ? 'Descripción' : 'Cotización'}
+                  </p>
                   {task.morning && <span className={getStateBadgeClass(task.estadoAM)}>{task.estadoAM || 'Pendiente'}</span>}
                 </div>
-                <p className={`text-sm font-semibold break-words leading-snug font-mono ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>{task.morning || '(Sin tarea)'}</p>
-                {/* Descripción */}
-                {task.descripcion && (
-                  <p className={`text-xs mt-1 break-words leading-snug ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {task.descripcion}
-                  </p>
+                <p className={`text-sm font-semibold break-words leading-snug font-mono ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>
+                  {primaryText || '(Sin tarea)'}
+                </p>
+                {secondaryText && (
+                  <div className="mt-2">
+                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/40' : 'text-gray-400'}`}>Cotización</p>
+                    <p className={`text-xs break-words leading-snug font-mono ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {secondaryText}
+                    </p>
+                  </div>
                 )}
                 {/* Rango horario */}
                 {task.horaFin && (

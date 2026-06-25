@@ -128,6 +128,20 @@ const getPlantOptionLabel = (planta, clienteLabel = '') => {
   return planta?.codigo_planta || '';
 };
 
+const isPlantCode = (value) => /^\d+\s*-\s*\d+/i.test(String(value || '').trim());
+
+const getPlantDescription = (planta, fallback = '') => {
+  if (!planta) return fallback;
+  const parts = getPlantParts(planta);
+  return parts.address || (planta.dir || '').trim() || planta.codigo_planta || fallback;
+};
+
+const getClientCodeFromPlantCode = (value) => {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return '';
+  return rawValue.split('-')[0].trim();
+};
+
 function ActivitySelect({ value, onChange, options, isDarkGantt }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
@@ -323,9 +337,10 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
   const containerRef = useRef(null);
 
   const selectedPlanta = plantas.find(planta => planta.codigo_planta === value) || null;
+  const isDropdownOpen = open && !disabled;
 
   useEffect(() => {
-    if (!open) return;
+    if (!isDropdownOpen) return;
 
     const handler = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
@@ -335,13 +350,7 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
 
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  useEffect(() => {
-    if (disabled) {
-      setOpen(false);
-    }
-  }, [disabled]);
+  }, [isDropdownOpen]);
 
   const placeholder = isLoading
     ? 'Cargando plantas...'
@@ -384,14 +393,14 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
           <ChevronDown
             className={cn(
               'h-3.5 w-3.5 shrink-0 transition-transform duration-150',
-              open ? 'rotate-180' : '',
+              isDropdownOpen ? 'rotate-180' : '',
               isDarkGantt ? 'text-gray-500' : 'text-gray-400'
             )}
           />
         )}
       </button>
 
-      {open && plantas.length > 0 && (
+      {isDropdownOpen && plantas.length > 0 && (
         <div
           className={cn(
             'absolute z-[200] top-[calc(100%+6px)] left-0 w-full rounded-xl border shadow-2xl overflow-hidden animate-fade-in',
@@ -579,7 +588,6 @@ export function CellPopoverForm({
   useEffect(() => {
     if (!codCliente) {
       setPlantas([]);
-      setSelectedPlantaCode('');
       return;
     }
 
@@ -612,7 +620,17 @@ export function CellPopoverForm({
 
   useEffect(() => {
     if (!requiresPlantAssistance) return;
-    if (selectedPlantaCode || !descripcion.trim() || plantas.length === 0) return;
+    if (plantas.length === 0) return;
+
+    if (selectedPlantaCode) {
+      const selected = plantas.find((planta) => planta.codigo_planta === selectedPlantaCode);
+      if (selected && !descripcion.trim()) {
+        setDescripcion(getPlantDescription(selected, selectedPlantaCode));
+      }
+      return;
+    }
+
+    if (!descripcion.trim()) return;
 
     const normalizedDescription = descripcion.trim();
     const matchedByDescription = plantas.find((planta) => {
@@ -635,11 +653,14 @@ export function CellPopoverForm({
 
     if (event) {
       const parsedActivity = parseActivityValue(event.morning || event.cotizacion || '');
+      const storedCode = String(event.cod_cliente || '').trim();
+      const storedPlantCode = isPlantCode(storedCode) ? storedCode : '';
+      const storedClientCode = storedPlantCode ? getClientCodeFromPlantCode(storedPlantCode) : storedCode;
       setActivityType(parsedActivity.activityType);
       setCotizacionCode(parsedActivity.quoteCode);
       setCliente(event.cliente || '');
-      setCodCliente(event.cod_cliente || '');
-      setSelectedPlantaCode('');
+      setCodCliente(storedClientCode);
+      setSelectedPlantaCode(storedPlantCode);
       setDescripcion(event.descripcion || '');
       setColorAM(event.colorAM || event.color || '');
       setEstadoAM(event.estadoAM || 'Pendiente');
@@ -722,7 +743,7 @@ export function CellPopoverForm({
   const handlePlantaChange = (codigoPlanta) => {
     setSelectedPlantaCode(codigoPlanta);
     const selected = plantas.find(planta => planta.codigo_planta === codigoPlanta);
-    setDescripcion(selected ? getPlantParts(selected).address : '');
+    setDescripcion(selected ? getPlantDescription(selected, codigoPlanta) : '');
   };
 
   const toggleAdditionalTecnico = (id) => {
@@ -761,6 +782,11 @@ export function CellPopoverForm({
       return;
     }
 
+    if (!colorAM.trim()) {
+      toast.error('Debe seleccionar un color para la ficha.');
+      return;
+    }
+
     if (timeToMinutes(horaFin) <= timeToMinutes(horaInicio)) {
       toast.error('La hora de fin debe ser posterior a la hora de inicio.');
       return;
@@ -774,12 +800,18 @@ export function CellPopoverForm({
     setIsSubmitting(true);
     try {
       const activityValue = buildActivityValue(activityType, cotizacionCode);
+      const finalDescripcion = requiresPlantAssistance
+        ? (descripcion.trim() || getPlantDescription(selectedPlanta, selectedPlantaCode))
+        : descripcion.trim();
+      const finalCodCliente = requiresPlantAssistance && selectedPlantaCode
+        ? selectedPlantaCode
+        : codCliente.trim();
       saveToRecent(colorAM);
       await onSave(prefilledDate, prefilledResource, {
         rowId: event ? event.rowId : null,
         cotizacion: activityValue,
         morning: activityValue,
-        descripcion: descripcion.trim(),
+        descripcion: finalDescripcion,
         afternoon: '',
         colorAM,
         colorPM: colorAM,
@@ -788,7 +820,7 @@ export function CellPopoverForm({
         horaInicio,
         horaFin,
         cliente: cliente.trim(),
-        cod_cliente: codCliente.trim(),
+        cod_cliente: finalCodCliente,
         lastModified: event ? event.timestampUpdated || null : null,
         additionalResources,
       });
@@ -918,21 +950,28 @@ export function CellPopoverForm({
                       type="button"
                       onClick={() => setActiveColorPicker(activeColorPicker === 'am' ? null : 'am')}
                       className={`w-11 h-11 rounded-xl border shadow-sm flex items-center justify-center transition-all hover:scale-105 active:scale-95 ring-offset-2 focus:outline-none focus:ring-2 focus:ring-primary-500 overflow-hidden ${
-                        isDarkGantt ? 'border-white/10 ring-offset-[#111]' : 'border-gray-200 ring-offset-white'
+                        !colorAM
+                          ? 'border-yellow-400/70 ring-1 ring-yellow-400/30'
+                          : isDarkGantt ? 'border-white/10 ring-offset-[#111]' : 'border-gray-200 ring-offset-white'
                       }`}
                       style={{ backgroundColor: colorAM || 'transparent' }}
-                      title="Elegir color"
+                      title="Elegir color obligatorio"
                     >
                       {!colorAM && (
                         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMmEyYTMwIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzYTNjNDIiPjwvcmVjdD4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzNhM2M0MiI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />
                       )}
                       <div className={`w-5 h-5 rounded-full border-2 shadow-inner mix-blend-overlay relative z-10 ${isDarkGantt ? 'border-white/40' : 'border-black/20'}`} />
+                      {!colorAM && (
+                        <span className="absolute -top-1 -right-1 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-black leading-none text-gray-950 shadow">
+                          *
+                        </span>
+                      )}
                     </button>
 
                     {activeColorPicker === 'am' && (
                       <div className={`absolute top-14 right-0 z-50 p-3 border rounded-2xl shadow-2xl animate-fade-in w-56 ${isDarkGantt ? 'bg-[#1e1e24] border-gray-700/50' : 'bg-white border-gray-200'}`}>
                         <div className="flex justify-between items-center mb-2">
-                          <span className={`text-xs font-semibold ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>Color</span>
+                          <span className={`text-xs font-semibold ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>Color *</span>
                           <button
                             type="button"
                             onClick={() => setActiveColorPicker(null)}
@@ -1062,7 +1101,7 @@ export function CellPopoverForm({
                   'text-[8px] font-bold uppercase tracking-widest',
                   isDarkGantt ? 'text-gray-600' : 'text-gray-400'
                 )}>
-                  Cod. Cliente
+                  Planta
                 </span>
                 <span className={cn(
                   'text-xs font-mono font-bold leading-tight',
