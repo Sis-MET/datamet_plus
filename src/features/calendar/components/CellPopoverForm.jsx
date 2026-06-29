@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Clock, Loader2, Trash2, X } from 'lucide-react';
+import { ChevronDown, Clock, Loader2, Trash2, X, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -40,7 +40,11 @@ const ACTIVITY_OPTIONS = [
   'Compensacion',
   'Permiso - Personal',
   'Permiso - Vacacion',
+  'Otro',
 ];
+
+// Tipos que NO requieren cliente ni cotización
+const NO_CLIENT_ACTIVITY_TYPES = new Set(['Compensacion', 'Permiso - Personal', 'Permiso - Vacacion', 'Otro']);
 
 const QUOTE_ACTIVITY_TYPES = new Set(['Servicio']);
 
@@ -493,7 +497,7 @@ export function CellPopoverForm({
   const [horaInicio, setHoraInicio] = useState(userJInicio);
   const [horaFin, setHoraFin] = useState(userJFin);
   const requiresQuote = QUOTE_ACTIVITY_TYPES.has(activityType);
-  const requiresPlantAssistance = activityType === 'Visita' || (activityType === 'Servicio' && !cotizacionCode.trim());
+  const requiresPlantAssistance = (activityType === 'Visita' || (activityType === 'Servicio' && !cotizacionCode.trim())) && !NO_CLIENT_ACTIVITY_TYPES.has(activityType);
   const selectedPlanta = useMemo(
     () => plantas.find(planta => planta.codigo_planta === selectedPlantaCode) || null,
     [plantas, selectedPlantaCode]
@@ -772,14 +776,19 @@ export function CellPopoverForm({
       return;
     }
 
-    if (requiresPlantAssistance && (!cliente.trim() || !codCliente.trim())) {
-      toast.error(`Debe seleccionar un cliente para ${activityType.toLowerCase()}.`);
+    if (requiresPlantAssistance && !cliente.trim()) {
+      toast.error(`Debe ingresar un cliente para ${activityType.toLowerCase()}.`);
       return;
     }
 
-    if (requiresPlantAssistance && !selectedPlantaCode) {
-      toast.error(`Debe seleccionar una planta para ${activityType.toLowerCase()}.`);
-      return;
+    // Cliente escrito manualmente sin seleccionar de la base de datos
+    if (requiresPlantAssistance && cliente.trim() && !codCliente.trim()) {
+      toast.warning(`El cliente "${cliente.trim()}" no está registrado en el DataMET. La ficha se guardará de todas formas.`, { duration: 5000 });
+    }
+
+    // Planta es opcional: solo advertir si hay cliente pero no planta
+    if (requiresPlantAssistance && cliente.trim() && codCliente.trim() && !selectedPlantaCode) {
+      toast.info(`Creando tarea con cliente "${cliente.trim()}" sin planta asignada.`, { duration: 4000 });
     }
 
     if (!colorAM.trim()) {
@@ -949,22 +958,24 @@ export function CellPopoverForm({
                     <button
                       type="button"
                       onClick={() => setActiveColorPicker(activeColorPicker === 'am' ? null : 'am')}
-                      className={`w-11 h-11 rounded-xl border shadow-sm flex items-center justify-center transition-all hover:scale-105 active:scale-95 ring-offset-2 focus:outline-none focus:ring-2 focus:ring-primary-500 overflow-hidden ${
+                      className={`w-11 h-11 rounded-xl border shadow-sm flex items-center justify-center transition-all hover:scale-105 active:scale-95 ring-offset-2 focus:outline-none focus:ring-2 focus:ring-primary-500 relative ${
                         !colorAM
-                          ? 'border-yellow-400/70 ring-1 ring-yellow-400/30'
+                          ? isDarkGantt ? 'border-red-500/50 ring-offset-[#111]' : 'border-red-400/60 ring-offset-white'
                           : isDarkGantt ? 'border-white/10 ring-offset-[#111]' : 'border-gray-200 ring-offset-white'
                       }`}
                       style={{ backgroundColor: colorAM || 'transparent' }}
                       title="Elegir color obligatorio"
                     >
                       {!colorAM && (
-                        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMmEyYTMwIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzYTNjNDIiPjwvcmVjdD4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzNhM2M0MiI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />
+                        <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMmEyYTMwIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzYTNjNDIiPjwvcmVjdD4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzNhM2M0MiI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />
+                        </div>
                       )}
                       <div className={`w-5 h-5 rounded-full border-2 shadow-inner mix-blend-overlay relative z-10 ${isDarkGantt ? 'border-white/40' : 'border-black/20'}`} />
                       {!colorAM && (
-                        <span className="absolute -top-1 -right-1 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-[10px] font-black leading-none text-gray-950 shadow">
-                          *
-                        </span>
+                        <div className={`absolute -top-2 -right-2 z-20 flex items-center justify-center rounded-full bg-white dark:bg-[#1a1a1d] shadow-sm pointer-events-none ${isDarkGantt ? 'bg-[#1a1a1d]' : 'bg-white'}`}>
+                          <AlertCircle className="w-[18px] h-[18px] text-red-500" />
+                        </div>
                       )}
                     </button>
 
@@ -1065,8 +1076,8 @@ export function CellPopoverForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2 items-end">
-              <div>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1 min-w-0">
                 <label className={`text-[10px] font-bold uppercase tracking-widest block mb-2 ${
                   isDarkGantt ? 'text-gray-400' : 'text-gray-500'
                 }`}>
@@ -1089,26 +1100,36 @@ export function CellPopoverForm({
                   )}
                 />
               </div>
+              {/* Código de planta: solo visible cuando hay planta seleccionada, con transición suave */}
               <div
                 className={cn(
-                  'h-[45px] rounded-xl border px-3 py-2 flex flex-col justify-center text-right shadow-inner',
-                  isDarkGantt
-                    ? 'bg-[#111111] border-white/5'
-                    : 'bg-gray-50 border-gray-200'
+                  'shrink-0 overflow-hidden transition-all duration-300 ease-in-out',
+                  selectedPlantaCode
+                    ? 'w-[88px] opacity-100'
+                    : 'w-0 opacity-0 pointer-events-none'
                 )}
               >
-                <span className={cn(
-                  'text-[8px] font-bold uppercase tracking-widest',
-                  isDarkGantt ? 'text-gray-600' : 'text-gray-400'
-                )}>
-                  Planta
-                </span>
-                <span className={cn(
-                  'text-xs font-mono font-bold leading-tight',
-                  isDarkGantt ? 'text-blue-300' : 'text-blue-700'
-                )}>
-                  {selectedPlantaCode || '--'}
-                </span>
+                <div
+                  className={cn(
+                    'h-[45px] w-[88px] rounded-xl border px-3 py-2 flex flex-col justify-center text-right shadow-inner',
+                    isDarkGantt
+                      ? 'bg-[#111111] border-white/5'
+                      : 'bg-gray-50 border-gray-200'
+                  )}
+                >
+                  <span className={cn(
+                    'text-[8px] font-bold uppercase tracking-widest',
+                    isDarkGantt ? 'text-gray-600' : 'text-gray-400'
+                  )}>
+                    Planta
+                  </span>
+                  <span className={cn(
+                    'text-xs font-mono font-bold leading-tight truncate',
+                    isDarkGantt ? 'text-blue-300' : 'text-blue-700'
+                  )}>
+                    {selectedPlantaCode}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

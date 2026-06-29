@@ -80,8 +80,36 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState(null);
   const timeoutRef = useRef(null);
+
+  // --- Datos normalizados para la tarjeta ---
+  const clienteText = normalizeTaskText(task.cliente);
   const descriptionText = normalizeTaskText(task.descripcion);
   const activityText = normalizeTaskText(task.morning);
+
+  // Detectar si cod_cliente es un código de planta (formato "123-456")
+  const codCliente = normalizeTaskText(task.cod_cliente);
+  const isPlantCode = /^\d+\s*-\s*\d+/.test(codCliente);
+
+  // Si hay código de planta, la descripción actúa como info de planta
+  // Separamos "planta" de "descripción libre" según el contexto
+  const plantaText = isPlantCode ? descriptionText : '';
+  const freeDescription = isPlantCode ? '' : descriptionText;
+
+  // Construir las líneas dinámicas en orden de prioridad:
+  // 1. Cliente  2. Planta  3. Descripción
+  // Si falta alguna, las siguientes suben de posición.
+  const dynamicLines = [];
+  if (clienteText) dynamicLines.push({ text: clienteText, role: 'primary' });
+  if (plantaText) dynamicLines.push({ text: plantaText, role: dynamicLines.length === 0 ? 'primary' : 'secondary' });
+  if (freeDescription && normalizeForComparison(freeDescription) !== normalizeForComparison(activityText)) {
+    dynamicLines.push({ text: freeDescription, role: dynamicLines.length === 0 ? 'primary' : 'secondary' });
+  }
+  // Fallback: si no hay cliente, ni planta, ni descripción distinta de la actividad, usar activityText
+  if (dynamicLines.length === 0 && activityText) {
+    dynamicLines.push({ text: activityText, role: 'primary' });
+  }
+
+  // Para el tooltip (mantener textos completos)
   const primaryText = descriptionText || activityText;
   const secondaryText = descriptionText && normalizeForComparison(descriptionText) !== normalizeForComparison(activityText)
     ? activityText
@@ -206,27 +234,43 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
                     title={task.estadoAM || 'Pendiente'}
                   />
                   <div className="flex flex-col flex-1 min-w-0 justify-center h-full">
-                    <span
-                      className="line-clamp-1 break-all font-bold text-xs leading-tight"
-                      style={{ color: task.colorAM ? contrast.text : undefined, textShadow: contrast.shadow }}
-                    >
-                      {task.creadoEn === 'Salida Personal' && <MapPin className="w-3 h-3 inline-block mr-1 opacity-80" />}
-                      {primaryText}
-                    </span>
-                    {secondaryText && (
+                    {/* Líneas dinámicas: Cliente > Planta > Descripción */}
+                    {dynamicLines.map((line, idx) => (
                       <span
-                        className="line-clamp-1 break-all text-[10px] leading-tight mt-[1px] opacity-80"
-                        style={{ color: task.colorAM ? contrast.textSecondary : undefined, textShadow: contrast.shadow }}
+                        key={idx}
+                        className={cn(
+                          'line-clamp-1 break-all leading-tight',
+                          line.role === 'primary'
+                            ? 'font-bold text-xs'
+                            : 'text-[10px] mt-[1px] opacity-80'
+                        )}
+                        style={{
+                          color: task.colorAM
+                            ? (line.role === 'primary' ? contrast.text : contrast.textSecondary)
+                            : undefined,
+                          textShadow: contrast.shadow
+                        }}
                       >
-                        {secondaryText}
+                        {idx === 0 && task.creadoEn === 'Salida Personal' && <MapPin className="w-3 h-3 inline-block mr-1 opacity-80" />}
+                        {line.text}
                       </span>
-                    )}
+                    ))}
+                    {/* Rango horario (siempre visible) */}
                     {(task.horaInicio || task.horaFin) && (
                       <span
                         className="text-[10px] leading-tight truncate font-bold font-mono tracking-tight mt-[1px]"
                         style={{ color: task.colorAM ? contrast.textSecondary : undefined, textShadow: contrast.shadow }}
                       >
                         {task.horaInicio || '08:30'} {task.horaFin ? `→ ${task.horaFin}` : ''}
+                      </span>
+                    )}
+                    {/* Tipo de tarea (siempre visible, texto pequeño) */}
+                    {activityText && (
+                      <span
+                        className="line-clamp-1 break-all text-[8px] leading-tight mt-[1px] opacity-60 uppercase tracking-wider"
+                        style={{ color: task.colorAM ? contrast.textSecondary : undefined, textShadow: contrast.shadow }}
+                      >
+                        {activityText}
                       </span>
                     )}
                   </div>
@@ -271,20 +315,48 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               <div className="flex-1">
                 <div className="flex justify-between items-center mb-0.5">
                   <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>
-                    {descriptionText ? 'Descripción' : 'Cotización'}
+                    {clienteText ? 'Cliente' : descriptionText ? 'Descripción' : 'Cotización'}
                   </p>
                   {task.morning && <span className={getStateBadgeClass(task.estadoAM)}>{task.estadoAM || 'Pendiente'}</span>}
                 </div>
-                <p className={`text-sm font-semibold break-words leading-snug font-mono ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>
-                  {primaryText || '(Sin tarea)'}
-                </p>
-                {secondaryText && (
-                  <div className="mt-2">
-                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/40' : 'text-gray-400'}`}>Cotización</p>
-                    <p className={`text-xs break-words leading-snug font-mono ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {secondaryText}
+                {/* Cliente */}
+                {clienteText && (
+                  <p className={`text-sm font-bold break-words leading-snug font-mono ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>
+                    {clienteText}
+                  </p>
+                )}
+                {/* Planta / Descripción */}
+                {descriptionText && (
+                  <div className={clienteText ? 'mt-1.5' : ''}>
+                    {clienteText && (
+                      <p className={`text-[9px] font-bold uppercase tracking-widest mb-0.5 ${isDarkGantt ? 'text-white/40' : 'text-gray-400'}`}>
+                        {isPlantCode ? 'Planta' : 'Descripción'}
+                      </p>
+                    )}
+                    <p className={cn(
+                      'break-words leading-snug font-mono',
+                      clienteText
+                        ? `text-xs ${isDarkGantt ? 'text-gray-300' : 'text-gray-600'}`
+                        : `text-sm font-semibold ${isDarkGantt ? 'text-white' : 'text-gray-800'}`
+                    )}>
+                      {descriptionText}
                     </p>
                   </div>
+                )}
+                {/* Tipo de tarea */}
+                {activityText && normalizeForComparison(activityText) !== normalizeForComparison(descriptionText) && (
+                  <div className="mt-1.5">
+                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/40' : 'text-gray-400'}`}>Tipo de tarea</p>
+                    <p className={`text-xs break-words leading-snug font-mono ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {activityText}
+                    </p>
+                  </div>
+                )}
+                {/* Si no hay cliente ni descripcion, mostrar actividad como principal */}
+                {!clienteText && !descriptionText && (
+                  <p className={`text-sm font-semibold break-words leading-snug font-mono ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>
+                    {activityText || '(Sin tarea)'}
+                  </p>
                 )}
                 {/* Rango horario */}
                 {task.horaFin && (
