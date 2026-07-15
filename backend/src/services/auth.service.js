@@ -71,7 +71,8 @@ const loginUser = async (usuario, pass) => {
       id: user.id || user.usuario, 
       usuario: user.usuario,
       acceso: user.acceso,
-      acceso_cron: user.acceso_cron
+      acceso_cron: user.acceso_cron,
+      cargo: user.cargo || ''
     });
 
     return {

@@ -19,7 +19,7 @@ export function CalendarPage() {
     selectedDeparture,
     isDragging, dragPos, isCtrlPressed,
     contextMenu,
-    isAdmin, isDev, canModifyTask, user,
+    isAdmin, isDev, isJefeDeArea, canModifyTask, user,
     handleOpenForm, handleSaveForm, handleDeleteTask,
     handleTaskDrop, handleStateChange,
     handleAssignVehicleInit,
@@ -80,7 +80,7 @@ export function CalendarPage() {
             tasksForCell={tasksForCell}
             isToday={isTodayGantt}
             selectedDay={selectedDay}
-            onTaskClick={isAdmin ? (evt, date, res) => {
+            onTaskClick={isAdmin || isJefeDeArea ? (evt, date, res) => {
                if (evt && (evt.creadoEn === 'Salida Personal' || evt.creadoEn === 'SalidaMET')) {
                  setSelectedDeparture({ task: evt, date, resourceId: res });
                  return;
@@ -91,7 +91,7 @@ export function CalendarPage() {
                }
                handleOpenForm(evt, date, res);
             } : undefined}
-            onTaskDrop={isAdmin ? (sourceTask, targetDate, targetResource, isMoveKey) => {
+            onTaskDrop={isAdmin || isJefeDeArea ? (sourceTask, targetDate, targetResource, isMoveKey) => {
                if (sourceTask?.creadoEn === 'Salida Personal' || sourceTask?.creadoEn === 'SalidaMET' || sourceTask?.estadoAM === 'Salida Personal') {
                   toast.error('Las salidas del personal no se pueden mover ni copiar desde el calendario.', { duration: 3000 });
                   return;
@@ -106,7 +106,7 @@ export function CalendarPage() {
                }
                handleTaskDrop(sourceTask, targetDate, targetResource, isMoveKey);
             } : undefined}
-            onTaskContextMenu={isAdmin ? (e, task, date, res) => {
+            onTaskContextMenu={isAdmin || isJefeDeArea ? (e, task, date, res) => {
                e.preventDefault();
                const isOwnPendingTask = String(task?.id_usuario) === String(user?.id) && (task?.estadoAM === 'Pendiente' || task?.estadoAM === 'En Proceso');
                if (!canModifyTask(date) && !isOwnPendingTask) {
@@ -118,8 +118,8 @@ export function CalendarPage() {
                const y = e.clientY + menuH > window.innerHeight ? window.innerHeight - menuH - 10 : e.clientY;
                setContextMenu({ visible: true, x, y, task, date, resourceId: res, showVehicles: false });
             } : undefined}
-            onTaskDragStart={isAdmin ? () => setIsDragging(true) : undefined}
-            onTaskDragEnd={isAdmin ? () => setIsDragging(false) : undefined}
+            onTaskDragStart={isAdmin || isJefeDeArea ? () => setIsDragging(true) : undefined}
+            onTaskDragEnd={isAdmin || isJefeDeArea ? () => setIsDragging(false) : undefined}
             currentWeekStart={weekStart}
             currentWeekEnd={weekEnd}
             goToCurrentWeek={goToCurrentWeek}

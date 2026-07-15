@@ -37,4 +37,22 @@ const isAdmin = (req, res, next) => {
   }
 };
 
-module.exports = { protect, isAdmin };
+const jefeAreaOrAdmin = (req, res, next) => {
+  const cargoNormalized = (req.user?.cargo || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  if (cargoNormalized === 'jefe de area') {
+    return next();
+  }
+
+  if (req.user && ['2', '3'].includes(String(req.user.acceso_cron))) {
+    return next();
+  }
+
+  return res.status(403).json({ success: false, message: 'Permiso denegado' });
+};
+
+module.exports = { protect, isAdmin, jefeAreaOrAdmin };

@@ -134,12 +134,6 @@ const getPlantOptionLabel = (planta, clienteLabel = '') => {
 
 const isPlantCode = (value) => /^\d+\s*-\s*\d+/i.test(String(value || '').trim());
 
-const getPlantDescription = (planta, fallback = '') => {
-  if (!planta) return fallback;
-  const parts = getPlantParts(planta);
-  return parts.address || (planta.dir || '').trim() || planta.codigo_planta || fallback;
-};
-
 const getClientCodeFromPlantCode = (value) => {
   const rawValue = String(value || '').trim();
   if (!rawValue) return '';
@@ -626,14 +620,6 @@ export function CellPopoverForm({
     if (!requiresPlantAssistance) return;
     if (plantas.length === 0) return;
 
-    if (selectedPlantaCode) {
-      const selected = plantas.find((planta) => planta.codigo_planta === selectedPlantaCode);
-      if (selected && !descripcion.trim()) {
-        setDescripcion(getPlantDescription(selected, selectedPlantaCode));
-      }
-      return;
-    }
-
     if (!descripcion.trim()) return;
 
     const normalizedDescription = descripcion.trim();
@@ -746,8 +732,6 @@ export function CellPopoverForm({
 
   const handlePlantaChange = (codigoPlanta) => {
     setSelectedPlantaCode(codigoPlanta);
-    const selected = plantas.find(planta => planta.codigo_planta === codigoPlanta);
-    setDescripcion(selected ? getPlantDescription(selected, codigoPlanta) : '');
   };
 
   const toggleAdditionalTecnico = (id) => {
@@ -796,6 +780,11 @@ export function CellPopoverForm({
       return;
     }
 
+    if (!descripcion.trim()) {
+      toast.error('La descripción no puede ir vacía.');
+      return;
+    }
+
     if (timeToMinutes(horaFin) <= timeToMinutes(horaInicio)) {
       toast.error('La hora de fin debe ser posterior a la hora de inicio.');
       return;
@@ -809,9 +798,7 @@ export function CellPopoverForm({
     setIsSubmitting(true);
     try {
       const activityValue = buildActivityValue(activityType, cotizacionCode);
-      const finalDescripcion = requiresPlantAssistance
-        ? (descripcion.trim() || getPlantDescription(selectedPlanta, selectedPlantaCode))
-        : descripcion.trim();
+      const finalDescripcion = descripcion.trim();
       const finalCodCliente = requiresPlantAssistance && selectedPlantaCode
         ? selectedPlantaCode
         : codCliente.trim();
@@ -871,7 +858,7 @@ export function CellPopoverForm({
       }`}
     >
       <div
-        className={`border rounded-2xl shadow-2xl w-full max-w-sm animate-in zoom-in-95 duration-200 ${
+        className={`border rounded-2xl shadow-2xl w-full max-w-lg animate-in zoom-in-95 duration-200 ${
           isDarkGantt ? 'bg-[#1a1a1d] border-gray-700/50' : 'bg-white border-gray-200'
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -1045,7 +1032,6 @@ export function CellPopoverForm({
                           setSelectedPlantaCode('');
                           setDescripcion('');
                         }}
-                        onDescripcionChange={setDescripcion}
                         onSelect={handleCotizacionSelect}
                         placeholder="Buscar cotizacion"
                         isDarkGantt={isDarkGantt}

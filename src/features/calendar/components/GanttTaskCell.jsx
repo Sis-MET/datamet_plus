@@ -378,6 +378,20 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
             </div>
           )}
 
+          {task.updatedBy && (
+            <div className="mt-2 pt-2 border-t border-red-500/30">
+              <div className={`rounded-lg p-2.5 border ${isDarkGantt ? 'bg-red-500/10 border-red-500/25' : 'bg-red-50 border-red-200'}`}>
+                <p className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${isDarkGantt ? 'text-red-400' : 'text-red-600'}`}>
+                  <span>⚠</span> Editado fuera de fecha
+                </p>
+                <p className={`text-[10px] font-mono mt-1 leading-relaxed ${isDarkGantt ? 'text-red-300/90' : 'text-red-600/80'}`}>
+                  {task.updatedBy && <span>Por: <strong className={isDarkGantt ? 'text-red-200' : 'text-red-700'}>{task.updatedBy}</strong></span>}
+                  {task.updatedAt && <span className="block">El {task.updatedAt}</span>}
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className={cn(
             "absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent backdrop-filter backdrop-blur-xl",
             tooltipPos.isTop

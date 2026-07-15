@@ -8,12 +8,10 @@ import { api } from '../../../shared/api/client';
  * Busca en /api/cotizaciones/search?q=... con debounce de 300ms.
  * Al seleccionar:
  *   - El valor guardado es SOLO el código: "260001.COT01"
- *   - La planta se envía a `onDescripcionChange` (pre-rellena el campo descripción)
  *   - El cliente se muestra como ayuda visual bajo el input (NO se guarda)
  *
  * @param {string}   value                 - Valor controlado (código de cotización)
  * @param {Function} onChange              - Callback al cambiar el valor del código
- * @param {Function} onDescripcionChange  - Callback para pre-rellenar la descripción con la planta
  * @param {string}   placeholder          - Placeholder del input
  * @param {boolean}  isDarkGantt          - Tema oscuro/claro
  * @param {string}   className            - Clases adicionales para el input
@@ -21,7 +19,6 @@ import { api } from '../../../shared/api/client';
 export function CotizacionAutocomplete({
   value,
   onChange,
-  onDescripcionChange,
   onSelect,
   placeholder = 'EJ: 260001.COT01',
   isDarkGantt = true,
@@ -92,19 +89,14 @@ export function CotizacionAutocomplete({
 
   const handleSelect = (item) => {
     const clienteLabel = (item.nombre_cliente || '').trim().toUpperCase();
-    const plantaLabel  = (item.nombre_planta  || '').trim();
 
-    // Valor guardado en cotizacion: SOLO el código
     const code = item.cod_cotizacion;
 
     setQuery(code);
     onChange(code);
 
-    // La planta va al campo "descripción" (editable por el usuario)
-    if (onDescripcionChange) onDescripcionChange(plantaLabel);
     if (onSelect) onSelect(item);
 
-    // El cliente se muestra como ayuda visual bajo el input (no se guarda)
     setClienteHint(clienteLabel);
 
     setSuggestions([]);

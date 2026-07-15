@@ -116,6 +116,10 @@ export function useGantt() {
             horaTotal: row.hora_total ?? null,
             author: row.actualizado_por || row.creado_por || '',
             timestampUpdated: formattedTimestamp,
+            createdBy: row.creado_por || '',
+            createdAt: row.fecha_creacion && row.hora_creacion ? `${row.fecha_creacion} ${row.hora_creacion}`.trim() : '',
+            updatedBy: row.actualizado_por || '',
+            updatedAt: row.fecha_modificacion && row.hora_modificacion ? `${row.fecha_modificacion} ${row.hora_modificacion}`.trim() : '',
             creadoEn: row.creado_en || ''
           };
         }).filter(Boolean);

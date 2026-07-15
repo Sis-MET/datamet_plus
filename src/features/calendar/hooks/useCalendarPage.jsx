@@ -90,6 +90,16 @@ export function useCalendarPage() {
   const isAdmin = ['2', '3'].includes(String(user?.acceso_cron));
   const isDev = String(user?.acceso_cron) === '3';
 
+  const isJefeDeArea = useMemo(() => {
+    if (!user?.cargo) return false;
+    const normalized = String(user.cargo)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    return normalized === 'jefe de area';
+  }, [user?.cargo]);
+
   // Gantt hook
   const {
     tasks, weekStart, weekEnd, weekDays, tecnicos, loading, useMock,
@@ -142,6 +152,7 @@ export function useCalendarPage() {
 
   const canModifyTask = (date) => {
     if (isDev) return true;
+    if (isJefeDeArea) return true;
     if (!isAdmin) return false;
     if (isPastDate(date)) return false;
     return true;
@@ -534,8 +545,11 @@ export function useCalendarPage() {
     try {
       const dateObj = new Date(date);
       await upsertScheduleCell(dateObj, resourceId, {
-        rowId: task.rowId, morning: task.morning, descripcion: task.descripcion, colorAM: task.colorAM,
-        estadoAM: newState, horaInicio: task.horaInicio, horaFin: task.horaFin,
+        rowId: task.rowId, morning: task.morning, descripcion: task.descripcion,
+        cliente: task.cliente, cod_cliente: task.cod_cliente,
+        colorAM: task.colorAM, estadoAM: newState,
+        horaInicio: task.horaInicio, horaFin: task.horaFin,
+        codigoRegistro: task.codigoRegistro || null,
         lastModified: task.timestampUpdated || null
       }, false);
       toast.success(`Estado actualizado a ${newState}`);
@@ -672,7 +686,7 @@ export function useCalendarPage() {
     // Context menu
     contextMenu,
     // Permissions
-    isAdmin, isDev, canModifyTask, user,
+    isAdmin, isDev, isJefeDeArea, canModifyTask, user,
     // Handlers
     handleOpenForm, handleSaveForm, handleDeleteTask,
     handleTaskDrop, handleStateChange,
