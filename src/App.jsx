@@ -38,10 +38,14 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
           loading: <Loader2 className="w-5 h-5 animate-spin text-gray-500" />,
         }}
       />
-      {/* Background layer — siempre oscuro, sin cambios por el tema */}
       <div
-        className="fixed inset-0 z-[-1] bg-cover bg-center"
-        style={{ backgroundImage: `linear-gradient(rgba(20, 20, 20, 0.60), rgba(20, 20, 20, 0.80)), url(${bgImage})` }}
+        className="fixed inset-0 z-[-1] bg-cover bg-center transition-[filter] duration-300"
+        style={{
+          backgroundImage: isDarkGantt
+            ? `linear-gradient(rgba(15, 16, 20, 0.72), rgba(15, 16, 20, 0.88)), url(${bgImage})`
+            : `linear-gradient(rgba(205, 218, 232, 0.62), rgba(190, 207, 225, 0.76)), url(${bgImage})`,
+          filter: isDarkGantt ? 'none' : 'saturate(0.86) contrast(1.04)',
+        }}
       />
 
       <div className="min-h-screen flex flex-col bg-transparent pb-2 relative z-0">
@@ -138,7 +142,6 @@ function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(intervalId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   if (!isAuthenticated) {

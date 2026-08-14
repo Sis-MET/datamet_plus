@@ -40,14 +40,14 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
   };
 
   return (
-    <header className="fixed top-3 left-4 right-4 z-50">
+    <header className="fixed top-2 left-2 right-2 z-50 sm:top-3 sm:left-4 sm:right-4">
       <div className="max-w-7xl mx-auto">
         <div
-          className={`flex items-center justify-between px-4 py-2.5 rounded-2xl shadow-2xl ${isDarkGantt ? 'shadow-black/40' : 'shadow-gray-300/50'}`}
+          className={`flex items-center justify-between px-3 py-2.5 sm:px-4 rounded-2xl border shadow-2xl ${isDarkGantt ? 'border-white/10 shadow-black/40' : 'border-slate-500/20 shadow-slate-700/20'}`}
           style={{
-            background: isDarkGantt ? 'rgba(18, 18, 20, 0.16)' : 'rgba(255, 255, 255, 0.85)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
+            background: isDarkGantt ? 'rgba(18, 18, 20, 0.58)' : 'rgba(225, 234, 243, 0.72)',
+            backdropFilter: 'blur(20px) saturate(1.2)',
+            WebkitBackdropFilter: 'blur(20px) saturate(1.2)',
           }}
         >
           {/* Logo */}
@@ -81,7 +81,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                 {isUserMenuOpen && (
                   <div
                     className={`absolute top-full right-0 mt-2 w-48 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden border animate-in fade-in zoom-in-95 duration-150 origin-top-right ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}
-                    style={{ background: isDarkGantt ? 'rgba(22,22,28,0.96)' : 'rgba(255,255,255,0.96)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+                    style={{ background: isDarkGantt ? 'rgba(22,22,28,0.94)' : 'rgba(225,234,243,0.94)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
                   >
                     <div className="p-2 flex flex-col gap-1">
                       <div className={`px-3 py-2 border-b mb-1 ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
@@ -117,7 +117,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                 {isSettingsOpen && (
                   <div
                     className={`absolute top-full right-0 mt-2 w-64 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden border animate-in fade-in zoom-in-95 duration-150 origin-top-right ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}
-                    style={{ background: isDarkGantt ? 'rgba(22,22,28,0.96)' : 'rgba(255,255,255,0.96)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+                    style={{ background: isDarkGantt ? 'rgba(22,22,28,0.94)' : 'rgba(225,234,243,0.94)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
                   >
                     <div className={`px-4 py-3 border-b flex items-center gap-2 ${isDarkGantt ? 'border-white/8' : 'border-gray-200'}`}>
                       <Settings className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`} />
@@ -130,7 +130,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                       </button>
                     </div>
                     <div className={`px-4 py-2 border-t ${isDarkGantt ? 'border-white/5' : 'border-gray-200'}`}>
-                      <p className={`text-[10px] text-center ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>Solo afecta la grilla semanal</p>
+                      <p className={`text-[10px] text-center ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>Afecta todo el calendario</p>
                     </div>
                   </div>
                 )}
@@ -154,7 +154,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                   <ChevronDown className={`h-3 w-3 opacity-70 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isDropdownOpen && (
-                  <div className={`absolute top-full right-0 mt-2 w-48 border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isDarkGantt ? 'bg-[#1e1e24] border-gray-700/50' : 'bg-white border-gray-200'}`}>
+                  <div className={`absolute top-full right-0 mt-2 w-48 border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${isDarkGantt ? 'bg-[#1e1e24]/95 border-gray-700/50' : 'bg-slate-100/95 border-slate-500/20 backdrop-blur-xl'}`}>
                     <button onClick={() => handleViewChange('rim')} className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors ${activeView === 'rim' ? (isDarkGantt ? 'text-primary-400 bg-primary-500/10' : 'text-primary-600 bg-primary-50/50') : (isDarkGantt ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50')}`}>
                       Formulario RIM
                     </button>
@@ -190,7 +190,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                 <div
                   className="absolute top-full right-0 mt-2 w-64 rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right"
                   style={{
-                    background: isDarkGantt ? 'rgba(22,22,28,0.97)' : 'rgba(255,255,255,0.97)',
+                    background: isDarkGantt ? 'rgba(22,22,28,0.96)' : 'rgba(225,234,243,0.96)',
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
                     borderColor: isDarkGantt ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',

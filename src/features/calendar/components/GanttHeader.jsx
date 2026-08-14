@@ -1,12 +1,12 @@
 import React from 'react';
-import { format, startOfWeek, endOfWeek, isBefore, isAfter, isSameDay } from 'date-fns';
+import { format, isBefore, isAfter, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { isNonWorkingDay } from '../utils/holidays';
 import { useTheme } from '../../../shared/context/ThemeContext';
 
 const DAY_LABELS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-export function GanttHeader({ weekDays, previewDays = [], isToday, currentWeekStart, currentWeekEnd, selectedDay }) {
+export function GanttHeader({ weekDays, isToday, currentWeekStart, currentWeekEnd, selectedDay }) {
   const { isDarkGantt } = useTheme();
 
   return (
@@ -42,9 +42,9 @@ export function GanttHeader({ weekDays, previewDays = [], isToday, currentWeekSt
           weekAccentStyle = { backgroundColor: 'rgba(16, 185, 129, 0.25)' };
         }
         
-        const dimClass   = !isCurrent && !isSelectedDay ? 'opacity-45' : '';
-        const borderClass = isFirstOfWeek ? 'border-l-2 border-l-white/20' : '';
-        const highlightClass = isSelectedDay ? 'ring-inset ring-2 ring-[#10b981]/80 shadow-[0_0_15px_rgba(16,185,129,0.3)] z-10 transition-all duration-300' : '';
+        const dimClass   = !isCurrent && !isSelectedDay ? 'opacity-65' : '';
+        const borderClass = isFirstOfWeek ? (isDarkGantt ? 'border-l-2 border-l-white/20' : 'border-l-2 border-l-slate-500/30') : '';
+        const highlightClass = isSelectedDay ? 'ring-inset ring-2 ring-[#10b981]/80 shadow-[0_0_15px_rgba(16,185,129,0.3)] z-10 transition-all duration-150' : '';
 
         // Color del label del día: en modo oscuro verde tenue, en modo claro verde visible
         const currentDayLabelColor = isDarkGantt ? 'text-green-300/80' : 'text-green-700';
@@ -71,4 +71,3 @@ export function GanttHeader({ weekDays, previewDays = [], isToday, currentWeekSt
     </div>
   );
 }
-

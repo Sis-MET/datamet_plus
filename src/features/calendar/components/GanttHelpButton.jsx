@@ -232,7 +232,7 @@ export function GanttHelpButton() {
             w-[21rem] rounded-2xl overflow-hidden
             ${isDarkGantt
               ? 'bg-[#14141a]/95 shadow-[0_8px_40px_rgba(0,0,0,0.7)] ring-1 ring-white/5'
-              : 'bg-white/96 shadow-[0_8px_40px_rgba(0,0,0,0.12)] ring-1 ring-black/5'}
+              : 'bg-slate-100/94 shadow-[0_16px_45px_rgba(15,23,42,0.24)] ring-1 ring-slate-500/20'}
           `}
         >
           {/* Cabecera */}
@@ -246,7 +246,7 @@ export function GanttHelpButton() {
               <p className={`text-[12px] font-bold leading-tight ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
                 Funciones del Cronograma
               </p>
-              <p className={`text-[10px] ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+              <p className={`text-[10px] ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
                 Guía rápida de interacciones
               </p>
             </div>
@@ -273,7 +273,7 @@ export function GanttHelpButton() {
                     <div className={`flex items-center justify-center w-5 h-5 rounded-md ${c.badge}`}>
                       <section.Icon className="w-3 h-3" strokeWidth={2} />
                     </div>
-                    <span className={`text-[9px] font-black uppercase tracking-[0.12em] ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <span className={`text-[9px] font-black uppercase tracking-[0.12em] ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
                       {section.label}
                     </span>
                     <div className={`flex-1 h-px ${isDarkGantt ? 'bg-white/5' : 'bg-gray-100'}`} />
@@ -328,7 +328,7 @@ export function GanttHelpButton() {
                             </div>
                           )}
 
-                          <p className={`text-[10px] leading-relaxed ${isDarkGantt ? 'text-gray-500' : 'text-gray-500'}`}>
+                          <p className={`text-[10px] leading-relaxed ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
                             {item.description}
                           </p>
                         </div>
@@ -343,7 +343,7 @@ export function GanttHelpButton() {
             <div className={`mx-2.5 mt-1 mb-2 px-3 py-2 rounded-xl text-center ${
               isDarkGantt ? 'bg-white/2' : 'bg-gray-50'
             }`}>
-              <p className={`text-[9px] ${isDarkGantt ? 'text-gray-600' : 'text-gray-400'}`}>
+              <p className={`text-[9px] ${isDarkGantt ? 'text-slate-500' : 'text-slate-600'}`}>
                 Pasa el cursor sobre el panel para mantenerlo abierto
               </p>
             </div>

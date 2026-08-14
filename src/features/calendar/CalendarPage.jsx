@@ -9,7 +9,7 @@ import { DepartureReadOnlyModal } from '../departures/components/DepartureReadOn
 export function CalendarPage() {
   const {
     isDarkGantt,
-    tasks, weekStart, weekEnd, weekDays, tecnicos, loading, useMock,
+    weekStart, weekEnd, weekDays, tecnicos, loading, useMock,
     tasksForCell, refetch, nextWeek, prevWeek, goToCurrentWeek, goToDate, isTodayGantt,
     currentUserArea,
     currentDate, selectedDay, calendarDays, selectedDayEvents,
@@ -19,7 +19,7 @@ export function CalendarPage() {
     selectedDeparture,
     isDragging, dragPos, isCtrlPressed,
     contextMenu,
-    isAdmin, isDev, isJefeDeArea, canModifyTask, user,
+    isAdmin, isJefeDeArea, canModifyTask, user,
     handleOpenForm, handleSaveForm, handleDeleteTask,
     handleTaskDrop, handleStateChange,
     handleAssignVehicleInit,
@@ -29,7 +29,7 @@ export function CalendarPage() {
 
   return (
     <main
-      className="w-full h-full flex flex-col px-4 sm:px-6 2xl:px-12 py-6 relative"
+      className={`calendar-workspace ${isDarkGantt ? 'calendar-dark' : 'calendar-light'} w-full h-full flex flex-col px-2 sm:px-4 xl:px-6 2xl:px-8 py-2.5 sm:py-4 relative`}
       onDragOver={(e) => {
         if (isDragging) {
            e.preventDefault();
@@ -37,8 +37,8 @@ export function CalendarPage() {
         }
       }}
     >
-      <div className="mb-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className={useMock ? 'mb-3' : ''}>
+        <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2 flex-wrap">
             {useMock && (
               <span className="gantt-mock-badge">
@@ -50,8 +50,8 @@ export function CalendarPage() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="order-2 lg:order-1 w-full lg:w-auto">
+      <div className="flex flex-col lg:flex-row gap-3 xl:gap-5 items-start">
+        <div className="order-2 lg:order-1 w-full lg:w-auto lg:max-w-[280px]">
           <LeftFilterSidebar
             tecnicos={tecnicos}
             currentDate={currentDate}
@@ -68,7 +68,7 @@ export function CalendarPage() {
           />
         </div>
 
-        <div className="order-1 lg:order-2 flex-1 min-w-0 w-full overflow-x-auto">
+        <div className="order-1 lg:order-2 flex-1 min-w-0 w-full">
           <GanttPage
             weekDays={weekDays}
             previewDays={[]}
@@ -143,6 +143,7 @@ export function CalendarPage() {
           prefilledDate={prefilledDate}
           prefilledResource={prefilledResource}
           existingTasks={tasksForCell(prefilledResource, prefilledDate)}
+          getTasksForResource={tasksForCell}
           tecnicos={tecnicos}
         />
       )}
@@ -181,8 +182,8 @@ export function CalendarPage() {
              style={{
                top: contextMenu.y,
                left: contextMenu.x,
-               background: isDarkGantt ? 'rgba(30, 30, 35, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-               backdropFilter: 'blur(16px)'
+               background: isDarkGantt ? 'rgba(30, 30, 35, 0.95)' : 'rgba(225, 234, 243, 0.96)',
+               backdropFilter: 'blur(18px) saturate(1.18)'
              }}
            >
               <div className={`px-3 pt-2.5 pb-1 text-[9px] font-bold uppercase tracking-widest pointer-events-none ${isDarkGantt ? 'text-gray-200' : 'text-gray-500'}`}>Cambiar Estado</div>
@@ -220,7 +221,7 @@ export function CalendarPage() {
 
                  {contextMenu.showVehicles && (
                     <div className={`absolute top-0 ${(typeof window !== 'undefined' && contextMenu.x > window.innerWidth - 380) ? 'right-full mr-1' : 'left-full ml-1'} w-44 border rounded-xl overflow-hidden animate-fade-in ${isDarkGantt ? 'border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)]' : 'border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.15)]'}`}
-                         style={{ background: isDarkGantt ? 'rgba(30,30,35,0.98)' : 'rgba(255,255,255,0.98)', backdropFilter: 'blur(16px)' }}
+                         style={{ background: isDarkGantt ? 'rgba(30,30,35,0.98)' : 'rgba(225,234,243,0.98)', backdropFilter: 'blur(18px) saturate(1.18)' }}
                     >
                        <div className={`px-3 pt-2.5 pb-1 text-[9px] font-bold uppercase tracking-widest pointer-events-none ${isDarkGantt ? 'text-emerald-300' : 'text-gray-500'}`}>Vehículos</div>
                        <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col py-0.5">
@@ -231,7 +232,7 @@ export function CalendarPage() {
                              <button
                                key={vehiculo.id}
                                onClick={(e) => { e.stopPropagation(); handleAssignVehicleInit(vehiculo); }}
-                               className={`w-full text-left px-3 py-1.5 text-[11px] font-semibold transition-colors truncate ${isDarkGantt ? 'text-gray-200 hover:bg-emerald-500/20 hover:text-emerald-300' : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-600'}`}
+                                className={`w-full text-left px-3 py-2 text-[11px] font-semibold transition-colors truncate ${isDarkGantt ? 'text-gray-200 hover:bg-white/10 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'}`}
                              >
                                {vehiculo.nombre}
                              </button>

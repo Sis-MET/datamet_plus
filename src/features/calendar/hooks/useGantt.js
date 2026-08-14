@@ -10,7 +10,6 @@ import {
   isToday,
   format,
 } from 'date-fns';
-import { toast } from 'sonner';
 import { api, ApiError, parseToken } from '../../../shared/api/client';
 
 
@@ -103,12 +102,14 @@ export function useGantt() {
             id_usuario: row.id_usuario,
             Tecnico: resourceId,
             fecha: rowDate,
-            codigoRegistro: row.codigo_reg || '',
-            // cotizacion es el campo principal (antes: descripcion)
-            morning: row.cotizacion || row.descripcion || '',
+            tipoTarea: row.tipo_tarea || row.cotizacion || row.descripcion || '',
+            cotizacion: row.cotizacion || '',
+            // morning se conserva como alias de presentación para la grilla.
+            morning: row.tipo_tarea || row.cotizacion || row.descripcion || '',
             descripcion: row.descripcion || '',
             cliente: row.cliente || '',
             cod_cliente: row.cod_cliente || '',
+            planta: row.planta || '',
             colorAM: row.color || '#37A65F',
             estadoAM: mappedEstado,
             horaInicio: row.hora_inicio ? row.hora_inicio.substring(0, 5) : '',
@@ -164,17 +165,18 @@ export function useGantt() {
         const autorText = tokenData?.nombre || tokenData?.usuario || 'Sistema';
 
         payloadObj = {
-           cotizacion:   payload.cotizacion   || payload.morning || '',
+           tipo_tarea:   payload.tipo_tarea   || payload.tipoTarea || payload.morning || '',
+           cotizacion:   payload.cotizacion   || '',
            descripcion:  payload.descripcion  || '',
            cliente:      payload.cliente      || '',
            cod_cliente:  payload.cod_cliente  || '',
-           morning:      payload.cotizacion   || payload.morning || '',
+           planta:       payload.planta       || '',
+           morning:      payload.tipo_tarea   || payload.tipoTarea || payload.morning || '',
            colorAM:      payload.colorAM      || '',
            estadoAM:     payload.estadoAM     || 'Pendiente',
            horaInicio:   payload.horaInicio   || '',
            horaFin:      payload.horaFin      || '',
            lastModified: payload.lastModified || null,
-           codigoRegistro: payload.codigoRegistro || null,
            rowId:        payload.rowId        || null,
            autor: autorText,
            creado_en:    'CronoMET'
@@ -182,15 +184,12 @@ export function useGantt() {
     }
 
     try {
-      const d = await api.post('/calendar/cronograma', {
+      await api.post('/calendar/cronograma', {
         date: dateStr,
         resource,
         payload: payloadObj
       });
 
-      if (d.data && d.data.codigo_reg == null) {
-          toast.error('Atención: La actividad se guardó, pero no tiene asignado un código de registro (RSP).', { duration: 8000 });
-      }
     } catch (err) {
         let errMsg = 'Error al guardar en el cronograma';
         if (err instanceof ApiError && err.data?.message) {

@@ -28,7 +28,7 @@ export function TimelineBar({ occupiedBlocks, horaInicio, horaFin, isDarkGantt, 
   return (
     <div className="select-none space-y-1.5 mt-2">
       <div className="flex items-center justify-between px-0.5">
-        <span className={`text-[9px] font-mono font-semibold ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+        <span className={`text-[9px] font-mono font-semibold ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
           {horaInicio}
         </span>
         {durationLabel && (
@@ -40,7 +40,7 @@ export function TimelineBar({ occupiedBlocks, horaInicio, horaFin, isDarkGantt, 
             Tiempo disponible {durationLabel}
           </span>
         )}
-        <span className={`text-[9px] font-mono font-semibold ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+        <span className={`text-[9px] font-mono font-semibold ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
           {horaFin}
         </span>
       </div>
@@ -104,17 +104,17 @@ export function TimelineBar({ occupiedBlocks, horaInicio, horaFin, isDarkGantt, 
             <span
               key={`lbl-${hour}`}
               className={`absolute text-[8px] font-mono -translate-x-1/2 top-0 ${
-                isDarkGantt ? 'text-gray-600' : 'text-gray-300'
+                isDarkGantt ? 'text-slate-500' : 'text-slate-500'
               }`}
               style={{ left: `${percent}%` }}
             >
               {String(hour).padStart(2, '0')}
             </span>
           ))}
-          <span className={`absolute text-[8px] font-mono top-0 left-0 ${isDarkGantt ? 'text-gray-600' : 'text-gray-300'}`}>
+          <span className={`absolute text-[8px] font-mono top-0 left-0 ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>
             {jInicio.split(':')[0]}
           </span>
-          <span className={`absolute text-[8px] font-mono top-0 right-0 translate-x-1/2 ${isDarkGantt ? 'text-gray-600' : 'text-gray-300'}`}>
+          <span className={`absolute text-[8px] font-mono top-0 right-0 translate-x-1/2 ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>
             {jFin.split(':')[0]}
           </span>
         </div>

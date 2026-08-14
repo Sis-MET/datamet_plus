@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { Truck, ChevronLeft, ChevronRight, RefreshCw, Filter, ChevronDown, Users } from 'lucide-react';
-import { format, isBefore, isAfter, subWeeks, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
+import { format, subWeeks, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
 import { GanttRow } from './components/GanttRow';
@@ -97,7 +97,8 @@ export function GanttPage({
         const containerRect = scrollRef.current.getBoundingClientRect();
         const elRect = el.getBoundingClientRect();
         
-        const stickyWidth = window.innerWidth <= 1023 ? 130 : 160;
+        const stickyWidth = scrollRef.current.querySelector('.gantt-name-col')?.getBoundingClientRect().width
+          || (window.innerWidth <= 1023 ? 130 : 160);
         const visibleWidth = containerRect.width - stickyWidth;
         
         const elLeftInContent = elRect.left - containerRect.left + scrollRef.current.scrollLeft;
@@ -115,40 +116,42 @@ export function GanttPage({
     <div>
       {/* ── Controles de Semana y Recarga ── */}
       {currentWeekStart && (
-        <div className="flex flex-wrap items-center gap-2 mb-2 px-0.5">
+        <div className="calendar-toolbar mb-2.5 px-0.5 sm:mb-3">
           <button
             onClick={goToCurrentWeek}
-            className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden border ${isDarkGantt ? 'text-gray-300 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-gray-700 hover:text-gray-900 bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+            className={`calendar-toolbar-control group relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden border ${isDarkGantt ? 'text-slate-200 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-slate-700 hover:text-slate-950 bg-slate-100/65 border-slate-500/20 hover:border-slate-500/35 hover:bg-slate-100/85'}`}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <span className={`relative z-10 font-bold ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>★ Hoy</span>
-            <span className={`relative z-10 font-normal ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
+            <span className={`toolbar-range relative z-10 font-normal ${isDarkGantt ? 'text-slate-200' : 'text-slate-700'}`}>
               {fmtRange(currentWeekStart, currentWeekEnd)}
             </span>
           </button>
           
-          <div className={`flex rounded-xl overflow-hidden backdrop-blur-md shadow-sm transition-colors group relative border ${isDarkGantt ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-white border-gray-200 hover:border-gray-300 shadow-gray-200/50'}`}>
+          <div className={`calendar-toolbar-control flex rounded-xl overflow-hidden backdrop-blur-md shadow-sm transition-colors group relative border ${isDarkGantt ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-slate-100/65 border-slate-500/20 hover:border-slate-500/35 shadow-slate-700/10'}`}>
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <button
               onClick={prevWeek}
-              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors border-r ${isDarkGantt ? 'text-white hover:text-white hover:bg-white/10 border-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-gray-200'}`}
+              className={`relative z-10 flex items-center gap-1 px-2.5 text-[10px] font-medium transition-colors border-r ${isDarkGantt ? 'text-slate-200 hover:text-white hover:bg-white/10 border-white/10' : 'text-slate-700 hover:text-slate-950 hover:bg-white/30 border-slate-500/20'}`}
+              title="Semana anterior"
             >
-              <ChevronLeft className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`} />
-              <span>{prevStart && prevEnd ? fmtRange(prevStart, prevEnd) : 'Anterior'}</span>
+              <ChevronLeft className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-slate-300' : 'text-slate-600'}`} />
+              <span className="toolbar-nav-label">{prevStart && prevEnd ? fmtRange(prevStart, prevEnd) : 'Anterior'}</span>
             </button>
             <button
               onClick={nextWeek}
-              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors ${isDarkGantt ? 'text-white hover:text-white hover:bg-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+              className={`relative z-10 flex items-center gap-1 px-2.5 text-[10px] font-medium transition-colors ${isDarkGantt ? 'text-slate-200 hover:text-white hover:bg-white/10' : 'text-slate-700 hover:text-slate-950 hover:bg-white/30'}`}
+              title="Semana siguiente"
             >
-              <span>{nextStart && nextEnd ? fmtRange(nextStart, nextEnd) : 'Próxima'}</span>
-              <ChevronRight className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`} />
+              <span className="toolbar-nav-label">{nextStart && nextEnd ? fmtRange(nextStart, nextEnd) : 'Próxima'}</span>
+              <ChevronRight className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-slate-300' : 'text-slate-600'}`} />
             </button>
           </div>
 
           <button
             onClick={onRefetch}
             disabled={loading}
-            className={`group relative p-1.5 ml-1 rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden disabled:opacity-50 border ${isDarkGantt ? 'text-white hover:text-gray-300 bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-white hover:text-gray-900 bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+            className={`calendar-toolbar-control group relative min-w-10 p-2 rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden disabled:opacity-50 border ${isDarkGantt ? 'text-slate-200 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-slate-700 hover:text-slate-950 bg-slate-100/65 border-slate-500/20 hover:border-slate-500/35 hover:bg-slate-100/85'}`}
             title="Recargar datos"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -156,13 +159,13 @@ export function GanttPage({
           </button>
 
           {/* ── Filtro por Área Dropdown ── */}
-          <div className={`relative ml-1 ${isFilterOpen ? 'z-50' : ''}`}>
+          <div className={`toolbar-filter relative ${isFilterOpen ? 'z-50' : ''}`}>
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md border shadow-sm transition-colors overflow-hidden ${
+              className={`calendar-toolbar-control group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md border shadow-sm transition-colors overflow-hidden ${
                 selectedArea !== 'Todas' 
-                  ? 'bg-blue-500/20 text-white border-blue-500/30 hover:bg-blue-500/30' 
-                  : (isDarkGantt ? 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900')
+                  ? isDarkGantt ? 'bg-blue-500/20 text-blue-100 border-blue-500/30 hover:bg-blue-500/30' : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                  : (isDarkGantt ? 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'bg-slate-100/65 text-slate-700 border-slate-500/20 hover:border-slate-500/35 hover:bg-slate-100/85 hover:text-slate-950')
               }`}
               title="Filtrar por Área"
             >
@@ -177,23 +180,24 @@ export function GanttPage({
                 <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
                 <div className={`absolute top-full left-0 mt-2 w-64 rounded-2xl border shadow-2xl overflow-hidden animate-fade-in z-50 transform origin-top-left ${isDarkGantt ? 'border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)]' : 'border-gray-200 shadow-gray-200/50'}`} 
                      style={{
-                       background: isDarkGantt ? 'rgba(30, 30, 35, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                       backdropFilter: 'blur(16px)'
+                       background: isDarkGantt ? 'rgba(24, 24, 30, 0.96)' : 'rgba(225, 234, 243, 0.96)',
+                       backdropFilter: 'blur(18px) saturate(1.25)',
+                       WebkitBackdropFilter: 'blur(18px) saturate(1.25)'
                      }}>
                   <div className="p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
                     <button
                       onClick={() => { if(onSelectArea) onSelectArea('Todas'); setIsFilterOpen(false); }}
                       className={`flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-colors ${
                         selectedArea === 'Todas'
-                          ? 'bg-blue-500/20 text-white border border-blue-500/30'
-                          : (isDarkGantt ? 'text-white hover:bg-white/10 hover:text-white border border-transparent' : 'text-white hover:bg-gray-100 border border-transparent hover:text-gray-900')
+                          ? isDarkGantt ? 'bg-blue-500/20 text-blue-100 border border-blue-500/30' : 'bg-blue-50 text-blue-800 border border-blue-200'
+                          : (isDarkGantt ? 'text-gray-200 hover:bg-white/10 hover:text-white border border-transparent' : 'text-gray-700 hover:bg-gray-100 border border-transparent hover:text-gray-900')
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         <Users className={`w-3.5 h-3.5 ${selectedArea === 'Todas' ? 'opacity-80' : 'opacity-60'}`} />
                         <span>Todas las Áreas</span>
                       </div>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider ${selectedArea === 'Todas' ? 'bg-blue-500/20 text-blue-300' : (isDarkGantt ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
+                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider ${selectedArea === 'Todas' ? 'bg-blue-500/20 text-blue-300' : (isDarkGantt ? 'bg-white/10 text-white/70' : 'bg-gray-100 text-slate-600')}`}>
                         {areaStats.totalActivos}
                       </span>
                     </button>
@@ -209,7 +213,7 @@ export function GanttPage({
                         }`}
                       >
                         <span className="truncate pr-2">{area.name}</span>
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider flex-shrink-0 ${selectedArea === area.name ? 'bg-blue-500/20 text-blue-300' : (isDarkGantt ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider flex-shrink-0 ${selectedArea === area.name ? 'bg-blue-500/20 text-blue-300' : (isDarkGantt ? 'bg-white/10 text-white/70' : 'bg-gray-100 text-slate-600')}`}>
                           {area.count}
                         </span>
                       </button>
@@ -240,10 +244,10 @@ export function GanttPage({
               {/* ── Separador de Área ── */}
               {area === 'VEHÍCULOS' ? (
                 <div
-                  className={`flex items-center py-1.5 border-b ${isDarkGantt ? 'border-blue-500/20 bg-[#0f172a]' : 'border-blue-300/40 bg-[#e0e7ff]'}`}
+                  className={`flex items-center py-1.5 border-b ${isDarkGantt ? 'border-blue-500/20 bg-[#0f172a]' : 'border-blue-500/20 bg-blue-200/45'}`}
                   style={{ gridColumn: '1 / -1' }}
                 >
-                  <div className={`sticky left-0 z-20 flex items-center gap-3 px-4 py-1 min-w-fit ${isDarkGantt ? 'bg-[#0f172a]' : 'bg-[#e0e7ff]'}`}>
+                  <div className={`sticky left-0 z-20 flex items-center gap-3 px-3 sm:px-4 py-1 min-w-fit ${isDarkGantt ? 'bg-[#0f172a]' : 'bg-[#ccdcec]'}`}>
                     <Truck className={`w-3.5 h-3.5 ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-600/70'}`} />
                     <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-700/70'}`}>Vehículos</span>
                   </div>
@@ -252,14 +256,14 @@ export function GanttPage({
                 </div>
               ) : (
                 <div
-                  className={`flex items-center py-1.5 border-b ${isDarkGantt ? 'bg-[#111114] border-gray-700/30' : 'bg-[#dcdce6] border-gray-300/40'}`}
+                  className={`flex items-center py-1.5 border-b ${isDarkGantt ? 'bg-[#111114] border-gray-700/30' : 'bg-slate-300/70 border-slate-500/20'}`}
                   style={{ gridColumn: '1 / -1' }}
                 >
-                  <div className={`sticky left-0 z-20 flex items-center gap-3 px-4 py-1 min-w-fit ${isDarkGantt ? 'bg-[#111114]' : 'bg-[#dcdce6]'}`}>
-                    <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-gray-500' : 'text-gray-500'}`}>{area}</span>
+                  <div className={`sticky left-0 z-20 flex items-center gap-3 px-3 sm:px-4 py-1 min-w-fit ${isDarkGantt ? 'bg-[#111114]' : 'bg-[#ced9e5]'}`}>
+                    <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-slate-400' : 'text-slate-700'}`}>{area}</span>
                   </div>
                   <div className={`flex-1 h-[1px] bg-gradient-to-r ${isDarkGantt ? 'from-gray-700/40' : 'from-gray-400/40'} to-transparent ml-2`} />
-                  <span className={`text-[9px] font-bold px-4 ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>{tecnicosDelArea.length}</span>
+                  <span className={`text-[9px] font-bold px-4 ${isDarkGantt ? 'text-slate-500' : 'text-slate-600'}`}>{tecnicosDelArea.length}</span>
                 </div>
               )}
 

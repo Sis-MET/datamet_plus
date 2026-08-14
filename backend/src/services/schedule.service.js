@@ -1,22 +1,5 @@
 const { getPool, sql } = require('../config/db');
 
-const getNextRSPCode = async (pool) => {
-  const currentYear = new Date().getFullYear().toString().slice(-2);
-  const prefix = `RSP${currentYear}-`;
-
-  const result = await pool.request()
-    .input('prefixLiteral', sql.VarChar, prefix)
-    .input('prefixLike', sql.VarChar, `${prefix}%`)
-    .query(`
-      SELECT ISNULL(MAX(TRY_CAST(REPLACE(codigo_reg, @prefixLiteral, '') AS INT)), 0) as maxId
-      FROM DATA_CRONOGRAMA
-      WHERE codigo_reg LIKE @prefixLike
-    `);
-
-  const nextId = result.recordset[0].maxId + 1;
-  return `${prefix}${nextId}`;
-};
-
 const calculateHourTotal = (horaInicio, horaFin) => {
   if (!horaInicio || !horaFin) return null;
 
@@ -43,15 +26,16 @@ const upsertScheduleCell = async (data) => {
   const pool = getPool();
   const { date, resource, payload } = data;
 
-  const cotizacion   = payload ? (payload.cotizacion || payload.morning || '') : '';
+  const tipoTarea    = payload ? (payload.tipo_tarea || payload.tipoTarea || payload.morning || '') : '';
+  const cotizacion   = payload ? (payload.cotizacion || '') : '';
   const descripcion  = payload ? (payload.descripcion || '') : '';
   const cliente      = payload ? (payload.cliente || '') : '';
   const codCliente   = payload ? (payload.cod_cliente || '') : '';
+  const planta       = payload ? (payload.planta || '') : '';
   const color        = payload ? (payload.color   || payload.colorAM || '#10B981') : '#10B981';
   const estado       = payload ? (payload.estado  || payload.estadoAM || 'Pendiente') : 'Pendiente';
   const autor        = payload ? (payload.autor   || 'Sistema') : 'Sistema';
   const lastModified = payload ? (payload.lastModified || null) : null;
-  const codigoRegistro = payload ? (payload.codigoRegistro || null) : null;
   const rowId        = payload ? (payload.rowId   || null) : null;
   const horaInicio   = payload ? (payload.horaInicio || '') : '';
   const horaFin      = payload ? (payload.horaFin    || '') : '';
@@ -100,10 +84,12 @@ const upsertScheduleCell = async (data) => {
     .input('id_us',   sql.Int,      id_usuario)
     .input('usr',     sql.VarChar,  usuario_nombre)
     .input('f',       sql.Date,     date)
-    .input('cot',     sql.NVarChar, cotizacion)
+    .input('tipo',    sql.NVarChar, tipoTarea.trim())
+    .input('cot',     sql.NVarChar, cotizacion.trim() || null)
     .input('desc',    sql.NVarChar, descripcion || null)
     .input('cliente', sql.NVarChar, cliente || null)
     .input('cod_cliente', sql.VarChar, codCliente || null)
+    .input('planta',  sql.NVarChar, planta || null)
     .input('col',     sql.VarChar,  color)
     .input('est',     sql.NVarChar, estado)
     .input('autor',   sql.VarChar,  autor)
@@ -113,7 +99,7 @@ const upsertScheduleCell = async (data) => {
     .input('creado_en', sql.VarChar, creadoEn   || null);
 
   if (!rowId) {
-    if (!cotizacion.trim()) {
+    if (!tipoTarea.trim()) {
       return { status: 'ignored_empty_insert' };
     }
 
@@ -145,16 +131,13 @@ const upsertScheduleCell = async (data) => {
       }
     }
 
-    const finalCodigoReg = codigoRegistro || await getNextRSPCode(pool);
-
     await upsertReq
-      .input('cod_reg', sql.VarChar, finalCodigoReg)
       .query(`
       INSERT INTO DATA_CRONOGRAMA
-        (codigo_reg, id_usuario, usuario, fecha, cotizacion, descripcion, cliente, cod_cliente, color, estado, hora_inicio, hora_fin, hora_total,
+        (id_usuario, usuario, fecha, tipo_tarea, cotizacion, descripcion, cliente, cod_cliente, planta, color, estado, hora_inicio, hora_fin, hora_total,
          creado_por, fecha_creacion, hora_creacion, creado_en)
       VALUES
-        (@cod_reg, @id_us, @usr, @f, @cot, @desc, @cliente, @cod_cliente, @col, @est,
+        (@id_us, @usr, @f, @tipo, @cot, @desc, @cliente, @cod_cliente, @planta, @col, @est,
          CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
          CASE WHEN @hfin    IS NULL OR @hfin    = '' THEN NULL ELSE CAST(@hfin    AS time(7)) END,
          @htotal,
@@ -164,7 +147,7 @@ const upsertScheduleCell = async (data) => {
          @creado_en)
     `);
 
-    return { status: 'inserted', resource, codigo_reg: finalCodigoReg };
+    return { status: 'inserted', resource };
   }
 
   upsertReq.input('row_id', sql.Int, rowId);
@@ -183,7 +166,7 @@ const upsertScheduleCell = async (data) => {
     return { status: 'ignored_not_found', resource };
   }
 
-  if (!cotizacion.trim()) {
+  if (!tipoTarea.trim()) {
     await upsertReq.query(`
       UPDATE DATA_CRONOGRAMA 
       SET estado = 'Anulado',
@@ -250,10 +233,12 @@ const upsertScheduleCell = async (data) => {
 
   const result = await upsertReq.query(`
     UPDATE DATA_CRONOGRAMA
-    SET cotizacion         = @cot,
+    SET tipo_tarea         = @tipo,
+        cotizacion         = @cot,
         descripcion        = @desc,
         cliente            = @cliente,
         cod_cliente        = @cod_cliente,
+        planta             = @planta,
         color              = @col,
         estado             = @est,
         hora_inicio        = CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
@@ -265,7 +250,6 @@ const upsertScheduleCell = async (data) => {
         fecha              = @f,
         id_usuario         = @id_us,
         usuario            = @usr
-    OUTPUT INSERTED.codigo_reg
     WHERE id = @row_id
   `);
 
@@ -275,8 +259,7 @@ const upsertScheduleCell = async (data) => {
     throw concurrencyErr;
   }
 
-  const updatedCodigoReg = result.recordset && result.recordset.length > 0 ? result.recordset[0].codigo_reg : null;
-  return { status: 'upserted', resource, codigo_reg: updatedCodigoReg };
+  return { status: 'upserted', resource };
 };
 
 module.exports = {

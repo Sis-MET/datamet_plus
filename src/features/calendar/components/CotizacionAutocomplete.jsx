@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { api } from '../../../shared/api/client';
+import { FloatingDropdown } from './FloatingDropdown';
 
 /**
  * Input de autocompletado para cotizaciones.
@@ -32,6 +33,7 @@ export function CotizacionAutocomplete({
   const [clienteHint, setClienteHint] = useState('');
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Sincronizar si el padre cambia el valor (ej: botón "Limpiar" o edición de tarea)
   useEffect(() => {
@@ -118,6 +120,7 @@ export function CotizacionAutocomplete({
       {/* Input principal */}
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={handleInput}
@@ -125,13 +128,16 @@ export function CotizacionAutocomplete({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoComplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showDropdown && suggestions.length > 0}
           spellCheck={false}
           maxLength={90}
           className={cn(
             'w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner',
             isDarkGantt
-              ? 'bg-[#111111] border-white/5 text-gray-100 placeholder-gray-700'
-              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400',
+              ? 'bg-[#111111] border-white/10 text-gray-100 placeholder-gray-400'
+              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500',
             isLoading && 'pr-10',
             className
           )}
@@ -157,14 +163,21 @@ export function CotizacionAutocomplete({
       )}
 
       {/* Dropdown de sugerencias */}
-      {showDropdown && suggestions.length > 0 && (
+      <FloatingDropdown
+        open={showDropdown && suggestions.length > 0}
+        anchorRef={inputRef}
+        onClose={() => setShowDropdown(false)}
+        maxHeight={216}
+        ariaLabel="Resultados de cotizaciones"
+        className={cn(
+          'rounded-xl border shadow-2xl',
+          isDarkGantt
+            ? 'bg-[#1a1a1d] border-gray-700/50'
+            : 'bg-white border-gray-200'
+        )}
+      >
         <ul
-          className={cn(
-            'absolute z-[9999] w-full mt-1 border rounded-xl shadow-2xl overflow-hidden',
-            isDarkGantt
-              ? 'bg-[#1a1a1d] border-gray-700/50'
-              : 'bg-white border-gray-200'
-          )}
+          className="max-h-52 overflow-y-auto custom-scrollbar"
         >
           {suggestions.map((item, idx) => {
             const clienteLabel = (item.nombre_cliente || '').trim();
@@ -231,7 +244,7 @@ export function CotizacionAutocomplete({
             );
           })}
         </ul>
-      )}
+      </FloatingDropdown>
     </div>
   );
 }

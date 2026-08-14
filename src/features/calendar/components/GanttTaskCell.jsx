@@ -84,16 +84,10 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
   // --- Datos normalizados para la tarjeta ---
   const clienteText = normalizeTaskText(task.cliente);
   const descriptionText = normalizeTaskText(task.descripcion);
-  const activityText = normalizeTaskText(task.morning);
-
-  // Detectar si cod_cliente es un código de planta (formato "123-456")
-  const codCliente = normalizeTaskText(task.cod_cliente);
-  const isPlantCode = /^\d+\s*-\s*\d+/.test(codCliente);
-
-  // Si hay código de planta, la descripción actúa como info de planta
-  // Separamos "planta" de "descripción libre" según el contexto
-  const plantaText = isPlantCode ? descriptionText : '';
-  const freeDescription = isPlantCode ? '' : descriptionText;
+  const activityText = normalizeTaskText(task.tipoTarea || task.morning);
+  const quoteText = normalizeTaskText(task.cotizacion);
+  const plantaText = normalizeTaskText(task.planta);
+  const freeDescription = descriptionText;
 
   // Construir las líneas dinámicas en orden de prioridad:
   // 1. Cliente  2. Planta  3. Descripción
@@ -110,11 +104,6 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
   }
 
   // Para el tooltip (mantener textos completos)
-  const primaryText = descriptionText || activityText;
-  const secondaryText = descriptionText && normalizeForComparison(descriptionText) !== normalizeForComparison(activityText)
-    ? activityText
-    : '';
-
   const getStateBadgeClass = (estado) => {
     switch(estado) {
       case 'Completado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30';
@@ -183,11 +172,13 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
             sourceResource: resourceId,
             sourceDate: date,
             rowId: task.rowId,
-            codigoRegistro: task.codigoRegistro,
+            tipoTarea: task.tipoTarea || task.morning,
             morning: task.morning,
+            cotizacion: task.cotizacion,
             descripcion: task.descripcion,
             cliente: task.cliente,
             cod_cliente: task.cod_cliente,
+            planta: task.planta,
             colorAM: task.colorAM,
             estadoAM: task.estadoAM,
             horaInicio: task.horaInicio,
@@ -285,11 +276,11 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
       {renderTooltip && tooltipPos && typeof document !== 'undefined' && createPortal(
         <div
           className={cn(
-            "fixed z-[9999] w-[260px] pointer-events-none transition-all duration-200 ease-out",
+            "fixed z-[9999] w-[min(260px,calc(100vw-20px))] pointer-events-none transition-all duration-[120ms] ease-out",
             "backdrop-filter backdrop-blur-xl border rounded-2xl p-4 ring-1",
             isDarkGantt
               ? "bg-[#1a1a1d]/75 border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.9)] ring-white/5"
-              : "bg-white/90 border-gray-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] ring-black/5",
+              : "bg-slate-100/92 border-slate-500/25 shadow-[0_20px_50px_rgba(15,23,42,0.24)] ring-white/60",
             tooltipPos.isTop ? "-translate-x-1/2 origin-top" : "-translate-x-1/2 -translate-y-full origin-bottom",
             showTooltip ? "opacity-100 scale-100 mt-0" : "opacity-0 scale-95",
             !showTooltip && tooltipPos.isTop ? "-mt-2" : "",
@@ -302,11 +293,9 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               <span className={`text-[10px] font-bold uppercase tracking-widest leading-none ${isDarkGantt ? 'text-primary-400' : 'text-primary-600'}`}>{resourceName || resourceId}</span>
               <span className={`text-[13px] font-semibold capitalize leading-tight ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>{formattedDateTooltip}</span>
             </div>
-            {task.codigoRegistro && (
-              <span className={`text-[15px] font-bold font-mono tracking-tight ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>
-                {task.codigoRegistro}
-              </span>
-            )}
+            <span className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
+              {activityText || 'Tarea'}
+            </span>
           </div>
 
           <div className="space-y-3">
@@ -314,8 +303,8 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: task.colorAM || '#37A65F' }} />
               <div className="flex-1">
                 <div className="flex justify-between items-center mb-0.5">
-                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/50' : 'text-gray-400'}`}>
-                    {clienteText ? 'Cliente' : descriptionText ? 'Descripción' : 'Cotización'}
+                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-slate-300' : 'text-slate-600'}`}>
+                    {clienteText ? 'Cliente' : descriptionText ? 'Descripción' : 'Tarea'}
                   </p>
                   {task.morning && <span className={getStateBadgeClass(task.estadoAM)}>{task.estadoAM || 'Pendiente'}</span>}
                 </div>
@@ -329,8 +318,8 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
                 {descriptionText && (
                   <div className={clienteText ? 'mt-1.5' : ''}>
                     {clienteText && (
-                      <p className={`text-[9px] font-bold uppercase tracking-widest mb-0.5 ${isDarkGantt ? 'text-white/40' : 'text-gray-400'}`}>
-                        {isPlantCode ? 'Planta' : 'Descripción'}
+                      <p className={`text-[9px] font-bold uppercase tracking-widest mb-0.5 ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Descripción
                       </p>
                     )}
                     <p className={cn(
@@ -346,10 +335,22 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
                 {/* Tipo de tarea */}
                 {activityText && normalizeForComparison(activityText) !== normalizeForComparison(descriptionText) && (
                   <div className="mt-1.5">
-                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/40' : 'text-gray-400'}`}>Tipo de tarea</p>
-                    <p className={`text-xs break-words leading-snug font-mono ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>Tipo de tarea</p>
+                    <p className={`text-xs break-words leading-snug font-mono ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
                       {activityText}
                     </p>
+                  </div>
+                )}
+                {plantaText && (
+                  <div className="mt-1.5">
+                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/55' : 'text-gray-500'}`}>Planta</p>
+                    <p className={`text-xs break-words leading-snug ${isDarkGantt ? 'text-gray-200' : 'text-gray-700'}`}>{plantaText}</p>
+                  </div>
+                )}
+                {quoteText && (
+                  <div className="mt-1.5">
+                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/55' : 'text-gray-500'}`}>Cotización</p>
+                    <p className={`text-xs break-words leading-snug font-mono ${isDarkGantt ? 'text-blue-300' : 'text-blue-700'}`}>{quoteText}</p>
                   </div>
                 )}
                 {/* Si no hay cliente ni descripcion, mostrar actividad como principal */}
@@ -370,7 +371,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
 
           {(task.author || task.timestampUpdated || task.creadoEn) && (
             <div className={`mt-4 pt-3 border-t ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
-              <p className={`text-[10px] font-mono tracking-wide leading-tight ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+              <p className={`text-[10px] font-mono tracking-wide leading-tight ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
                 {task.author && <span>Actualizado por: <span className={`font-medium ${isDarkGantt ? 'text-gray-300' : 'text-gray-600'}`}>{task.author}</span><br/></span>}
                 {task.timestampUpdated && <span>El {task.timestampUpdated}{task.creadoEn ? <br/> : null}</span>}
                 {task.creadoEn && <span className="mt-1 inline-block">Origen: <span className={`font-bold px-1 rounded-sm ${isDarkGantt ? 'bg-[#10b981]/20 text-[#10b981]' : 'bg-[#10b981]/10 text-emerald-600'}`}>{task.creadoEn}</span></span>}
@@ -395,8 +396,8 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
           <div className={cn(
             "absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent backdrop-filter backdrop-blur-xl",
             tooltipPos.isTop
-              ? (isDarkGantt ? "bottom-full border-b-[8px] border-b-[#1a1a1d]/75 mb-[-1px]" : "bottom-full border-b-[8px] border-b-white/90 mb-[-1px]")
-              : (isDarkGantt ? "top-full border-t-[8px] border-t-[#1a1a1d]/75 mt-[-1px]" : "top-full border-t-[8px] border-t-white/90 mt-[-1px]")
+              ? (isDarkGantt ? "bottom-full border-b-[8px] border-b-[#1a1a1d]/75 mb-[-1px]" : "bottom-full border-b-[8px] border-b-slate-100/90 mb-[-1px]")
+              : (isDarkGantt ? "top-full border-t-[8px] border-t-[#1a1a1d]/75 mt-[-1px]" : "top-full border-t-[8px] border-t-slate-100/90 mt-[-1px]")
           )} />
         </div>,
         document.body
@@ -438,7 +439,7 @@ export function GanttTaskCell({
   }
 
   if (onTaskClick) {
-    baseClasses += ' cursor-pointer hover:bg-white/5 transition-colors';
+    baseClasses += ` cursor-pointer transition-colors duration-100 ${isDarkGantt ? 'hover:bg-white/5' : 'hover:bg-white/30'}`;
   }
 
   const handleClick = (e) => {
@@ -490,7 +491,7 @@ export function GanttTaskCell({
         onDrop={handleDrop}
       >
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className={`text-[10px] font-medium ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>+</span>
+          <span className={`text-[12px] font-semibold ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>+</span>
         </div>
       </div>
     );
@@ -527,7 +528,7 @@ export function GanttTaskCell({
           onClick={(e) => { e.stopPropagation(); onTaskClick(null, date, resourceId); }}
           className={cn(
             'absolute bottom-0.5 right-0.5 rounded-md flex items-center justify-center cursor-pointer z-10 select-none',
-            'transition-all duration-200 ease-out',
+            'transition-all duration-100 ease-out',
             // Desktop: oculto hasta hover, aparece con escala
             'w-5 h-5 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100',
             // Touch (sin hover): siempre visible

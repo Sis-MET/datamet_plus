@@ -14,8 +14,8 @@ export function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, is
       <div className="gantt-name-col" style={readOnly ? { background: '#0d1424' } : {}}>
         <div className="flex items-center gap-1.5 leading-tight">
           {readOnly && <Truck className="w-3 h-3 text-blue-400/60 flex-shrink-0" />}
-          <div className="gantt-tecnico-name truncate">
-            {firstName && <span className="hidden lg:inline">{firstName} </span>}
+          <div className="gantt-tecnico-name truncate" title={rawName}>
+            {firstName && <span>{firstName} </span>}
             <span>{lastName}</span>
           </div>
         </div>

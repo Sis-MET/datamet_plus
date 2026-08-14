@@ -9,28 +9,41 @@
     color: #e5e5e5;
   }
 
+  ::selection {
+    background: rgba(59, 130, 246, 0.3);
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgba(96, 165, 250, 0.85);
+    outline-offset: 2px;
+  }
+
   /* ── Custom Scrollbar Global ── */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(156, 163, 175, 0.3) transparent; /* Tailwind gray-400 equivalent opacity */
+    scrollbar-color: rgba(148, 163, 184, 0.58) rgba(15, 23, 42, 0.08);
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 9px;
+    height: 9px;
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: rgba(15, 23, 42, 0.08);
+    border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.3);
+    background-color: rgba(148, 163, 184, 0.58);
+    border: 2px solid transparent;
+    background-clip: padding-box;
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(156, 163, 175, 0.5);
+    background-color: rgba(100, 116, 139, 0.78);
   }
 }
 
@@ -41,10 +54,17 @@
 
   /* ── Wrapper scrollable ── */
   .gantt-scroll-container {
-    @apply rounded-2xl border border-gray-700/50 shadow-2xl;
+    @apply rounded-2xl border border-gray-700/50;
     overflow: auto;
     max-height: calc(100dvh - 160px);
-    background: #1a1a1d;
+    background: rgba(24, 24, 29, 0.92);
+    backdrop-filter: blur(18px) saturate(1.15);
+    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    box-shadow: 0 20px 55px -24px rgba(0, 0, 0, 0.72);
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-color: rgba(148, 163, 184, 0.64) rgba(255, 255, 255, 0.04);
   }
 
   /* ── Grid interno ── */
@@ -93,7 +113,7 @@
 
   /* ── Header de la columna de nombre ── */
   .gantt-name-header {
-    @apply text-xs font-semibold uppercase tracking-widest text-gray-500;
+    @apply text-xs font-semibold uppercase tracking-widest text-slate-300;
     min-height: 64px;
     justify-content: flex-end;
     padding-bottom: 10px;
@@ -104,12 +124,12 @@
     @apply text-sm font-semibold text-gray-100 leading-tight;
   }
   .gantt-tecnico-cargo {
-    @apply text-[10px] text-gray-500 leading-tight mt-0.5 truncate;
+    @apply text-[10px] text-slate-400 leading-tight mt-0.5 truncate;
   }
 
   /* ── Celdas de día en el header ── */
   .gantt-day-header-cell {
-    @apply flex flex-col items-center justify-end px-1 pb-2 gap-0.5 border-r border-gray-700/30 text-gray-500;
+    @apply flex flex-col items-center justify-end px-1 pb-2 gap-0.5 border-r border-gray-700/30 text-slate-400;
     min-width: 110px;
     width: 110px;
     min-height: 64px;
@@ -129,13 +149,13 @@
     @apply text-[10px] font-semibold uppercase tracking-wider;
   }
   .gantt-day-number {
-    @apply text-lg font-bold leading-none text-gray-300;
+    @apply text-lg font-bold leading-none text-slate-200;
   }
   .gantt-day-number-today {
     @apply text-primary-400;
   }
   .gantt-day-month {
-    @apply text-[10px] capitalize text-gray-600;
+    @apply text-[10px] capitalize text-slate-400;
   }
 
   /* ── Celdas de datos ── */
@@ -186,9 +206,9 @@
   .gantt-cell-instalacion  { @apply bg-blue-600/80    text-blue-100;   }
   .gantt-cell-yanbal       { @apply bg-pink-600/80    text-pink-100;   }
   .gantt-cell-retorno      { @apply bg-purple-700/80  text-purple-100; }
-  .gantt-cell-vacacion     { @apply bg-gray-500/80    text-gray-100;   }
+  .gantt-cell-vacacion     { @apply bg-gray-500/80    text-white;      }
   .gantt-cell-soporte      { @apply bg-cyan-600/80    text-cyan-100;   }
-  .gantt-cell-default      { @apply bg-slate-600/80   text-slate-100;  }
+  .gantt-cell-default      { @apply bg-slate-600/80   text-white;      }
 
   /* ── Tooltip ── */
   .gantt-tooltip {
@@ -241,33 +261,40 @@
      .gantt-scroll-container  (desde GanttPage.jsx)
      ═══════════════════════════════════════════════════ */
   .gantt-light {
-    background: #f0f0f5 !important;
-    border-color: rgba(0, 0, 0, 0.10) !important;
+    background: rgba(226, 234, 243, 0.76) !important;
+    border-color: rgba(71, 85, 105, 0.24) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.72),
+      0 24px 60px -30px rgba(15, 23, 42, 0.48);
+    backdrop-filter: blur(22px) saturate(1.22);
+    -webkit-backdrop-filter: blur(22px) saturate(1.22);
+    scrollbar-color: rgba(71, 85, 105, 0.68) rgba(255, 255, 255, 0.3);
   }
 
   /* Header row */
   .gantt-light .gantt-header-row {
-    background-color: #e8e8ef !important;
-    border-bottom-color: rgba(0, 0, 0, 0.12) !important;
+    background: rgba(221, 230, 240, 0.94) !important;
+    border-bottom-color: rgba(71, 85, 105, 0.22) !important;
   }
 
   /* Columna sticky de nombre */
   .gantt-light .gantt-name-col {
-    background: #e2e2ea !important;
-    border-right-color: rgba(0, 0, 0, 0.12) !important;
+    background: rgba(216, 226, 237, 0.97) !important;
+    border-right-color: rgba(71, 85, 105, 0.24) !important;
+    box-shadow: 8px 0 20px -18px rgba(15, 23, 42, 0.7);
   }
 
   /* Cabecera "Técnico" */
   .gantt-light .gantt-name-header {
-    color: #555560 !important;
+    color: #334155 !important;
   }
 
   /* Nombre e info del técnico */
   .gantt-light .gantt-tecnico-name {
-    color: #1a1a2a !important;
+    color: #0f172a !important;
   }
   .gantt-light .gantt-tecnico-cargo {
-    color: #666677 !important;
+    color: #475569 !important;
   }
 
   /* Filas */
@@ -275,34 +302,34 @@
     border-bottom-color: rgba(0, 0, 0, 0.08) !important;
   }
   .gantt-light .gantt-row:hover {
-    background: rgba(0, 0, 0, 0.03) !important;
+    background: rgba(255, 255, 255, 0.26) !important;
   }
 
   /* Separador de área (fondo oscuro por defecto) */
   .gantt-light .gantt-area-separator {
-    background: #dcdce6 !important;
+    background: rgba(203, 213, 225, 0.92) !important;
     border-bottom-color: rgba(0, 0, 0, 0.08) !important;
   }
 
   /* Celdas de día en el header */
   .gantt-light .gantt-day-header-cell {
     border-right-color: rgba(0, 0, 0, 0.08) !important;
-    color: #555560 !important;
+    color: #334155 !important;
   }
   .gantt-light .gantt-day-header-today {
     background: rgba(16, 185, 129, 0.12) !important;
   }
   .gantt-light .gantt-day-label {
-    color: #444455 !important;
+    color: #334155 !important;
   }
   .gantt-light .gantt-day-number {
-    color: #1a1a2a !important;
+    color: #0f172a !important;
   }
   .gantt-light .gantt-day-number-today {
     color: #059669 !important;
   }
   .gantt-light .gantt-day-month {
-    color: #888899 !important;
+    color: #475569 !important;
   }
 
   /* Celdas de datos */
@@ -315,20 +342,20 @@
 
   /* Separadores de área inline */
   .gantt-light [style*="gridColumn: '1 / -1'"] {
-    background: #dcdce6 !important;
+    background: rgba(203, 213, 225, 0.92) !important;
     border-bottom-color: rgba(0, 0, 0, 0.08) !important;
   }
   /* Texto del separador de área */
   .gantt-light [style*="gridColumn: '1 / -1'"] span.text-gray-500 {
-    color: #666677 !important;
+    color: #334155 !important;
   }
   .gantt-light [style*="gridColumn: '1 / -1'"] span.text-gray-600 {
-    color: #888899 !important;
+    color: #475569 !important;
   }
 
   /* Tooltip en modo claro */
   .gantt-light .gantt-tooltip {
-    background: #ffffff !important;
+    background: rgba(232, 239, 247, 0.94) !important;
     border-color: rgba(0, 0, 0, 0.12) !important;
     color: #1a1a2a !important;
   }
@@ -340,12 +367,46 @@
   }
 }
 
+/* Superficies compartidas del calendario. El tinte conserva el fondo y hace
+   visible el glass también en modo claro. */
+.calendar-workspace {
+  --calendar-muted: #94a3b8;
+  --calendar-subtle: #64748b;
+}
+
+.calendar-workspace.calendar-light {
+  --calendar-muted: #475569;
+  --calendar-subtle: #334155;
+  color: #0f172a;
+}
+
+.calendar-glass {
+  background: rgba(35, 37, 44, 0.62);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 45px -28px rgba(0, 0, 0, 0.86);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+
+.calendar-light .calendar-glass {
+  background: rgba(225, 234, 243, 0.72);
+  border-color: rgba(71, 85, 105, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 20px 48px -30px rgba(15, 23, 42, 0.55);
+}
+
+.calendar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.calendar-toolbar-control {
+  min-height: 40px;
+}
+
 
 @media (max-width: 1023px) {
-  html {
-    font-size: 87.5%;
-  }
-
   .gantt-tecnico-name  { font-size: 11px !important; }
   .gantt-tecnico-cargo { font-size: 9px  !important; }
   .gantt-task-chip     { font-size: 9px  !important; }
@@ -356,18 +417,174 @@
   .gantt-day-header-cell, .gantt-cell { min-width: 90px; width: 90px; }
 
   .gantt-mock-badge { font-size: 9px !important; }
+
+  .gantt-scroll-container {
+    max-height: clamp(420px, 68dvh, 720px);
+  }
 }
 
 /* ── Portrait muy angosto (< 480px): celdas más compactas ── */
 @media (max-width: 479px) {
-  .gantt-name-col      { min-width: 110px; max-width: 110px; }
-  .gantt-day-header-cell, .gantt-cell { min-width: 72px; width: 72px; }
+  .gantt-name-col      { min-width: 104px; max-width: 104px; padding-left: 10px; padding-right: 10px; }
+  .gantt-day-header-cell, .gantt-cell { min-width: 78px; width: 78px; }
   .gantt-day-number    { font-size: 13px !important; }
+
+  .calendar-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1.2fr);
+    gap: 0.375rem;
+  }
+
+  .calendar-toolbar .toolbar-range,
+  .calendar-toolbar .toolbar-nav-label {
+    display: none;
+  }
+
+  .calendar-toolbar .toolbar-filter {
+    margin-left: 0;
+    min-width: 0;
+  }
+
+  .calendar-toolbar .toolbar-filter > button {
+    width: 100%;
+    justify-content: center;
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+  }
+
+  .gantt-scroll-container {
+    max-height: min(64dvh, 620px);
+    border-radius: 14px;
+  }
 }
 
 /* ── Landscape móvil: permitir scroll vertical completo ── */
 @media (orientation: landscape) and (max-height: 600px) {
   .gantt-scroll-container {
     max-height: calc(100dvh - 100px) !important;
+  }
+}
+
+/* Ficha de tarea: una sola entrada coreografiada y transiciones de contenido. */
+.task-dialog-backdrop {
+  animation: task-dialog-backdrop-in 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  backdrop-filter: blur(10px);
+}
+
+.task-dialog-panel {
+  animation: task-dialog-panel-in 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: 50% 42%;
+}
+
+.task-dialog-backdrop[data-state='closing'] {
+  animation: task-dialog-backdrop-out 100ms ease-in both;
+}
+
+.task-dialog-panel[data-state='closing'] {
+  animation: task-dialog-panel-out 100ms ease-in both;
+  pointer-events: none;
+}
+
+.task-disclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    grid-template-rows 120ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 100ms ease,
+    transform 120ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0s linear 120ms;
+}
+
+.task-disclosure > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.task-disclosure.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
+.task-field-reveal {
+  animation: task-field-reveal 120ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.task-floating-menu {
+  animation: task-floating-menu-in 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top right;
+}
+
+@keyframes task-dialog-backdrop-in {
+  from { opacity: 0; backdrop-filter: blur(0); }
+  to { opacity: 1; backdrop-filter: blur(10px); }
+}
+
+@keyframes task-dialog-backdrop-out {
+  from { opacity: 1; backdrop-filter: blur(10px); }
+  to { opacity: 0; backdrop-filter: blur(0); }
+}
+
+@keyframes task-dialog-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+    filter: blur(5px);
+    box-shadow: 0 12px 36px -24px rgb(15 23 42 / 0.25);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes task-dialog-panel-out {
+  from { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  to { opacity: 0; transform: translateY(8px) scale(0.99); filter: blur(3px); }
+}
+
+@keyframes task-field-reveal {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes task-floating-menu-in {
+  from { opacity: 0; transform: translateY(-5px) scale(0.97); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@media (max-width: 639px) {
+  .task-dialog-panel {
+    transform-origin: bottom center;
+    animation-name: task-dialog-sheet-in;
+  }
+
+  .task-dialog-panel[data-state='closing'] {
+    animation-name: task-dialog-sheet-out;
+  }
+
+  @keyframes task-dialog-sheet-in {
+    from { opacity: 0; transform: translateY(36px); filter: blur(4px); }
+    to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  }
+
+  @keyframes task-dialog-sheet-out {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(28px); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

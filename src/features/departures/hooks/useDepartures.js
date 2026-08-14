@@ -51,7 +51,7 @@ export function useDepartures() {
             id_usuario: r.id_usuario,
             tecnicoId:  r.usuario || r.id_usuario,
             fecha:      new Date(r.fecha + 'T12:00:00'),
-            tipoSalida: r.cotizacion || '',
+            tipoSalida: r.tipo_tarea || r.cotizacion || '',
             motivo:     r.descripcion || '',
             horaInicio: r.hora_inicio ? r.hora_inicio.substring(0, 5) : '',
             horaFin:    r.hora_fin    ? r.hora_fin.substring(0, 5)    : '',
@@ -97,8 +97,9 @@ export function useDepartures() {
           const sched = daySchedules && daySchedules[dateStr] ? daySchedules[dateStr] : { inicio: '08:30', fin: '18:30' };
 
           const payloadObj = {
-            cotizacion:  tipoSalida,
-            morning:     tipoSalida,   // campo legacy del backend
+            tipo_tarea:  tipoSalida,
+            cotizacion:  null,
+            morning:     tipoSalida,
             descripcion: motivo,
             colorAM:     color,
             estadoAM:    estado || 'Solicitud',
@@ -126,7 +127,8 @@ export function useDepartures() {
     const autor = tokenData?.nombre || tokenData?.usuario || 'Sistema';
 
     const payloadObj = {
-      cotizacion:  departure.tipoSalida,
+      tipo_tarea:  departure.tipoSalida,
+      cotizacion:  null,
       morning:     departure.tipoSalida,
       descripcion: departure.motivo,
       colorAM:     departure.color,

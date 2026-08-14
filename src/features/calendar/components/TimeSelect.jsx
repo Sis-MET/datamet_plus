@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { FloatingDropdown } from './FloatingDropdown';
 
 export function TimeSelect({ value, onChange, slots, isDarkGantt }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
   const listRef = useRef(null);
+  const buttonRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -28,10 +30,23 @@ export function TimeSelect({ value, onChange, slots, isDarkGantt }) {
 
   return (
     <div ref={containerRef} className="relative flex-1 min-w-0">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label="Hora"
+        className={`w-full bg-transparent py-2 text-xs font-semibold outline-none sm:hidden ${
+          isDarkGantt ? 'text-gray-100' : 'text-gray-800'
+        }`}
+      >
+        {slots.map(time => <option key={time} value={time}>{time}</option>)}
+      </select>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen(current => !current)}
-        className={`w-full flex items-center justify-between gap-1 py-2 text-xs font-semibold bg-transparent border-none outline-none cursor-pointer ${
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`hidden w-full items-center justify-between gap-1 border-none bg-transparent py-2 text-xs font-semibold outline-none cursor-pointer sm:flex ${
           isDarkGantt ? 'text-gray-100' : 'text-gray-800'
         }`}
       >
@@ -43,14 +58,21 @@ export function TimeSelect({ value, onChange, slots, isDarkGantt }) {
         />
       </button>
 
-      {open && (
-        <div
-          className={`absolute z-[200] bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 w-24 rounded-xl border shadow-2xl overflow-hidden animate-fade-in ${
+      <FloatingDropdown
+        open={open}
+        anchorRef={buttonRef}
+        onClose={() => setOpen(false)}
+        width={96}
+        maxHeight={184}
+        align="center"
+        preferredPlacement="auto"
+        ariaLabel="Horas disponibles"
+        className={`rounded-xl border shadow-2xl ${
             isDarkGantt
               ? 'bg-[#1e1e24] border-white/10 shadow-black/80'
               : 'bg-white border-gray-200 shadow-gray-300/40'
           }`}
-        >
+      >
           <div ref={listRef} className="max-h-44 overflow-y-auto py-1 custom-scrollbar">
             {slots.map(time => (
               <button
@@ -75,8 +97,7 @@ export function TimeSelect({ value, onChange, slots, isDarkGantt }) {
               </button>
             ))}
           </div>
-        </div>
-      )}
+      </FloatingDropdown>
     </div>
   );
 }

@@ -14,27 +14,40 @@ function parseJwt(token) {
 
 const normalizeScheduleText = (value) => String(value || '').trim().toLowerCase();
 
+const scheduleTimeToMinutes = (value) => {
+  const [hours, minutes] = String(value || '00:00').split(':').map(Number);
+  return (hours * 60) + minutes;
+};
+
+const hasScheduleOverlap = (task, payload) => {
+  const requestedStart = scheduleTimeToMinutes(payload.horaInicio || '00:00');
+  const requestedEnd = scheduleTimeToMinutes(payload.horaFin || '23:59');
+  const taskStart = scheduleTimeToMinutes(task.horaInicio || '00:00');
+  const taskEnd = scheduleTimeToMinutes(task.horaFin || '23:59');
+  return requestedStart < taskEnd && requestedEnd > taskStart;
+};
+
 const isSameTaskIdentity = (task, date, payload) => {
   return (
-    task.codigoRegistro &&
     isSameDay(task.fecha, date) &&
-    normalizeScheduleText(task.morning) === normalizeScheduleText(payload.morning) &&
+    normalizeScheduleText(task.tipoTarea || task.morning) === normalizeScheduleText(payload.tipo_tarea || payload.tipoTarea || payload.morning) &&
+    normalizeScheduleText(task.cotizacion) === normalizeScheduleText(payload.cotizacion) &&
     normalizeScheduleText(task.descripcion) === normalizeScheduleText(payload.descripcion) &&
-    normalizeScheduleText(task.cod_cliente) === normalizeScheduleText(payload.cod_cliente)
+    normalizeScheduleText(task.cliente) === normalizeScheduleText(payload.cliente) &&
+    normalizeScheduleText(task.planta) === normalizeScheduleText(payload.planta) &&
+    normalizeScheduleText(task.horaInicio) === normalizeScheduleText(payload.horaInicio) &&
+    normalizeScheduleText(task.horaFin) === normalizeScheduleText(payload.horaFin)
   );
 };
 
 const isSameLinkedTask = (task, sourceTask, date) => {
-  const sourceCodigo = normalizeScheduleText(sourceTask.codigoRegistro);
-  const taskCodigo = normalizeScheduleText(task.codigoRegistro);
-
   return (
     isSameDay(task.fecha, date) &&
-    normalizeScheduleText(task.morning) === normalizeScheduleText(sourceTask.morning) &&
+    normalizeScheduleText(task.tipoTarea || task.morning) === normalizeScheduleText(sourceTask.tipoTarea || sourceTask.morning) &&
+    normalizeScheduleText(task.cotizacion) === normalizeScheduleText(sourceTask.cotizacion) &&
     normalizeScheduleText(task.descripcion) === normalizeScheduleText(sourceTask.descripcion) &&
     normalizeScheduleText(task.cliente) === normalizeScheduleText(sourceTask.cliente) &&
-    normalizeScheduleText(task.cod_cliente) === normalizeScheduleText(sourceTask.cod_cliente) &&
-    (!sourceCodigo || sourceCodigo === taskCodigo)
+    normalizeScheduleText(task.planta) === normalizeScheduleText(sourceTask.planta)
   );
 };
 
@@ -219,47 +232,64 @@ export function useCalendarPage() {
   const handleSaveForm = useCallback(async (date, resource, text) => {
     const doSave = async (finalText) => {
       try {
-        const promises = [upsertScheduleCell(date, resource, finalText)];
-        if (finalText?.additionalResources?.length > 0) {
-          finalText.additionalResources.forEach(additionalRes => {
-            promises.push(upsertScheduleCell(date, additionalRes, { ...finalText, rowId: null, additionalResources: undefined }));
+        const vehicleResource = finalText?.vehicleResource;
+        const vehicleTasks = vehicleResource
+          ? tasks.filter(task => task.Tecnico === vehicleResource && isSameDay(task.fecha, date))
+          : [];
+        const vehicleAlreadyLinked = vehicleTasks.some(task => isSameTaskIdentity(task, date, finalText));
+        const vehicleConflict = vehicleTasks.find(task => (
+          !isSameTaskIdentity(task, date, finalText) &&
+          normalizeScheduleText(task.tipoTarea || task.morning || task.afternoon || task.descripcion) &&
+          hasScheduleOverlap(task, finalText)
+        ));
+
+        if (vehicleResource && vehicleResource !== resource && vehicleConflict) {
+          const vehicleName = tecnicos.find(item => item.id === vehicleResource)?.nombre || 'El vehículo seleccionado';
+          const conflictLabel = vehicleConflict.tipoTarea || vehicleConflict.morning || vehicleConflict.descripcion || 'otra tarea';
+          toast.error(`${vehicleName} ya no está disponible en ese horario.`, {
+            description: `Se solapa con “${conflictLabel}” (${vehicleConflict.horaInicio || 'inicio del día'}–${vehicleConflict.horaFin || 'fin del día'}).`,
+            duration: 6000,
           });
+          return false;
+        }
+
+        const promises = [upsertScheduleCell(date, resource, finalText)];
+        const additionalResources = finalText?.additionalResources || [];
+        additionalResources.forEach(additionalRes => {
+          if (additionalRes !== resource) {
+            promises.push(upsertScheduleCell(date, additionalRes, { ...finalText, rowId: null, additionalResources: undefined }));
+          }
+        });
+        if (vehicleResource && vehicleResource !== resource && !vehicleAlreadyLinked) {
+          promises.push(upsertScheduleCell(date, vehicleResource, {
+            ...finalText,
+            rowId: null,
+            additionalResources: undefined,
+            vehicleResource: undefined,
+          }));
         }
         await Promise.all(promises);
-        setIsFormOpen(false);
         if (!finalText || (typeof finalText === 'object' && !finalText.morning && !finalText.afternoon) || (typeof finalText === 'string' && finalText.trim() === '')) {
           toast.success("Celda limpiada correctamente.");
         } else {
-          if (finalText.additionalResources?.length > 0) {
-            toast.success(`Tarea asignada a ${finalText.additionalResources.length + 1} personas.`);
+          const assignedCount = additionalResources.length + (vehicleResource && !vehicleAlreadyLinked ? 1 : 0);
+          if (assignedCount > 0) {
+            toast.success(`Tarea guardada y vinculada a ${assignedCount} recurso${assignedCount === 1 ? '' : 's'} adicional${assignedCount === 1 ? '' : 'es'}.`);
           } else {
             toast.success("Tarea guardada correctamente.");
           }
           if (typeof refetch === 'function') refetch();
         }
+        return true;
       } catch (err) {
         const isConcurrencyError = err.message?.includes('Otro usuario') || err.message?.includes('otro proceso');
         toast.error(err.message || "Error al guardar en el calendario", { duration: isConcurrencyError ? 8000 : 4000 });
+        return false;
       }
     };
 
-    try {
-      if (!text.rowId && text.morning?.trim()) {
-        const existingCodeTasks = tasks.filter(t => isSameTaskIdentity(t, date, text));
-        if (existingCodeTasks.length > 0) {
-          const codeToShare = existingCodeTasks[0].codigoRegistro;
-          toast('Unificación de Tareas', {
-            description: `Ya existen tareas registradas con los mismos datos bajo el código ${codeToShare}. ¿Deseas unificar esta nueva tarea bajo el mismo código (RSP)?`,
-            duration: 15000,
-            action: { label: 'Sí, unificar', onClick: () => { text.codigoRegistro = codeToShare; doSave(text); } },
-            cancel: { label: 'No, crear nuevo', onClick: () => doSave(text) }
-          });
-          return;
-        }
-      }
-      await doSave(text);
-    } catch { toast.error("Error al procesar la solicitud."); }
-  }, [tasks, upsertScheduleCell, refetch]);
+    return doSave(text);
+  }, [tasks, tecnicos, upsertScheduleCell, refetch]);
 
   const handleDeleteTask = useCallback(async (task, date, resourceId) => {
     setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false });
@@ -281,16 +311,16 @@ export function useCalendarPage() {
     toast.success("Borrando tarea...", { duration: 500 });
     try {
       const dateObj = new Date(date);
-      await upsertScheduleCell(dateObj, resourceId, { rowId: task.rowId, morning: '' }, true);
+      await upsertScheduleCell(dateObj, resourceId, { rowId: task.rowId, tipo_tarea: '', morning: '' }, true);
 
       if (!isVehiculoTarget) {
         const vehicleTasks = tasks.filter(t => {
           if (!isSameDay(t.fecha, dateObj)) return false;
           const isVehiculo = tecnicos.find(tec => tec.id === t.Tecnico)?.area === 'VEHÍCULOS';
-          return isVehiculo && task.morning && t.morning === task.morning;
+          return isVehiculo && isSameLinkedTask(t, task, dateObj);
         });
         for (const vTask of vehicleTasks) {
-          await upsertScheduleCell(vTask.fecha, vTask.Tecnico, { rowId: vTask.rowId, morning: '' }, true);
+          await upsertScheduleCell(vTask.fecha, vTask.Tecnico, { rowId: vTask.rowId, tipo_tarea: '', morning: '' }, true);
         }
       }
 
@@ -307,25 +337,23 @@ export function useCalendarPage() {
     const targetTecnico = tecnicos.find(t => t.id === targetResource);
     const targetName = targetTecnico ? targetTecnico.nombre : targetResource;
     const sourceTaskPayload = {
-      codigoRegistro: sourceTask.codigoRegistro || null,
+      tipo_tarea: sourceTask.tipoTarea || sourceTask.morning,
       morning: sourceTask.morning,
+      cotizacion: sourceTask.cotizacion,
       descripcion: sourceTask.descripcion,
       cliente: sourceTask.cliente,
       cod_cliente: sourceTask.cod_cliente,
+      planta: sourceTask.planta,
       colorAM: sourceTask.colorAM,
       estadoAM: sourceTask.estadoAM,
       horaInicio: sourceTask.horaInicio,
       horaFin: sourceTask.horaFin,
     };
 
-    const executeAction = async (copyForOthers = false, otherTasks = [], preserveCodigoRegistro = true) => {
+    const executeAction = async (copyForOthers = false, otherTasks = []) => {
       try {
         const targetDateObj = targetDate instanceof Date ? targetDate : new Date(targetDate);
-        const buildPayload = (rowId) => {
-          const payload = { ...sourceTaskPayload, rowId };
-          if (!preserveCodigoRegistro) delete payload.codigoRegistro;
-          return payload;
-        };
+        const buildPayload = (rowId) => ({ ...sourceTaskPayload, rowId });
 
         if (isMoveKey && sourceTask.sourceDate) {
           const sourceDateObj = new Date(sourceTask.sourceDate);
@@ -346,45 +374,12 @@ export function useCalendarPage() {
           if (typeof refetch === 'function') refetch();
           toast.success(
             copyForOthers && otherTasks.length > 0
-              ? preserveCodigoRegistro
-                ? `Tarea unificada y copiada para ${otherTasks.length + 1} personas bajo el mismo código.`
-                : `Tarea copiada para ${otherTasks.length + 1} personas con nuevo código.`
-              : preserveCodigoRegistro
-                ? `Ficha copiada (código unificado: ${sourceTask.codigoRegistro || 'nuevo'}).`
-                : 'Ficha copiada con nuevo código.',
+              ? `Tarea copiada para ${otherTasks.length + 1} personas.`
+              : 'Ficha copiada correctamente.',
             { duration: 5000 }
           );
         }
       } catch (err) { toast.error(err.message || "Error al procesar la tarea"); }
-    };
-
-    const confirmCopyCodePolicy = (copyForOthers = false, otherTasks = []) => {
-      toast("¿Qué código usar para la copia?", {
-        duration: 15000,
-        description: (
-          <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
-            <span className="text-[13px] text-gray-600 dark:text-gray-300 leading-snug">
-              Puedes conservar el código <strong className="font-semibold text-gray-800 dark:text-gray-100">{sourceTask.codigoRegistro || 'actual'}</strong> o crear un nuevo RSP para esta copia.
-            </span>
-            <div className="flex flex-col gap-2">
-                <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); executeAction(copyForOthers, otherTasks, true); }}
-                className="w-full py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-300 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
-                Conservar código
-              </div>
-              <div className="flex items-center gap-2">
-                <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); executeAction(copyForOthers, otherTasks, false); }}
-                  className="flex-1 py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
-                  Crear nuevo
-                </div>
-                <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); }}
-                  className="flex-1 py-1.5 px-2 bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
-                  Cancelar
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      });
     };
 
     const targetDateObj = targetDate instanceof Date ? targetDate : new Date(targetDate);
@@ -405,7 +400,7 @@ export function useCalendarPage() {
               Vas a {isMoveKey ? "mover" : "copiar"} esta tarea a <strong className="font-semibold text-gray-800 dark:text-gray-100">{targetName}</strong>. ¿Estás seguro?
             </span>
             <div className="flex items-center gap-2">
-              <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); isMoveKey ? executeAction() : confirmCopyCodePolicy(); }}
+              <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); executeAction(); }}
                 className="flex-1 py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-300 rounded-xl text-[13px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
                 Sí, {isMoveKey ? "Mover" : "Copiar"}
               </div>
@@ -431,12 +426,12 @@ export function useCalendarPage() {
               Esta tarea también está asignada a <strong className="font-semibold text-gray-800 dark:text-gray-100">{otherNames}</strong>. ¿Deseas copiarla para todos al día {format(targetDateObj, 'd MMM', { locale: es })}?
             </span>
             <div className="flex flex-col gap-2">
-              <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); confirmCopyCodePolicy(true, otherUsersWithTask); }}
+              <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); executeAction(true, otherUsersWithTask); }}
                 className="w-full py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-300 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
                 Sí, copiar para todos ({otherUsersWithTask.length + 1})
               </div>
               <div className="flex items-center gap-2">
-                <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); confirmCopyCodePolicy(false, []); }}
+                <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); executeAction(false, []); }}
                   className="flex-1 py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
                   Solo para mí
                 </div>
@@ -450,7 +445,7 @@ export function useCalendarPage() {
         )
       });
     } else {
-      isMoveKey ? executeAction() : confirmCopyCodePolicy();
+      executeAction();
     }
   }, [tecnicos, tasks, upsertScheduleCell, refetch]);
 
@@ -489,12 +484,13 @@ export function useCalendarPage() {
     toast.success(`Moviendo ${sourceCells.length} tarea(s)...`, { duration: 4000 });
     try {
       for (const sCell of sourceCells) {
-        await upsertScheduleCell(sCell.fecha, sCell.Tecnico, { rowId: sCell.rowId, morning: '' }, true);
+        await upsertScheduleCell(sCell.fecha, sCell.Tecnico, { rowId: sCell.rowId, tipo_tarea: '', morning: '' }, true);
       }
       for (const { originCell: sCell, destDate } of destinationCells) {
         await upsertScheduleCell(destDate, sCell.Tecnico, {
-          rowId: null, codigoRegistro: sCell.codigoRegistro, morning: sCell.morning,
-          descripcion: sCell.descripcion, cliente: sCell.cliente, cod_cliente: sCell.cod_cliente, colorAM: sCell.colorAM,
+          rowId: null, tipo_tarea: sCell.tipoTarea || sCell.morning, morning: sCell.morning,
+          cotizacion: sCell.cotizacion, descripcion: sCell.descripcion, cliente: sCell.cliente,
+          cod_cliente: sCell.cod_cliente, planta: sCell.planta, colorAM: sCell.colorAM,
           estadoAM: 'Reprogramado', horaInicio: sCell.horaInicio, horaFin: sCell.horaFin
         }, true);
       }
@@ -545,11 +541,11 @@ export function useCalendarPage() {
     try {
       const dateObj = new Date(date);
       await upsertScheduleCell(dateObj, resourceId, {
-        rowId: task.rowId, morning: task.morning, descripcion: task.descripcion,
-        cliente: task.cliente, cod_cliente: task.cod_cliente,
+        rowId: task.rowId, tipo_tarea: task.tipoTarea || task.morning, morning: task.morning,
+        cotizacion: task.cotizacion, descripcion: task.descripcion,
+        cliente: task.cliente, cod_cliente: task.cod_cliente, planta: task.planta,
         colorAM: task.colorAM, estadoAM: newState,
         horaInicio: task.horaInicio, horaFin: task.horaFin,
-        codigoRegistro: task.codigoRegistro || null,
         lastModified: task.timestampUpdated || null
       }, false);
       toast.success(`Estado actualizado a ${newState}`);
@@ -619,8 +615,9 @@ export function useCalendarPage() {
         for (const dt of associatedDates) {
           if (!tasks.find(t => isSameDay(t.fecha, dt.date) && t.Tecnico === vehiculo.id && t.morning === dt.tCell.morning)) {
             await upsertScheduleCell(dt.date, vehiculo.id, {
-              rowId: null, codigoRegistro: dt.tCell.codigoRegistro, morning: dt.tCell.morning,
-              descripcion: dt.tCell.descripcion, cliente: dt.tCell.cliente, cod_cliente: dt.tCell.cod_cliente,
+              rowId: null, tipo_tarea: dt.tCell.tipoTarea || dt.tCell.morning, morning: dt.tCell.morning,
+              cotizacion: dt.tCell.cotizacion, descripcion: dt.tCell.descripcion,
+              cliente: dt.tCell.cliente, cod_cliente: dt.tCell.cod_cliente, planta: dt.tCell.planta,
               colorAM: dt.tCell.colorAM, estadoAM: dt.tCell.estadoAM,
               horaInicio: dt.tCell.horaInicio, horaFin: dt.tCell.horaFin
             }, true);
