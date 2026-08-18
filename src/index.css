@@ -486,6 +486,9 @@
 .task-disclosure > div {
   min-height: 0;
   overflow: hidden;
+  /* Al cerrar vuelve a recortar de inmediato, para que el contenido no se
+     desborde mientras la fila colapsa. */
+  transition: overflow 0s linear 0s;
 }
 
 .task-disclosure.is-open {
@@ -494,6 +497,14 @@
   visibility: visible;
   transform: translateY(0);
   transition-delay: 0s;
+}
+
+.task-disclosure.is-open > div {
+  /* Terminada la apertura se deja de recortar: con overflow hidden, el anillo
+     de foco y las sombras de los controles internos quedaban cortados contra
+     el borde del bloque. El retardo cubre la animacion de apertura. */
+  overflow: visible;
+  transition: overflow 0s linear 120ms;
 }
 
 .task-field-reveal {

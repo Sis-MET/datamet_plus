@@ -42,6 +42,20 @@ import {
 // Integracion Bitrix24 suspendida temporalmente.
 // import { createBitrixDeal } from '../utils/bitrixService';
 
+// Cotizaciones deshabilitadas: todavia no existen cotizaciones cargadas en el
+// sistema, asi que el campo se oculta para todos los tipos de tarea. El codigo
+// se conserva intacto; poner esto en true lo vuelve a mostrar tal cual estaba.
+const QUOTES_ENABLED = false;
+
+// Bordes solidos de los campos. Se evita `border-white/N` porque al enfocar el
+// borde se interpola desde blanco translucido hacia el azul del foco y en el
+// camino se ve un destello blanco.
+const FIELD_BORDER = 'border-[#2a2a2e]';
+const FIELD_BORDER_SOFT = 'border-[#1f1f23]';
+// Transicion acotada: `transition-all` tambien anima el ring de Tailwind y
+// provoca el mismo parpadeo.
+const FIELD_TRANSITION = 'transition-[border-color,box-shadow] duration-150';
+
 const TaskDescriptionField = React.memo(React.forwardRef(function TaskDescriptionField(
   { isDarkGantt },
   forwardedRef
@@ -71,9 +85,10 @@ const TaskDescriptionField = React.memo(React.forwardRef(function TaskDescriptio
         maxLength={200}
         spellCheck={false}
         className={cn(
-          'min-h-[104px] w-full resize-y rounded-xl border px-3.5 py-3 text-sm leading-5 shadow-inner transition-[border-color,box-shadow,background-color] focus:outline-none focus:border-primary-500/60 focus:ring-2 focus:ring-primary-500/20',
+          'min-h-[104px] w-full resize-y rounded-xl border px-3.5 py-3 text-sm leading-5 shadow-inner focus:outline-none focus:border-primary-500/60 focus:ring-2 focus:ring-primary-500/20',
+          FIELD_TRANSITION,
           isDarkGantt
-            ? 'border-white/10 bg-black/20 text-slate-100 placeholder:text-slate-500'
+            ? `${FIELD_BORDER} bg-[#111111] text-slate-100 placeholder:text-slate-500`
             : 'border-slate-200 bg-slate-50 text-slate-950 placeholder:text-slate-500'
         )}
       />
@@ -108,9 +123,9 @@ function ActivitySelect({ value, onChange, options, isDarkGantt }) {
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-label="Tipo de tarea"
-        className={`h-[45px] w-full rounded-xl border px-3 text-sm font-semibold shadow-inner outline-none transition-colors focus:border-primary-500/50 focus:ring-2 focus:ring-primary-500/20 sm:hidden ${
+        className={`h-[45px] w-full rounded-xl border px-3 text-sm font-semibold shadow-inner outline-none ${FIELD_TRANSITION} focus:border-primary-500/50 focus:ring-2 focus:ring-primary-500/20 sm:hidden ${
           isDarkGantt
-            ? 'border-white/5 bg-[#111111] text-gray-100'
+            ? `${FIELD_BORDER_SOFT} bg-[#111111] text-gray-100`
             : 'border-gray-200 bg-gray-50 text-gray-900'
         }`}
       >
@@ -123,9 +138,9 @@ function ActivitySelect({ value, onChange, options, isDarkGantt }) {
         onClick={() => setOpen(current => !current)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`hidden h-[45px] w-full items-center justify-between gap-2 rounded-xl border px-4 text-sm font-semibold shadow-inner transition-all focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 sm:flex ${
+        className={`hidden h-[45px] w-full items-center justify-between gap-2 rounded-xl border px-4 text-sm font-semibold shadow-inner ${FIELD_TRANSITION} focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 sm:flex ${
           isDarkGantt
-            ? 'bg-[#111111] border-white/5 text-gray-100'
+            ? `bg-[#111111] ${FIELD_BORDER_SOFT} text-gray-100`
             : 'bg-gray-50 border-gray-200 text-gray-900'
         }`}
       >
@@ -188,6 +203,8 @@ function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  // Secuencia de peticiones: solo la ultima en salir puede tocar el estado.
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     setQuery(value || '');
@@ -204,24 +221,35 @@ function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  useEffect(() => () => {
+    clearTimeout(debounceRef.current);
+    // Invalida cualquier respuesta que llegue despues de desmontar.
+    requestIdRef.current += 1;
+  }, []);
+
   const searchClientes = async (text) => {
+    const requestId = ++requestIdRef.current;
+
     if (text.length < 1) {
       setResults([]);
       setOpen(false);
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
     try {
       const data = await api.get('/clientes/search', { q: text });
+      if (requestId !== requestIdRef.current) return;
       const items = data.success ? data.data || [] : [];
       setResults(items);
       setOpen(items.length > 0);
     } catch {
+      if (requestId !== requestIdRef.current) return;
       setResults([]);
       setOpen(false);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 
@@ -259,14 +287,17 @@ function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
           aria-expanded={open && results.length > 0}
           spellCheck={false}
           className={cn(
-            'w-full h-[45px] border rounded-xl px-4 pr-10 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-semibold shadow-inner',
+            'w-full h-[45px] border rounded-xl px-4 pr-10 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 font-semibold shadow-inner',
+            FIELD_TRANSITION,
             isDarkGantt
-              ? 'bg-[#111111] border-white/10 text-gray-100 placeholder-gray-400'
+              ? `bg-[#111111] ${FIELD_BORDER} text-gray-100 placeholder-gray-400`
               : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'
           )}
         />
         {isLoading && (
-          <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary-400" />
+          /* El centrado va por margen y no por -translate-y-1/2: `animate-spin`
+             reemplaza el transform completo y el icono se descolgaba hacia abajo. */
+          <Loader2 className="pointer-events-none absolute right-3 top-1/2 -mt-2 h-4 w-4 animate-spin text-primary-400" />
         )}
       </div>
 
@@ -339,9 +370,10 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
         disabled={disabled || isLoading}
         aria-label="Planta"
         className={cn(
-          'h-[45px] w-full rounded-xl border px-3 text-sm font-semibold shadow-inner outline-none transition-colors focus:border-primary-500/50 focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:hidden',
+          'h-[45px] w-full rounded-xl border px-3 text-sm font-semibold shadow-inner outline-none focus:border-primary-500/50 focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:hidden',
+          FIELD_TRANSITION,
           isDarkGantt
-            ? 'border-white/5 bg-[#111111] text-gray-100'
+            ? `${FIELD_BORDER_SOFT} bg-[#111111] text-gray-100`
             : 'border-gray-200 bg-gray-50 text-gray-900'
         )}
       >
@@ -364,9 +396,10 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
         aria-haspopup="listbox"
         aria-expanded={isDropdownOpen && plantas.length > 0}
         className={cn(
-          'hidden h-[45px] w-full items-center justify-between gap-2 rounded-xl border px-4 text-sm font-semibold shadow-inner transition-all focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 disabled:cursor-not-allowed disabled:opacity-50 sm:flex',
+          'hidden h-[45px] w-full items-center justify-between gap-2 rounded-xl border px-4 text-sm font-semibold shadow-inner focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 disabled:cursor-not-allowed disabled:opacity-50 sm:flex',
+          FIELD_TRANSITION,
           isDarkGantt
-            ? 'bg-[#111111] border-white/5 text-gray-100'
+            ? `bg-[#111111] ${FIELD_BORDER_SOFT} text-gray-100`
             : 'bg-gray-50 border-gray-200 text-gray-900'
         )}
       >
@@ -501,7 +534,7 @@ export function CellPopoverForm({
 
   const [horaInicio, setHoraInicio] = useState(userJInicio);
   const [horaFin, setHoraFin] = useState(userJFin);
-  const requiresQuote = QUOTE_ACTIVITY_TYPES.has(activityType);
+  const requiresQuote = QUOTES_ENABLED && QUOTE_ACTIVITY_TYPES.has(activityType);
   const requiresPlantAssistance = (activityType === 'Visita' || (activityType === 'Servicio' && !cotizacionCode.trim())) && !NO_CLIENT_ACTIVITY_TYPES.has(activityType);
   const grupos = useMemo(() => {
     const map = {};
@@ -920,14 +953,14 @@ export function CellPopoverForm({
         data-state={isClosing ? 'closing' : 'open'}
         className={`task-dialog-panel flex max-h-[calc(100dvh-0.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl ${
           isDarkGantt
-            ? 'border-white/10 bg-[#17171c]/95 shadow-black/70'
-            : 'border-slate-500/25 bg-slate-100/92 shadow-slate-950/30'
+            ? 'border-white/10 bg-[#17171c] shadow-black/70'
+            : 'border-slate-500/25 bg-slate-100 shadow-slate-950/30'
         }`}
         onMouseDown={(mouseEvent) => mouseEvent.stopPropagation()}
       >
         <header
           className={`flex items-center justify-between gap-4 border-b px-4 py-3.5 sm:px-6 sm:py-4 ${
-            isDarkGantt ? 'border-white/10 bg-[#1d1d22]/90' : 'border-slate-500/20 bg-slate-200/60'
+            isDarkGantt ? 'border-white/10 bg-[#1d1d22]' : 'border-slate-500/20 bg-slate-200'
           }`}
         >
           <div className="min-w-0">
@@ -1097,6 +1130,7 @@ export function CellPopoverForm({
                     </div>
                   </div>
 
+                  {QUOTES_ENABLED && (
                   <div className={`task-disclosure ${requiresQuote ? 'is-open' : ''}`} aria-hidden={!requiresQuote}>
                     <div>
                     <div className="pt-4">
@@ -1120,6 +1154,7 @@ export function CellPopoverForm({
                     </div>
                     </div>
                   </div>
+                  )}
 
                   <div className={`task-disclosure ${requiresPlantAssistance ? 'is-open' : ''}`} aria-hidden={!requiresPlantAssistance}>
                     <div>
@@ -1158,7 +1193,7 @@ export function CellPopoverForm({
               </section>
 
               <aside className={`border-t px-4 py-5 sm:px-6 sm:py-6 lg:border-l lg:border-t-0 ${
-                isDarkGantt ? 'border-white/10 bg-black/10' : 'border-slate-500/20 bg-slate-200/45'
+                isDarkGantt ? 'border-white/10 bg-[#141418]' : 'border-slate-500/20 bg-slate-200'
               }`} aria-labelledby="task-schedule-heading">
                 <div>
                   <h3 id="task-schedule-heading" className={`text-sm font-semibold ${isDarkGantt ? 'text-slate-100' : 'text-slate-900'}`}>
@@ -1184,7 +1219,7 @@ export function CellPopoverForm({
                     </div>
 
                     <div className={`grid grid-cols-[1fr_auto_1fr] items-center rounded-xl border ${
-                      isDarkGantt ? 'border-white/10 bg-black/20' : 'border-slate-500/20 bg-slate-100/65'
+                      isDarkGantt ? 'border-white/10 bg-[#111111]' : 'border-slate-500/20 bg-slate-100'
                     }`}>
                       <div className="min-w-0 px-3 py-1.5">
                         <span className={`block text-[10px] font-medium ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>Desde</span>
@@ -1331,7 +1366,7 @@ export function CellPopoverForm({
           </div>
 
           <footer className={`flex shrink-0 items-center gap-2 border-t px-4 py-3 sm:px-6 ${
-            isDarkGantt ? 'border-white/10 bg-[#1a1a1f]/95' : 'border-slate-500/20 bg-slate-200/75'
+            isDarkGantt ? 'border-white/10 bg-[#1a1a1f]' : 'border-slate-500/20 bg-slate-200'
           }`}>
             {event && (
               <button
