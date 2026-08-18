@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import {
   startOfMonth,
   endOfMonth,
@@ -23,7 +23,7 @@ export function useCalendar(tasks = []) {
   }, [currentDate]);
 
   // Un evento ocurre en 'day' si coinciden las fechas (ahora son días discretos, no rangos)
-  const eventsForDay = (day) => {
+  const eventsForDay = useCallback((day) => {
     const filteredTasks = tasks.filter(task => {
       if (!task.fecha) return false;
       const dayStart = new Date(day).setHours(0,0,0,0);
@@ -46,11 +46,11 @@ export function useCalendar(tasks = []) {
     });
 
     return eventsArray;
-  };
+  }, [tasks]);
 
   const selectedDayEvents = useMemo(
     () => eventsForDay(selectedDay),
-    [selectedDay, tasks] // depends on tasks array now
+    [eventsForDay, selectedDay]
   );
 
   const monthStats = useMemo(() => {

@@ -1,6 +1,5 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { cn } from '../../../shared/utils/cn';
 
 const DAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];

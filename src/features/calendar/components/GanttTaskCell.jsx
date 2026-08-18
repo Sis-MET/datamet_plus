@@ -5,7 +5,6 @@ import { es } from 'date-fns/locale';
 import { Truck, MapPin } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
-import { useTheme } from '../../../shared/context/ThemeContext';
 
 const MAX_TASKS_PER_CELL = 4;
 
@@ -199,7 +198,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         style={{ touchAction: 'none' }}
-        className={`w-full mt-0.5 min-h-[40px] border rounded-md overflow-hidden shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-all font-mono tracking-tight animate-fade-in select-none ${
+        className={`h-[54px] w-full shrink-0 border rounded-md overflow-hidden shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-[transform,box-shadow] duration-100 font-mono tracking-tight select-none ${
           isDarkGantt
             ? 'border-white/10 hover:ring-white/30'
             : 'border-white/20 hover:ring-black/20'
@@ -216,7 +215,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
               {task.morning && (
                 <div className="flex items-start gap-1.5 relative z-10 w-full overflow-hidden">
                   <div 
-                    className={`w-2 h-2 rounded-full shrink-0 mt-[4px] animate-pulse ${
+                    className={`w-2 h-2 rounded-full shrink-0 mt-[4px] ${
                       (task.estadoAM === 'Completado' || task.estadoAM === 'Aprobado') ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :
                       task.estadoAM === 'Cancelado' ? 'bg-red-400 shadow-[0_0_5px_rgba(248,113,113,0.8)]' :
                       (task.estadoAM === 'Reprogramado' || task.estadoAM === 'Aceptado') ? 'bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]' :
@@ -421,7 +420,7 @@ export function GanttTaskCell({
   resourceId,
   resourceName
 }) {
-  const { isDarkGantt } = useTheme();
+  const isDarkGantt = true;
 
   const cellStyle = isPreview ? { opacity: previewOpacity } : {};
   
@@ -435,7 +434,7 @@ export function GanttTaskCell({
   let baseClasses = `gantt-cell ${todayFlag ? 'gantt-cell-today-bg' : ''} ${isPreview ? 'gantt-cell-preview' : ''} ${nonWorkClass}`;
 
   if (isSelectedDay) {
-    baseClasses += ' bg-[#10b981]/[0.15] ring-[1px] ring-inset ring-[#10b981]/50 shadow-[inset_0_0_15px_rgba(16,185,129,0.1)] z-[5] transition-all duration-300';
+    baseClasses += ' bg-[#10b981]/[0.15] ring-[1px] ring-inset ring-[#10b981]/50 shadow-[inset_0_0_15px_rgba(16,185,129,0.1)] z-[5] transition-[background-color,box-shadow] duration-100';
   }
 
   if (onTaskClick) {
@@ -477,9 +476,9 @@ export function GanttTaskCell({
 
   // Determinar si todos los eventos pasados están logitamente purgados (vaciados)
   const isEmptyTask = (t) => !t.morning;
-  // Limitar a máximo MAX_TASKS_PER_CELL fichas por celda
-  const validTasks = tasks ? tasks.filter(t => !isEmptyTask(t)).slice(0, MAX_TASKS_PER_CELL) : [];
-  const canAddMore = validTasks.length < MAX_TASKS_PER_CELL;
+  const allValidTasks = tasks ? tasks.filter(t => !isEmptyTask(t)) : [];
+  const validTasks = allValidTasks;
+  const canAddMore = allValidTasks.length < MAX_TASKS_PER_CELL;
 
   if (validTasks.length === 0) {
     return (
@@ -537,7 +536,7 @@ export function GanttTaskCell({
             'bg-[#10b981] hover:bg-[#059669] text-white',
             'shadow-[0_2px_8px_rgba(16,185,129,0.5)] hover:shadow-[0_3px_12px_rgba(16,185,129,0.7)]'
           )}
-          title={`Agregar Tarea (${validTasks.length}/${MAX_TASKS_PER_CELL})`}
+          title={`Agregar tarea (${allValidTasks.length}/${MAX_TASKS_PER_CELL})`}
         >
           <span className="text-[12px] font-bold leading-none">+</span>
         </div>

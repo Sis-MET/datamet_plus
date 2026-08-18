@@ -1,12 +1,10 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Truck, ChevronLeft, ChevronRight, RefreshCw, Filter, ChevronDown, Users } from 'lucide-react';
+import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
+import { Truck, ChevronLeft, ChevronRight, RefreshCw, Filter, ChevronDown, Users, WifiOff } from 'lucide-react';
 import { format, subWeeks, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
 import { GanttRow } from './components/GanttRow';
-import { GanttLegend } from './components/GanttLegend';
 import { GanttHelpButton } from './components/GanttHelpButton';
-import { useTheme } from '../../shared/context/ThemeContext';
 
 const getAreaLabel = (area) => (typeof area === 'string' && area.trim() !== '' ? area.trim() : 'Sin Área');
 
@@ -46,9 +44,12 @@ export function GanttPage({
   onTaskContextMenu,
   onTaskDragStart,
   onTaskDragEnd,
+  error,
 }) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const { isDarkGantt } = useTheme();
+  const [scrollState, setScrollState] = useState({ left: false, right: false });
+  const scrollFrameRef = useRef(null);
+  const isDarkGantt = true;
   const preferredArea = currentUserArea ? getAreaLabel(currentUserArea) : '';
 
   // ── Estadísticas de áreas ──
@@ -89,6 +90,44 @@ export function GanttPage({
 
   const scrollRef = useRef(null);
 
+  const updateScrollState = useCallback(() => {
+    if (scrollFrameRef.current !== null) return;
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      const element = scrollRef.current;
+      if (!element) return;
+      const maxScroll = element.scrollWidth - element.clientWidth;
+      const nextState = {
+        left: element.scrollLeft > 4,
+        right: element.scrollLeft < maxScroll - 4,
+      };
+
+      setScrollState(current => (
+        current.left === nextState.left && current.right === nextState.right
+          ? current
+          : nextState
+      ));
+    });
+  }, []);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return undefined;
+    updateScrollState();
+    element.addEventListener('scroll', updateScrollState, { passive: true });
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(element);
+    return () => {
+      element.removeEventListener('scroll', updateScrollState);
+      observer.disconnect();
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
+  }, [updateScrollState, weekDays, grupos.length]);
+
   useEffect(() => {
     if (selectedDay && scrollRef.current) {
       const dateStr = format(selectedDay, 'yyyy-MM-dd');
@@ -117,9 +156,10 @@ export function GanttPage({
       {/* ── Controles de Semana y Recarga ── */}
       {currentWeekStart && (
         <div className="calendar-toolbar mb-2.5 px-0.5 sm:mb-3">
+          <div className="calendar-toolbar-group">
           <button
             onClick={goToCurrentWeek}
-            className={`calendar-toolbar-control group relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden border ${isDarkGantt ? 'text-slate-200 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-slate-700 hover:text-slate-950 bg-slate-100/65 border-slate-500/20 hover:border-slate-500/35 hover:bg-slate-100/85'}`}
+            className={`calendar-toolbar-control group relative flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl shadow-sm transition-colors overflow-hidden border ${isDarkGantt ? 'text-slate-200 hover:text-white bg-[#1b1c22] border-white/10 hover:border-white/20 hover:bg-[#24262d]' : 'text-slate-700 hover:text-slate-950 bg-slate-100 border-slate-500/20 hover:border-slate-500/35 hover:bg-white'}`}
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <span className={`relative z-10 font-bold ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>★ Hoy</span>
@@ -128,7 +168,7 @@ export function GanttPage({
             </span>
           </button>
           
-          <div className={`calendar-toolbar-control flex rounded-xl overflow-hidden backdrop-blur-md shadow-sm transition-colors group relative border ${isDarkGantt ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-slate-100/65 border-slate-500/20 hover:border-slate-500/35 shadow-slate-700/10'}`}>
+          <div className={`calendar-toolbar-control flex rounded-xl overflow-hidden shadow-sm transition-colors group relative border ${isDarkGantt ? 'bg-[#1b1c22] border-white/10 hover:border-white/20' : 'bg-slate-100 border-slate-500/20 hover:border-slate-500/35 shadow-slate-700/10'}`}>
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <button
               onClick={prevWeek}
@@ -151,21 +191,22 @@ export function GanttPage({
           <button
             onClick={onRefetch}
             disabled={loading}
-            className={`calendar-toolbar-control group relative min-w-10 p-2 rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden disabled:opacity-50 border ${isDarkGantt ? 'text-slate-200 hover:text-white bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10' : 'text-slate-700 hover:text-slate-950 bg-slate-100/65 border-slate-500/20 hover:border-slate-500/35 hover:bg-slate-100/85'}`}
+            className={`calendar-toolbar-control group relative min-w-10 p-2 rounded-xl shadow-sm transition-colors overflow-hidden disabled:opacity-50 border ${isDarkGantt ? 'text-slate-200 hover:text-white bg-[#1b1c22] border-white/10 hover:border-white/20 hover:bg-[#24262d]' : 'text-slate-700 hover:text-slate-950 bg-slate-100 border-slate-500/20 hover:border-slate-500/35 hover:bg-white'}`}
             title="Recargar datos"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <RefreshCw className={`relative z-10 h-4 w-4 ${loading ? 'animate-spin text-primary-400' : ''}`} />
           </button>
+          </div>
 
           {/* ── Filtro por Área Dropdown ── */}
-          <div className={`toolbar-filter relative ${isFilterOpen ? 'z-50' : ''}`}>
+          <div className={`toolbar-filter relative sm:ml-auto ${isFilterOpen ? 'z-50' : ''}`}>
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`calendar-toolbar-control group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl backdrop-blur-md border shadow-sm transition-colors overflow-hidden ${
+              className={`calendar-toolbar-control group relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-xl border shadow-sm transition-colors overflow-hidden ${
                 selectedArea !== 'Todas' 
                   ? isDarkGantt ? 'bg-blue-500/20 text-blue-100 border-blue-500/30 hover:bg-blue-500/30' : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
-                  : (isDarkGantt ? 'bg-white/5 text-white border-white/10 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'bg-slate-100/65 text-slate-700 border-slate-500/20 hover:border-slate-500/35 hover:bg-slate-100/85 hover:text-slate-950')
+                  : (isDarkGantt ? 'bg-[#1b1c22] text-white border-white/10 hover:border-white/20 hover:bg-[#24262d] hover:text-white' : 'bg-slate-100 text-slate-700 border-slate-500/20 hover:border-slate-500/35 hover:bg-white hover:text-slate-950')
               }`}
               title="Filtrar por Área"
             >
@@ -178,11 +219,9 @@ export function GanttPage({
             {isFilterOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setIsFilterOpen(false)} />
-                <div className={`absolute top-full left-0 mt-2 w-64 rounded-2xl border shadow-2xl overflow-hidden animate-fade-in z-50 transform origin-top-left ${isDarkGantt ? 'border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)]' : 'border-gray-200 shadow-gray-200/50'}`} 
+                <div className={`absolute right-0 top-full mt-2 w-64 rounded-2xl border shadow-2xl overflow-hidden animate-fade-in z-50 transform origin-top-right ${isDarkGantt ? 'border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)]' : 'border-gray-200 shadow-gray-200/50'}`}
                      style={{
-                       background: isDarkGantt ? 'rgba(24, 24, 30, 0.96)' : 'rgba(225, 234, 243, 0.96)',
-                       backdropFilter: 'blur(18px) saturate(1.25)',
-                       WebkitBackdropFilter: 'blur(18px) saturate(1.25)'
+                       background: isDarkGantt ? '#18181e' : '#e1eaf3'
                      }}>
                   <div className="p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar">
                     <button
@@ -197,7 +236,7 @@ export function GanttPage({
                         <Users className={`w-3.5 h-3.5 ${selectedArea === 'Todas' ? 'opacity-80' : 'opacity-60'}`} />
                         <span>Todas las Áreas</span>
                       </div>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider ${selectedArea === 'Todas' ? 'bg-blue-500/20 text-blue-300' : (isDarkGantt ? 'bg-white/10 text-white/70' : 'bg-gray-100 text-slate-600')}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-black tracking-wider ${selectedArea === 'Todas' ? 'bg-blue-500/20 text-blue-200' : 'bg-white/10 text-white/80'}`}>
                         {areaStats.totalActivos}
                       </span>
                     </button>
@@ -213,7 +252,7 @@ export function GanttPage({
                         }`}
                       >
                         <span className="truncate pr-2">{area.name}</span>
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black tracking-wider flex-shrink-0 ${selectedArea === area.name ? 'bg-blue-500/20 text-blue-300' : (isDarkGantt ? 'bg-white/10 text-white/70' : 'bg-gray-100 text-slate-600')}`}>
+                        <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black tracking-wider ${selectedArea === area.name ? 'bg-blue-500/20 text-blue-200' : 'bg-white/10 text-white/80'}`}>
                           {area.count}
                         </span>
                       </button>
@@ -226,9 +265,25 @@ export function GanttPage({
         </div>
       )}
 
+      {error && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2.5 text-sm text-red-100" role="alert">
+          <span className="flex min-w-0 items-center gap-2"><WifiOff size={16} className="shrink-0" /><span className="truncate">{error}</span></span>
+          <button type="button" onClick={onRefetch} className="shrink-0 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15">Reintentar</button>
+        </div>
+      )}
+
       {/* ── Gantt Grid ── */}
-      <div className={`gantt-scroll-container${isDarkGantt ? '' : ' gantt-light'}`} ref={scrollRef}>
-        <div className="gantt-grid">
+      <div className="gantt-scroll-shell">
+        <div className="gantt-scroll-tools" aria-label="Desplazamiento horizontal del calendario">
+          <span className="hidden text-[11px] text-slate-400 sm:inline">21 días · desplaza para explorar</span>
+          <button type="button" onClick={() => scrollRef.current?.scrollBy({ left: -440, behavior: 'smooth' })} disabled={!scrollState.left} aria-label="Ver días anteriores"><ChevronLeft size={15} /></button>
+          <button type="button" onClick={() => scrollRef.current?.scrollBy({ left: 440, behavior: 'smooth' })} disabled={!scrollState.right} aria-label="Ver días siguientes"><ChevronRight size={15} /></button>
+        </div>
+        <div className="gantt-scroll-viewport">
+          <div className={`gantt-scroll-edge gantt-scroll-edge-left ${scrollState.left ? 'is-visible' : ''}`} aria-hidden="true" />
+          <div className={`gantt-scroll-edge gantt-scroll-edge-right ${scrollState.right ? 'is-visible' : ''}`} aria-hidden="true" />
+          <div className="gantt-scroll-container" ref={scrollRef} tabIndex={0} aria-label="Cronograma desplazable horizontalmente">
+            <div className="gantt-grid">
           <GanttHeader
             weekDays={weekDays}
             previewDays={previewDays}
@@ -239,14 +294,19 @@ export function GanttPage({
           />
 
           {/* ══ Técnicos agrupados por Área ══ */}
+          {!loading && grupos.length === 0 && (
+            <div className="gantt-empty-state" role="status">
+              <Users size={20} />
+              <strong>No hay recursos para este filtro</strong>
+              <span>Selecciona otra área o recarga el cronograma.</span>
+            </div>
+          )}
+
           {grupos.map(([area, tecnicosDelArea]) => (
             <React.Fragment key={area}>
               {/* ── Separador de Área ── */}
               {area === 'VEHÍCULOS' ? (
-                <div
-                  className={`flex items-center py-1.5 border-b ${isDarkGantt ? 'border-blue-500/20 bg-[#0f172a]' : 'border-blue-500/20 bg-blue-200/45'}`}
-                  style={{ gridColumn: '1 / -1' }}
-                >
+                <div className="gantt-area-separator gantt-area-separator-vehicles">
                   <div className={`sticky left-0 z-20 flex items-center gap-3 px-3 sm:px-4 py-1 min-w-fit ${isDarkGantt ? 'bg-[#0f172a]' : 'bg-[#ccdcec]'}`}>
                     <Truck className={`w-3.5 h-3.5 ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-600/70'}`} />
                     <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-blue-400/70' : 'text-blue-700/70'}`}>Vehículos</span>
@@ -255,10 +315,7 @@ export function GanttPage({
                   <span className={`text-[9px] font-bold px-4 ${isDarkGantt ? 'text-blue-400/40' : 'text-blue-600/50'}`}>{tecnicosDelArea.length}</span>
                 </div>
               ) : (
-                <div
-                  className={`flex items-center py-1.5 border-b ${isDarkGantt ? 'bg-[#111114] border-gray-700/30' : 'bg-slate-300/70 border-slate-500/20'}`}
-                  style={{ gridColumn: '1 / -1' }}
-                >
+                <div className="gantt-area-separator">
                   <div className={`sticky left-0 z-20 flex items-center gap-3 px-3 sm:px-4 py-1 min-w-fit ${isDarkGantt ? 'bg-[#111114]' : 'bg-[#ced9e5]'}`}>
                     <span className={`text-[9px] font-black uppercase tracking-[0.15em] ${isDarkGantt ? 'text-slate-400' : 'text-slate-700'}`}>{area}</span>
                   </div>
@@ -288,11 +345,10 @@ export function GanttPage({
           ))}
 
 
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* ── Leyenda ── */}
-      <GanttLegend />
 
       {/* ── Botón de ayuda flotante ── */}
       <GanttHelpButton />

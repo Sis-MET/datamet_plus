@@ -3,7 +3,6 @@ import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { safeStorage } from '../../../shared/utils/storage';
-import { useTheme } from '../../../shared/context/ThemeContext';
 import { useGantt } from './useGantt';
 import { useCalendar } from './useCalendar';
 
@@ -52,7 +51,6 @@ const isSameLinkedTask = (task, sourceTask, date) => {
 };
 
 export function useCalendarPage() {
-  const { isDarkGantt } = useTheme();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedArea, setSelectedArea] = useState('Todas');
@@ -115,8 +113,8 @@ export function useCalendarPage() {
 
   // Gantt hook
   const {
-    tasks, weekStart, weekEnd, weekDays, tecnicos, loading, useMock,
-    tasksForCell, upsertScheduleCell, nextWeek, prevWeek,
+    tasks, weekStart, weekEnd, weekDays, tecnicos, loading, error, useMock,
+    tasksForCell, upsertScheduleCell, upsertScheduleAssignments, nextWeek, prevWeek,
     goToCurrentWeek, goToDate, isToday: isTodayGantt, refetch,
   } = useGantt();
 
@@ -253,22 +251,28 @@ export function useCalendarPage() {
           return false;
         }
 
-        const promises = [upsertScheduleCell(date, resource, finalText)];
+        const assignments = [{ resource, payload: finalText }];
         const additionalResources = finalText?.additionalResources || [];
         additionalResources.forEach(additionalRes => {
           if (additionalRes !== resource) {
-            promises.push(upsertScheduleCell(date, additionalRes, { ...finalText, rowId: null, additionalResources: undefined }));
+            assignments.push({
+              resource: additionalRes,
+              payload: { ...finalText, rowId: null, additionalResources: undefined },
+            });
           }
         });
         if (vehicleResource && vehicleResource !== resource && !vehicleAlreadyLinked) {
-          promises.push(upsertScheduleCell(date, vehicleResource, {
-            ...finalText,
-            rowId: null,
-            additionalResources: undefined,
-            vehicleResource: undefined,
-          }));
+          assignments.push({
+            resource: vehicleResource,
+            payload: {
+              ...finalText,
+              rowId: null,
+              additionalResources: undefined,
+              vehicleResource: undefined,
+            },
+          });
         }
-        await Promise.all(promises);
+        await upsertScheduleAssignments(date, assignments);
         if (!finalText || (typeof finalText === 'object' && !finalText.morning && !finalText.afternoon) || (typeof finalText === 'string' && finalText.trim() === '')) {
           toast.success("Celda limpiada correctamente.");
         } else {
@@ -289,7 +293,7 @@ export function useCalendarPage() {
     };
 
     return doSave(text);
-  }, [tasks, tecnicos, upsertScheduleCell, refetch]);
+  }, [tasks, tecnicos, upsertScheduleAssignments, refetch]);
 
   const handleDeleteTask = useCallback(async (task, date, resourceId) => {
     setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false });
@@ -664,10 +668,8 @@ export function useCalendarPage() {
   }, [contextMenu, executeIntelligentVehicleAssign]);
 
   return {
-    // Theme
-    isDarkGantt,
     // Gantt state (pass-through)
-    tasks, weekStart, weekEnd, weekDays, tecnicos, loading, useMock,
+    tasks, weekStart, weekEnd, weekDays, tecnicos, loading, error, useMock,
     tasksForCell, refetch, nextWeek, prevWeek, goToCurrentWeek, goToDate,
     isTodayGantt,
     currentUserArea,

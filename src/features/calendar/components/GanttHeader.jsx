@@ -2,12 +2,10 @@ import React from 'react';
 import { format, isBefore, isAfter, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { isNonWorkingDay } from '../utils/holidays';
-import { useTheme } from '../../../shared/context/ThemeContext';
-
 const DAY_LABELS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 export function GanttHeader({ weekDays, isToday, currentWeekStart, currentWeekEnd, selectedDay }) {
-  const { isDarkGantt } = useTheme();
+  const isDarkGantt = true;
 
   return (
     <div className="gantt-header-row">

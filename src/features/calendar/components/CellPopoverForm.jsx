@@ -14,6 +14,21 @@ import { VehiclePicker } from './VehiclePicker';
 import { TimelineBar } from './TimelineBar';
 import { TimeSelect } from './TimeSelect';
 import { FloatingDropdown } from './FloatingDropdown';
+import { useVehicleAvailability } from '../hooks/useVehicleAvailability';
+import {
+  ACTIVITY_OPTIONS,
+  NO_CLIENT_ACTIVITY_TYPES,
+  PRESET_COLORS,
+  QUOTE_ACTIVITY_TYPES,
+  buildTaskPayload,
+  getClientCodeFromPlantCode,
+  getPlantOptionLabel,
+  getPlantParts,
+  isPlantCode,
+  normalizeArea,
+  parseActivityValue,
+  validateTaskDraft,
+} from '../domain/taskFormDomain';
 import {
   TIME_SLOTS,
   buildOccupiedBlocks,
@@ -27,129 +42,47 @@ import {
 // Integracion Bitrix24 suspendida temporalmente.
 // import { createBitrixDeal } from '../utils/bitrixService';
 
-const PRESET_COLORS = [
-  '#dadd12ff',
-  '#1d2e8fff',
-  '#424242ff',
-  '#ce1515ff',
-  '#621fceff',
-  '#44bfefff',
-];
+const TaskDescriptionField = React.memo(React.forwardRef(function TaskDescriptionField(
+  { isDarkGantt },
+  forwardedRef
+) {
+  const [value, setValue] = useState('');
 
-const ACTIVITY_OPTIONS = [
-  'Servicio',
-  'Visita',
-  'Compensacion',
-  'Permiso - Personal',
-  'Permiso - Vacacion',
-  'Otro',
-];
-
-// Tipos que NO requieren cliente ni cotización
-const NO_CLIENT_ACTIVITY_TYPES = new Set(['Compensacion', 'Permiso - Personal', 'Permiso - Vacacion', 'Otro']);
-
-const QUOTE_ACTIVITY_TYPES = new Set(['Servicio']);
-
-const normalizeArea = (area) => {
-  return area
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase();
-};
-
-const normalizeActivity = (value) => normalizeArea(value || '');
-
-const normalizeTaskValue = (value) => String(value || '').trim().toLowerCase();
-
-const isCopyOfEditedTask = (task, sourceTask) => {
-  if (!sourceTask) return false;
+  React.useImperativeHandle(forwardedRef, () => ({
+    getValue: () => value,
+    setValue: (nextValue) => setValue(String(nextValue || '')),
+  }), [value]);
 
   return (
-    normalizeTaskValue(task.tipoTarea || task.morning) === normalizeTaskValue(sourceTask.tipoTarea || sourceTask.morning) &&
-    normalizeTaskValue(task.cotizacion) === normalizeTaskValue(sourceTask.cotizacion) &&
-    normalizeTaskValue(task.descripcion) === normalizeTaskValue(sourceTask.descripcion) &&
-    normalizeTaskValue(task.cliente) === normalizeTaskValue(sourceTask.cliente) &&
-    normalizeTaskValue(task.planta) === normalizeTaskValue(sourceTask.planta) &&
-    normalizeTaskValue(task.horaInicio) === normalizeTaskValue(sourceTask.horaInicio) &&
-    normalizeTaskValue(task.horaFin) === normalizeTaskValue(sourceTask.horaFin)
+    <div className="mt-4">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <label htmlFor="task-description" className={`text-xs font-semibold ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
+          Descripción <span className={isDarkGantt ? 'text-red-300' : 'text-red-600'}>*</span>
+        </label>
+        <span className={`text-[11px] tabular-nums ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>
+          {value.length}/200
+        </span>
+      </div>
+      <textarea
+        id="task-description"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder="Describe el trabajo, la dirección o cualquier indicación útil…"
+        maxLength={200}
+        spellCheck={false}
+        className={cn(
+          'min-h-[104px] w-full resize-y rounded-xl border px-3.5 py-3 text-sm leading-5 shadow-inner transition-[border-color,box-shadow,background-color] focus:outline-none focus:border-primary-500/60 focus:ring-2 focus:ring-primary-500/20',
+          isDarkGantt
+            ? 'border-white/10 bg-black/20 text-slate-100 placeholder:text-slate-500'
+            : 'border-slate-200 bg-slate-50 text-slate-950 placeholder:text-slate-500'
+        )}
+      />
+    </div>
   );
-};
+}));
 
-const getVehicleTaskLabel = (task) => (
-  task.tipoTarea || task.morning || task.descripcion || 'Otra tarea'
-).trim();
+TaskDescriptionField.displayName = 'TaskDescriptionField';
 
-const parseActivityValue = (value) => {
-  const rawValue = (value || '').trim();
-  if (!rawValue) return { activityType: '', quoteCode: '' };
-
-  const matchedOption = ACTIVITY_OPTIONS.find(
-    option => normalizeActivity(option) === normalizeActivity(rawValue)
-  );
-
-  if (matchedOption) return { activityType: matchedOption, quoteCode: '' };
-
-  const combinedMatch = rawValue.match(/^(.+?)\s*-\s*([0-9]+\.COT[0-9]+)$/i);
-  if (combinedMatch) {
-    const [, rawActivity, rawQuoteCode] = combinedMatch;
-    const matchedActivity = ACTIVITY_OPTIONS.find(
-      option => normalizeActivity(option) === normalizeActivity(rawActivity)
-    );
-
-    if (matchedActivity) {
-      return {
-        activityType: matchedActivity,
-        quoteCode: rawQuoteCode.toUpperCase(),
-      };
-    }
-  }
-
-  return { activityType: '', quoteCode: '' };
-};
-
-const getPlantParts = (planta) => {
-  const rawDir = (planta?.dir || '').trim();
-  let address = rawDir;
-  let department = (planta?.dep || planta?.localidad || '').trim();
-
-  if (rawDir.includes('-')) {
-    const parts = rawDir
-      .split('-')
-      .map(part => part.trim())
-      .filter(Boolean);
-
-    if (parts.length > 1) {
-      if (!department) {
-        department = parts[parts.length - 1];
-      }
-      address = parts.slice(0, -1).join(' - ').trim();
-    }
-  }
-
-  return {
-    address,
-    department,
-  };
-};
-
-const getPlantDepartment = (planta) => getPlantParts(planta).department;
-
-const getPlantOptionLabel = (planta, clienteLabel = '') => {
-  const clientName = (clienteLabel || '').trim();
-  const department = getPlantDepartment(planta);
-  const pieces = [clientName, department].filter(Boolean);
-  if (pieces.length > 0) return pieces.join(' - ');
-  if (department) return department;
-  return planta?.codigo_planta || '';
-};
-
-const isPlantCode = (value) => /^\d+\s*-\s*\d+/i.test(String(value || '').trim());
-
-const getClientCodeFromPlantCode = (value) => {
-  const rawValue = String(value || '').trim();
-  if (!rawValue) return '';
-  return rawValue.split('-')[0].trim();
-};
 
 function ActivitySelect({ value, onChange, options, isDarkGantt }) {
   const [open, setOpen] = useState(false);
@@ -542,7 +475,6 @@ export function CellPopoverForm({
   const [plantas, setPlantas] = useState([]);
   const [selectedPlantaCode, setSelectedPlantaCode] = useState('');
   const [isLoadingPlantas, setIsLoadingPlantas] = useState(false);
-  const [descripcion, setDescripcion] = useState('');
   const [colorAM, setColorAM] = useState('');
   const [estadoAM, setEstadoAM] = useState('Pendiente');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -558,6 +490,10 @@ export function CellPopoverForm({
   const colorButtonRefAM = useRef(null);
   const lastInitializationKeyRef = useRef(null);
   const closeTimerRef = useRef(null);
+  const descriptionFieldRef = useRef(null);
+  const setDescription = useCallback((value) => {
+    descriptionFieldRef.current?.setValue(value);
+  }, []);
 
   const tecnico = tecnicos.find(item => item.id === prefilledResource);
   const userJInicio = tecnico?.hora_ingreso ? tecnico.hora_ingreso.substring(0, 5) : '08:30';
@@ -592,40 +528,14 @@ export function CellPopoverForm({
     [tecnicos, prefilledResource]
   );
 
-  const getVehicleConflict = useCallback((vehicleId) => {
-    if (!vehicleId || typeof getTasksForResource !== 'function') return null;
-
-    const vehicleTasks = getTasksForResource(vehicleId, prefilledDate) || [];
-    const requestedStart = timeToMinutes(horaInicio);
-    const requestedEnd = timeToMinutes(horaFin);
-
-    return vehicleTasks.find(task => {
-      if (isCopyOfEditedTask(task, event)) return false;
-
-      const hasContent = normalizeTaskValue(
-        task.tipoTarea || task.morning || task.afternoon || task.descripcion
-      );
-      if (!hasContent) return false;
-
-      const taskStart = timeToMinutes(task.horaInicio || '00:00');
-      const taskEnd = timeToMinutes(task.horaFin || '23:59');
-      return requestedStart < taskEnd && requestedEnd > taskStart;
-    }) || null;
-  }, [event, getTasksForResource, horaFin, horaInicio, prefilledDate]);
-
-  const vehicleAvailability = useMemo(() => Object.fromEntries(
-    vehiculos.map(vehicle => {
-      const conflict = getVehicleConflict(vehicle.id);
-      return [vehicle.id, {
-        available: !conflict,
-        conflict: conflict ? {
-          start: conflict.horaInicio || 'Inicio del día',
-          end: conflict.horaFin || 'Fin del día',
-          label: getVehicleTaskLabel(conflict),
-        } : null,
-      }];
-    })
-  ), [getVehicleConflict, vehiculos]);
+  const vehicleAvailability = useVehicleAvailability({
+    vehicles: vehiculos,
+    date: prefilledDate,
+    start: horaInicio,
+    end: horaFin,
+    sourceTask: event,
+    getTasksForResource,
+  });
 
   const selectedVehicleConflict = selectedVehicle
     ? vehicleAvailability[selectedVehicle]?.conflict || null
@@ -736,9 +646,10 @@ export function CellPopoverForm({
     if (!requiresPlantAssistance) return;
     if (plantas.length === 0) return;
 
-    if (!descripcion.trim()) return;
+    const currentDescription = descriptionFieldRef.current?.getValue().trim() || '';
+    if (!currentDescription) return;
 
-    const normalizedDescription = descripcion.trim();
+    const normalizedDescription = currentDescription;
     const matchedByDescription = plantas.find((planta) => {
       const rawDir = (planta.dir || '').trim();
       const plantAddress = getPlantParts(planta).address;
@@ -747,7 +658,7 @@ export function CellPopoverForm({
     if (matchedByDescription) {
       setSelectedPlantaCode(matchedByDescription.codigo_planta);
     }
-  }, [descripcion, plantas, requiresPlantAssistance, selectedPlantaCode]);
+  }, [plantas, requiresPlantAssistance]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -761,7 +672,7 @@ export function CellPopoverForm({
       const parsedActivity = event.tipoTarea
         ? {
             activityType: ACTIVITY_OPTIONS.find(
-              option => normalizeActivity(option) === normalizeActivity(event.tipoTarea)
+              option => normalizeArea(option) === normalizeArea(event.tipoTarea)
             ) || event.tipoTarea,
             quoteCode: event.cotizacion || '',
           }
@@ -774,7 +685,7 @@ export function CellPopoverForm({
       setCliente(event.cliente || '');
       setCodCliente(storedClientCode);
       setSelectedPlantaCode(storedPlantCode);
-      setDescripcion(event.descripcion || '');
+      setDescription(event.descripcion || '');
       setColorAM(event.colorAM || event.color || '');
       setEstadoAM(event.estadoAM || 'Pendiente');
       setHoraInicio(event.horaInicio || getFirstFreeSlot(blocks, userJInicio));
@@ -787,7 +698,7 @@ export function CellPopoverForm({
       setCodCliente('');
       setPlantas([]);
       setSelectedPlantaCode('');
-      setDescripcion('');
+      setDescription('');
       setColorAM('');
       setEstadoAM('Pendiente');
       setHoraInicio(freeStart);
@@ -801,7 +712,7 @@ export function CellPopoverForm({
     setShowAdditionalUsers(false);
     setShowAssignments(false);
     setShowAvailability(false);
-  }, [event, existingTasks, initializationKey, isOpen, userJFin, userJInicio]);
+  }, [event, existingTasks, initializationKey, isOpen, setDescription, userJFin, userJInicio]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -853,7 +764,7 @@ export function CellPopoverForm({
       setCodCliente('');
       setPlantas([]);
       setSelectedPlantaCode('');
-      setDescripcion('');
+      setDescription('');
     }
     setActivityType(value);
   };
@@ -869,13 +780,13 @@ export function CellPopoverForm({
     setCodCliente('');
     setPlantas([]);
     setSelectedPlantaCode('');
-    setDescripcion('');
+    setDescription('');
   };
 
   const handleClienteSelect = (item) => {
     setCliente((item.cliente || '').trim());
     setCodCliente(item.codigo_cliente ? String(item.codigo_cliente).trim() : '');
-    setDescripcion('');
+    setDescription('');
     setSelectedPlantaCode('');
   };
 
@@ -903,14 +814,25 @@ export function CellPopoverForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const description = descriptionFieldRef.current?.getValue().trim() || '';
 
-    if (!activityType) {
-      toast.error('Debe seleccionar una actividad.');
-      return;
-    }
+    const validationError = validateTaskDraft({
+      activityType,
+      requiresPlantAssistance,
+      cliente,
+      color: colorAM,
+      descripcion: description,
+      horaInicio,
+      horaFin,
+      overlaps: hasTimeOverlap(occupiedBlocks, horaInicio, horaFin),
+      vehicleConflict: selectedVehicleConflict,
+    });
 
-    if (requiresPlantAssistance && !cliente.trim()) {
-      toast.error(`Debe ingresar un cliente para ${activityType.toLowerCase()}.`);
+    if (validationError) {
+      toast.error(validationError, selectedVehicleConflict ? {
+        description: `Se solapa con “${selectedVehicleConflict.label}” (${selectedVehicleConflict.start}–${selectedVehicleConflict.end}).`,
+        duration: 6000,
+      } : undefined);
       return;
     }
 
@@ -924,60 +846,25 @@ export function CellPopoverForm({
       toast.info(`Creando tarea con cliente "${cliente.trim()}" sin planta asignada.`, { duration: 4000 });
     }
 
-    if (!colorAM.trim()) {
-      toast.error('Debe seleccionar un color para la ficha.');
-      return;
-    }
-
-    if (!descripcion.trim()) {
-      toast.error('La descripción no puede ir vacía.');
-      return;
-    }
-
-    if (timeToMinutes(horaFin) <= timeToMinutes(horaInicio)) {
-      toast.error('La hora de fin debe ser posterior a la hora de inicio.');
-      return;
-    }
-
-    if (hasTimeOverlap(occupiedBlocks, horaInicio, horaFin)) {
-      toast.error(`El rango ${horaInicio}-${horaFin} se superpone con una tarea ya registrada. Por favor elige un tramo libre.`);
-      return;
-    }
-
-    if (selectedVehicle && selectedVehicleConflict) {
-      const vehicleName = vehiculos.find(vehicle => vehicle.id === selectedVehicle)?.nombre || 'El vehículo seleccionado';
-      toast.error(`${vehicleName} no está disponible de ${horaInicio} a ${horaFin}.`, {
-        description: `Se solapa con “${selectedVehicleConflict.label}” (${selectedVehicleConflict.start}–${selectedVehicleConflict.end}).`,
-        duration: 6000,
-      });
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const finalDescripcion = descripcion.trim();
       saveToRecent(colorAM);
-      const wasSaved = await onSave(prefilledDate, prefilledResource, {
-        rowId: event ? event.rowId : null,
-        tipo_tarea: activityType,
-        tipoTarea: activityType,
-        cotizacion: requiresQuote ? cotizacionCode.trim().toUpperCase() : '',
-        morning: activityType,
-        descripcion: finalDescripcion,
-        afternoon: '',
-        colorAM,
-        colorPM: colorAM,
-        estadoAM,
-        estadoPM: null,
+      const wasSaved = await onSave(prefilledDate, prefilledResource, buildTaskPayload({
+        event,
+        activityType,
+        requiresQuote,
+        cotizacionCode,
+        descripcion: description,
+        color: colorAM,
+        estado: estadoAM,
         horaInicio,
         horaFin,
-        cliente: cliente.trim(),
-        cod_cliente: codCliente.trim(),
+        cliente,
+        codCliente,
         planta: selectedPlantaCode,
-        lastModified: event ? event.timestampUpdated || null : null,
         additionalResources,
-        vehicleResource: selectedVehicle || null,
-      });
+        selectedVehicle,
+      }));
 
       if (wasSaved !== false) requestClose(true);
 
@@ -1090,7 +977,7 @@ export function CellPopoverForm({
                       setCodCliente('');
                       setPlantas([]);
                       setSelectedPlantaCode('');
-                      setDescripcion('');
+                      setDescription('');
                       setColorAM('');
                       setSelectedVehicle('');
                       setAdditionalResources([]);
@@ -1224,7 +1111,7 @@ export function CellPopoverForm({
                           setCliente('');
                           setCodCliente('');
                           setSelectedPlantaCode('');
-                          setDescripcion('');
+                          setDescription('');
                         }}
                         onSelect={handleCotizacionSelect}
                         placeholder="Buscar cotizacion"
@@ -1266,30 +1153,7 @@ export function CellPopoverForm({
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <label htmlFor="task-description" className={`text-xs font-semibold ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
-                  Descripción <span className={isDarkGantt ? 'text-red-300' : 'text-red-600'}>*</span>
-                </label>
-                      <span className={`text-[11px] tabular-nums ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>
-                        {descripcion.length}/200
-                      </span>
-                    </div>
-                    <textarea
-                      id="task-description"
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                      placeholder="Describe el trabajo, la dirección o cualquier indicación útil…"
-                  maxLength={200}
-                  spellCheck={false}
-                  className={cn(
-                        'min-h-[104px] w-full resize-y rounded-xl border px-3.5 py-3 text-sm leading-5 shadow-inner transition-[border-color,box-shadow,background-color] focus:outline-none focus:border-primary-500/60 focus:ring-2 focus:ring-primary-500/20',
-                    isDarkGantt
-                          ? 'border-white/10 bg-black/20 text-slate-100 placeholder:text-slate-500'
-                          : 'border-slate-200 bg-slate-50 text-slate-950 placeholder:text-slate-500'
-                  )}
-                />
-                  </div>
+                  <TaskDescriptionField ref={descriptionFieldRef} isDarkGantt={isDarkGantt} />
                 </div>
               </section>
 

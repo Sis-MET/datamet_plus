@@ -3,8 +3,6 @@ import { ChevronRight, Info, Bell, ChevronLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import { useTheme } from '../../../shared/context/ThemeContext';
-
 export function LeftFilterSidebar({
   tecnicos = [],
   // Props del mini-calendario y detalle del día
@@ -20,7 +18,7 @@ export function LeftFilterSidebar({
   nextMonth,
   selectedDayEvents = [],
 }) {
-  const { isDarkGantt } = useTheme();
+  const isDarkGantt = true;
 
   // ── Mini calendario ──
   const monthTitle = currentDate ? format(currentDate, 'MMMM yyyy', { locale: es }) : '';
@@ -28,7 +26,7 @@ export function LeftFilterSidebar({
   const dayAbbreviations = ['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'];
 
   const getDayClass = (day) => {
-    let classes = 'relative flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full text-[13px] font-medium cursor-pointer transition-all ';
+    let classes = 'relative flex aspect-square w-full max-w-10 items-center justify-center rounded-full text-[13px] font-medium cursor-pointer transition-all ';
     if (isSameDay && selectedDay && isSameDay(day, selectedDay)) {
       classes += 'bg-[#10b981] text-white shadow-[0_0_12px_rgba(16,185,129,0.6)] font-bold ';
     } else if (isToday && isToday(day)) {
@@ -68,11 +66,11 @@ export function LeftFilterSidebar({
   const tecnicosDelDia = Object.values(tecnicoMap);
 
   return (
-    <aside className="grid w-full flex-shrink-0 grid-cols-1 gap-3 select-none sm:grid-cols-2 lg:flex lg:w-[280px] lg:flex-col xl:w-[300px] xl:gap-4">
+    <aside className="calendar-sidebar flex w-full flex-shrink-0 flex-col gap-3 lg:w-[280px] xl:w-[300px] xl:gap-4">
 
       {/* ── 1. Mini Calendario ── */}
       {currentDate && (
-        <div className="calendar-glass relative overflow-hidden rounded-2xl border p-3.5 sm:rounded-3xl sm:p-4 xl:p-5">
+        <div className="calendar-mini calendar-glass relative overflow-hidden rounded-2xl border p-3.5 sm:p-4 xl:p-5">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[100px] bg-primary-500/10 blur-[50px] rounded-full pointer-events-none" />
           <div className="relative z-10 mb-3 flex items-center justify-between sm:mb-4 xl:mb-5">
             <h2 className={`text-[13px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-slate-100' : 'text-slate-900'}`}>{monthTitleCapitalized}</h2>
@@ -93,7 +91,7 @@ export function LeftFilterSidebar({
               const evts = eventsForDay ? eventsForDay(day) : [];
               const amt = evts.length;
               return (
-                <div key={idx} className="flex justify-center items-center relative group p-0.5">
+                <div key={day.toISOString?.() || idx} className="flex min-w-0 items-center justify-center p-0.5">
                   <button onClick={() => onSelectDay && onSelectDay(day)} className={getDayClass(day)}>
                     <span className="relative z-10">{format(day, 'd')}</span>
                     {amt > 0 && isSameDay && selectedDay && !isSameDay(day, selectedDay) && (
@@ -108,7 +106,7 @@ export function LeftFilterSidebar({
       )}
 
       {/* ── 2. Detalle del Día (Compacto) ── */}
-      <div className="flex flex-col gap-2 sm:col-span-2 lg:col-span-1">
+      <div className="calendar-day-detail flex flex-col gap-2">
         <h3 className={`px-2 text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-slate-200' : 'text-slate-700'}`}>Detalle del Día</h3>
         {tecnicosDelDia.length === 0 ? (
           <div className="calendar-glass flex min-h-14 items-center justify-center rounded-2xl border p-3">
@@ -117,7 +115,7 @@ export function LeftFilterSidebar({
             </span>
           </div>
         ) : (
-          <div className="custom-scrollbar flex max-h-[280px] flex-col gap-1 overflow-y-auto pr-1">
+          <div className="flex flex-col gap-1">
             {tecnicosDelDia.map((tecnico, idx) => {
               return (
                 <div key={idx} className={`calendar-glass rounded-xl border px-3 py-2 transition-colors ${isDarkGantt ? 'hover:border-white/20 hover:bg-white/[0.05]' : 'hover:border-slate-500/35 hover:bg-white/35'}`}>
@@ -136,7 +134,7 @@ export function LeftFilterSidebar({
                   <div className="flex flex-col gap-2.5 mt-2">
                     {tecnico.tasks.map((task, i) => (
                       <div key={i} className="flex items-start gap-2.5">
-                        <div className={`w-2 h-2 rounded-full shrink-0 mt-[5px] animate-pulse`} style={{ backgroundColor: task.colorAM || '#10B981' }} />
+                        <div className="mt-[5px] h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: task.colorAM || '#10B981' }} />
                         <div className="flex flex-col flex-1 min-w-0">
                           <p className={`text-xs font-bold truncate leading-tight font-mono ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>{task.morning}</p>
                           {task.descripcion && (
@@ -163,7 +161,7 @@ export function LeftFilterSidebar({
 
 
       {/* ── 4. Referencia de Colores ── */}
-      <div className="calendar-glass relative overflow-hidden rounded-2xl border p-3.5 sm:rounded-3xl sm:p-4 xl:p-5">
+      <div className="calendar-reference calendar-glass relative overflow-hidden rounded-2xl border p-3.5 sm:p-4 xl:p-5">
         <div className={`absolute top-[-50px] right-[-50px] w-[150px] h-[150px] blur-[50px] rounded-full pointer-events-none ${isDarkGantt ? 'bg-white/5' : 'bg-black/5'}`} />
         <div className="flex items-center gap-2.5 mb-4 relative z-10">
           <div className={`p-1.5 rounded-lg ${isDarkGantt ? 'bg-white/10' : 'bg-black/5'}`}>

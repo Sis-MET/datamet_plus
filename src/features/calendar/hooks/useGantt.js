@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { safeStorage } from '../../../shared/utils/storage';
 import {
   startOfWeek,
@@ -11,7 +11,46 @@ import {
   format,
 } from 'date-fns';
 import { api, ApiError, parseToken } from '../../../shared/api/client';
+import { parseScheduleResponse, parseTechniciansResponse } from '../domain/scheduleContract';
+import {
+  applyOptimisticAssignments,
+  hasUnconfirmedInserts,
+  reconcileOptimisticAssignments,
+} from '../domain/optimisticSchedule';
 
+const EMPTY_TASKS = Object.freeze([]);
+
+const toApiPayload = (payload) => {
+  if (typeof payload === 'string' && payload.trim()) {
+    return {
+      tipo_tarea: payload.trim(),
+      morning: payload.trim(),
+      colorAM: '#10B981',
+      estadoAM: 'Pendiente',
+      autor: 'Sistema',
+    };
+  }
+  if (!payload || typeof payload !== 'object') return null;
+
+  const tokenData = parseToken();
+  return {
+    tipo_tarea: payload.tipo_tarea || payload.tipoTarea || payload.morning || '',
+    cotizacion: payload.cotizacion || '',
+    descripcion: payload.descripcion || '',
+    cliente: payload.cliente || '',
+    cod_cliente: payload.cod_cliente || '',
+    planta: payload.planta || '',
+    morning: payload.tipo_tarea || payload.tipoTarea || payload.morning || '',
+    colorAM: payload.colorAM || '',
+    estadoAM: payload.estadoAM || 'Pendiente',
+    horaInicio: payload.horaInicio || '',
+    horaFin: payload.horaFin || '',
+    lastModified: payload.lastModified || null,
+    rowId: payload.rowId || null,
+    autor: tokenData?.nombre || tokenData?.usuario || 'Sistema',
+    creado_en: 'CronoMET',
+  };
+};
 
 export function useGantt() {
   const [weekStart, setWeekStart] = useState(() =>
@@ -22,6 +61,13 @@ export function useGantt() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [useMock, setUseMock] = useState(true);
+  const tasksRef = useRef([]);
+  const mutationSequenceRef = useRef(0);
+
+  const commitTasks = useCallback((nextTasks) => {
+    tasksRef.current = nextTasks;
+    setTasks(nextTasks);
+  }, []);
 
   const weekEnd = useMemo(() => endOfWeek(weekStart, { weekStartsOn: 1 }), [weekStart]);
 
@@ -39,20 +85,22 @@ export function useGantt() {
   const previewDays = [];
 
   // Intentar cargar del backend; si falla, conservar mock
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async ({ silent = false } = {}) => {
     const token = safeStorage.getItem('rimmet_token');
     if (!token) return;
 
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const startStr = format(prevWeekStart, 'yyyy-MM-dd');
       const endStr   = format(nextWeekEnd,   'yyyy-MM-dd');
 
-      const [scheduleData, tecnicosData] = await Promise.all([
+      const [scheduleRaw, techniciansRaw] = await Promise.all([
         api.get('/calendar/cronograma', { start: startStr, end: endStr }),
         api.get('/calendar/tecnicos'),
       ]);
+      const scheduleData = parseScheduleResponse(scheduleRaw);
+      const tecnicosData = parseTechniciansResponse(techniciansRaw);
 
       let validTecnicos = [];
       if (tecnicosData.success) {
@@ -125,83 +173,128 @@ export function useGantt() {
           };
         }).filter(Boolean);
 
-        setTasks(flatTasks);
+        commitTasks(flatTasks);
         setUseMock(false);
       } else {
         setUseMock(false);
       }
     } catch (err) {
       console.error("fetchData error:", err);
-      // Fallback a array vacio
-      setTasks([]);
+      setError(err?.message || 'No se pudo cargar el cronograma.');
+      if (!silent) commitTasks([]);
       setUseMock(false);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [prevWeekStart, nextWeekEnd]);
+  }, [commitTasks, prevWeekStart, nextWeekEnd]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Tareas para la celda de un técnico o vehículo (por recurso + día)
-  const tasksForCell = useCallback((tecnicoId, day) => {
-    return tasks.filter(t => t.Tecnico === tecnicoId && isSameDay(t.fecha, day));
+  const tasksByResourceAndDay = useMemo(() => {
+    const index = new Map();
+
+    tasks.forEach((task) => {
+      if (!task?.Tecnico || !task?.fecha) return;
+      const key = `${task.Tecnico}|${format(task.fecha, 'yyyy-MM-dd')}`;
+      const cellTasks = index.get(key);
+      if (cellTasks) cellTasks.push(task);
+      else index.set(key, [task]);
+    });
+
+    return index;
   }, [tasks]);
 
-  const upsertScheduleCell = async (date, resource, payload, skipFetch = false) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    
-    let payloadObj = null;
-    if (typeof payload === 'string' && payload.trim() !== '') {
-        payloadObj = {
-           morning: payload.trim(),
-           colorAM: '#10B981',
-           estadoAM: 'Pendiente',
-           autor: 'Sistema'
-        };
-    } else if (payload && typeof payload === 'object') {
-        const tokenData = parseToken();
-        const autorText = tokenData?.nombre || tokenData?.usuario || 'Sistema';
+  // Consulta O(1) por celda; evita filtrar todas las tareas cientos de veces por render.
+  const tasksForCell = useCallback((tecnicoId, day) => {
+    const key = `${tecnicoId}|${format(day, 'yyyy-MM-dd')}`;
+    return tasksByResourceAndDay.get(key) || EMPTY_TASKS;
+  }, [tasksByResourceAndDay]);
 
-        payloadObj = {
-           tipo_tarea:   payload.tipo_tarea   || payload.tipoTarea || payload.morning || '',
-           cotizacion:   payload.cotizacion   || '',
-           descripcion:  payload.descripcion  || '',
-           cliente:      payload.cliente      || '',
-           cod_cliente:  payload.cod_cliente  || '',
-           planta:       payload.planta       || '',
-           morning:      payload.tipo_tarea   || payload.tipoTarea || payload.morning || '',
-           colorAM:      payload.colorAM      || '',
-           estadoAM:     payload.estadoAM     || 'Pendiente',
-           horaInicio:   payload.horaInicio   || '',
-           horaFin:      payload.horaFin      || '',
-           lastModified: payload.lastModified || null,
-           rowId:        payload.rowId        || null,
-           autor: autorText,
-           creado_en:    'CronoMET'
-        };
-    }
+  const upsertScheduleCell = useCallback(async (date, resource, payload) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const payloadObj = toApiPayload(payload);
+    const assignments = [{ resource, payload: payloadObj }];
+    const previousTasks = tasksRef.current;
+    const mutationId = ++mutationSequenceRef.current;
+    const optimistic = applyOptimisticAssignments(
+      previousTasks,
+      dateStr,
+      assignments,
+      tecnicos,
+      mutationId
+    );
+    commitTasks(optimistic.tasks);
 
     try {
-      await api.post('/calendar/cronograma', {
+      const response = await api.post('/calendar/cronograma', {
         date: dateStr,
         resource,
         payload: payloadObj
       });
-
+      const serverResults = response?.data ? [response.data] : [];
+      commitTasks(reconcileOptimisticAssignments(
+        tasksRef.current,
+        optimistic.operations,
+        serverResults
+      ));
+      if (hasUnconfirmedInserts(optimistic.operations, serverResults)) {
+        await fetchData({ silent: true });
+      }
     } catch (err) {
-        let errMsg = 'Error al guardar en el cronograma';
-        if (err instanceof ApiError && err.data?.message) {
-            errMsg = err.data.message;
-        }
-        throw new Error(errMsg);
+      commitTasks(previousTasks);
+      let errMsg = 'Error al guardar en el cronograma';
+      if (err instanceof ApiError && err.data?.message) {
+        errMsg = err.data.message;
+      }
+      throw new Error(errMsg);
     }
+  }, [commitTasks, fetchData, tecnicos]);
 
-    if (!skipFetch) {
-       await fetchData(); // Refetch para redibujar la grilla plana
+  const upsertScheduleAssignments = useCallback(async (date, assignments) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const normalizedAssignments = assignments.map(({ resource, payload }) => ({
+      resource,
+      payload: toApiPayload(payload),
+    }));
+    const previousTasks = tasksRef.current;
+    const mutationId = ++mutationSequenceRef.current;
+    const optimistic = applyOptimisticAssignments(
+      previousTasks,
+      dateStr,
+      normalizedAssignments,
+      tecnicos,
+      mutationId
+    );
+    commitTasks(optimistic.tasks);
+
+    try {
+      const response = await api.post('/calendar/cronograma/asignaciones', {
+        date: dateStr,
+        assignments: normalizedAssignments.map(({ resource, payload }) => ({
+          date: dateStr,
+          resource,
+          payload,
+        })),
+      });
+      const serverResults = Array.isArray(response?.data) ? response.data : [];
+      commitTasks(reconcileOptimisticAssignments(
+        tasksRef.current,
+        optimistic.operations,
+        serverResults
+      ));
+      if (hasUnconfirmedInserts(optimistic.operations, serverResults)) {
+        await fetchData({ silent: true });
+      }
+    } catch (err) {
+      commitTasks(previousTasks);
+      const message = err instanceof ApiError && err.data?.message
+        ? err.data.message
+        : err?.message || 'Error al guardar las asignaciones';
+      throw new Error(message);
     }
-  };
+  }, [commitTasks, fetchData, tecnicos]);
 
   return {
     tasks,
@@ -215,6 +308,7 @@ export function useGantt() {
     useMock,
     tasksForCell,
     upsertScheduleCell,
+    upsertScheduleAssignments,
     refetch: fetchData,
     nextWeek: () => setWeekStart(d => addWeeks(d, 1)),
     prevWeek: () => setWeekStart(d => subWeeks(d, 1)),
