@@ -1,5 +1,5 @@
 -- ========================================================================
--- MIGRACIÓN: CAMPOS NORMALIZADOS DE TAREA Y RETIRO DE codigo_reg
+-- MIGRACIÓN 001: CAMPOS NORMALIZADOS DE TAREA Y RETIRO DE codigo_reg
 -- ========================================================================
 -- Agrega tipo_tarea, cliente y planta; separa los valores que antes estaban
 -- combinados en cotizacion/cod_cliente; y elimina el código RSP, que deja de

@@ -12,7 +12,6 @@ const LOCK_TIME_MS = 60 * 1000; // 60 segundos
  * @param {string} pass - Contraseña en texto plano
  */
 const loginUser = async (usuario, pass) => {
-  try {
     // 1. Check Rate Limit en Memoria
     const record = loginAttemptsMap.get(usuario);
     if (record) {
@@ -88,9 +87,6 @@ const loginUser = async (usuario, pass) => {
       token
     };
 
-  } catch (error) {
-    throw error;
-  }
 };
 
 module.exports = {

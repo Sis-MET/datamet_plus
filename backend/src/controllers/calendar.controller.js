@@ -58,8 +58,21 @@ const upsertScheduleCell = async (req, res, next) => {
   }
 };
 
+const upsertScheduleAssignments = async (req, res, next) => {
+  try {
+    const rows = await scheduleService.upsertScheduleAssignments(req.body);
+    res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    if (error.statusCode === 400 || error.statusCode === 409) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   getSchedule,
   getTecnicos,
-  upsertScheduleCell
+  upsertScheduleCell,
+  upsertScheduleAssignments,
 };

@@ -4,7 +4,7 @@ const { getPool } = require('../config/db');
  * Comprueba el estado de la conexión a DB y que Node esté vivo.
  * @route GET /api/health
  */
-const checkHealth = async (req, res, next) => {
+const checkHealth = async (_req, res, _next) => {
   try {
     const pool = getPool();
     

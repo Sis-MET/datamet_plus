@@ -1,6 +1,6 @@
 const env = require('../config/env');
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, _req, res, _next) => {
   console.error('🔥 Error Handler Capturado:', err);
 
   const statusCode = err.statusCode || 500;
@@ -14,7 +14,7 @@ const errorHandler = (err, req, res, next) => {
   });
 };
 
-const notFoundHandler = (req, res, next) => {
+const notFoundHandler = (req, res, _next) => {
   res.status(404).json({
     success: false,
     message: `Ruta no encontrada - ${req.originalUrl}`

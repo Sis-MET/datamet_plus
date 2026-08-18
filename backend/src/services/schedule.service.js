@@ -1,4 +1,5 @@
 const { getPool, sql } = require('../config/db');
+const { validateScheduleBatch, validateScheduleInput } = require('./schedule.validation');
 
 const calculateHourTotal = (horaInicio, horaFin) => {
   if (!horaInicio || !horaFin) return null;
@@ -22,8 +23,7 @@ const calculateHourTotal = (horaInicio, horaFin) => {
   return Number((diffMinutes / 60).toFixed(2));
 };
 
-const upsertScheduleCell = async (data) => {
-  const pool = getPool();
+const executeUpsertScheduleCell = async (data, createRequest) => {
   const { date, resource, payload } = data;
 
   const tipoTarea    = payload ? (payload.tipo_tarea || payload.tipoTarea || payload.morning || '') : '';
@@ -45,7 +45,7 @@ const upsertScheduleCell = async (data) => {
   let id_usuario     = null;
   let usuario_nombre = null;
 
-  const userMatch = await pool.request()
+  const userMatch = await createRequest()
     .input('res', sql.VarChar, resource)
     .query(`
       SELECT id, CONCAT(TRIM(nombre1), ' ', TRIM(apellido1)) as fullname 
@@ -57,7 +57,7 @@ const upsertScheduleCell = async (data) => {
     id_usuario     = userMatch.recordset[0].id;
     usuario_nombre = userMatch.recordset[0].fullname;
   } else {
-    const vehMatch = await pool.request()
+    const vehMatch = await createRequest()
       .input('res', sql.VarChar, resource)
       .query(`
         SELECT id, TRIM(ISNULL(identificacion, 'SIN_IDENTIFICACION')) as fullname
@@ -80,7 +80,7 @@ const upsertScheduleCell = async (data) => {
     return { status: 'ignored' };
   }
 
-  const upsertReq = pool.request()
+  const upsertReq = createRequest()
     .input('id_us',   sql.Int,      id_usuario)
     .input('usr',     sql.VarChar,  usuario_nombre)
     .input('f',       sql.Date,     date)
@@ -104,7 +104,7 @@ const upsertScheduleCell = async (data) => {
     }
 
     if (horaInicio && horaFin) {
-      const overlapCheck = await pool.request()
+      const overlapCheck = await createRequest()
         .input('ov_id_us',  sql.Int,     id_usuario)
         .input('ov_usr',    sql.VarChar, usuario_nombre)
         .input('ov_fecha',  sql.Date,    date)
@@ -112,7 +112,7 @@ const upsertScheduleCell = async (data) => {
         .input('ov_fin',    sql.VarChar, horaFin)
         .query(`
           SELECT COUNT(*) AS cnt
-          FROM DATA_CRONOGRAMA
+          FROM DATA_CRONOGRAMA WITH (UPDLOCK, HOLDLOCK)
           WHERE id_usuario  = @ov_id_us
             AND usuario     = @ov_usr
             AND fecha       = @ov_fecha
@@ -131,8 +131,7 @@ const upsertScheduleCell = async (data) => {
       }
     }
 
-    await upsertReq
-      .query(`
+    const insertResult = await upsertReq.query(`
       INSERT INTO DATA_CRONOGRAMA
         (id_usuario, usuario, fecha, tipo_tarea, cotizacion, descripcion, cliente, cod_cliente, planta, color, estado, hora_inicio, hora_fin, hora_total,
          creado_por, fecha_creacion, hora_creacion, creado_en)
@@ -144,10 +143,23 @@ const upsertScheduleCell = async (data) => {
          @autor,
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),
-         @creado_en)
+         @creado_en);
+
+      SELECT
+        CAST(SCOPE_IDENTITY() AS INT) AS id,
+        CONCAT(
+          CONVERT(varchar, CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE), 23),
+          ' ',
+          CONVERT(varchar(8), CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME), 8)
+        ) AS last_modified;
     `);
 
-    return { status: 'inserted', resource };
+    return {
+      status: 'inserted',
+      resource,
+      id: insertResult.recordset[0]?.id || null,
+      lastModified: insertResult.recordset[0]?.last_modified || null,
+    };
   }
 
   upsertReq.input('row_id', sql.Int, rowId);
@@ -158,7 +170,7 @@ const upsertScheduleCell = async (data) => {
       CONVERT(varchar, hora_modificacion, 8)   as hmod,
       CONVERT(varchar, fecha_creacion, 23)     as fcrea,
       CONVERT(varchar, hora_creacion, 8)       as hcrea
-    FROM DATA_CRONOGRAMA
+    FROM DATA_CRONOGRAMA WITH (UPDLOCK, HOLDLOCK)
     WHERE id = @row_id
   `);
 
@@ -175,7 +187,7 @@ const upsertScheduleCell = async (data) => {
           hora_modificacion = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME)
       WHERE id = @row_id
     `);
-    return { status: 'deleted', resource };
+    return { status: 'deleted', resource, id: rowId };
   }
 
   const row = existingRes.recordset[0];
@@ -202,7 +214,7 @@ const upsertScheduleCell = async (data) => {
   }
 
   if (horaInicio && horaFin) {
-    const overlapCheck = await pool.request()
+    const overlapCheck = await createRequest()
       .input('ov_id_us',  sql.Int,     id_usuario)
       .input('ov_usr',    sql.VarChar, usuario_nombre)
       .input('ov_fecha',  sql.Date,    date)
@@ -211,7 +223,7 @@ const upsertScheduleCell = async (data) => {
       .input('ov_row_id', sql.Int,     rowId)
       .query(`
         SELECT COUNT(*) AS cnt
-        FROM DATA_CRONOGRAMA
+        FROM DATA_CRONOGRAMA WITH (UPDLOCK, HOLDLOCK)
         WHERE id_usuario  = @ov_id_us
           AND usuario     = @ov_usr
           AND fecha       = @ov_fecha
@@ -250,7 +262,17 @@ const upsertScheduleCell = async (data) => {
         fecha              = @f,
         id_usuario         = @id_us,
         usuario            = @usr
-    WHERE id = @row_id
+    WHERE id = @row_id;
+
+    SELECT
+      id,
+      CONCAT(
+        CONVERT(varchar, fecha_modificacion, 23),
+        ' ',
+        CONVERT(varchar(8), hora_modificacion, 8)
+      ) AS last_modified
+    FROM DATA_CRONOGRAMA
+    WHERE id = @row_id;
   `);
 
   if (result.rowsAffected[0] === 0) {
@@ -259,9 +281,51 @@ const upsertScheduleCell = async (data) => {
     throw concurrencyErr;
   }
 
-  return { status: 'upserted', resource };
+  return {
+    status: 'upserted',
+    resource,
+    id: result.recordset[0]?.id || rowId,
+    lastModified: result.recordset[0]?.last_modified || null,
+  };
+};
+
+const runTransaction = async (work) => {
+  const pool = getPool();
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+
+  try {
+    const result = await work(() => new sql.Request(transaction));
+    await transaction.commit();
+    return result;
+  } catch (error) {
+    try {
+      await transaction.rollback();
+    } catch (rollbackError) {
+      error.rollbackError = rollbackError;
+    }
+    throw error;
+  }
+};
+
+const upsertScheduleCell = async (data) => {
+  const normalized = validateScheduleInput(data);
+  return runTransaction(createRequest => executeUpsertScheduleCell(normalized, createRequest));
+};
+
+const upsertScheduleAssignments = async (data) => {
+  const assignments = validateScheduleBatch(data);
+  return runTransaction(async createRequest => {
+    const results = [];
+    for (const assignment of assignments) {
+      results.push(await executeUpsertScheduleCell(assignment, createRequest));
+    }
+    return results;
+  });
 };
 
 module.exports = {
-  upsertScheduleCell
+  upsertScheduleCell,
+  upsertScheduleAssignments,
+  calculateHourTotal,
 };
