@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React from 'react';
 import { pdf, Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer';
 import logoMetrica from '../assets/logoMetrica2.png';
@@ -246,14 +247,14 @@ const styles = StyleSheet.create({
   }
 });
 
+const Field = ({ label, value, colStyle = styles.fieldCol3 }) => (
+  <View style={colStyle}>
+    <Text style={styles.label}>{label}: <Text style={styles.value}>{value || '-'}</Text></Text>
+  </View>
+);
+
 const RIMDocument = ({ formData, rimCode }) => {
   const dateStr = new Date().toLocaleString('es-CO');
-
-  const Field = ({ label, value, colStyle = styles.fieldCol3 }) => (
-    <View style={colStyle}>
-      <Text style={styles.label}>{label}: <Text style={styles.value}>{value || '-'}</Text></Text>
-    </View>
-  );
 
   const getStatusLabel = (status) => {
     const labels = { 'present': 'Presente', 'missing': 'Faltante', 'na': 'N/A' };
@@ -574,10 +575,6 @@ const RIMDocument = ({ formData, rimCode }) => {
 export const generatePDF = async (formData, rimCode) => {
   try {
     console.log("Generating Native PDF with React PDF Renderer...");
-    
-    // Dynamically import @react-pdf/renderer to avoid Vite/Rollup polyfill issues in the browser
-    const renderer = await import('@react-pdf/renderer');
-    const { pdf } = renderer;
     
     const blob = await pdf(<RIMDocument formData={formData} rimCode={rimCode} />).toBlob();
     

@@ -4,7 +4,7 @@ export const safeStorage = {
       if (typeof window !== 'undefined' && window.localStorage) {
         return window.localStorage.getItem(key);
       }
-    } catch (e) {
+    } catch {
       console.warn('localStorage is blocked by browser settings');
     }
     return null;
@@ -14,7 +14,7 @@ export const safeStorage = {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem(key, value);
       }
-    } catch (e) {
+    } catch {
       console.warn('localStorage is blocked by browser settings');
     }
   },
@@ -23,7 +23,7 @@ export const safeStorage = {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem(key);
       }
-    } catch (e) {
+    } catch {
       console.warn('localStorage is blocked by browser settings');
     }
   }

@@ -19,7 +19,9 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request(endpoint, { method = 'GET', body, params, headers = {} } = {}) {
+const REQUEST_TIMEOUT_MS = 15000;
+
+async function request(endpoint, { method = 'GET', body, params, headers = {}, retry = method === 'GET' ? 1 : 0 } = {}) {
   let url = `${API_BASE}${endpoint}`;
 
   if (params) {
@@ -35,15 +37,36 @@ async function request(endpoint, { method = 'GET', body, params, headers = {} } 
 
   const isFormData = body instanceof FormData;
 
-  const res = await fetch(url, {
-    method,
-    headers: {
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...getAuthHeaders(),
-      ...headers,
-    },
-    ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {}),
-  });
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+
+  try {
+    res = await fetch(url, {
+      method,
+      signal: controller.signal,
+      headers: {
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...getAuthHeaders(),
+        ...headers,
+      },
+      ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {}),
+    });
+  } catch (error) {
+    if (retry > 0 && method === 'GET') {
+      return request(endpoint, { method, body, params, headers, retry: retry - 1 });
+    }
+    const isTimeout = error?.name === 'AbortError';
+    throw new ApiError(
+      isTimeout
+        ? 'La solicitud tardó demasiado. Comprueba la conexión e inténtalo de nuevo.'
+        : 'No se pudo conectar con el servidor. Comprueba tu red e inténtalo de nuevo.',
+      0,
+      { cause: isTimeout ? 'timeout' : 'network' }
+    );
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
 
   let data;
   const contentType = res.headers.get('content-type') || '';

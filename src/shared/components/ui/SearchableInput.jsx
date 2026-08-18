@@ -25,7 +25,7 @@ export const SearchableInput = React.forwardRef(({
     if (value !== undefined && value !== query) {
       setQuery(value);
     }
-  }, [value]);
+  }, [query, value]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {

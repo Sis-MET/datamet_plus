@@ -93,7 +93,7 @@ function StateDropdown({ anchorRef, open, onClose, children, isDarkGantt }) {
 }
 
 // ── Tarjeta de una salida individual ──
-function DepartureCard({ dep, tecnicos, onChangeState, isAdmin, panel }) {
+function DepartureCard({ dep, tecnicos, onChangeState, isAdmin }) {
   const { isDarkGantt } = useTheme();
   const [stateOpen, setStateOpen] = useState(false);
   const [localState, setLocalState] = useState(dep.estado);
@@ -225,7 +225,7 @@ function Panel({ panel, departures, tecnicos, onChangeState, isAdmin, isDarkGant
           </div>
         ) : (
           departures.map(dep => (
-            <DepartureCard key={dep.id} dep={dep} tecnicos={tecnicos} onChangeState={onChangeState} isAdmin={isAdmin} panel={panel} />
+            <DepartureCard key={dep.id} dep={dep} tecnicos={tecnicos} onChangeState={onChangeState} isAdmin={isAdmin} />
           ))
         )}
       </div>

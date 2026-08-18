@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useTheme } from '../../../shared/context/ThemeContext';
 import { generateRIMCode } from '../utils/rimCode';
 import { fileToBase64 } from '../../../utils/files';
-import { generatePDF } from '../../../utils/pdfGenerator.jsx';
 import { formSchema } from '../../../utils/validations';
 import { rimApi } from '../api/rim';
 
@@ -68,7 +67,8 @@ export function useRimForm(currentUser) {
         })
       );
 
-      const pdfResult = await generatePDF(data, rimCode);
+      const { generatePDF } = await import('../../../utils/pdfGenerator.jsx');
+      const pdfResult = await generatePDF({ ...data, photos: processedPhotos }, rimCode);
       if (!pdfResult.success) {
         alert('El formulario se procesó correctamente, pero hubo un error al generar el PDF.');
       }

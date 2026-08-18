@@ -138,11 +138,6 @@ export function DepartureFormModal({ onClose, onSaved, tecnicos = [], saving }) 
   const jFin    = selectedTec?.hora_salida?.substring(0, 5)  || '18:30';
 
   useEffect(() => {
-    setHoraInicio(jInicio);
-    setHoraFin(jFin);
-  }, [jInicio, jFin]);
-
-  useEffect(() => {
     if (!tipoOpen) return;
     const h = (e) => { if (tipoRef.current && !tipoRef.current.contains(e.target)) setTipoOpen(false); };
     document.addEventListener('mousedown', h);
@@ -204,7 +199,13 @@ export function DepartureFormModal({ onClose, onSaved, tecnicos = [], saving }) 
             <label className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
               <User size={11} /> Personal
             </label>
-            <select value={tecnicoId} onChange={e => setTecnicoId(e.target.value)} required
+            <select value={tecnicoId} onChange={e => {
+              const nextId = e.target.value;
+              const nextTecnico = tecnicos.find(item => item.id === nextId);
+              setTecnicoId(nextId);
+              setHoraInicio(nextTecnico?.hora_ingreso?.substring(0, 5) || '08:30');
+              setHoraFin(nextTecnico?.hora_salida?.substring(0, 5) || '18:30');
+            }} required
               className={`w-full px-3 py-2.5 rounded-xl border text-sm font-medium outline-none transition-all ${isDarkGantt ? 'bg-white/5 border-white/10 text-gray-200 focus:border-purple-500' : 'bg-gray-50 border-gray-200 text-gray-900 focus:border-purple-500'}`}>
               <option value="">Seleccionar personal</option>
               {tecnicos.map(t => (

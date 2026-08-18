@@ -1,5 +1,3 @@
-import { format } from 'date-fns';
-
 /**
  * Genera un código RIM único basado en el cliente y planta seleccionados.
  * Formato: RIM-{CODIGO_CLIENTE}-{CODIGO_PLANTA}-{GESTION}

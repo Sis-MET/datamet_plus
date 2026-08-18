@@ -1,33 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { Toaster as SonnerToaster } from 'sonner';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { Header } from './shared/components/layout/Header';
 import { Footer } from './shared/components/layout/Footer';
-import { RimFormPage } from './features/rim/RimFormPage';
-import { CalendarPage } from './features/calendar/CalendarPage';
-import { DeparturesPage } from './features/departures/DeparturesPage';
-import { LoginPage } from './features/auth/LoginPage';
 import bgImage from './assets/soporte_tecnico.svg';
 import { safeStorage } from './shared/utils/storage';
-import { ThemeProvider, useTheme } from './shared/context/ThemeContext';
 
-// ── Componente interno: puede leer el contexto de tema ──
+const RimFormPage = lazy(() => import('./features/rim/RimFormPage')
+  .then(module => ({ default: module.RimFormPage })));
+const CalendarPage = lazy(() => import('./features/calendar/CalendarPage')
+  .then(module => ({ default: module.CalendarPage })));
+const DeparturesPage = lazy(() => import('./features/departures/DeparturesPage')
+  .then(module => ({ default: module.DeparturesPage })));
+const LoginPage = lazy(() => import('./features/auth/LoginPage')
+  .then(module => ({ default: module.LoginPage })));
+
+function ViewFallback() {
+  return (
+    <div className="flex min-h-[45vh] items-center justify-center" role="status" aria-label="Cargando módulo">
+      <Loader2 className="h-6 w-6 animate-spin text-primary-400" />
+    </div>
+  );
+}
+
 function AppContent({ activeView, setActiveView, currentUser, handleLogout, renderView }) {
-  const { isDarkGantt } = useTheme();
-
   return (
     <>
       <SonnerToaster 
         position="bottom-right" 
-        theme={isDarkGantt ? 'dark' : 'light'}
+        theme="dark"
         toastOptions={{
-          className: isDarkGantt ? 'border-white/10' : 'border-gray-200',
+          className: 'border-white/10',
           style: {
-            background: isDarkGantt ? 'rgba(22, 22, 28, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+            background: 'rgba(22, 22, 28, 0.85)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
-            boxShadow: isDarkGantt ? '0 8px 32px rgba(0,0,0,0.6)' : '0 8px 32px rgba(0,0,0,0.15)',
-            color: isDarkGantt ? '#fff' : '#111827',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            color: '#fff',
           }
         }}
         icons={{
@@ -39,12 +48,9 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
         }}
       />
       <div
-        className="fixed inset-0 z-[-1] bg-cover bg-center transition-[filter] duration-300"
+        className="fixed inset-0 z-[-1] bg-cover bg-center"
         style={{
-          backgroundImage: isDarkGantt
-            ? `linear-gradient(rgba(15, 16, 20, 0.72), rgba(15, 16, 20, 0.88)), url(${bgImage})`
-            : `linear-gradient(rgba(205, 218, 232, 0.62), rgba(190, 207, 225, 0.76)), url(${bgImage})`,
-          filter: isDarkGantt ? 'none' : 'saturate(0.86) contrast(1.04)',
+          backgroundImage: `linear-gradient(rgba(15, 16, 20, 0.72), rgba(15, 16, 20, 0.88)), url(${bgImage})`,
         }}
       />
 
@@ -57,7 +63,9 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
         />
         <div className="h-20 flex-shrink-0" />
         <div className="flex-1">
-          {renderView()}
+          <Suspense fallback={<ViewFallback />}>
+            {renderView()}
+          </Suspense>
         </div>
         <Footer />
       </div>
@@ -145,7 +153,11 @@ function App() {
   }, [isAuthenticated]);
 
   if (!isAuthenticated) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <LoginPage onLogin={handleLogin} />
+      </Suspense>
+    );
   }
 
   const renderView = () => {
@@ -161,15 +173,13 @@ function App() {
   };
 
   return (
-    <ThemeProvider>
-      <AppContent
-        activeView={activeView}
-        setActiveView={setActiveView}
-        currentUser={currentUser}
-        handleLogout={handleLogout}
-        renderView={renderView}
-      />
-    </ThemeProvider>
+    <AppContent
+      activeView={activeView}
+      setActiveView={setActiveView}
+      currentUser={currentUser}
+      handleLogout={handleLogout}
+      renderView={renderView}
+    />
   );
 }
 

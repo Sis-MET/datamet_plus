@@ -188,8 +188,7 @@ export function EquipoSearch({ planta, clienteId, onSelect }) {
             </div>
           ) : (
             <ul>
-              {filtered.map((equipo, i) => {
-                const isSelected = equipo.cod_metrica === selectedCode;
+              {filtered.map((equipo) => {
                 return (
                   <li
                     key={equipo.cod_metrica}

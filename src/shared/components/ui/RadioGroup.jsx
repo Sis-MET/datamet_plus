@@ -54,7 +54,7 @@ export const RadioGroup = React.forwardRef(({ options, label, error, value, onCh
   };
 
   return (
-    <div className={cn("w-full", className)}>
+    <div ref={ref} className={cn("w-full", className)}>
       {label && (
         <label className={`block text-sm font-medium mb-3 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
           {label} {props.required && <span className="text-red-500">*</span>}
