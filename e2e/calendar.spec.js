@@ -31,7 +31,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/calendar/tecnicos', route => route.fulfill({
     json: { success: true, data: technicians },
   }));
-  await page.route('**/api/calendar/cronograma*', route => route.fulfill({ json: { success: true, data: [] } }));
+  await page.route('**/api/calendar/cronograma**', route => route.fulfill({ json: { success: true, data: [] } }));
 });
 
 test('el calendario móvil no desborda y abre la agenda contextual', async ({ page }) => {
@@ -107,7 +107,7 @@ test('la descripción responde sin reconstruir la ficha completa', async ({ page
 });
 
 test('muestra todas las tareas de una celda sin resumirlas como +N', async ({ page }) => {
-  await page.unroute('**/api/calendar/cronograma*');
+  await page.unroute('**/api/calendar/cronograma**');
   const taskDate = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/La_Paz',
   }).format(new Date());
@@ -124,7 +124,7 @@ test('muestra todas las tareas de una celda sin resumirlas como +N', async ({ pa
     hora_inicio: `${String(8 + index).padStart(2, '0')}:30:00`,
     hora_fin: `${String(9 + index).padStart(2, '0')}:30:00`,
   }));
-  await page.route('**/api/calendar/cronograma*', route => route.fulfill({
+  await page.route('**/api/calendar/cronograma**', route => route.fulfill({
     json: { success: true, data: tasks },
   }));
 
@@ -135,4 +135,56 @@ test('muestra todas las tareas de una celda sin resumirlas como +N', async ({ pa
   await expect(userRow.locator('[data-task-id]')).toHaveCount(3);
   await expect(userRow.getByRole('button', { name: /tareas adicionales/i })).toHaveCount(0);
   expect((await userRow.boundingBox()).height).toBeGreaterThanOrEqual(170);
+});
+
+test('confirma un guardado local sin descargar nuevamente todo el cronograma', async ({ page }) => {
+  await page.unroute('**/api/calendar/cronograma**');
+  const taskDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/La_Paz',
+  }).format(new Date());
+  let scheduleReads = 0;
+  let scheduleWrites = 0;
+
+  await page.route('**/api/calendar/cronograma**', async (route) => {
+    if (route.request().method() === 'GET') {
+      scheduleReads += 1;
+      return route.fulfill({ json: { success: true, data: [{
+        id: 71,
+        id_usuario: 1,
+        usuario: 'Usuario QA',
+        fecha: taskDate,
+        tipo_tarea: 'Otro',
+        descripcion: 'Descripción inicial',
+        color: '#37A65F',
+        estado: 'Pendiente',
+        hora_inicio: '08:30:00',
+        hora_fin: '09:30:00',
+      }] } });
+    }
+
+    scheduleWrites += 1;
+    return route.fulfill({ json: {
+      success: true,
+      data: [{
+        status: 'upserted',
+        resource: 'Usuario_QA',
+        id: 71,
+        lastModified: `${taskDate} 12:00:00`,
+      }],
+    } });
+  });
+
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/');
+  await page.locator('[data-task-id="task_71"]').click();
+  const readsBeforeSave = scheduleReads;
+
+  const dialog = page.getByRole('dialog', { name: /Editar tarea/i });
+  await dialog.getByLabel(/Descripción/i).fill('Descripción actualizada localmente');
+  await dialog.getByRole('button', { name: /Guardar cambios/i }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('[data-task-id="task_71"]')).toContainText('Descripción actualizada localmente');
+
+  expect(scheduleWrites).toBe(1);
+  expect(scheduleReads).toBe(readsBeforeSave);
 });

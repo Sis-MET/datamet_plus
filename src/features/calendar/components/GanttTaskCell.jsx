@@ -1,10 +1,11 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Truck, MapPin } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
+import { useTaskTooltip } from './taskTooltipStore';
 
 const MAX_TASKS_PER_CELL = 4;
 
@@ -75,10 +76,11 @@ function useLongPress(onLongPress, delay = 500) {
 
 // Sub-componente: cada tarjeta con su propio tooltip
 function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resourceId, onTaskClick, onTaskDrop, onTaskContextMenu, onTaskDragStart, onTaskDragEnd, date }) {
-  const [renderTooltip, setRenderTooltip] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
-  const [tooltipPos, setTooltipPos] = useState(null);
-  const timeoutRef = useRef(null);
+  const tooltipKey = `${resourceId}:${task.id}`;
+  const { tooltip, showTaskTooltip, hideTaskTooltip } = useTaskTooltip(tooltipKey);
+  const renderTooltip = Boolean(tooltip);
+  const showTooltip = Boolean(tooltip?.visible);
+  const tooltipPos = tooltip?.position || null;
 
   // --- Datos normalizados para la tarjeta ---
   const clienteText = normalizeTaskText(task.cliente);
@@ -117,25 +119,12 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
 
   const handleMouseEnter = (e) => {
     e.stopPropagation();
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    const rect = e.currentTarget.getBoundingClientRect();
-    const isTop = rect.top < 250;
-    setTooltipPos({
-      x: rect.left + rect.width / 2,
-      y: isTop ? rect.bottom + 10 : rect.top - 10,
-      isTop
-    });
-    setRenderTooltip(true);
-    setTimeout(() => setShowTooltip(true), 10);
+    showTaskTooltip(e.currentTarget);
   };
 
   const handleMouseLeave = (e) => {
     e.stopPropagation();
-    setShowTooltip(false);
-    timeoutRef.current = setTimeout(() => {
-      setRenderTooltip(false);
-      setTooltipPos(null);
-    }, 200);
+    hideTaskTooltip();
   };
 
   // Long-press => menu contextual en touch/tablet
@@ -276,9 +265,9 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
         <div
           className={cn(
             "fixed z-[9999] w-[min(260px,calc(100vw-20px))] pointer-events-none transition-all duration-[120ms] ease-out",
-            "backdrop-filter backdrop-blur-xl border rounded-2xl p-4 ring-1",
+            "border rounded-2xl p-4 ring-1",
             isDarkGantt
-              ? "bg-[#1a1a1d]/75 border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.9)] ring-white/5"
+              ? "bg-[#1a1a1d] border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.9)] ring-white/5"
               : "bg-slate-100/92 border-slate-500/25 shadow-[0_20px_50px_rgba(15,23,42,0.24)] ring-white/60",
             tooltipPos.isTop ? "-translate-x-1/2 origin-top" : "-translate-x-1/2 -translate-y-full origin-bottom",
             showTooltip ? "opacity-100 scale-100 mt-0" : "opacity-0 scale-95",
@@ -393,10 +382,10 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
           )}
 
           <div className={cn(
-            "absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent backdrop-filter backdrop-blur-xl",
+            "absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent",
             tooltipPos.isTop
-              ? (isDarkGantt ? "bottom-full border-b-[8px] border-b-[#1a1a1d]/75 mb-[-1px]" : "bottom-full border-b-[8px] border-b-slate-100/90 mb-[-1px]")
-              : (isDarkGantt ? "top-full border-t-[8px] border-t-[#1a1a1d]/75 mt-[-1px]" : "top-full border-t-[8px] border-t-slate-100/90 mt-[-1px]")
+              ? (isDarkGantt ? "bottom-full border-b-[8px] border-b-[#1a1a1d] mb-[-1px]" : "bottom-full border-b-[8px] border-b-slate-100/90 mb-[-1px]")
+              : (isDarkGantt ? "top-full border-t-[8px] border-t-[#1a1a1d] mt-[-1px]" : "top-full border-t-[8px] border-t-slate-100/90 mt-[-1px]")
           )} />
         </div>,
         document.body

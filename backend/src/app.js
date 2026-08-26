@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { errorHandler, notFoundHandler } = require('./middleware/error.middleware');
+const env = require('./config/env');
 
 // Routes imports
 const indexRoutes = require('./routes/index');
@@ -9,7 +10,7 @@ const app = express();
 
 // CORS debe ir PRIMERO para responder preflight OPTIONS antes de cualquier otro middleware
 app.use(cors({
-  origin: '*', // En producción debes cambiar esto a la URL específica de tu frontend en Azure
+  origin: env.corsOrigin,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-database-name']
 }));

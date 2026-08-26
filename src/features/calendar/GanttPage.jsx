@@ -5,6 +5,8 @@ import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
 import { GanttRow } from './components/GanttRow';
 import { GanttHelpButton } from './components/GanttHelpButton';
+import { TaskTooltipProvider } from './components/TaskTooltipProvider';
+import { getGanttRowLayout } from './utils/ganttRowLayout';
 
 const getAreaLabel = (area) => (typeof area === 'string' && area.trim() !== '' ? area.trim() : 'Sin Área');
 
@@ -16,6 +18,44 @@ const sortAreasWithPriority = (preferredArea) => ([areaA], [areaB]) => {
 
   return areaA.localeCompare(areaB);
 };
+
+const VirtualizedGanttRow = React.memo(function VirtualizedGanttRow(props) {
+  const placeholderRef = useRef(null);
+  const [isNearViewport, setIsNearViewport] = useState(
+    () => typeof IntersectionObserver === 'undefined'
+  );
+  const layout = useMemo(
+    () => getGanttRowLayout(
+      props.tecnico.id,
+      props.weekDays,
+      props.previewDays || [],
+      props.tasksForCell
+    ),
+    [props.previewDays, props.tasksForCell, props.tecnico.id, props.weekDays]
+  );
+
+  useEffect(() => {
+    const element = placeholderRef.current;
+    if (!element || typeof IntersectionObserver === 'undefined') return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsNearViewport(entry.isIntersecting),
+      { rootMargin: '700px 0px' }
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={placeholderRef}
+      className="gantt-virtual-row"
+      style={{ height: `${layout.rowHeight}px` }}
+    >
+      {isNearViewport && <GanttRow {...props} layout={layout} />}
+    </div>
+  );
+});
 
 /**
  * Componente presentacional puro: solo renderiza la grilla y la leyenda.
@@ -152,6 +192,7 @@ export function GanttPage({
   }, [selectedDay, weekDays]);
 
   return (
+    <TaskTooltipProvider>
     <div>
       {/* ── Controles de Semana y Recarga ── */}
       {currentWeekStart && (
@@ -326,7 +367,7 @@ export function GanttPage({
 
               {/* ── Filas del área ── */}
               {tecnicosDelArea.map((tecnico) => (
-                <GanttRow
+                <VirtualizedGanttRow
                   key={tecnico.id}
                   tecnico={tecnico}
                   weekDays={weekDays}
@@ -353,5 +394,6 @@ export function GanttPage({
       {/* ── Botón de ayuda flotante ── */}
       <GanttHelpButton />
     </div>
+    </TaskTooltipProvider>
   );
 }

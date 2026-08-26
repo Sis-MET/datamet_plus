@@ -1,25 +1,18 @@
 import React from 'react';
 import { Truck } from 'lucide-react';
 import { GanttTaskCell } from './GanttTaskCell';
+import { getGanttRowLayout } from '../utils/ganttRowLayout';
 
-export const GanttRow = React.memo(function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, isToday, selectedDay, onTaskClick, onTaskDrop, readOnly = false, onTaskContextMenu, onTaskDragStart, onTaskDragEnd }) {
+export const GanttRow = React.memo(function GanttRow({ tecnico, weekDays, previewDays = [], tasksForCell, layout, isToday, selectedDay, onTaskClick, onTaskDrop, readOnly = false, onTaskContextMenu, onTaskDragStart, onTaskDragEnd }) {
   const rawName = (tecnico.nombre || '').replace(/_/g, ' ').trim();
   const nameParts = rawName.split(' ');
   const lastName = nameParts.pop() || '';
   const firstName = nameParts.join(' ');
-  const activeCells = React.useMemo(
-    () => weekDays.map(day => ({ day, tasks: tasksForCell(tecnico.id, day) })),
-    [tasksForCell, tecnico.id, weekDays]
+  const computedLayout = React.useMemo(
+    () => layout || getGanttRowLayout(tecnico.id, weekDays, previewDays, tasksForCell),
+    [layout, previewDays, tasksForCell, tecnico.id, weekDays]
   );
-  const previewCells = React.useMemo(
-    () => previewDays.map(day => ({ day, tasks: tasksForCell(tecnico.id, day) })),
-    [previewDays, tasksForCell, tecnico.id]
-  );
-  const visibleTaskCount = [...activeCells, ...previewCells].reduce((maximum, cell) => {
-    const count = cell.tasks.reduce((total, task) => total + (task?.morning ? 1 : 0), 0);
-    return Math.max(maximum, count);
-  }, 1);
-  const rowHeight = Math.max(64, (visibleTaskCount * 54) + ((visibleTaskCount - 1) * 4) + 6);
+  const { activeCells, previewCells, rowHeight } = computedLayout;
 
   return (
     <div

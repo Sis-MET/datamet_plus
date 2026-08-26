@@ -282,7 +282,6 @@ export function useCalendarPage() {
           } else {
             toast.success("Tarea guardada correctamente.");
           }
-          if (typeof refetch === 'function') refetch();
         }
         return true;
       } catch (err) {
@@ -293,7 +292,7 @@ export function useCalendarPage() {
     };
 
     return doSave(text);
-  }, [tasks, tecnicos, upsertScheduleAssignments, refetch]);
+  }, [tasks, tecnicos, upsertScheduleAssignments]);
 
   const handleDeleteTask = useCallback(async (task, date, resourceId) => {
     setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false });
@@ -328,13 +327,11 @@ export function useCalendarPage() {
         }
       }
 
-      await new Promise(r => setTimeout(r, 400));
-      if (typeof refetch === 'function') refetch();
       toast.success("Tarea eliminada");
     } catch (err) {
       toast.error(err.message || "Error al borrar tarea");
     }
-  }, [tecnicos, user, isAdmin, tasks, upsertScheduleCell, refetch]);
+  }, [tecnicos, user, isAdmin, tasks, upsertScheduleCell]);
 
   const handleTaskDrop = useCallback(async (sourceTask, targetDate, targetResource, isMoveKey) => {
     if (!sourceTask) return;
@@ -363,8 +360,6 @@ export function useCalendarPage() {
           const sourceDateObj = new Date(sourceTask.sourceDate);
           if (targetResource === sourceTask.sourceResource && targetDateObj.getTime() === sourceDateObj.getTime()) return;
           await upsertScheduleCell(targetDateObj, targetResource, buildPayload(sourceTask.rowId), true);
-          await new Promise(r => setTimeout(r, 400));
-          if (typeof refetch === 'function') refetch();
           toast.success("Tarea movida correctamente.");
         } else {
           const promises = [upsertScheduleCell(targetDateObj, targetResource, buildPayload(null), true)];
@@ -374,8 +369,6 @@ export function useCalendarPage() {
             });
           }
           await Promise.all(promises);
-          await new Promise(r => setTimeout(r, 400));
-          if (typeof refetch === 'function') refetch();
           toast.success(
             copyForOthers && otherTasks.length > 0
               ? `Tarea copiada para ${otherTasks.length + 1} personas.`
@@ -451,7 +444,7 @@ export function useCalendarPage() {
     } else {
       executeAction();
     }
-  }, [tecnicos, tasks, upsertScheduleCell, refetch]);
+  }, [tecnicos, tasks, upsertScheduleCell]);
 
   const executeIntelligentReschedule = useCallback(async (part, serviceStr, sourceTask, oldDate, newDate) => {
     const diffTime = Math.round((newDate.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -498,7 +491,6 @@ export function useCalendarPage() {
           estadoAM: 'Reprogramado', horaInicio: sCell.horaInicio, horaFin: sCell.horaFin
         }, true);
       }
-      if (typeof refetch === 'function') refetch();
       toast.success("Tareas reprogramadas exitosamente.");
     } catch (e) {
       toast.error(`Error al reprogramar: ${e.message}`);
@@ -627,7 +619,6 @@ export function useCalendarPage() {
             }, true);
           }
         }
-        if (typeof refetch === 'function') refetch();
         toast.success("Vehículo asignado correctamente.");
       } catch (err) {
         toast.error(`Error al asignar: ${err.message}`);

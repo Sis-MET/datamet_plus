@@ -23,9 +23,17 @@ const checkEnv = () => {
 // Se ejecuta la validación al importar el módulo
 checkEnv();
 
+const configuredCorsOrigins = String(process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
 module.exports = {
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
+  corsOrigin: configuredCorsOrigins.length > 0
+    ? configuredCorsOrigins
+    : process.env.NODE_ENV === 'production' ? false : '*',
   db: {
     server: process.env.DB_SERVER.trim(),
     user: process.env.DB_USER.trim(),
