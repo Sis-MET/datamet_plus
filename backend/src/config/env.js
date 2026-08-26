@@ -28,6 +28,22 @@ const configuredCorsOrigins = String(process.env.CORS_ORIGIN || '')
   .map(origin => origin.trim())
   .filter(Boolean);
 
+const ivmetEnabled = String(process.env.IVMET_ENABLED || 'false').toLowerCase() === 'true';
+
+if (ivmetEnabled) {
+  const missingIvmetVars = [];
+  if (!process.env.SUPABASE_URL) missingIvmetVars.push('SUPABASE_URL');
+  if (!process.env.SUPABASE_SECRET_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    missingIvmetVars.push('SUPABASE_SECRET_KEY');
+  }
+
+  if (missingIvmetVars.length > 0) {
+    console.error('CRITICAL ERROR: IvMET esta habilitado pero faltan variables:');
+    console.error(missingIvmetVars.join(', '));
+    process.exit(1);
+  }
+}
+
 module.exports = {
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -56,5 +72,10 @@ module.exports = {
   jwt: {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN
+  },
+  ivmet: {
+    enabled: ivmetEnabled,
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseSecretKey: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   }
 };
