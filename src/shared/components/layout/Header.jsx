@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import logoMetrica from '../../../assets/logo_metrica.svg';
-import { LogOut, User, LayoutGrid, ChevronDown, Menu, X } from 'lucide-react';
+import { LogOut, User, LayoutGrid, ChevronDown, Menu, ShieldCheck, X } from 'lucide-react';
 import { safeStorage } from '../../utils/storage';
 
 export function Header({ activeView, onViewChange, currentUser, onLogout }) {
@@ -10,6 +10,19 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
   const dropdownRef = useRef(null);
   const userMenuRef = useRef(null);
   const mobileMenuRef = useRef(null);
+  const canManageIvmet = String(currentUser?.acceso_cron) === '3';
+  const viewLabels = {
+    rim: 'FORMULARIO RIM',
+    calendar: 'CRONOGRAMA METRICA',
+    departures: 'SALIDAS DEL PERSONAL',
+    ivmet: 'GESTIÓN IVMET',
+  };
+  const moduleLabels = {
+    rim: 'Formulario RIM',
+    calendar: 'Cronograma Metrica',
+    departures: 'Salidas del Personal',
+    ivmet: 'Gestión IvMET',
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -49,7 +62,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
             <img src={logoMetrica} alt="Métrica LTDA" className="h-8 w-auto object-contain" />
             <div className="hidden border-l border-white/10 pl-3 md:block">
               <h1 className="text-[15px] font-semibold leading-none tracking-wide text-white">
-                {activeView === 'rim' ? 'FORMULARIO RIM' : activeView === 'departures' ? 'SALIDAS DEL PERSONAL' : 'CRONOGRAMA METRICA'}
+                {viewLabels[activeView] || viewLabels.rim}
               </h1>
             </div>
           </div>
@@ -102,7 +115,7 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                   className="flex items-center gap-1.5 rounded-xl border border-transparent px-3 py-1.5 text-xs font-medium text-slate-400 transition-all duration-200 hover:border-white/20 hover:bg-white/10 hover:text-white"
                 >
                   <LayoutGrid className="h-4 w-4" />
-                  <span className="hidden lg:inline">{activeView === 'rim' ? 'Formulario RIM' : activeView === 'departures' ? 'Salidas del Personal' : 'Calendario'}</span>
+                  <span className="hidden lg:inline">{moduleLabels[activeView] || moduleLabels.rim}</span>
                   <ChevronDown className={`h-3 w-3 opacity-70 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isDropdownOpen && (
@@ -113,6 +126,11 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                     <button onClick={() => handleViewChange('calendar')} className={`w-full px-4 py-2.5 text-left text-xs font-medium transition-colors ${activeView === 'calendar' ? 'bg-green-500/10 text-green-400' : 'text-slate-200 hover:bg-white/5'}`}>
                       Cronograma Metrica
                     </button>
+                    {canManageIvmet && (
+                      <button onClick={() => handleViewChange('ivmet')} className={`w-full px-4 py-2.5 text-left text-xs font-medium transition-colors ${activeView === 'ivmet' ? 'bg-blue-500/10 text-blue-300' : 'text-slate-200 hover:bg-white/5'}`}>
+                        Gestión IvMET
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -168,6 +186,11 @@ export function Header({ activeView, onViewChange, currentUser, onLogout }) {
                     <button onClick={() => handleViewChange('calendar')} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold transition-colors ${activeView === 'calendar' ? 'bg-green-500/15 text-green-400' : 'text-slate-200 hover:bg-white/8'}`}>
                       <LayoutGrid className="h-3.5 w-3.5 flex-shrink-0" />Cronograma Metrica
                     </button>
+                    {canManageIvmet && (
+                      <button onClick={() => handleViewChange('ivmet')} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold transition-colors ${activeView === 'ivmet' ? 'bg-blue-500/15 text-blue-300' : 'text-slate-200 hover:bg-white/8'}`}>
+                        <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" />Gestión IvMET
+                      </button>
+                    )}
 
                     <div className="my-1 h-px w-full bg-white/10" />
 

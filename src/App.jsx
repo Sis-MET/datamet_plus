@@ -14,6 +14,8 @@ const DeparturesPage = lazy(() => import('./features/departures/DeparturesPage')
   .then(module => ({ default: module.DeparturesPage })));
 const LoginPage = lazy(() => import('./features/auth/LoginPage')
   .then(module => ({ default: module.LoginPage })));
+const IvmetManagementPage = lazy(() => import('./features/ivmet/IvmetManagementPage')
+  .then(module => ({ default: module.IvmetManagementPage })));
 
 function ViewFallback() {
   return (
@@ -111,7 +113,10 @@ function App() {
   });
 
   const [activeView, setActiveView] = useState(() => {
-    return safeStorage.getItem('rimmet_last_view') || 'rim';
+    const savedView = safeStorage.getItem('rimmet_last_view') || 'rim';
+    return savedView === 'ivmet' && String(currentUser?.acceso_cron) !== '3'
+      ? 'rim'
+      : savedView;
   });
 
   const handleLogin = (user, selectedView) => {
@@ -162,6 +167,10 @@ function App() {
 
   const renderView = () => {
     switch (activeView) {
+      case 'ivmet':
+        return String(currentUser?.acceso_cron) === '3'
+          ? <IvmetManagementPage />
+          : <RimFormPage currentUser={currentUser} />;
       case 'calendar':
         return <CalendarPage />;
       case 'departures':

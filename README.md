@@ -1,6 +1,6 @@
-# RIM - Registro de Entrega de Balanzas
+# DataMET+
 
-Aplicación web moderna para el registro digital de entregas de balanzas, incluyendo captura de firmas y evidencias fotográficas.
+Aplicación interna de Métrica Ltda. que reúne el formulario RIM, el cronograma operativo y la administración de IvMET.
 
 ## Características
 
@@ -10,10 +10,32 @@ Aplicación web moderna para el registro digital de entregas de balanzas, incluy
 - **Evidencias:** Subida de fotos con drag & drop y previsualización.
 - **Diseño Moderno:** Interfaz limpia y profesional construida con Tailwind CSS.
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
+- **Gestión IvMET:** panel administrativo para clientes contratados, licencias, planes y revisión del catálogo sincronizado.
+
+## Gestión IvMET
+
+El navegador consume exclusivamente `/api/ivmet/*` con el JWT de RimMET. La conexión administrativa con Supabase ocurre en el backend y requiere un usuario RimMET con `acceso_cron = 3`.
+
+Variables del backend:
+
+```dotenv
+IVMET_ENABLED=false
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SECRET_KEY=<server-only-secret>
+```
+
+Para desarrollo local puede usarse temporalmente `SUPABASE_SERVICE_ROLE_KEY` en lugar de `SUPABASE_SECRET_KEY`. Ninguna de estas claves debe declararse con prefijo `VITE_` ni almacenarse en el frontend.
+
+Rutas iniciales:
+
+- `GET /api/ivmet/overview`
+- `GET /api/ivmet/clients`
+- `GET /api/ivmet/plans`
+- `GET /api/ivmet/equipment-review`
 
 ## Tecnologías
 
-- React 18
+- React 19
 - Vite
 - Tailwind CSS
 - React Hook Form + Zod
