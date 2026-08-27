@@ -12,7 +12,7 @@ const app = express();
 app.use(cors({
   origin: env.corsOrigin,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-database-name']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-database-name', 'X-Ivmet-Access']
 }));
 
 // Middlewares Globales

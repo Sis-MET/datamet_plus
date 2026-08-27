@@ -75,6 +75,8 @@ module.exports = {
   },
   ivmet: {
     enabled: ivmetEnabled,
+    // Sin hash válido el módulo permanece bloqueado; las otras API siguen disponibles.
+    accessCodeHash: process.env.IVMET_ACCESS_CODE_HASH || '',
     supabaseUrl: process.env.SUPABASE_URL || '',
     supabaseSecretKey: process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   }
