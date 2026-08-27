@@ -26,12 +26,34 @@ SUPABASE_SECRET_KEY=<server-only-secret>
 
 Para desarrollo local puede usarse temporalmente `SUPABASE_SERVICE_ROLE_KEY` en lugar de `SUPABASE_SECRET_KEY`. Ninguna de estas claves debe declararse con prefijo `VITE_` ni almacenarse en el frontend.
 
-Rutas iniciales:
+El módulo incluye fichas por cliente/planta/balanza, cuentas y licencias,
+contratos, tarifas mensuales/anuales, pagos parciales, renovaciones, cupos,
+áreas, patrones/certificados y sincronización selectiva. Usa vidrio en la
+navegación/formularios y superficies sólidas en los datos.
+
+Antes de abrirlo, aplicar las migraciones administrativas del repositorio IvMET.
+Consultar [la guía de operación y despliegue](docs/ivmet-management.md).
+
+Rutas principales:
 
 - `GET /api/ivmet/overview`
 - `GET /api/ivmet/clients`
 - `GET /api/ivmet/plans`
-- `GET /api/ivmet/equipment-review`
+- `GET /api/ivmet/clients/:clientId`
+- `GET /api/ivmet/clients/:clientId/equipment`
+- `GET /api/ivmet/clients/:clientId/users`
+- `GET /api/ivmet/integration`
+- `POST /api/ivmet/actions/:action`
+
+### Acceso temporal de desarrollo a IvMET
+
+El gestor muestra **En desarrollo** y requiere, además del nivel 3, un código
+validado en el backend. No carga datos antes de desbloquearlo. Configura
+`IVMET_ACCESS_CODE_HASH` en el `.env` privado del backend con el comando
+`pnpm ivmet:access-code`; sin hash válido el módulo permanece bloqueado.
+
+El frontend y el backend se deben actualizar juntos. Consulta la
+[guía de configuración y despliegue](docs/ivmet-development-access.md).
 
 ## Tecnologías
 
