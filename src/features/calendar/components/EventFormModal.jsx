@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon, Save, Trash2, Loader2, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { usePageScrollLock } from '../../../shared/hooks/usePageScrollLock';
 
 export function EventFormModal({ 
   isOpen, 
@@ -12,6 +13,7 @@ export function EventFormModal({
   prefilledDate = new Date(),
   prefilledResource = ''
 }) {
+  usePageScrollLock(isOpen);
   const [formData, setFormData] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     resource: '',

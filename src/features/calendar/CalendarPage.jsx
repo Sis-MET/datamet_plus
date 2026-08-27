@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ChevronRight, ArrowRightLeft, Trash2, CheckCircle2, CalendarClock, XCircle, Car, DatabaseZap, PanelLeftOpen, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCalendarPage } from './hooks/useCalendarPage.jsx';
@@ -6,6 +6,7 @@ import { LeftFilterSidebar } from './components/LeftFilterSidebar';
 import { CellPopoverForm } from './components/CellPopoverForm';
 import { GanttPage } from './GanttPage';
 import { DepartureReadOnlyModal } from '../departures/components/DepartureReadOnlyModal';
+import { usePageScrollLock } from '../../shared/hooks/usePageScrollLock';
 
 export function CalendarPage() {
   const {
@@ -28,12 +29,7 @@ export function CalendarPage() {
   } = useCalendarPage();
   const [isAgendaOpen, setIsAgendaOpen] = useState(false);
 
-  useEffect(() => {
-    if (!isAgendaOpen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previousOverflow; };
-  }, [isAgendaOpen]);
+  usePageScrollLock(isAgendaOpen);
 
   const agendaProps = {
     tecnicos,

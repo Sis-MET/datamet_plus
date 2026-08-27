@@ -3,8 +3,10 @@ import { X, MapPin, Clock, Calendar, Info, User, CheckCircle2 } from 'lucide-rea
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { usePageScrollLock } from '../../../shared/hooks/usePageScrollLock';
 
 export function DepartureReadOnlyModal({ task, date, resourceName, onClose }) {
+  usePageScrollLock(Boolean(task));
   const { isDarkGantt } = useTheme();
   const modalRef = useRef(null);
 
@@ -49,11 +51,11 @@ export function DepartureReadOnlyModal({ task, date, resourceName, onClose }) {
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div 
         ref={modalRef} 
-        className={`w-full max-w-md rounded-2xl shadow-2xl border flex flex-col overflow-hidden animate-slide-up ${bgClass} ${borderClass}`}
+        className={`w-full max-w-md max-h-[90dvh] rounded-2xl shadow-2xl border flex flex-col overflow-hidden animate-slide-up ${bgClass} ${borderClass}`}
       >
         {/* Header con color de la tarea */}
         <div 
-          className="px-5 py-4 flex items-center justify-between border-b relative overflow-hidden"
+          className="px-5 py-4 flex shrink-0 items-center justify-between border-b relative overflow-hidden"
           style={{ borderColor: isDarkGantt ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
         >
           <div className="absolute inset-0 opacity-10" style={{ backgroundColor: task.colorAM || '#7c3aed' }} />
@@ -73,7 +75,7 @@ export function DepartureReadOnlyModal({ task, date, resourceName, onClose }) {
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 min-h-0 overflow-y-auto overscroll-contain">
           {/* Técnico y Fecha */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -129,7 +131,7 @@ export function DepartureReadOnlyModal({ task, date, resourceName, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className={`px-5 py-4 border-t flex items-center justify-between ${isDarkGantt ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+        <div className={`px-5 py-4 border-t flex shrink-0 items-center justify-between ${isDarkGantt ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
           <div className={`flex items-center gap-1.5 text-[10px] font-mono ${mutedClass}`}>
             <Info size={12} />
             <span>Módulo de Salidas</span>

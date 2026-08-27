@@ -5,6 +5,7 @@ import { es } from 'date-fns/locale';
 import { useTheme } from '../../../shared/context/ThemeContext';
 import { toast } from 'sonner';
 import { TIPOS_SALIDA } from '../constants';
+import { usePageScrollLock } from '../../../shared/hooks/usePageScrollLock';
 
 
 
@@ -122,6 +123,7 @@ function MultiDatePicker({ selectedDates, onChange, isDarkGantt }) {
 }
 
 export function DepartureFormModal({ onClose, onSaved, tecnicos = [], saving }) {
+  usePageScrollLock();
   const { isDarkGantt } = useTheme();
   const [tecnicoId,    setTecnicoId]    = useState('');
   const [tipoSalida,   setTipoSalida]   = useState('');

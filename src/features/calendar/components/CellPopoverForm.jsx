@@ -7,6 +7,7 @@ import { HexColorPicker } from 'react-colorful';
 import { cn } from '../../../shared/utils/cn';
 import { safeStorage } from '../../../shared/utils/storage';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { usePageScrollLock } from '../../../shared/hooks/usePageScrollLock';
 import { api } from '../../../shared/api/client';
 import { CotizacionAutocomplete } from './CotizacionAutocomplete';
 import { AdditionalResourcesPicker } from './AdditionalResourcesPicker';
@@ -500,6 +501,7 @@ export function CellPopoverForm({
   getTasksForResource,
   tecnicos = [],
 }) {
+  usePageScrollLock(isOpen);
   const { isDarkGantt } = useTheme();
   const [activityType, setActivityType] = useState('');
   const [cotizacionCode, setCotizacionCode] = useState('');
