@@ -169,7 +169,7 @@ function App() {
     switch (activeView) {
       case 'ivmet':
         return String(currentUser?.acceso_cron) === '3'
-          ? <IvmetManagementPage />
+          ? <IvmetManagementPage onExit={() => setActiveView('calendar')} />
           : <RimFormPage currentUser={currentUser} />;
       case 'calendar':
         return <CalendarPage />;

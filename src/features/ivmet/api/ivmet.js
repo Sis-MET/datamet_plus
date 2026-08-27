@@ -1,8 +1,29 @@
 import { api } from '../../../shared/api/client';
+import { ivmetAccessSession } from '../accessSession';
 
 export const ivmetApi = {
-  getOverview: () => api.get('/ivmet/overview'),
-  getClients: () => api.get('/ivmet/clients'),
-  getPlans: () => api.get('/ivmet/plans'),
-  getEquipmentReview: () => api.get('/ivmet/equipment-review'),
+  read: (path, params) =>
+    api
+      .get(`/ivmet/${path}`, params, { headers: ivmetAccessSession.headers() })
+      .then((response) => response.data)
+      .catch(ivmetAccessSession.handleError),
+  mutate: (action, payload, requestId) =>
+    api
+      .post(
+        `/ivmet/actions/${action}`,
+        { payload, requestId },
+        { headers: ivmetAccessSession.headers() },
+      )
+      .then((response) => response.data)
+      .catch(ivmetAccessSession.handleError),
+  accessStatus: () =>
+    api
+      .get('/ivmet/access', undefined, {
+        headers: ivmetAccessSession.headers(),
+      })
+      .then((response) => response.data),
+  unlock: (code) =>
+    api
+      .post('/ivmet/access/unlock', { code })
+      .then((response) => response.data),
 };

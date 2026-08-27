@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Base visual compartida por Cronograma y Gestión IvMET. */
+:root {
+  --rim-surface: #15161b;
+  --rim-surface-raised: #1a1a1d;
+  --rim-control: #111114;
+  --rim-text: #f3f4f6;
+  --rim-muted: #94a3b8;
+  --rim-border: rgba(255, 255, 255, 0.1);
+  --rim-accent: #93c5fd;
+  --rim-focus: rgba(96, 165, 250, 0.85);
+  --rim-glass: linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.018) 34%, rgba(9, 13, 24, 0.1) 80%), rgba(20, 22, 30, 0.48);
+}
+
 @layer base {
   body {
     @apply antialiased;
@@ -15,7 +28,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid rgba(96, 165, 250, 0.85);
+    outline: 2px solid var(--rim-focus);
     outline-offset: 2px;
   }
 
@@ -265,14 +278,12 @@
 
 /* Superficies compartidas del calendario oscuro. */
 .calendar-workspace {
-  --calendar-muted: #94a3b8;
+  --calendar-muted: var(--rim-muted);
   --calendar-subtle: #64748b;
 }
 
 .calendar-glass {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.018) 34%, rgba(9, 13, 24, 0.1) 80%),
-    rgba(20, 22, 30, 0.48);
+  background: var(--rim-glass);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.13),

@@ -1,310 +1,599 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  AlertTriangle,
+  Activity,
+  ArrowUpRight,
   Building2,
-  CheckCircle2,
-  CircleDollarSign,
-  ClipboardCheck,
-  Factory,
-  Gauge,
+  ChevronRight,
+  Cloud,
+  FileText,
   KeyRound,
-  Loader2,
+  Layers,
+  LockKeyhole,
+  Plus,
   RefreshCw,
   Scale,
   ShieldCheck,
-  Users,
 } from 'lucide-react';
-import { ivmetApi } from './api/ivmet';
+import { toast } from 'sonner';
+import { useIvmetQuery } from './useIvmetQuery';
+import { actionConfig } from './actions';
+import { dateText, money } from './format';
+import {
+  Badge,
+  Empty,
+  Pagination,
+  QueryState,
+  SearchInput,
+  SectionTitle,
+  Stat,
+} from './components/Ui';
+import { ActionDialog } from './components/ActionDialog';
+import { OnboardingDialog } from './components/OnboardingDialog';
+import { ClientWorkspace } from './components/ClientWorkspace';
+import { WorkerStatus } from './components/WorkerStatus';
+import { OnboardingStatusDialog } from './components/OnboardingStatusDialog';
+import { IvmetAccessGate } from './components/IvmetAccessGate';
+import { onboardingPending, syncDateTime } from './onboarding';
+import './ivmet.css';
 
-const TABS = [
-  { id: 'overview', label: 'Resumen', icon: ShieldCheck },
-  { id: 'clients', label: 'Clientes y licencias', icon: Building2 },
-  { id: 'plans', label: 'Planes', icon: CircleDollarSign },
-  { id: 'review', label: 'Revisión de equipos', icon: ClipboardCheck },
-];
-
-const STATUS_STYLES = {
-  ACTIVE: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
-  READY: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
-  GRACE: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
-  REQUIRES_REVIEW: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
-  QUARANTINED: 'border-red-400/20 bg-red-400/10 text-red-300',
-};
-
-const STATUS_LABELS = {
-  ACTIVE: 'Activo',
-  GRACE: 'En gracia',
-  REQUIRES_REVIEW: 'Requiere revisión',
-  QUARANTINED: 'En cuarentena',
-};
-
-function StatusBadge({ status, fallback = 'Sin configurar' }) {
-  if (!status) {
-    return <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold text-slate-400">{fallback}</span>;
-  }
+function Clients({ revision, onSelect, onOnboard, onStatus, workers }) {
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const query = useIvmetQuery('clients', { search, page }, revision, 10000);
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${STATUS_STYLES[status] || 'border-white/10 bg-white/5 text-slate-300'}`}>
-      {STATUS_LABELS[status] || status}
-    </span>
+    <>
+      <SectionTitle
+        eyebrow="DIRECTORIO OPERATIVO"
+        title="Tus clientes, en un solo lugar"
+        description="Abre una empresa para gestionar sus plantas, balanzas y accesos."
+        action={
+          <button className="iv-button primary" onClick={onOnboard}>
+            <Plus size={16} /> Incorporar cliente
+          </button>
+        }
+      />
+      <WorkerStatus workers={workers} />
+      <div className="iv-toolbar">
+        <SearchInput
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          placeholder="Buscar por nombre o código de cliente"
+        />
+        <span className="iv-subtle">
+          Clientes incorporados y solicitudes en seguimiento
+        </span>
+      </div>
+      <QueryState query={query}>
+        {query.data?.items.length ? (
+          <>
+            <div className="iv-client-grid">
+              {query.data.items.map((c) => (
+                <button
+                  key={c.id || c.scope_id}
+                  className="iv-client-card"
+                  onClick={() =>
+                    !c.id || onboardingPending(c.onboarding)
+                      ? onStatus(c.scope_id)
+                      : onSelect(c.id)
+                  }
+                >
+                  <div className="iv-client-card-heading">
+                    <div className="iv-client-avatar">
+                      <Building2 size={23} />
+                    </div>
+                    <Badge
+                      value={
+                        onboardingPending(c.onboarding)
+                          ? c.onboarding.syncStatus
+                          : c.activo
+                            ? 'ACTIVE'
+                            : 'INACTIVE'
+                      }
+                    />
+                    <ArrowUpRight size={19} />
+                  </div>
+                  <span className="iv-eyebrow">CLIENTE {c.codigo}</span>
+                  <h3>{c.nombre || c.razon_social || `Cliente ${c.codigo}`}</h3>
+                  <p>
+                    {onboardingPending(c.onboarding)
+                      ? `${c.onboarding.plants.length} plantas · ${c.onboarding.equipmentCount} balanzas autorizadas`
+                      : c.razon_social || 'Catálogo sincronizado desde DataMET'}
+                  </p>
+                  <div className="iv-client-numbers">
+                    <span>
+                      <strong>{c.plants}</strong>Plantas
+                    </span>
+                    <span>
+                      <strong>{c.equipment}</strong>Balanzas
+                    </span>
+                    <span>
+                      <strong>{c.licenses}</strong>Licencias
+                    </span>
+                  </div>
+                  <footer>
+                    <span>
+                      {onboardingPending(c.onboarding) ? (
+                        'Incorporación en seguimiento'
+                      ) : Number(c.review) > 0 ? (
+                        <>
+                          <i className="iv-warn-dot" />
+                          {c.review} balanzas por revisar
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck size={14} /> Catálogo validado
+                        </>
+                      )}
+                    </span>
+                    <strong>
+                      {onboardingPending(c.onboarding)
+                        ? 'Ver incorporación'
+                        : 'Abrir cliente'}{' '}
+                      <ChevronRight size={14} />
+                    </strong>
+                  </footer>
+                </button>
+              ))}
+            </div>
+            <Pagination
+              page={page}
+              total={query.data.total}
+              onChange={setPage}
+            />
+          </>
+        ) : (
+          <Empty
+            title="No encontramos clientes"
+            text="Cambia la búsqueda o incorpora un cliente contratado desde DataMET."
+            action={
+              <button className="iv-button primary" onClick={onOnboard}>
+                Incorporar cliente
+              </button>
+            }
+          />
+        )}
+      </QueryState>
+    </>
   );
 }
+function Plans({ query, open }) {
+  return (
+    <>
+      <SectionTitle
+        eyebrow="CATÁLOGO COMERCIAL"
+        title="Planes y tarifas"
+        description="Define cuentas incluidas y precios mensuales o anuales. Cada cambio de tarifa conserva su historial."
+        action={
+          <button
+            className="iv-button primary"
+            onClick={() => open('plan.save')}
+          >
+            <Plus size={16} /> Nuevo plan
+          </button>
+        }
+      />
+      <QueryState query={query}>
+        {query.data?.length ? (
+          <div className="iv-plan-grid">
+            {query.data.map((p) => (
+              <article className="iv-plan-card" key={p.id}>
+                <header>
+                  <div className="iv-object-icon">
+                    <Layers size={22} />
+                  </div>
+                  <Badge value={p.activo ? 'ACTIVE' : 'INACTIVE'} />
+                </header>
+                <span className="iv-eyebrow">{p.codigo}</span>
+                <h3>{p.nombre}</h3>
+                <p>{p.descripcion || 'Plan comercial IvMET'}</p>
+                <div className="iv-plan-seats">
+                  <strong>{p.cuentas_incluidas}</strong>
+                  <span>
+                    cuentas incluidas
+                    <small>{p.dias_gracia} días de gracia</small>
+                  </span>
+                </div>
+                <div className="iv-prices">
+                  {p.prices.length ? (
+                    p.prices.map((price) => (
+                      <div key={price.id}>
+                        <span>
+                          {price.periodicidad === 'MONTHLY'
+                            ? 'Mensual'
+                            : 'Anual'}
+                          <small>
+                            {dateText(price.vigente_desde)}
+                            {price.vigente_hasta
+                              ? ' — ' + dateText(price.vigente_hasta)
+                              : ''}
+                          </small>
+                        </span>
+                        <strong>{money(price.importe, price.moneda)}</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <p>Agrega una tarifa para poder contratar este plan.</p>
+                  )}
+                </div>
+                <footer>
+                  <button
+                    className="iv-button secondary small"
+                    onClick={() => open('plan.save', { record: p })}
+                  >
+                    Editar plan
+                  </button>
+                  <button
+                    className="iv-button primary small"
+                    disabled={!p.activo}
+                    onClick={() => open('price.create', { record: p })}
+                  >
+                    Añadir tarifa
+                  </button>
+                </footer>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <Empty
+            title="Diseña tu primer plan"
+            text="Empieza por las cuentas incluidas. Después añade una tarifa mensual o anual."
+            action={
+              <button
+                className="iv-button primary"
+                onClick={() => open('plan.save')}
+              >
+                Crear plan comercial
+              </button>
+            }
+          />
+        )}
+      </QueryState>
+    </>
+  );
+}
+function Integration({ revision, onOnboard, onStatus }) {
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const query = useIvmetQuery('integration', { page, search }, revision, 10000);
+  return (
+    <>
+      <SectionTitle
+        eyebrow="CONEXIÓN CORPORATIVA"
+        title="Sincronización con Métrica"
+        description="DataMET es el catálogo maestro; Supabase guarda la operación y el worker conserva el espejo SQL Server."
+        action={
+          <button className="iv-button secondary" onClick={() => onOnboard()}>
+            <Plus size={16} /> Incorporar cliente
+          </button>
+        }
+      />
+      <QueryState query={query}>
+        <WorkerStatus workers={query.error ? [] : query.data?.workers} />
+        <div className="iv-stats compact">
+          <Stat
+            label="Pendientes de envío"
+            value={query.data?.outbox.PENDING || 0}
+          />
+          <Stat
+            label="En procesamiento"
+            value={query.data?.outbox.CLAIMED || 0}
+          />
+          <Stat
+            label="Entregados al espejo"
+            value={query.data?.outbox.PROCESSED || 0}
+          />
+          <Stat
+            label="Requieren intervención"
+            value={query.data?.outbox.DEAD || 0}
+          />
+        </div>
+        <p className="iv-notice">
+          Los cambios se envían al espejo en el próximo ciclo del worker. Esta
+          pantalla no ejecuta el worker ni modifica los datos maestros de
+          DataMET.
+        </p>
+        <SectionTitle title="Clientes incorporados y solicitudes" />
+        <div className="iv-toolbar">
+          <SearchInput
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            placeholder="Buscar incorporación por nombre o código"
+          />
+        </div>
+        <div className="iv-table-wrap">
+          <table className="iv-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Alcance autorizado</th>
+                <th>Estado</th>
+                <th>Solicitado</th>
+                <th>Gestionar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {query.data?.scopes.map((s) => (
+                <tr key={s.id}>
+                  <td>
+                    <strong className="code">{s.legacy_codigo_cliente}</strong>
+                    <small>{s.client_name || s.solicitado_por}</small>
+                  </td>
+                  <td>
+                    {s.plants.join(', ')}
+                    <small>{s.equipmentCount} balanzas</small>
+                  </td>
+                  <td>
+                    <Badge value={s.syncStatus || s.estado} />
+                  </td>
+                  <td>{syncDateTime(s.solicitado_at)}</td>
+                  <td>
+                    <button className="iv-link" onClick={() => onStatus(s.id)}>
+                      Ver seguimiento
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pagination
+          page={page}
+          total={query.data?.total || 0}
+          onChange={setPage}
+        />
+        <SectionTitle title="Últimos ciclos del worker" />
+        <div className="iv-table-wrap">
+          <table className="iv-table">
+            <thead>
+              <tr>
+                <th>Dirección / worker</th>
+                <th>Inicio</th>
+                <th>Estado</th>
+                <th>Aceptados / rechazados</th>
+              </tr>
+            </thead>
+            <tbody>
+              {query.data?.runs.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    {r.direccion === 'DATAMET_TO_SUPABASE'
+                      ? 'DataMET → Supabase'
+                      : 'Supabase → SQL IvMET'}
+                    <small>{r.worker_id}</small>
+                  </td>
+                  <td>{syncDateTime(r.started_at)}</td>
+                  <td>
+                    <Badge value={r.estado} />
+                  </td>
+                  <td>
+                    {r.accepted_count} / {r.rejected_count}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </QueryState>
+    </>
+  );
+}
+const navigation = [
+  ['clients', 'Clientes', Building2],
+  ['plans', 'Planes y tarifas', FileText],
+  ['integration', 'Sincronización', Cloud],
+];
+export function IvmetManagementPage({ onExit }) {
+  return <IvmetAccessGate onExit={onExit}>{(onLock) => <IvmetWorkspace onLock={onLock} />}</IvmetAccessGate>;
+}
 
-function MetricCard({ icon, label, value, detail, tone = 'blue' }) {
-  const tones = {
-    blue: 'bg-blue-400/10 text-blue-300 ring-blue-400/20',
-    green: 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/20',
-    amber: 'bg-amber-400/10 text-amber-300 ring-amber-400/20',
-    violet: 'bg-violet-400/10 text-violet-300 ring-violet-400/20',
+function IvmetWorkspace({ onLock }) {
+  const [section, setSection] = useState('clients');
+  const [clientId, setClientId] = useState(null);
+  const [revision, setRevision] = useState(0);
+  const [dialog, setDialog] = useState(null);
+  const [onboarding, setOnboarding] = useState(false);
+  const [tracking, setTracking] = useState(null);
+  const overview = useIvmetQuery('overview', {}, revision);
+  const plans = useIvmetQuery('plans', {}, revision);
+  const runtime = useIvmetQuery('onboarding', { pageSize: 1 }, revision, 15000);
+  const open = (action, context = {}) =>
+    setDialog(actionConfig(action, { plans: plans.data || [], ...context }));
+  const refresh = () => setRevision((r) => r + 1);
+  const saved = () => {
+    refresh();
+    toast.success('Operación guardada en IvMET');
+  };
+  const navigate = (id) => {
+    setSection(id);
+    setClientId(null);
   };
   return (
-    <article className="rounded-2xl border border-white/10 bg-[#17191f]/80 p-4 shadow-xl shadow-black/10">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-slate-400">{label}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-white">{value ?? '—'}</p>
-          <p className="mt-1 text-[11px] text-slate-500">{detail}</p>
+    <main className="iv-app">
+      <aside className="iv-rail">
+        <div className="iv-brand">
+          <span>Iv</span>
+          <div>
+            <strong>IvMET</strong>
+            <small>Gestión de clientes</small>
+          </div>
         </div>
-        <div className={`rounded-xl p-2.5 ring-1 ${tones[tone]}`}>{React.createElement(icon, { className: 'h-5 w-5' })}</div>
-      </div>
-    </article>
-  );
-}
-
-function EmptyState({ title, message }) {
-  return (
-    <div className="flex min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 text-center">
-      <CheckCircle2 className="mb-3 h-8 w-8 text-emerald-400" />
-      <p className="font-semibold text-white">{title}</p>
-      <p className="mt-1 max-w-md text-sm text-slate-400">{message}</p>
-    </div>
-  );
-}
-
-function Overview({ data }) {
-  const metrics = [
-    { icon: Building2, label: 'Clientes habilitados', value: data?.clients, detail: `${data?.plants ?? 0} plantas sincronizadas`, tone: 'blue' },
-    { icon: Scale, label: 'Equipos en IvMET', value: data?.equipment, detail: `${data?.equipmentReview ?? 0} requieren revisión`, tone: data?.equipmentReview ? 'amber' : 'green' },
-    { icon: KeyRound, label: 'Licencias activas', value: data?.activeLicenses, detail: `${data?.activeUsers ?? 0} usuarios activos`, tone: 'violet' },
-    { icon: CircleDollarSign, label: 'Suscripciones vigentes', value: data?.activeSubscriptions, detail: `${data?.activeContracts ?? 0} contratos activos`, tone: 'green' },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => <MetricCard key={metric.label} {...metric} />)}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
-        <section className="rounded-2xl border border-white/10 bg-[#17191f]/80 p-5">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-blue-400/10 p-2 text-blue-300"><Factory className="h-5 w-5" /></div>
-            <div>
-              <h2 className="font-semibold text-white">Flujo operativo conectado</h2>
-              <p className="text-xs text-slate-400">DataMET → Supabase → base espejo IvMET</p>
-            </div>
-          </div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-3">
-            {[
-              ['1', 'Catálogo selectivo', 'Solo clientes contratados'],
-              ['2', 'Gestión central', 'Licencias y usuarios en Supabase'],
-              ['3', 'Retorno de evidencia', 'Resultados hacia Métrica'],
-            ].map(([number, title, text]) => (
-              <div key={number} className="rounded-xl border border-white/5 bg-white/[0.025] p-3">
-                <span className="text-[10px] font-bold text-blue-300">PASO {number}</span>
-                <p className="mt-1 text-sm font-medium text-white">{title}</p>
-                <p className="mt-1 text-xs text-slate-500">{text}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="rounded-2xl border border-white/10 bg-[#17191f]/80 p-5">
-          <h2 className="font-semibold text-white">Atención requerida</h2>
-          <div className="mt-4 flex items-center gap-4 rounded-xl border border-amber-400/15 bg-amber-400/[0.06] p-4">
-            <AlertTriangle className="h-7 w-7 flex-none text-amber-300" />
-            <div>
-              <p className="text-2xl font-semibold text-white">{data?.equipmentReview ?? 0}</p>
-              <p className="text-xs text-slate-400">equipos deben validarse antes de habilitarse en la app.</p>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function Clients({ clients }) {
-  if (!clients.length) return <EmptyState title="Sin clientes IvMET" message="Los clientes aparecerán aquí cuando se incorporen mediante el proceso comercial." />;
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {clients.map((client) => {
-        const seats = client.subscription?.plan?.cuentas_incluidas;
-        return (
-          <article key={client.id} className="rounded-2xl border border-white/10 bg-[#17191f]/80 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-300">Cliente {client.codigo}</p>
-                <h2 className="mt-1 truncate text-lg font-semibold text-white">{client.nombre || client.razon_social || 'Sin nombre'}</h2>
-                <p className="truncate text-xs text-slate-500">{client.razon_social}</p>
-              </div>
-              <StatusBadge status={client.subscription?.estado || client.contract?.estado} />
-            </div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {[
-                ['Plantas', client.plants],
-                ['Equipos', client.equipment],
-                ['Usuarios', client.users],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-xl bg-white/[0.035] px-3 py-2.5">
-                  <p className="text-lg font-semibold text-white">{value}</p>
-                  <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 border-t border-white/5 pt-4">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Licencias asignadas</span>
-                <span className="font-semibold text-white">{client.activeLicenses}{seats ? ` / ${seats}` : ''}</span>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/5">
-                <div className="h-full rounded-full bg-blue-400" style={{ width: seats ? `${Math.min(100, (client.activeLicenses / seats) * 100)}%` : '0%' }} />
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-slate-500">
-                <span>{client.subscription?.plan?.nombre || 'Plan aún no asignado'}</span>
-                <span>{client.contract?.numero_contrato || 'Sin contrato'}</span>
-              </div>
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
-}
-
-function Plans({ plans }) {
-  if (!plans.length) return <EmptyState title="Sin planes comerciales" message="El catálogo está listo para definir planes mensuales o anuales y sus cupos incluidos." />;
-  return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {plans.map((plan) => (
-        <article key={plan.id} className="rounded-2xl border border-white/10 bg-[#17191f]/80 p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">{plan.codigo}</p>
-              <h2 className="mt-1 text-lg font-semibold text-white">{plan.nombre}</h2>
-            </div>
-            <StatusBadge status={plan.activo ? 'ACTIVE' : 'INACTIVE'} />
-          </div>
-          <p className="mt-3 min-h-10 text-sm text-slate-400">{plan.descripcion || 'Sin descripción comercial.'}</p>
-          <div className="mt-4 flex items-center gap-2 rounded-xl bg-white/[0.035] p-3">
-            <Users className="h-4 w-4 text-blue-300" />
-            <span className="text-sm text-slate-300"><strong className="text-white">{plan.cuentas_incluidas}</strong> cuentas incluidas</span>
-          </div>
-          <div className="mt-4 space-y-2">
-            {plan.prices.filter((price) => price.activo).map((price) => (
-              <div key={price.id} className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">{price.periodicidad === 'MONTHLY' ? 'Mensual' : 'Anual'}</span>
-                <span className="font-semibold text-white">{price.moneda} {Number(price.importe).toLocaleString('es-BO', { minimumFractionDigits: 2 })}</span>
-              </div>
-            ))}
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function EquipmentReview({ equipment }) {
-  if (!equipment.length) return <EmptyState title="Catálogo validado" message="No existen equipos pendientes de revisión para los clientes habilitados." />;
-  return (
-    <div className="space-y-3">
-      {equipment.map((item) => (
-        <article key={item.id} className="rounded-2xl border border-white/10 bg-[#17191f]/80 p-4 sm:p-5">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="rounded-xl bg-amber-400/10 p-2.5 text-amber-300"><Gauge className="h-5 w-5" /></div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-mono text-sm font-semibold text-white">{item.cod_metrica}</h2>
-                  <StatusBadge status={item.estado_catalogo} />
-                </div>
-                <p className="mt-1 text-sm text-slate-300">{item.instrumento || item.tipo_instrumento || 'Equipo de pesaje'} · {item.marca || 'Marca no registrada'} {item.modelo || ''}</p>
-                <p className="mt-1 text-xs text-slate-500">{item.customer?.nombre || item.customer?.razon_social} · {item.plant?.legacy_codigo_planta} {item.plant?.nombre ? `— ${item.plant.nombre}` : ''}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:min-w-64">
-              {item.ranges.slice(0, 2).map((range) => (
-                <div key={range.numero_rango} className="rounded-xl bg-white/[0.035] px-3 py-2">
-                  <p className="text-[10px] text-slate-500">Rango {range.numero_rango}</p>
-                  <p className="mt-0.5 text-xs font-medium text-white">Max {range.capacidad_max} {range.unidad}</p>
-                  <p className="text-[10px] text-slate-400">d = {range.division_escala}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-export function IvmetManagementPage() {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [state, setState] = useState({ loading: true, error: '', overview: null, clients: [], plans: [], review: [] });
-
-  const load = useCallback(async () => {
-    setState((current) => ({ ...current, loading: true, error: '' }));
-    try {
-      const [overview, clients, plans, review] = await Promise.all([
-        ivmetApi.getOverview(),
-        ivmetApi.getClients(),
-        ivmetApi.getPlans(),
-        ivmetApi.getEquipmentReview(),
-      ]);
-      setState({ loading: false, error: '', overview: overview.data, clients: clients.data, plans: plans.data, review: review.data });
-    } catch (error) {
-      setState((current) => ({ ...current, loading: false, error: error.message || 'No se pudo cargar Gestión IvMET.' }));
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const content = useMemo(() => {
-    if (activeTab === 'clients') return <Clients clients={state.clients} />;
-    if (activeTab === 'plans') return <Plans plans={state.plans} />;
-    if (activeTab === 'review') return <EquipmentReview equipment={state.review} />;
-    return <Overview data={state.overview} />;
-  }, [activeTab, state]);
-
-  return (
-    <main className="mx-auto w-full max-w-7xl px-3 pb-10 pt-4 sm:px-5">
-      <section className="mb-5 flex flex-col justify-between gap-4 rounded-2xl border border-white/10 bg-[#111319]/75 p-5 shadow-2xl shadow-black/20 sm:flex-row sm:items-center">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-300"><ShieldCheck className="h-4 w-4" /> Administración interna</div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Gestión IvMET</h1>
-          <p className="mt-1 text-sm text-slate-400">Clientes, licencias y catálogo operativo de la aplicación metrológica.</p>
+        <span className="iv-nav-label">ADMINISTRACIÓN</span>
+        <nav aria-label="Administración IvMET">
+          {navigation.map(([id, label, icon]) => (
+            <button
+              key={id}
+              aria-current={section === id ? 'page' : undefined}
+              onClick={() => navigate(id)}
+            >
+              {React.createElement(icon, { size: 18 })}
+              {label}
+              {section === id && <span />}
+            </button>
+          ))}
+        </nav>
+        <div className="iv-rail-note">
+          <ShieldCheck size={22} />
+          <strong>Acceso interno Métrica</strong>
+          <p>
+            Las credenciales y los controles de licencia permanecen en el
+            servidor.
+          </p>
         </div>
-        <button onClick={load} disabled={state.loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10 disabled:opacity-50">
-          <RefreshCw className={`h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} /> Actualizar
-        </button>
-      </section>
-
-      <nav className="mb-5 flex gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-[#111319]/75 p-1.5" aria-label="Secciones de Gestión IvMET">
-        {TABS.map(({ id, label, icon }) => (
-          <button key={id} onClick={() => setActiveTab(id)} className={`flex min-w-max items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition sm:px-4 ${activeTab === id ? 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-400/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
-            {React.createElement(icon, { className: 'h-4 w-4' })} {label}
-            {id === 'review' && state.review.length > 0 && <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[9px] text-amber-300">{state.review.length}</span>}
+        <div className="iv-rail-bottom">
+          <Activity size={14} /> Operación en línea
+        </div>
+      </aside>
+      <section className="iv-main">
+        <div className="iv-development-bar">
+          <span><span className="iv-development-badge">En desarrollo</span> Acceso de pruebas autorizado</span>
+          <button className="iv-link" onClick={onLock}><LockKeyhole size={14} /> Bloquear acceso</button>
+        </div>
+        <header className="iv-topbar">
+          <div>
+            <span className="iv-breadcrumb">
+              Gestión IvMET <ChevronRight size={13} />{' '}
+              {clientId
+                ? 'Ficha del cliente'
+                : navigation.find((n) => n[0] === section)?.[1]}
+            </span>
+            <span className="iv-connection">
+              <i className={overview.error ? 'offline' : ''} />
+              {overview.loading
+                ? 'Conectando…'
+                : overview.error
+                  ? 'Revisar conexión'
+                  : 'Supabase conectado'}
+            </span>
+          </div>
+          <button
+            className="iv-icon-button"
+            aria-label="Actualizar Gestión IvMET"
+            onClick={refresh}
+          >
+            <RefreshCw
+              size={17}
+              className={overview.loading ? 'animate-spin' : ''}
+            />
           </button>
-        ))}
-      </nav>
-
-      {state.loading && !state.overview ? (
-        <div className="flex min-h-72 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-blue-300" /></div>
-      ) : state.error ? (
-        <div className="rounded-2xl border border-red-400/20 bg-red-400/[0.06] p-6 text-center">
-          <AlertTriangle className="mx-auto h-8 w-8 text-red-300" />
-          <p className="mt-3 font-semibold text-white">No se pudo abrir Gestión IvMET</p>
-          <p className="mx-auto mt-1 max-w-xl text-sm text-slate-400">{state.error}</p>
-          <button onClick={load} className="mt-4 rounded-xl bg-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/15">Reintentar</button>
+        </header>
+        <div className="iv-page iv-content-enter" key={clientId || section}>
+          {clientId ? (
+            <ClientWorkspace
+              key={clientId}
+              clientId={clientId}
+              revision={revision}
+              onBack={() => setClientId(null)}
+              open={open}
+              plans={plans.data || []}
+            />
+          ) : (
+            <>
+              {section === 'clients' && (
+                <div className="iv-stats">
+                  <Stat
+                    label="Clientes habilitados"
+                    value={overview.data?.clients}
+                    note={
+                      (overview.data?.plants ?? '—') + ' plantas sincronizadas'
+                    }
+                    icon={<Building2 size={20} />}
+                  />
+                  <Stat
+                    label="Balanzas en catálogo"
+                    value={overview.data?.equipment}
+                    note={
+                      (overview.data?.review ?? '—') + ' requieren revisión'
+                    }
+                    icon={<Scale size={20} />}
+                  />
+                  <Stat
+                    label="Licencias asignadas"
+                    value={overview.data?.licenses}
+                    note={
+                      (overview.data?.subscriptions ?? '—') +
+                      ' suscripciones vigentes'
+                    }
+                    icon={<KeyRound size={20} />}
+                  />
+                  <Stat
+                    label="Próximos vencimientos"
+                    value={overview.data?.expiresSoon}
+                    note="En los próximos 30 días"
+                    icon={<Activity size={20} />}
+                  />
+                </div>
+              )}
+              {section === 'clients' ? (
+                <Clients
+                  revision={revision}
+                  onSelect={setClientId}
+                  onOnboard={() => setOnboarding(true)}
+                  onStatus={setTracking}
+                  workers={runtime.error ? [] : runtime.data?.workers}
+                />
+              ) : section === 'plans' ? (
+                <Plans query={plans} open={open} />
+              ) : (
+                <Integration
+                  revision={revision}
+                  onOnboard={(scope) => setOnboarding(scope || true)}
+                  onStatus={setTracking}
+                />
+              )}
+            </>
+          )}
         </div>
-      ) : content}
+        <footer className="iv-page-footer">
+          <span>Métrica Ltda. · Centro de gestión IvMET</span>
+          <span>La evidencia metrológica se conserva sin alteraciones</span>
+        </footer>
+      </section>
+      {dialog && (
+        <ActionDialog
+          config={dialog}
+          onClose={() => setDialog(null)}
+          onSaved={saved}
+        />
+      )}
+      {onboarding && (
+        <OnboardingDialog
+          scope={onboarding === true ? null : onboarding}
+          onClose={() => setOnboarding(false)}
+          onExisting={(id) => {
+            setOnboarding(false);
+            setTracking(id);
+          }}
+          onSaved={(result) => {
+            refresh();
+            toast.success(
+              'Solicitud guardada. Puedes seguir su importación aquí.'
+            );
+            setTracking(result.id);
+          }}
+        />
+      )}
+      {tracking && (
+        <OnboardingStatusDialog
+          scopeId={tracking}
+          onClose={() => setTracking(null)}
+          onSaved={refresh}
+          onClient={(id) => {
+            setTracking(null);
+            setClientId(id);
+            refresh();
+          }}
+          onExtend={(scope) => {
+            setTracking(null);
+            setOnboarding(scope);
+          }}
+        />
+      )}
     </main>
   );
 }

@@ -99,7 +99,7 @@ function parseToken() {
 }
 
 export const api = {
-  get: (endpoint, params) => request(endpoint, { params }),
+  get: (endpoint, params, options) => request(endpoint, { params, ...options }),
 
   post: (endpoint, body, options) => request(endpoint, { method: 'POST', body, ...options }),
 
