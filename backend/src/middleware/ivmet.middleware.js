@@ -2,6 +2,10 @@ const env = require('../config/env');
 const { getPool, sql } = require('../config/db');
 
 const requireIvmetEnabled = (_req, res, next) => {
+  if (env.ivmet.enabled && !env.ivmet.configurationReady) return res.status(503).json({
+    success:false,code:'IVMET_CONFIGURATION_INCOMPLETE',
+    message:'IvMET está habilitado, pero falta configurar su conexión con Supabase en el backend. No es un error del código de acceso. Ejecuta ivmet:doctor en el servidor.',
+  });
   if (!env.ivmet.enabled) {
     return res.status(503).json({
       success: false,

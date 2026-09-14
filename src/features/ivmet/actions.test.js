@@ -128,7 +128,11 @@ describe('formularios IvMET y contrato real del backend', () => {
         else if (!payload[field.name] && field.type !== 'checkbox')
           payload[field.name] = 'Prueba';
       }
-      expect(() => validateAction(action, payload)).not.toThrow();
+      if (['area.save','pattern.save','certificate.create','certificate.annul'].includes(action)) {
+        expect(() => validateAction(action, payload)).toThrow('configuración operativa');
+      } else {
+        expect(() => validateAction(action, payload)).not.toThrow();
+      }
     });
   }
   it('no mezcla plantas ni áreas y usa versión de configuración', () => {
@@ -141,11 +145,9 @@ describe('formularios IvMET y contrato real del backend', () => {
     ).toEqual(['cliente_operador', 'cliente_jefe_calidad']);
     const equipment = actionConfig('equipment.configure', context);
     expect(equipment.values.version).toBe('8');
-    expect(
-      equipment.fields
-        .find((f) => f.name === 'areaId')
-        .options.map((o) => o.value)
-    ).toEqual([id(6)]);
+    expect(equipment.fields.some((f) => ['areaId','planVersionId'].includes(f.name))).toBe(false);
+    expect(equipment.values).not.toHaveProperty('areaId');
+    expect(equipment.values).not.toHaveProperty('planVersionId');
   });
   it('conserva importes exactos y distingue vigencia de asignación', () => {
     expect(actionConfig('payment.record', context).values.amount).toBe(

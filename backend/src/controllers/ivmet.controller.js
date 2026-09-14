@@ -8,6 +8,8 @@ const {
 } = require('../services/ivmet.validation');
 const legacy = createLegacyService();
 const service = createAdminService({ legacy });
+const operations = require('../services/ivmet.operations').createOperations();
+const { validateOperation } = require('../services/ivmet.operations');
 const respond = (handler) => async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
@@ -43,6 +45,20 @@ const read = (section, perClient = false) =>
     )
   );
 module.exports = {
+  getOperations: respond((req) => operations.read('RIMMET:' + req.user.usuario.trim().toLowerCase(), req.params.section, req.query)),
+  mutateOperations: respond(async (req) => {
+    const body = z.object({ requestId: uuid, payload: z.record(z.string(), z.unknown()) }).strict().parse(req.body);
+    body.payload = validateOperation(req.params.action, body.payload);
+    if (req.params.action === 'staff.save' && body.payload.active === true) {
+      const username = String(body.payload.actor || '').replace(/^RIMMET:/, '');
+      const { getPool, sql } = require('../config/db');
+      const result = await getPool().request().input('usuario', sql.VarChar(100), username)
+        .query('SELECT acceso_cron FROM dbo.DATA_USERS WHERE usuario=@usuario');
+      if (result.recordset.length !== 1 || String(result.recordset[0].acceso_cron) !== '3')
+        throw Object.assign(new Error('El usuario debe existir en RimMET y tener acceso_cron 3.'), { statusCode: 422 });
+    }
+    return operations.mutate('RIMMET:' + req.user.usuario.trim().toLowerCase(), req.params.action, body.payload, body.requestId);
+  }),
   getOverview: read('overview'),
   getClients: read('clients'),
   getPlans: read('plans'),

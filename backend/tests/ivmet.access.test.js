@@ -204,6 +204,9 @@ test('HTTP: toda la API IvMET exige login, nivel actual 3 y código; no afecta o
   const controllerId = require.resolve('../src/controllers/ivmet.controller');
   const previousDb = require.cache[dbId];
   const previousController = require.cache[controllerId];
+  const supabaseId = require.resolve('../src/config/supabase');
+  const previousSupabase = require.cache[supabaseId];
+  require.cache[supabaseId] = { id:supabaseId,loaded:true,exports:{getSupabaseAdminClient:()=>({rpc:async()=>({data:{role:'admin'},error:null})})} };
   require.cache[dbId] = {
     id: dbId,
     loaded: true,
@@ -232,6 +235,8 @@ test('HTTP: toda la API IvMET exige login, nivel actual 3 y código; no afecta o
     'searchLegacy',
     'legacyCatalog',
     'mutate',
+    'getOperations',
+    'mutateOperations',
   ];
   require.cache[controllerId] = {
     id: controllerId,
@@ -247,6 +252,8 @@ test('HTTP: toda la API IvMET exige login, nivel actual 3 y código; no afecta o
     ),
   };
   t.after(() => {
+    if (previousSupabase) require.cache[supabaseId] = previousSupabase;
+    else delete require.cache[supabaseId];
     if (previousDb) require.cache[dbId] = previousDb;
     else delete require.cache[dbId];
     if (previousController) require.cache[controllerId] = previousController;

@@ -4,7 +4,7 @@ const env = require('./env');
 let adminClient;
 
 const getSupabaseAdminClient = () => {
-  if (!env.ivmet.enabled) {
+  if (!env.ivmet.enabled || !env.ivmet.configurationReady) {
     const error = new Error('El modulo Gestion IvMET no esta habilitado');
     error.statusCode = 503;
     throw error;

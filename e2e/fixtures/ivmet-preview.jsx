@@ -11,6 +11,7 @@ import { safeStorage } from '../../src/shared/utils/storage';
 safeStorage.getItem = (key) =>
   key === 'rimmet_token' ? 'fixture-session' : null;
 let accessAttempts = 0;
+let caseReads = 0;
 const fixtureTicket = 'fixture-ivmet-ticket';
 
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -294,6 +295,24 @@ const paged = (items, params) => {
     pageSize,
   };
 };
+const opsStaff = [{actor:'RIMMET:demo',nombre:'Administrador de pruebas',rol:'admin',activo:true,row_version:'1'}];
+const opsEquipmentUpdate = {
+  id:id(820),
+  autorizado_at:new Date().toISOString(),
+  estado:'NEW',
+  row_version:'1',
+  mensaje:'Actualizar la ubicación antes de la próxima calibración.',
+  comentario:null,
+  snapshot:{
+    code:'0001-01-001',clientCode:'0001',plantCode:'0001-01',area:'Control de calidad',
+    catalog:{ubicacion:'Producción',cod_interno:'B-1',marca:'METTLER TOLEDO',modelo:'MS6002TS',serie:'DEMO-001'},
+    customer:{ubicacion:'Control de calidad',cod_interno:'CC-01',marca:'METTLER TOLEDO',modelo:'MS6002TS',serie:'DEMO-001'},
+  },
+};
+const opsCase = {id:id(850),codigo:'CASO-00000001',cliente_id:id(1),cliente:'Andina Alimentos',planta:'0001-01',cod_metrica:'0001-01-001',estado:'NEW',responsable:null,autorizado_at:date,consentimiento_version:'case-sharing-v1',row_version:'1',mensaje:'Solicitamos revisar la no conformidad de esta balanza.',
+  eventos:[],snapshot:{usuarios:{captura:'Operador de prueba',finalizacion:'Jefe de calidad'},verificacion:{id:id(851),equipo_snapshot:{codigo:'0001-01-001',marca:'Equipo de prueba'},plan_snapshot:{nombre:'Plan compartido'},alcance:'partial',realizado_at:date,recibido_at:date,trazabilidad:'traceable',veredicto_global:'fail',temperatura_c:'22.100',humedad_relativa_pct:'48.500'},patrones:[],
+  pruebas:[{id:id(852),tipo:'linearity',estado_ejecucion:'executed',metodo_evaluacion:'absolute_error',unidad:'kg',veredicto:'fail',lecturas:[{id:id(853),etiqueta:'Carga 10 kg',carga_nominal:'10.000000000',indicacion:'10.020000000',retorno_cero:'0.000000000',error:'0.020000000',tolerancia:'0.010000000',veredicto:'fail'}]}]}};
+const paginate = (items,url) => paged(items,url.searchParams);
 window.fetch = async (input, options = {}) => {
   const url = new URL(input, window.location.origin);
   const path = url.pathname.split('/ivmet/')[1];
@@ -363,6 +382,33 @@ window.fetch = async (input, options = {}) => {
       { status: 503 },
     );
   let data;
+  if (path.startsWith('ops/')) {
+    const role = new URLSearchParams(window.location.search).get('role') || 'admin';
+    const capabilities = role==='admin'?['commercial','support','integration','staff']:role==='metrologist'?['support']:[role];
+    if(path==='ops/session') data={role,actor:'RIMMET:demo',capabilities};
+    else if(path==='ops/cases') data=paginate([opsCase].filter((c)=>!url.searchParams.get('status') || c.estado===url.searchParams.get('status')),url);
+    else if(path==='ops/case') {
+      caseReads+=1;
+      if(new URLSearchParams(window.location.search).has('withdrawAfterRead') && caseReads>1)
+        return Response.json({success:false,code:'CASE_NOT_ACCESSIBLE',message:'El cliente retiró el acceso a este caso.'},{status:409});
+      data=opsCase;
+    }
+    else if(path==='ops/assignees') data=[{actor:'RIMMET:demo',name:'Administrador de pruebas'}];
+    else if(path==='ops/staff') data=opsStaff;
+    else if(path==='ops/equipment-updates') data=paginate([opsEquipmentUpdate].filter((item)=>
+      !url.searchParams.get('search') || item.snapshot.code.includes(url.searchParams.get('search'))),url);
+    else if(path==='ops/readiness') data=paginate(clients.filter((c)=>c.id).map((c)=>({id:c.id,code:c.codigo,name:c.nombre,contract:true,subscription:true,users:true,equipment:true,standards:false,plans:false,syncedAt:date})),url);
+    else if(path==='ops/billing') data=paginate([],url);
+    else if(path==='ops/privacy') data={contractVersion:4,privateEvidenceExport:false,sharedCasesOnly:true,queue:{PENDING:2}};
+    else if(path==='ops/audit') data={items:[]};
+    else if(options.method==='POST') {
+      const {payload}=JSON.parse(options.body);
+      if(path==='ops/actions/case.update') {opsCase.estado=payload.status;opsCase.responsable=payload.assignee;opsCase.row_version=String(Number(opsCase.row_version)+1);opsCase.eventos.push({id:id(860+opsCase.eventos.length),actor_externo:'RIMMET:demo',created_at:new Date().toISOString(),comentario:payload.comment});}
+      if(path==='ops/actions/equipment-update.review') {opsEquipmentUpdate.estado='REVIEWED';opsEquipmentUpdate.comentario=payload.comment;opsEquipmentUpdate.row_version=String(Number(opsEquipmentUpdate.row_version)+1);}
+      data={id:payload.id || id(999)};
+    }
+    return Response.json({success:true,data});
+  }
   if (options.method === 'POST') {
     const { payload } = JSON.parse(options.body);
     if (path === 'actions/plan.save' && !payload.id)

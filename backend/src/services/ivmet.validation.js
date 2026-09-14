@@ -142,8 +142,8 @@ const schemas = {
   'equipment.configure': z.object({
     ...target,
     version,
-    areaId: z.union([uuid, z.literal('')]),
-    planVersionId: z.union([uuid, z.literal('')]),
+    areaId: z.literal('').optional(),
+    planVersionId: z.literal('').optional(),
     enabled: z.boolean(),
   }),
   'scope.request': z.object({
@@ -166,6 +166,9 @@ schemas['scope.extend'] = schemas['scope.request'].extend({
   version,
 });
 const validateAction = (action, data) => {
+  if (['area.save','pattern.save','certificate.create','certificate.annul'].includes(action)) {
+    throw Object.assign(new Error('La configuración operativa pertenece al cliente y se gestiona desde su app.'), { statusCode: 403, code: 'CUSTOMER_MANAGED_CONFIGURATION' });
+  }
   if (!schemas[action])
     throw Object.assign(new Error('Operación administrativa desconocida'), {
       statusCode: 404,

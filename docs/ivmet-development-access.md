@@ -4,6 +4,11 @@ Gestión IvMET muestra un aviso de **módulo en desarrollo** y solicita un códi
 antes de cargar clientes, licencias, equipos o cualquier otra consulta del gestor.
 Cronograma y RimMET no utilizan esta barrera.
 
+Para la entrega de privacidad y permisos personales del 28/08/2026, seguir
+[la guía actualizada de operaciones](ivmet-operations-release.md). Requiere
+migraciones y registrar expresamente al primer administrador; el código y el
+nivel 3 por sí solos ya no asignan permisos internos.
+
 ## Requisitos y funcionamiento
 
 - Se conserva el inicio de sesión de RimMET y el permiso administrativo de nivel
@@ -81,7 +86,8 @@ del entorno privado del servidor. No copiar sus credenciales SQL ni reemplazar
 el `.env` completo. Nunca utilizar una clave pública `anon` para esta API.
 
 Solo después de configurar Supabase, dejar `IVMET_ENABLED=true` una sola vez en
-el `.env` del backend. Activarlo sin esas variables impide arrancar el backend.
+el `.env` del backend. Activarlo sin esas variables bloquea solo IvMET con un
+error de configuración; no impide arrancar Cronograma/RimMET.
 El `JWT_SECRET` existente debe tener al menos 32 caracteres; no se cambia como
 parte de esta actualización: rotarlo invalida las sesiones existentes. El
 backend lee estas variables al arrancar.
@@ -95,8 +101,9 @@ pm2 restart cronomet-api --update-env
 pm2 logs cronomet-api --lines 30 --nostream
 ```
 
-No es necesario reiniciar `ivmet-worker` ni `servicemet-api`, ejecutar migraciones
-o volver a incorporar clientes.
+Para cambiar únicamente el código no hace falta reiniciar `ivmet-worker` ni
+`servicemet-api`, ejecutar migraciones o volver a incorporar clientes. La entrega
+de operaciones/privacidad sí requiere su actualización coordinada independiente.
 
 ### 4. Validación
 
@@ -104,7 +111,8 @@ o volver a incorporar clientes.
 2. Entra con `acceso_cron = 3` en `dbo.DATA_USERS` de la base de login de RimMET
    y abre Gestión IvMET: debe aparecer **En desarrollo**. Si cambiaste el nivel,
    cierra sesión y vuelve a ingresar. No confundir `acceso_cron` con `acceso`.
-3. Un código incorrecto no abre el gestor. El correcto permite usarlo.
+3. Un código incorrecto no abre el gestor. El correcto permite comprobar el
+   permiso personal activo; registrar primero al administrador según la nueva guía.
 4. Pulsa **Bloquear acceso**: desaparecen los datos y vuelve la pantalla de código.
 5. Recarga la página: se solicita otra vez. Un usuario sin nivel 3 sigue sin acceso.
 

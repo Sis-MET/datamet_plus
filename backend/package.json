@@ -11,6 +11,8 @@
     "start:test": "dotenv -e .env.test -- node src/server.js",
     "migrate": "node scripts/migrate.js",
     "ivmet:access-code": "node scripts/ivmet-access-code.js",
+    "ivmet:doctor": "node scripts/ivmet-doctor.js",
+    "ivmet:admin-bootstrap": "node scripts/ivmet-admin-bootstrap.js",
     "test": "node --test tests/**/*.test.js"
   },
   "keywords": [

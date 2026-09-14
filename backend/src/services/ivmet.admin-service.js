@@ -3,6 +3,15 @@ const { getSupabaseAdminClient } = require('../config/supabase');
 const env = require('../config/env');
 
 const messages = {
+  CUSTOMER_MANAGED_CONFIGURATION: 'Las áreas, los patrones y los planes metrológicos se gestionan por el cliente desde su app.',
+  UPDATE_NOT_ACCESSIBLE: 'El cliente retiró el acceso a esta actualización o ya no está disponible.',
+  STAFF_ACCESS_DENIED: 'El código fue validado, pero tu usuario aún no tiene un permiso interno IvMET. El administrador debe asignarlo; el primer administrador se registra con ivmet:admin-bootstrap.',
+  STAFF_PERMISSION_REQUIRED: 'Tu permiso interno IvMET no permite esta operación.',
+  CASE_NOT_ACCESSIBLE: 'El expediente ya no está disponible o el cliente retiró el acceso.',
+  OFFICIAL_PROCEDURE_REQUIRED: 'La publicación requiere el procedimiento oficial, el motor y los casos de prueba aprobados por el metrólogo.',
+  PUBLISHED_PLAN_IS_IMMUTABLE: 'Esta versión ya no se puede editar. Crea una nueva versión.',
+  LAST_ADMIN_REQUIRED: 'Debe conservarse al menos un administrador activo.',
+  ASSIGNEE_NOT_AVAILABLE: 'El responsable debe tener un permiso técnico activo en IvMET.',
   ROW_VERSION_CONFLICT:
     'Otro administrador cambió este registro. Actualiza la vista e inténtalo de nuevo.',
   IDEMPOTENCY_CONFLICT:

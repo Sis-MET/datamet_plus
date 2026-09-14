@@ -20,7 +20,8 @@ export function useIvmetQuery(path, params = {}, revision = 0, pollMs = 0) {
         if (!ignore)
           setResult((previous) => ({
             key,
-            data: background && previous.key === key ? previous.data : null,
+            // Ante revocación o pérdida de conexión nunca conservar evidencia en pantalla.
+            data: background && previous.key === key && !url.startsWith('ops/case') ? previous.data : null,
             error,
           }));
       } finally {

@@ -243,12 +243,7 @@ function EquipmentView({ clientId, workspace, revision, open }) {
                 sincronización. RimMET no sobrescribe el catálogo maestro.
               </p>
             )}
-            {!workspace.metrologyPlans.length && (
-              <p className="iv-notice">
-                Aún no hay un plan metrológico publicado. Puedes asignar un
-                área, pero no habilitar verificaciones.
-              </p>
-            )}
+            <p className="iv-notice">El cliente valida la ficha y gestiona áreas, patrones y planes desde la app. La habilitación comercial no depende de asignar un plan aquí.</p>
           </div>
           <footer>
             <button
@@ -258,7 +253,7 @@ function EquipmentView({ clientId, workspace, revision, open }) {
                 setSelected(null);
               }}
             >
-              <Settings2 size={16} /> Configurar para IvMET
+              <Settings2 size={16} /> Disponibilidad en IvMET
             </button>
           </footer>
         </dialog>
@@ -611,133 +606,12 @@ function CommercialView({ workspace, open }) {
     </>
   );
 }
-function PatternsView({ workspace, open }) {
-  return (
-    <>
-      <SectionTitle
-        title="Áreas de trabajo"
-        description="Sectores internos de las plantas del cliente."
-        action={
-          <button
-            className="iv-button secondary"
-            onClick={() => open('area.save')}
-          >
-            <Plus size={16} /> Nueva área
-          </button>
-        }
-      />
-      <div className="iv-area-grid">
-        {workspace.areas.map((a) => (
-          <button
-            key={a.id}
-            className="iv-area-card"
-            onClick={() => open('area.save', a)}
-          >
-            <Layers size={18} />
-            <span>
-              <strong>{a.nombre}</strong>
-              <small>
-                {
-                  workspace.plants.find((p) => p.id === a.planta_id)
-                    ?.legacy_codigo_planta
-                }
-              </small>
-            </span>
-            <Badge value={a.activa ? 'ACTIVE' : 'INACTIVE'} />
-          </button>
-        ))}
-        {!workspace.areas.length && (
-          <p className="iv-subtle">Todavía no se definieron áreas.</p>
-        )}
-      </div>
-      <SectionTitle
-        title="Patrones y certificados"
-        description="Trazabilidad de los patrones pertenecientes al cliente."
-        action={
-          <button
-            className="iv-button primary"
-            onClick={() => open('pattern.save')}
-          >
-            <Plus size={16} /> Nuevo patrón
-          </button>
-        }
-      />
-      <div className="iv-pattern-grid">
-        {workspace.patterns.map((p) => (
-          <article className="iv-pattern-card" key={p.id}>
-            <header>
-              <div>
-                <span className="iv-eyebrow">{p.codigo}</span>
-                <h3>{p.descripcion}</h3>
-              </div>
-              <Badge value={p.activo ? 'ACTIVE' : 'INACTIVE'} />
-            </header>
-            <p>
-              {p.tipo} · {p.capacidad || '—'} {p.unidad} · {p.plantIds.length}{' '}
-              planta(s)
-            </p>
-            <div className="iv-inline-actions">
-              <button
-                className="iv-button secondary small"
-                onClick={() => open('pattern.save', p)}
-              >
-                Editar patrón
-              </button>
-              <button
-                className="iv-button secondary small"
-                onClick={() => open('certificate.create', p)}
-              >
-                Añadir certificado
-              </button>
-            </div>
-            <div className="iv-certificates">
-              {p.certificates.length ? (
-                p.certificates.map((cert) => (
-                  <div key={cert.id}>
-                    <FileText size={16} />
-                    <span>
-                      <strong>{cert.numero}</strong>
-                      <small>
-                        {cert.laboratorio} · vence {dateText(cert.vence_el)}
-                      </small>
-                    </span>
-                    <Badge
-                      value={
-                        cert.estado === 'ANNULLED'
-                          ? 'ANNULLED'
-                          : cert.vence_el <
-                              new Date().toISOString().slice(0, 10)
-                            ? 'EXPIRED'
-                            : 'ACTIVE'
-                      }
-                    />
-                    {cert.estado === 'ACTIVE' && (
-                      <button
-                        className="iv-link"
-                        onClick={() => open('certificate.annul', cert)}
-                      >
-                        Anular
-                      </button>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="iv-notice">
-                  Sin certificado. Este patrón no debe utilizarse como trazable.
-                </p>
-              )}
-            </div>
-          </article>
-        ))}
-      </div>
-      {!workspace.patterns.length && (
-        <Empty
-          title="Sin patrones registrados"
-          text="Registra el juego de pesas y su certificado antes de comenzar las verificaciones."
-        />
-      )}
-    </>
-  );
+function PatternsView() {
+  return <>
+    <SectionTitle title="Configuración privada del cliente" description="El cliente organiza su operación desde la app IvMET." />
+    <p className="iv-notice">Las áreas, los patrones, sus certificados y los planes metrológicos ya no se registran desde RimMET. El jefe de calidad define y asigna los planes en la app; los usuarios del cliente validan las fichas y registran sus áreas y patrones.</p>
+    <p className="iv-notice">Ubicación permite sugerir áreas por planta. Las correcciones son privadas; solo las autorizadas expresamente aparecen en «Actualizaciones del cliente».</p>
+  </>;
 }
 function ActivityView({ clientId, revision }) {
   const [page, setPage] = useState(1);
@@ -799,7 +673,7 @@ const tabs = [
   ['equipment', 'Balanzas', Scale],
   ['users', 'Usuarios y licencias', Users],
   ['commercial', 'Contrato y pagos', KeyRound],
-  ['patterns', 'Áreas y patrones', Layers],
+  ['patterns', 'Configuración del cliente', Layers],
   ['activity', 'Actividad', ClipboardList],
 ];
 export function ClientWorkspace({ clientId, revision, onBack, open, plans }) {

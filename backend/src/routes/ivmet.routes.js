@@ -12,12 +12,15 @@ const {
 
 const router = express.Router();
 const access = createAccessMiddleware();
+const staff = require('../middleware/ivmet.staff.middleware').createStaffMiddleware();
 
 router.use(protect, requireIvmetAdmin, requireIvmetEnabled);
 router.get('/access', requireCurrentIvmetAdmin, access.status);
 router.post('/access/unlock', requireCurrentIvmetAdmin, access.unlock);
 // Todas las lecturas, el catálogo legado y las mutaciones exigen ambas barreras.
-router.use(access.requireAccess, requireCurrentIvmetAdmin);
+router.use(access.requireAccess, requireCurrentIvmetAdmin, staff);
+router.get('/ops/:section', controller.getOperations);
+router.post('/ops/actions/:action', controller.mutateOperations);
 router.get('/overview', controller.getOverview);
 router.get('/clients', controller.getClients);
 router.get('/plans', controller.getPlans);

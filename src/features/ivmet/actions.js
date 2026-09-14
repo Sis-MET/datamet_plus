@@ -458,45 +458,19 @@ export function actionConfig(
       fields: [reason],
     }),
     'equipment.configure': () => ({
-      title: `Configurar ${record.cod_metrica}`,
+      title: `Disponibilidad de ${record.cod_metrica}`,
       description:
-        'Las características técnicas provienen de DataMET y son de solo lectura. Para habilitar necesitas catálogo validado y plan metrológico publicado.',
+        'Habilita el equipo contratado con catálogo validado. El cliente valida su ficha y define áreas, patrones y planes desde la app.',
       values: {
         clientId,
         id: record.id,
         version: String(record.config_version),
-        areaId: record.area_id || '',
-        planVersionId: (workspace?.metrologyPlans || []).some(
-          (p) => p.id === record.plan_version_id
-        )
-          ? record.plan_version_id
-          : '',
         enabled: record.habilitado,
       },
       fields: [
-        select(
-          'areaId',
-          'Área',
-          (workspace?.areas || [])
-            .filter((a) => a.planta_id === record.planta_id && a.activa)
-            .map((a) => ({ value: a.id, label: a.nombre })),
-          { required: false }
-        ),
-        select(
-          'planVersionId',
-          'Plan metrológico publicado',
-          (workspace?.metrologyPlans || []).map((p) => ({
-            value: p.id,
-            label: `${p.name} · v${p.version}`,
-          })),
-          {
-            required: false,
-            hint: 'Vacío conserva la asignación anterior. Para habilitar, selecciona una versión publicada.',
-          }
-        ),
         input('enabled', 'Disponibilidad en IvMET', {
           type: 'checkbox',
-          hint: 'Habilitar para verificaciones',
+          hint: 'Permitir al cliente configurar esta balanza en su app',
         }),
       ],
     }),

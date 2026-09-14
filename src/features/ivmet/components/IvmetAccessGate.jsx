@@ -192,6 +192,7 @@ export function IvmetAccessGate({ children, onExit }) {
               </button>
             </div>
             <p id="iv-access-help" className="iv-access-help">
+              Respeta mayúsculas y símbolos; no agregues comillas ni barras de escape.
               Se solicitará de nuevo al salir del módulo o recargar la página.
             </p>
             {error && (

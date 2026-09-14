@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 
 const labels = {
+  NEW: 'Recibido', IN_REVIEW: 'En revisión', WAITING_CLIENT: 'Esperando al cliente', RESOLVED: 'Resuelto',
+  DRAFT: 'Borrador', PUBLISHED: 'Publicado', RETIRED: 'Retirado', PASS: 'Conforme', FAIL: 'No conforme', OMITTED: 'Omitida',
   ACTIVE: 'Activo',
   INACTIVE: 'Inactivo',
   PENDING: 'Pendiente',
@@ -38,7 +40,7 @@ const labels = {
   ANNUAL: 'Anual',
 };
 export function Badge({ value, children }) {
-  const tone = ['ACTIVE', 'READY', 'PAID', 'SUCCEEDED'].includes(value)
+  const tone = ['ACTIVE', 'READY', 'PAID', 'SUCCEEDED', 'PASS', 'RESOLVED', 'PUBLISHED'].includes(value)
     ? 'good'
     : [
           'PENDING',
@@ -50,6 +52,7 @@ export function Badge({ value, children }) {
           'QUEUED',
           'RETRYING',
           'RUNNING',
+          'NEW', 'IN_REVIEW', 'WAITING_CLIENT',
         ].includes(value)
       ? 'warn'
       : [
@@ -59,6 +62,7 @@ export function Badge({ value, children }) {
             'FAILED',
             'OVERDUE',
             'EXPIRED',
+            'FAIL',
           ].includes(value)
         ? 'bad'
         : 'muted';
@@ -141,6 +145,7 @@ export function Pagination({ page, total, pageSize = 20, onChange }) {
       </span>
       <div>
         <button
+          type="button"
           className="iv-icon-button"
           aria-label="Página anterior"
           disabled={page <= 1}
@@ -149,6 +154,7 @@ export function Pagination({ page, total, pageSize = 20, onChange }) {
           <ArrowLeft size={16} />
         </button>
         <button
+          type="button"
           className="iv-icon-button"
           aria-label="Página siguiente"
           disabled={page >= pages}

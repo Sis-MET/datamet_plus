@@ -26,7 +26,7 @@ export function ActionDialog({ config, onClose, onSaved }) {
       for (const field of config.fields)
         if (field.type === 'integer')
           payload[field.name] = Number(payload[field.name]);
-      await ivmetApi.mutate(config.action, payload, requestId.current);
+      await (config.ops ? ivmetApi.operate : ivmetApi.mutate)(config.action, payload, requestId.current);
       onSaved();
       close();
     } catch (e) {

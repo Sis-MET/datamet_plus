@@ -13,6 +13,9 @@ import {
   RefreshCw,
   Scale,
   ShieldCheck,
+  ClipboardCheck,
+  Inbox,
+  Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIvmetQuery } from './useIvmetQuery';
@@ -21,6 +24,8 @@ import { dateText, money } from './format';
 import {
   Badge,
   Empty,
+  ErrorBox,
+  Loading,
   Pagination,
   QueryState,
   SearchInput,
@@ -33,6 +38,8 @@ import { ClientWorkspace } from './components/ClientWorkspace';
 import { WorkerStatus } from './components/WorkerStatus';
 import { OnboardingStatusDialog } from './components/OnboardingStatusDialog';
 import { IvmetAccessGate } from './components/IvmetAccessGate';
+import { OperationsWorkspace } from './components/OperationsWorkspace';
+import { EquipmentUpdates } from './components/EquipmentUpdates';
 import { onboardingPending, syncDateTime } from './onboarding';
 import './ivmet.css';
 
@@ -384,24 +391,44 @@ function Integration({ revision, onOnboard, onStatus }) {
   );
 }
 const navigation = [
-  ['clients', 'Clientes', Building2],
-  ['plans', 'Planes y tarifas', FileText],
-  ['integration', 'Sincronización', Cloud],
+  ['clients', 'Clientes', Building2, 'commercial'],
+  ['plans', 'Planes y tarifas', FileText, 'commercial'],
+  ['readiness', 'Preparación', ClipboardCheck, 'commercial'],
+  ['billing', 'Cobros pendientes', FileText, 'commercial'],
+  ['cases', 'Casos compartidos', Inbox, 'support'],
+  ['equipment-updates', 'Actualizaciones del cliente', Scale, 'support'],
+  ['integration', 'Sincronización', Cloud, 'integration'],
+  ['privacy', 'Privacidad', ShieldCheck, 'integration'],
+  ['staff', 'Permisos internos', Users, 'staff'],
+  ['audit', 'Auditoría', Activity, 'staff'],
 ];
 export function IvmetManagementPage({ onExit }) {
-  return <IvmetAccessGate onExit={onExit}>{(onLock) => <IvmetWorkspace onLock={onLock} />}</IvmetAccessGate>;
+  return <IvmetAccessGate onExit={onExit}>{(onLock) => <AuthorizedWorkspace onLock={onLock} />}</IvmetAccessGate>;
 }
 
-function IvmetWorkspace({ onLock }) {
-  const [section, setSection] = useState('clients');
+function AuthorizedWorkspace({ onLock }) {
+  const [revision,setRevision] = useState(0);
+  const session = useIvmetQuery('ops/session',{},revision,30000);
+  if (session.loading) return <main className="iv-app"><Loading/></main>;
+  if (session.error || !session.data?.capabilities) return <main className="iv-app iv-access-shell"><section className="iv-access-card">
+    <h2>Código validado · comprobar permiso interno</h2><ErrorBox error={session.error || new Error('Actualiza el backend y las migraciones del gestor.')}/>
+    <button className="iv-button primary" onClick={()=>setRevision((v)=>v+1)}>Comprobar permiso</button><button className="iv-button secondary" onClick={onLock}>Bloquear acceso</button>
+  </section></main>;
+  return <IvmetWorkspace key={session.data.role} onLock={onLock} capabilities={session.data.capabilities}/>;
+}
+
+function IvmetWorkspace({ onLock, capabilities }) {
+  const can = (capability)=>capabilities.includes(capability);
+  const visibleNavigation = navigation.filter((n)=>can(n[3]));
+  const [section, setSection] = useState(visibleNavigation[0]?.[0] || 'cases');
   const [clientId, setClientId] = useState(null);
   const [revision, setRevision] = useState(0);
   const [dialog, setDialog] = useState(null);
   const [onboarding, setOnboarding] = useState(false);
   const [tracking, setTracking] = useState(null);
-  const overview = useIvmetQuery('overview', {}, revision);
-  const plans = useIvmetQuery('plans', {}, revision);
-  const runtime = useIvmetQuery('onboarding', { pageSize: 1 }, revision, 15000);
+  const overview = useIvmetQuery(can('commercial') ? 'overview' : null, {}, revision);
+  const plans = useIvmetQuery(can('commercial') ? 'plans' : null, {}, revision);
+  const runtime = useIvmetQuery(can('integration') ? 'onboarding' : null, { pageSize: 1 }, revision, 15000);
   const open = (action, context = {}) =>
     setDialog(actionConfig(action, { plans: plans.data || [], ...context }));
   const refresh = () => setRevision((r) => r + 1);
@@ -425,7 +452,7 @@ function IvmetWorkspace({ onLock }) {
         </div>
         <span className="iv-nav-label">ADMINISTRACIÓN</span>
         <nav aria-label="Administración IvMET">
-          {navigation.map(([id, label, icon]) => (
+          {visibleNavigation.map(([id, label, icon]) => (
             <button
               key={id}
               aria-current={section === id ? 'page' : undefined}
@@ -539,6 +566,10 @@ function IvmetWorkspace({ onLock }) {
                 />
               ) : section === 'plans' ? (
                 <Plans query={plans} open={open} />
+              ) : section === 'equipment-updates' ? (
+                <EquipmentUpdates revision={revision} onSaved={saved}/>
+              ) : section !== 'integration' ? (
+                <OperationsWorkspace key={section} section={section} revision={revision} onSaved={saved}/>
               ) : (
                 <Integration
                   revision={revision}
