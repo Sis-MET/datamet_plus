@@ -7,7 +7,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useIvmetQuery } from '../useIvmetQuery';
-import { dateText, money } from '../format';
+import { dateText, equipmentLabel, money } from '../format';
 import {
   Badge,
   Empty,
@@ -61,7 +61,9 @@ export function CaseEvidence({ snapshot }) {
       <dl className="iv-detail-grid">
         <div>
           <dt>Equipo</dt>
-          <dd>{equipment.cod_metrica || equipment.codigo || v.equipo_id}</dd>
+          <dd>
+            {equipmentLabel(equipment.equipment || equipment) || v.equipo_id}
+          </dd>
         </div>
         <div>
           <dt>Alcance</dt>
@@ -434,7 +436,7 @@ export function OperationsWorkspace({ section, revision, onSaved }) {
                             {c.cliente}
                             <small>{c.planta}</small>
                           </td>
-                          <td>{c.cod_metrica}</td>
+                          <td>{equipmentLabel(c) || '—'}</td>
                           <td>
                             <Badge value={c.estado} />
                           </td>

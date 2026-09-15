@@ -9,6 +9,12 @@ export const dateText = (value) =>
 export const money = (value, currency = 'BOB') =>
   `${currency} ${value ?? '0.00'}`;
 export const versionOf = (row) => String(row?.row_version ?? '0');
+// Una balanza registrada por el cliente en IvMET no tiene código de Métrica.
+export const equipmentLabel = (equipment = {}) =>
+  equipment.cod_metrica ||
+  (equipment.origen === 'CLIENTE'
+    ? `Registrada por el cliente · ${equipment.cod_interno || 'sin código'}`
+    : equipment.codigo);
 export const effectiveState = (subscription) => {
   const now = new Date();
   if (

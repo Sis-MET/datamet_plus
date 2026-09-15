@@ -3,6 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import { useIvmetQuery } from '../useIvmetQuery';
 import { Empty, Pagination, QueryState, SearchInput, SectionTitle } from './Ui';
 import { ActionDialog } from './ActionDialog';
+import { RegisteredEquipment } from './RegisteredEquipment';
 
 const fields = { ubicacion: 'Ubicación', cod_interno: 'Código interno', marca: 'Marca', modelo: 'Modelo', serie: 'Serie' };
 export function EquipmentUpdates({ revision, onSaved }) {
@@ -18,10 +19,10 @@ export function EquipmentUpdates({ revision, onSaved }) {
       {query.data?.items.map((item) => <article className="iv-plan-card" key={item.id}>
         <SectionTitle title={item.snapshot.code} description={`Cliente ${item.snapshot.clientCode} · planta ${item.snapshot.plantCode} · ${new Date(item.autorizado_at).toLocaleString('es-BO')}`}/>
         <p>{item.mensaje}</p>
-        <div className="iv-table-wrap"><table className="iv-table"><thead><tr><th>Dato</th><th>Catálogo consultado</th><th>Confirmado por el cliente</th></tr></thead><tbody>
+        {item.snapshot.kind === 'registration' ? <RegisteredEquipment snapshot={item.snapshot}/> : <div className="iv-table-wrap"><table className="iv-table"><thead><tr><th>Dato</th><th>Catálogo consultado</th><th>Confirmado por el cliente</th></tr></thead><tbody>
           {Object.entries(fields).map(([key, label]) => <tr key={key}><th scope="row">{label}</th><td>{item.snapshot.catalog?.[key] || '—'}</td><td>{item.snapshot.customer?.[key] || '—'}</td></tr>)}
           <tr><th scope="row">Área</th><td>—</td><td>{item.snapshot.area || 'Sin área'}</td></tr>
-        </tbody></table></div>
+        </tbody></table></div>}
         <p>{item.estado === 'REVIEWED' ? 'Revisado por Métrica' : 'Pendiente de revisión'}{item.comentario ? ` · ${item.comentario}` : ''}</p>
         <button className="iv-button secondary" onClick={() => setDialog({ops: true, action: 'equipment-update.review', title: 'Registrar revisión',
           description: 'El comentario será visible para el cliente. No actualiza automáticamente DataMET.',

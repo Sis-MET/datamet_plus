@@ -309,6 +309,24 @@ const opsEquipmentUpdate = {
     customer:{ubicacion:'Control de calidad',cod_interno:'CC-01',marca:'METTLER TOLEDO',modelo:'MS6002TS',serie:'DEMO-001'},
   },
 };
+// Balanza que el cliente registró en IvMET: sin código de Métrica ni catálogo de DataMET.
+const opsRegistrationUpdate = {
+  id:id(821),
+  autorizado_at:new Date().toISOString(),
+  estado:'NEW',
+  row_version:'1',
+  mensaje:'Compramos esta báscula; queremos incluirla en la próxima visita.',
+  comentario:null,
+  snapshot:{
+    kind:'registration',code:'BAL-NUEVA',clientCode:'0001',plantCode:'0001-01',plantName:'Planta principal',area:'Despacho',catalog:{},
+    customer:{ubicacion:'Patio de carga',cod_interno:'BAL-NUEVA',marca:'Toledo',modelo:'IND570',serie:'T-2026-77'},
+    technical:{type:'Báscula camionera',class:'III',unit:'kg',ranges:[
+      {number:1,capacity:'30000',division:'10',interval:'10',decimals:0},
+      {number:2,capacity:'60000',division:'20',interval:'',decimals:0},
+    ]},
+  },
+};
+const opsRegisteredCase = {id:id(860),codigo:'CASO-00000002',cliente_id:id(1),cliente:'Andina Alimentos',planta:'0001-01',cod_metrica:null,origen:'CLIENTE',cod_interno:'BAL-NUEVA',estado:'NEW',responsable:null,autorizado_at:date,row_version:'1'};
 const opsCase = {id:id(850),codigo:'CASO-00000001',cliente_id:id(1),cliente:'Andina Alimentos',planta:'0001-01',cod_metrica:'0001-01-001',estado:'NEW',responsable:null,autorizado_at:date,consentimiento_version:'case-sharing-v1',row_version:'1',mensaje:'Solicitamos revisar la no conformidad de esta balanza.',
   eventos:[],snapshot:{usuarios:{captura:'Operador de prueba',finalizacion:'Jefe de calidad'},verificacion:{id:id(851),equipo_snapshot:{codigo:'0001-01-001',marca:'Equipo de prueba'},plan_snapshot:{nombre:'Plan compartido'},alcance:'partial',realizado_at:date,recibido_at:date,trazabilidad:'traceable',veredicto_global:'fail',temperatura_c:'22.100',humedad_relativa_pct:'48.500'},patrones:[],
   pruebas:[{id:id(852),tipo:'linearity',estado_ejecucion:'executed',metodo_evaluacion:'absolute_error',unidad:'kg',veredicto:'fail',lecturas:[{id:id(853),etiqueta:'Carga 10 kg',carga_nominal:'10.000000000',indicacion:'10.020000000',retorno_cero:'0.000000000',error:'0.020000000',tolerancia:'0.010000000',veredicto:'fail'}]}]}};
@@ -386,7 +404,7 @@ window.fetch = async (input, options = {}) => {
     const role = new URLSearchParams(window.location.search).get('role') || 'admin';
     const capabilities = role==='admin'?['commercial','support','integration','staff']:role==='metrologist'?['support']:[role];
     if(path==='ops/session') data={role,actor:'RIMMET:demo',capabilities};
-    else if(path==='ops/cases') data=paginate([opsCase].filter((c)=>!url.searchParams.get('status') || c.estado===url.searchParams.get('status')),url);
+    else if(path==='ops/cases') data=paginate([opsCase,opsRegisteredCase].filter((c)=>!url.searchParams.get('status') || c.estado===url.searchParams.get('status')),url);
     else if(path==='ops/case') {
       caseReads+=1;
       if(new URLSearchParams(window.location.search).has('withdrawAfterRead') && caseReads>1)
@@ -395,7 +413,7 @@ window.fetch = async (input, options = {}) => {
     }
     else if(path==='ops/assignees') data=[{actor:'RIMMET:demo',name:'Administrador de pruebas'}];
     else if(path==='ops/staff') data=opsStaff;
-    else if(path==='ops/equipment-updates') data=paginate([opsEquipmentUpdate].filter((item)=>
+    else if(path==='ops/equipment-updates') data=paginate([opsEquipmentUpdate,opsRegistrationUpdate].filter((item)=>
       !url.searchParams.get('search') || item.snapshot.code.includes(url.searchParams.get('search'))),url);
     else if(path==='ops/readiness') data=paginate(clients.filter((c)=>c.id).map((c)=>({id:c.id,code:c.codigo,name:c.nombre,contract:true,subscription:true,users:true,equipment:true,standards:false,plans:false,syncedAt:date})),url);
     else if(path==='ops/billing') data=paginate([],url);
