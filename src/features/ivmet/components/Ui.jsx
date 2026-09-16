@@ -178,11 +178,12 @@ export function Stat({ label, value, note, icon }) {
     </article>
   );
 }
-export function SectionTitle({ eyebrow, title, description, action }) {
+// El antetítulo (eyebrow) se conserva en la firma por compatibilidad, pero ya
+// no se muestra: el título de la sección basta para orientar.
+export function SectionTitle({ title, description, action }) {
   return (
     <div className="iv-section-heading">
       <div>
-        {eyebrow && <span className="iv-eyebrow">{eyebrow}</span>}
         <h2>{title}</h2>
         {description && <p>{description}</p>}
       </div>

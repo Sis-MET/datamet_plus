@@ -103,7 +103,7 @@ export function OperationsWorkspace({ section, revision, onSaved }) {
           <div className="iv-readiness-grid">
             {query.data?.items.map((c) => (
               <article className="iv-plan-card" key={c.id}>
-                <span className="iv-eyebrow">CLIENTE {c.code}</span>
+                <span className="iv-eyebrow">Cliente <span className="code">{c.code}</span></span>
                 <h3>{c.name}</h3>
                 <ul className="iv-readiness-list">
                   {[

@@ -119,7 +119,7 @@ function Clients({
                       />
                       <ArrowUpRight size={19} />
                     </div>
-                    <span className="iv-eyebrow">CLIENTE {c.codigo}</span>
+                    <span className="iv-eyebrow">Cliente <span className="code">{c.codigo}</span></span>
                     <h3>{c.nombre || c.razon_social || `Cliente ${c.codigo}`}</h3>
                     <p>
                       {!pending
@@ -245,7 +245,7 @@ function Plans({ query, open }) {
                   </div>
                   <Badge value={p.activo ? 'ACTIVE' : 'INACTIVE'} />
                 </header>
-                <span className="iv-eyebrow">{p.codigo}</span>
+                <span className="iv-eyebrow code">{p.codigo}</span>
                 <h3>{p.nombre}</h3>
                 <p>{p.descripcion || 'Plan comercial IvMET'}</p>
                 <div className="iv-plan-seats">
@@ -502,7 +502,7 @@ function IvmetWorkspace({ onLock, capabilities }) {
             <small>Gestión de clientes</small>
           </div>
         </div>
-        <span className="iv-nav-label">ADMINISTRACIÓN</span>
+        <span className="iv-nav-label">Administración</span>
         <nav aria-label="Administración IvMET">
           {visibleNavigation.map(([id, label, icon]) => (
             <button

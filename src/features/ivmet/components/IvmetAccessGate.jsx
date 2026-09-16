@@ -138,7 +138,6 @@ export function IvmetAccessGate({ children, onExit }) {
             <Code2 size={13} aria-hidden="true" /> En desarrollo
           </span>
         </div>
-        <span className="iv-eyebrow">CENTRO DE GESTIÓN · MÉTRICA</span>
         <h1 id="iv-access-title">Gestión IvMET</h1>
         <p className="iv-access-description">
           Este módulo se encuentra en desarrollo y todavía no está disponible

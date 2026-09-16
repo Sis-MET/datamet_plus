@@ -714,13 +714,17 @@ window.fetch = async (input, options = {}) => {
   return Response.json({ success: true, data });
 };
 
-document.body.style.background = '#090e16';
+// El fixture sigue el tema del sistema; ?theme=light|dark lo fuerza.
+const fixtureTheme = new URLSearchParams(window.location.search).get('theme')
+  || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+document.documentElement.classList.toggle('dark', fixtureTheme === 'dark');
+document.documentElement.style.colorScheme = fixtureTheme;
 createRoot(document.getElementById('root')).render(
   <>
     <div
       style={{
         padding: '12px 24px',
-        color: '#a5b2c1',
+        color: 'rgb(var(--c-fg-muted))',
         font: '12px system-ui',
         textAlign: 'center',
       }}
@@ -728,6 +732,6 @@ createRoot(document.getElementById('root')).render(
       PRUEBA LOCAL · Datos ficticios · Ninguna operación se envía a un servidor
     </div>
     <IvmetManagementPage />
-    <Toaster richColors theme="dark" />
+    <Toaster richColors theme={fixtureTheme} />
   </>,
 );
