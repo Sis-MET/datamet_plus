@@ -1,15 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import './login.css';
+import { AlertCircle, ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, UserRound } from 'lucide-react';
 import logoMetrica from '../../assets/logo_metrica.svg';
-import soporteSvg from '../../assets/soporte_tecnico.svg';
 import { safeStorage } from '../../shared/utils/storage';
-import { useTheme } from '../../shared/context/ThemeContext';
 import { api, ApiError } from '../../shared/api/client';
+import { ThemeToggle } from '../../shared/components/layout/ThemeToggle';
 const MAX_ATTEMPTS = 3;
 const LOCK_TIME_MS = 60 * 1000;
 
+function FieldIcon({ icon }) {
+  const Icon = icon;
+  return (
+    <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-fg-subtle transition-colors group-focus-within:text-fg">
+      <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden="true" />
+    </span>
+  );
+}
+
 export function LoginPage({ onLogin }) {
-  const { isDarkGantt } = useTheme();
   const [usuario, setUsuario] = useState('');
   const [pass, setPass]       = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -89,7 +96,7 @@ export function LoginPage({ onLogin }) {
         setError((data.message || 'Credenciales inválidas') + remMsg);
         return;
       }
-      
+
       const loggedUser = data.data.user;
 
       if (String(loggedUser.acceso_cron) === "0") {
@@ -101,7 +108,7 @@ export function LoginPage({ onLogin }) {
       setLockUntil(null);
       safeStorage.removeItem('rimmet_login_attempts');
       safeStorage.removeItem('rimmet_login_lock_until');
-      
+
       safeStorage.setItem('rimmet_token', data.data.token);
       safeStorage.setItem('rimmet_user', JSON.stringify(loggedUser));
       safeStorage.setItem('rimmet_last_view', 'calendar');
@@ -119,175 +126,150 @@ export function LoginPage({ onLogin }) {
     }
   };
 
-  return (
-    <div className={`login-root ${isDarkGantt ? '' : 'login-light'}`}>
-      {/* Fondo SVG */}
-      <div
-        className="login-bg"
-        style={{ backgroundImage: `url(${soporteSvg})` }}
-      />
-      {/* Overlay oscuro */}
-      <div className="login-overlay" />
+  const lockProgress = Math.max(0, Math.min(100, (timeRemaining / 60) * 100));
 
-      {/* Contenido */}
-      <div className="login-content">
-        {/* Lado izquierdo — branding */}
-        <div className="login-left">
-          <img src={logoMetrica} alt="Metriga Logo" className="login-logo" />
-          <div className="login-tagline">
-            <h1 className="login-title">DataMET+</h1>
-            <p className="login-subtitle">
-              Cronograma Metrica y<br />Recepción de Registros de Instrumentos.
-            </p>
-          </div>
+  return (
+    <div className="relative flex min-h-dvh flex-col bg-canvas text-fg lg:flex-row">
+      <ThemeToggle className="absolute right-3 top-3 z-10 sm:right-5 sm:top-5" />
+
+      {/* Marca */}
+      <section className="flex flex-col justify-between gap-10 border-b border-line bg-surface px-6 pb-8 pt-6 sm:px-10 sm:pt-10 lg:w-[44%] lg:max-w-[640px] lg:border-b-0 lg:border-r lg:px-14 lg:py-14">
+        <img
+          src={logoMetrica}
+          alt="Métrica Ltda. — Expertos en sistemas de pesaje"
+          className="h-11 w-auto self-start select-none sm:h-14"
+          draggable={false}
+        />
+
+        <div className="max-w-md">
+          <h1 className="flex items-center gap-2 text-4xl font-semibold tracking-[-0.03em] text-fg sm:text-5xl">
+            DataMET
+            <span className="sr-only">+</span>
+            <span
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-3xl font-bold leading-none text-brand-fg sm:h-11 sm:w-11 sm:text-4xl"
+              aria-hidden="true"
+            >
+              +
+            </span>
+          </h1>
+          <p className="mt-4 text-base leading-relaxed text-fg-muted sm:text-lg">
+            Cronograma Metrica y Recepción de Registros de Instrumentos.
+          </p>
         </div>
 
-        {/* Lado derecho — formulario */}
-        <div className="login-right">
-          <div className="login-card">
-            {/* Header de la tarjeta */}
-            <div className="login-card-header">
-              <div className="login-card-dot" />
-              <span className="login-card-label">
-                Acceso a DataMET+
+        <p className="hidden text-sm text-fg-subtle lg:block">
+          © {new Date().getFullYear()} Metrica Ltda. — DataMET+
+        </p>
+      </section>
+
+      {/* Acceso */}
+      <main className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10">
+        <div className="w-full max-w-[380px] animate-fade-in-up">
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
+            {lockUntil ? 'Acceso bloqueado' : 'Iniciar sesión'}
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-fg-muted">
+            {lockUntil
+              ? 'Por seguridad, hemos pausado los intentos de acceso.'
+              : 'Ingresa tus credenciales para continuar, son las mismas del DataMET.'}
+          </p>
+
+          {lockUntil ? (
+            <div className="mt-8 rounded-2xl border border-line bg-surface p-6 text-center shadow-card" role="status">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-danger/10 text-danger">
+                <LockKeyhole className="h-6 w-6" strokeWidth={1.9} aria-hidden="true" />
               </span>
+              <p className="mt-4 text-4xl font-semibold tabular-nums tracking-[-0.02em] text-fg">
+                {timeRemaining}s
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-fg-muted">
+                Demasiados intentos fallidos. Intenta nuevamente cuando el contador termine.
+              </p>
+              <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
+                <div
+                  className="h-full rounded-full bg-fg transition-[width] duration-1000 ease-linear"
+                  style={{ width: `${lockProgress}%` }}
+                />
+              </div>
             </div>
-
-            <h2 className="login-card-title">
-              {lockUntil ? 'Acceso Bloqueado' : 'Iniciar Sesión'}
-            </h2>
-            <p className="login-card-desc">
-              {lockUntil 
-                ? 'Por seguridad, hemos pausado los intentos de acceso.' 
-                : 'Ingresa tus credenciales para continuar, son las mismas del DataMET'}
-            </p>
-
-            {
-              lockUntil ? (
-              <div className="login-locked-state">
-                <div className="login-lock-icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                </div>
-                <h3 className="login-lock-timer">{timeRemaining}s</h3>
-                <p className="login-lock-msg">
-                  Demasiados intentos fallidos.<br/>Intenta nuevamente cuando el contador termine.
-                </p>
-                <div className="login-progress-bg">
-                  <div 
-                    className="login-progress-bar" 
-                    style={{ width: `${(timeRemaining / 60) * 100}%` }}
+          ) : (
+            <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
+              <div>
+                <label htmlFor="login-usuario" className="field-label">Usuario</label>
+                <div className="group relative">
+                  <FieldIcon icon={UserRound} />
+                  <input
+                    id="login-usuario"
+                    type="text"
+                    value={usuario}
+                    onChange={e => setUsuario(e.target.value)}
+                    placeholder="Ingresa tu usuario"
+                    className="field h-11 pl-11"
+                    autoComplete="username"
+                    required
                   />
                 </div>
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="login-form">
 
-                {/* Usuario */}
-                <div className="login-field">
-                  <label htmlFor="login-usuario" className="login-label">Usuario</label>
-                  <div className="login-input-wrap relative">
-                    <span className="login-input-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
-                      </svg>
-                    </span>
-                    <input
-                      id="login-usuario"
-                      type="text"
-                      value={usuario}
-                      onChange={e => setUsuario(e.target.value)}
-                      placeholder="Ingresa tu usuario"
-                      className="login-input"
-                      autoComplete="username"
-                      required
-                    />
-                  </div>
+              <div>
+                <label htmlFor="login-pass" className="field-label">Contraseña</label>
+                <div className="group relative">
+                  <FieldIcon icon={LockKeyhole} />
+                  <input
+                    id="login-pass"
+                    type={showPass ? 'text' : 'password'}
+                    value={pass}
+                    onChange={e => setPass(e.target.value)}
+                    placeholder="Ingresa tu contraseña"
+                    className="field h-11 pl-11 pr-12"
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-1.5 my-auto flex h-8 w-8 items-center justify-center rounded-lg text-fg-subtle transition-colors hover:bg-fg/[0.06] hover:text-fg"
+                    onClick={() => setShowPass(v => !v)}
+                    aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPass
+                      ? <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.9} />
+                      : <Eye className="h-[18px] w-[18px]" strokeWidth={1.9} />}
+                  </button>
                 </div>
+              </div>
 
-                {/* Contraseña */}
-                <div className="login-field">
-                  <label htmlFor="login-pass" className="login-label">Contraseña</label>
-                  <div className="login-input-wrap relative">
-                    <span className="login-input-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                      </svg>
-                    </span>
-                    <input
-                      id="login-pass"
-                      type={showPass ? 'text' : 'password'}
-                      value={pass}
-                      onChange={e => setPass(e.target.value)}
-                      placeholder="Ingresa tu contraseña"
-                      className="login-input"
-                      autoComplete="current-password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="login-eye-btn"
-                      onClick={() => setShowPass(v => !v)}
-                      aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    >
-                      {showPass ? (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                          <line x1="1" y1="1" x2="23" y2="23"/>
-                        </svg>
-                      ) : (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                          <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Error */}
-                {error && (
-                  <div className="login-error" role="alert">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"/>
-                      <line x1="12" y1="8" x2="12" y2="12"/>
-                      <line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                {/* Botón */}
-                <button
-                  type="submit"
-                  className="login-btn"
-                  disabled={loading}
+              {error && (
+                <div
+                  className="flex items-start gap-2.5 rounded-xl border border-danger/25 bg-danger/[0.07] px-3.5 py-3 text-sm font-medium text-danger animate-fade-in"
+                  role="alert"
                 >
-                  {loading ? (
-                    <span className="login-spinner" />
-                  ) : (
-                    <>
-                      <span>Ingresar</span>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                        <polyline points="12 5 19 12 12 19"/>
-                      </svg>
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
+                  <AlertCircle className="mt-px h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                  <span>{error}</span>
+                </div>
+              )}
 
-            <p className="login-footer-text mt-8">
-              © {new Date().getFullYear()} Metrica Ltda. — DataMET+
-            </p>
-          </div>
+              <button
+                type="submit"
+                className="mt-1 flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-5 text-[15px] font-semibold text-brand-fg shadow-xs ring-1 ring-inset ring-black/5 transition-[background-color,transform] duration-150 hover:bg-brand-hover active:translate-y-px disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" aria-label="Validando credenciales" />
+                ) : (
+                  <>
+                    <span>Ingresar</span>
+                    <ArrowRight className="h-[18px] w-[18px]" strokeWidth={2.2} aria-hidden="true" />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+
+          <p className="mt-10 text-center text-xs text-fg-subtle lg:hidden">
+            © {new Date().getFullYear()} Metrica Ltda. — DataMET+
+          </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

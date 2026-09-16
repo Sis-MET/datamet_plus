@@ -1,9 +1,12 @@
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import { Toaster as SonnerToaster } from 'sonner';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
-import { Header } from './shared/components/layout/Header';
+import { Sidebar } from './shared/components/layout/Sidebar';
+import { Topbar } from './shared/components/layout/Topbar';
 import { Footer } from './shared/components/layout/Footer';
-import bgImage from './assets/soporte_tecnico.svg';
+import { APP_VIEWS, canManageIvmet } from './shared/components/layout/navigation';
+import { useSidebar } from './shared/hooks/useSidebar';
+import { useTheme } from './shared/context/ThemeContext';
 import { safeStorage } from './shared/utils/storage';
 
 const RimFormPage = lazy(() => import('./features/rim/RimFormPage')
@@ -20,56 +23,67 @@ const IvmetManagementPage = lazy(() => import('./features/ivmet/IvmetManagementP
 function ViewFallback() {
   return (
     <div className="flex min-h-[45vh] items-center justify-center" role="status" aria-label="Cargando módulo">
-      <Loader2 className="h-6 w-6 animate-spin text-primary-400" />
+      <Loader2 className="h-5 w-5 animate-spin text-fg-subtle" />
     </div>
   );
 }
 
+function AppToaster() {
+  const { resolvedTheme } = useTheme();
+  return (
+    <SonnerToaster
+      position="bottom-right"
+      theme={resolvedTheme}
+      toastOptions={{ className: 'rim-toast' }}
+      icons={{
+        success: <CheckCircle2 className="h-[18px] w-[18px] text-success" />,
+        info: <Info className="h-[18px] w-[18px] text-info" />,
+        warning: <AlertTriangle className="h-[18px] w-[18px] text-warning" />,
+        error: <AlertCircle className="h-[18px] w-[18px] text-danger" />,
+        loading: <Loader2 className="h-[18px] w-[18px] animate-spin text-fg-subtle" />,
+      }}
+    />
+  );
+}
+
 function AppContent({ activeView, setActiveView, currentUser, handleLogout, renderView }) {
+  const sidebar = useSidebar();
+  const { isDesktop, close: closeSidebar } = sidebar;
+
+  const handleNavigate = useCallback((view) => {
+    safeStorage.setItem('rimmet_last_view', view);
+    setActiveView(view);
+    if (!isDesktop) closeSidebar();
+    window.scrollTo({ top: 0 });
+  }, [closeSidebar, isDesktop, setActiveView]);
+
   return (
     <>
-      <SonnerToaster 
-        position="bottom-right" 
-        theme="dark"
-        toastOptions={{
-          className: 'border-white/10',
-          style: {
-            background: 'rgba(22, 22, 28, 0.85)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-            color: '#fff',
-          }
-        }}
-        icons={{
-          success: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
-          info: <Info className="w-5 h-5 text-blue-500" />,
-          warning: <AlertTriangle className="w-5 h-5 text-amber-500" />,
-          error: <AlertCircle className="w-5 h-5 text-red-500" />,
-          loading: <Loader2 className="w-5 h-5 animate-spin text-gray-500" />,
-        }}
-      />
-      <div
-        className="fixed inset-0 z-[-1] bg-cover bg-center"
-        style={{
-          backgroundImage: `linear-gradient(rgba(15, 16, 20, 0.72), rgba(15, 16, 20, 0.88)), url(${bgImage})`,
-        }}
-      />
-
-      <div className="min-h-screen flex flex-col bg-transparent pb-2 relative z-0">
-        <Header
+      <AppToaster />
+      <div className="flex min-h-dvh">
+        <Sidebar
           activeView={activeView}
-          onViewChange={setActiveView}
+          onNavigate={handleNavigate}
           currentUser={currentUser}
           onLogout={handleLogout}
+          isOpen={sidebar.isOpen}
+          isDesktop={isDesktop}
+          onClose={closeSidebar}
         />
-        <div className="h-20 flex-shrink-0" />
-        <div className="flex-1">
-          <Suspense fallback={<ViewFallback />}>
-            {renderView()}
-          </Suspense>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar
+            view={APP_VIEWS[activeView] || APP_VIEWS.rim}
+            isSidebarOpen={sidebar.isOpen}
+            isDesktop={isDesktop}
+            onToggleSidebar={sidebar.toggle}
+          />
+          <div className="flex-1">
+            <Suspense fallback={<ViewFallback />}>
+              {renderView()}
+            </Suspense>
+          </div>
+          <Footer />
         </div>
-        <Footer />
       </div>
     </>
   );
@@ -114,7 +128,7 @@ function App() {
 
   const [activeView, setActiveView] = useState(() => {
     const savedView = safeStorage.getItem('rimmet_last_view') || 'rim';
-    return savedView === 'ivmet' && String(currentUser?.acceso_cron) !== '3'
+    return savedView === 'ivmet' && !canManageIvmet(currentUser)
       ? 'rim'
       : savedView;
   });
@@ -159,16 +173,19 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <Suspense fallback={<ViewFallback />}>
-        <LoginPage onLogin={handleLogin} />
-      </Suspense>
+      <>
+        <AppToaster />
+        <Suspense fallback={<ViewFallback />}>
+          <LoginPage onLogin={handleLogin} />
+        </Suspense>
+      </>
     );
   }
 
   const renderView = () => {
     switch (activeView) {
       case 'ivmet':
-        return String(currentUser?.acceso_cron) === '3'
+        return canManageIvmet(currentUser)
           ? <IvmetManagementPage onExit={() => setActiveView('calendar')} />
           : <RimFormPage currentUser={currentUser} />;
       case 'calendar':
