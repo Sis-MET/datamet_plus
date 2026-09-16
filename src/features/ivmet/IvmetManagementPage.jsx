@@ -5,7 +5,9 @@ import {
   Building2,
   ChevronRight,
   Cloud,
+  FilePenLine,
   FileText,
+  Inbox,
   KeyRound,
   Layers,
   LockKeyhole,
@@ -14,7 +16,6 @@ import {
   Scale,
   ShieldCheck,
   ClipboardCheck,
-  Inbox,
   Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,11 +40,19 @@ import { WorkerStatus } from './components/WorkerStatus';
 import { OnboardingStatusDialog } from './components/OnboardingStatusDialog';
 import { IvmetAccessGate } from './components/IvmetAccessGate';
 import { OperationsWorkspace } from './components/OperationsWorkspace';
-import { EquipmentUpdates } from './components/EquipmentUpdates';
 import { onboardingPending, syncDateTime } from './onboarding';
 import './ivmet.css';
 
-function Clients({ revision, onSelect, onOnboard, onStatus, workers }) {
+function Clients({
+  revision,
+  onSelect,
+  onOnboard,
+  onStatus,
+  workers,
+  commercial,
+  integration,
+  support,
+}) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const query = useIvmetQuery('clients', { search, page }, revision, 10000);
@@ -52,14 +61,20 @@ function Clients({ revision, onSelect, onOnboard, onStatus, workers }) {
       <SectionTitle
         eyebrow="DIRECTORIO OPERATIVO"
         title="Tus clientes, en un solo lugar"
-        description="Abre una empresa para gestionar sus plantas, balanzas y accesos."
+        description={
+          commercial
+            ? 'Abre una empresa para gestionar sus plantas, balanzas y accesos.'
+            : 'Abre una empresa para atender los casos y las actualizaciones que compartió.'
+        }
         action={
-          <button className="iv-button primary" onClick={onOnboard}>
-            <Plus size={16} /> Incorporar cliente
-          </button>
+          integration && (
+            <button className="iv-button primary" onClick={onOnboard}>
+              <Plus size={16} /> Incorporar cliente
+            </button>
+          )
         }
       />
-      <WorkerStatus workers={workers} />
+      {integration && <WorkerStatus workers={workers} />}
       <div className="iv-toolbar">
         <SearchInput
           value={search}
@@ -77,73 +92,104 @@ function Clients({ revision, onSelect, onOnboard, onStatus, workers }) {
         {query.data?.items.length ? (
           <>
             <div className="iv-client-grid">
-              {query.data.items.map((c) => (
-                <button
-                  key={c.id || c.scope_id}
-                  className="iv-client-card"
-                  onClick={() =>
-                    !c.id || onboardingPending(c.onboarding)
-                      ? onStatus(c.scope_id)
-                      : onSelect(c.id)
-                  }
-                >
-                  <div className="iv-client-card-heading">
-                    <div className="iv-client-avatar">
-                      <Building2 size={23} />
+              {query.data.items.map((c) => {
+                // Sin permiso de integración la incorporación no trae detalle ni se abre.
+                const pending = !c.id || onboardingPending(c.onboarding);
+                return (
+                  <button
+                    key={c.id || c.scope_id || c.codigo}
+                    className="iv-client-card"
+                    disabled={pending && !integration}
+                    onClick={() =>
+                      pending ? onStatus(c.scope_id) : onSelect(c.id)
+                    }
+                  >
+                    <div className="iv-client-card-heading">
+                      <div className="iv-client-avatar">
+                        <Building2 size={23} />
+                      </div>
+                      <Badge
+                        value={
+                          pending
+                            ? c.onboarding?.syncStatus || 'PENDING'
+                            : c.activo
+                              ? 'ACTIVE'
+                              : 'INACTIVE'
+                        }
+                      />
+                      <ArrowUpRight size={19} />
                     </div>
-                    <Badge
-                      value={
-                        onboardingPending(c.onboarding)
-                          ? c.onboarding.syncStatus
-                          : c.activo
-                            ? 'ACTIVE'
-                            : 'INACTIVE'
-                      }
-                    />
-                    <ArrowUpRight size={19} />
-                  </div>
-                  <span className="iv-eyebrow">CLIENTE {c.codigo}</span>
-                  <h3>{c.nombre || c.razon_social || `Cliente ${c.codigo}`}</h3>
-                  <p>
-                    {onboardingPending(c.onboarding)
-                      ? `${c.onboarding.plants.length} plantas · ${c.onboarding.equipmentCount} balanzas autorizadas`
-                      : c.razon_social || 'Catálogo sincronizado desde DataMET'}
-                  </p>
-                  <div className="iv-client-numbers">
-                    <span>
-                      <strong>{c.plants}</strong>Plantas
-                    </span>
-                    <span>
-                      <strong>{c.equipment}</strong>Balanzas
-                    </span>
-                    <span>
-                      <strong>{c.licenses}</strong>Licencias
-                    </span>
-                  </div>
-                  <footer>
-                    <span>
-                      {onboardingPending(c.onboarding) ? (
-                        'Incorporación en seguimiento'
-                      ) : Number(c.review) > 0 ? (
-                        <>
-                          <i className="iv-warn-dot" />
-                          {c.review} balanzas por revisar
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck size={14} /> Catálogo validado
-                        </>
+                    <span className="iv-eyebrow">CLIENTE {c.codigo}</span>
+                    <h3>{c.nombre || c.razon_social || `Cliente ${c.codigo}`}</h3>
+                    <p>
+                      {!pending
+                        ? c.razon_social || 'Catálogo sincronizado desde DataMET'
+                        : c.onboarding
+                          ? `${c.onboarding.plants.length} plantas · ${c.onboarding.equipmentCount} balanzas autorizadas`
+                          : 'Incorporación en curso'}
+                    </p>
+                    {support &&
+                      (Number(c.newCases) > 0 ||
+                        Number(c.pendingUpdates) > 0) && (
+                        <div className="iv-client-attention">
+                          {Number(c.newCases) > 0 && (
+                            <span>
+                              <Inbox size={13} />
+                              {Number(c.newCases) === 1
+                                ? '1 caso nuevo'
+                                : `${c.newCases} casos nuevos`}
+                            </span>
+                          )}
+                          {Number(c.pendingUpdates) > 0 && (
+                            <span>
+                              <FilePenLine size={13} />
+                              {Number(c.pendingUpdates) === 1
+                                ? '1 actualización por revisar'
+                                : `${c.pendingUpdates} actualizaciones por revisar`}
+                            </span>
+                          )}
+                        </div>
                       )}
-                    </span>
-                    <strong>
-                      {onboardingPending(c.onboarding)
-                        ? 'Ver incorporación'
-                        : 'Abrir cliente'}{' '}
-                      <ChevronRight size={14} />
-                    </strong>
-                  </footer>
-                </button>
-              ))}
+                    <div className="iv-client-numbers">
+                      <span>
+                        <strong>{c.plants}</strong>Plantas
+                      </span>
+                      <span>
+                        <strong>{c.equipment}</strong>Balanzas
+                      </span>
+                      {commercial && (
+                        <span>
+                          <strong>{c.licenses}</strong>Licencias
+                        </span>
+                      )}
+                    </div>
+                    <footer>
+                      <span>
+                        {pending ? (
+                          'Incorporación en seguimiento'
+                        ) : Number(c.review) > 0 ? (
+                          <>
+                            <i className="iv-warn-dot" />
+                            {c.review} balanzas por revisar
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck size={14} /> Catálogo validado
+                          </>
+                        )}
+                      </span>
+                      <strong>
+                        {!pending
+                          ? 'Abrir cliente'
+                          : integration
+                            ? 'Ver incorporación'
+                            : 'Aún no disponible'}{' '}
+                        <ChevronRight size={14} />
+                      </strong>
+                    </footer>
+                  </button>
+                );
+              })}
             </div>
             <Pagination
               page={page}
@@ -154,11 +200,17 @@ function Clients({ revision, onSelect, onOnboard, onStatus, workers }) {
         ) : (
           <Empty
             title="No encontramos clientes"
-            text="Cambia la búsqueda o incorpora un cliente contratado desde DataMET."
+            text={
+              integration
+                ? 'Cambia la búsqueda o incorpora un cliente contratado desde DataMET.'
+                : 'Cambia la búsqueda por nombre o código de cliente.'
+            }
             action={
-              <button className="iv-button primary" onClick={onOnboard}>
-                Incorporar cliente
-              </button>
+              integration && (
+                <button className="iv-button primary" onClick={onOnboard}>
+                  Incorporar cliente
+                </button>
+              )
             }
           />
         )}
@@ -390,13 +442,12 @@ function Integration({ revision, onOnboard, onStatus }) {
     </>
   );
 }
+// Casos y actualizaciones compartidas viven dentro de la ficha de cada cliente.
 const navigation = [
-  ['clients', 'Clientes', Building2, 'commercial'],
+  ['clients', 'Clientes', Building2, ['commercial', 'support']],
   ['plans', 'Planes y tarifas', FileText, 'commercial'],
   ['readiness', 'Preparación', ClipboardCheck, 'commercial'],
   ['billing', 'Cobros pendientes', FileText, 'commercial'],
-  ['cases', 'Casos compartidos', Inbox, 'support'],
-  ['equipment-updates', 'Actualizaciones del cliente', Scale, 'support'],
   ['integration', 'Sincronización', Cloud, 'integration'],
   ['privacy', 'Privacidad', ShieldCheck, 'integration'],
   ['staff', 'Permisos internos', Users, 'staff'],
@@ -418,9 +469,10 @@ function AuthorizedWorkspace({ onLock }) {
 }
 
 function IvmetWorkspace({ onLock, capabilities }) {
-  const can = (capability)=>capabilities.includes(capability);
+  const can = (capability) =>
+    [].concat(capability).some((c) => capabilities.includes(c));
   const visibleNavigation = navigation.filter((n)=>can(n[3]));
-  const [section, setSection] = useState(visibleNavigation[0]?.[0] || 'cases');
+  const [section, setSection] = useState(visibleNavigation[0]?.[0] || 'clients');
   const [clientId, setClientId] = useState(null);
   const [revision, setRevision] = useState(0);
   const [dialog, setDialog] = useState(null);
@@ -432,9 +484,9 @@ function IvmetWorkspace({ onLock, capabilities }) {
   const open = (action, context = {}) =>
     setDialog(actionConfig(action, { plans: plans.data || [], ...context }));
   const refresh = () => setRevision((r) => r + 1);
-  const saved = () => {
+  const saved = (message) => {
     refresh();
-    toast.success('Operación guardada en IvMET');
+    toast.success(message || 'Operación guardada en IvMET');
   };
   const navigate = (id) => {
     setSection(id);
@@ -518,10 +570,12 @@ function IvmetWorkspace({ onLock, capabilities }) {
               onBack={() => setClientId(null)}
               open={open}
               plans={plans.data || []}
+              can={can}
+              onSaved={saved}
             />
           ) : (
             <>
-              {section === 'clients' && (
+              {section === 'clients' && can('commercial') && (
                 <div className="iv-stats">
                   <Stat
                     label="Clientes habilitados"
@@ -563,11 +617,12 @@ function IvmetWorkspace({ onLock, capabilities }) {
                   onOnboard={() => setOnboarding(true)}
                   onStatus={setTracking}
                   workers={runtime.error ? [] : runtime.data?.workers}
+                  commercial={can('commercial')}
+                  integration={can('integration')}
+                  support={can('support')}
                 />
               ) : section === 'plans' ? (
                 <Plans query={plans} open={open} />
-              ) : section === 'equipment-updates' ? (
-                <EquipmentUpdates revision={revision} onSaved={saved}/>
               ) : section !== 'integration' ? (
                 <OperationsWorkspace key={section} section={section} revision={revision} onSaved={saved}/>
               ) : (

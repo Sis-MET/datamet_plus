@@ -48,6 +48,12 @@ const messages = {
     'Debes seleccionar un plan metrológico publicado y aprobado.',
   EQUIPMENT_REQUIRES_REVIEW:
     'Este equipo necesita corregirse en DataMET antes de habilitarlo.',
+  EQUIPMENT_NOT_FOUND:
+    'Alguna balanza ya no pertenece a este cliente. Actualiza la vista.',
+  DUPLICATE_EQUIPMENT: 'La selección repite balanzas. Actualiza la vista.',
+  CUSTOMER_REGISTERED_EQUIPMENT:
+    'Las balanzas que registra el cliente se gestionan desde su app.',
+  CLIENT_NOT_FOUND: 'El cliente ya no está disponible. Actualiza la vista.',
   SCOPE_ALREADY_EXISTS:
     'Este cliente ya tiene una incorporación. Consulta su estado o amplía el alcance existente.',
   SCOPE_NOT_RETRYABLE:

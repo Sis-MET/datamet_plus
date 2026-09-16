@@ -10,6 +10,7 @@ const legacy = createLegacyService();
 const service = createAdminService({ legacy });
 const operations = require('../services/ivmet.operations').createOperations();
 const { validateOperation } = require('../services/ivmet.operations');
+const { limitClientRead } = require('../middleware/ivmet.staff.middleware');
 const respond = (handler) => async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
@@ -37,11 +38,15 @@ const respond = (handler) => async (req, res) => {
   }
 };
 const read = (section, perClient = false) =>
-  respond((req) =>
-    service.read(
+  respond(async (req) =>
+    limitClientRead(
       section,
-      perClient ? uuid.parse(req.params.clientId) : null,
-      querySchema.parse(req.query)
+      await service.read(
+        section,
+        perClient ? uuid.parse(req.params.clientId) : null,
+        querySchema.parse(req.query)
+      ),
+      req.ivmetStaff?.capabilities
     )
   );
 module.exports = {

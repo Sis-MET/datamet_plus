@@ -538,6 +538,16 @@
   font-size: 10px;
   padding: 7px 11px;
 }
+/* Pendientes junto a la acción que las resuelve. */
+.iv-button-count {
+  min-width: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #ffffff26;
+  font-size: 9px;
+  line-height: 1.3;
+  text-align: center;
+}
 .iv-icon-button {
   display: inline-flex;
   align-items: center;
@@ -656,6 +666,35 @@
   background: #222228;
   transform: translateY(-2px);
   box-shadow: 0 10px 25px #0002;
+}
+/* Casos y actualizaciones del cliente que esperan revisión. */
+.iv-client-attention {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+.iv-client-attention span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: 1px solid #d6b56b2b;
+  background: #cb982f14;
+  color: #e3bd83;
+  font-size: 10px;
+  font-weight: 550;
+}
+/* Incorporación en curso para quien no gestiona la sincronización. */
+.iv-client-grid .iv-client-card:disabled {
+  opacity: 0.6;
+}
+.iv-client-card:disabled:hover {
+  border-color: var(--iv-border);
+  background: #1a1a1d;
+  transform: none;
+  box-shadow: none;
 }
 .iv-client-card-heading {
   display: flex;
@@ -825,6 +864,17 @@
 }
 .iv-tabs button:hover {
   background: #ffffff09;
+}
+.iv-tab-count {
+  min-width: 17px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #cb982f26;
+  color: #f0cd8f;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
 }
 .iv-workspace-content > .iv-section-heading h2 {
   font-size: 19px;
@@ -1677,6 +1727,24 @@
   font-size: 11px;
   padding: 20px 12px;
   line-height: 1.6;
+}
+/* Suspendidas: plegadas y fuera de "seleccionar todas". */
+.iv-suspended-equipment > summary {
+  padding: 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 550;
+  background: var(--rim-surface-raised);
+}
+.iv-suspended-equipment[open] > summary {
+  border-bottom: 1px solid var(--iv-border);
+}
+.iv-suspended-equipment > summary small {
+  display: block;
+  margin-top: 4px;
+  color: var(--iv-muted);
+  font-size: 10px;
+  font-weight: 400;
 }
 .iv-generated-code {
   padding: 12px 14px;

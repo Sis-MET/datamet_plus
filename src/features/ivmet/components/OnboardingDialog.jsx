@@ -1,43 +1,12 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Loader2, Search, X } from 'lucide-react';
 import { ivmetApi } from '../api/ivmet';
 import { createRequestId } from '../requestId';
 import { ErrorBox } from './Ui';
-import {
-  groupEquipment,
-  selectEquipment,
-  selectionState,
-} from '../equipmentSelection';
+import { SelectAll } from './SelectAll';
+import { groupEquipment, selectEquipment } from '../equipmentSelection';
 import { useDialogMotion } from '../useDialogMotion';
-
-function SelectAll({ codes, selected, locked, onChange, label }) {
-  const input = useRef(null);
-  const countId = useId();
-  const state = selectionState(codes, selected, locked);
-  useEffect(() => {
-    if (input.current) input.current.indeterminate = state.indeterminate;
-  }, [state.indeterminate]);
-  return (
-    <label className="iv-check-row iv-select-all">
-      <input
-        ref={input}
-        type="checkbox"
-        aria-label={label}
-        aria-describedby={countId}
-        checked={state.checked}
-        disabled={state.disabled}
-        onChange={(event) => onChange(codes, event.target.checked)}
-      />
-      <span>
-        {label}
-        <small id={countId}>
-          {state.count} de {state.total} seleccionadas
-        </small>
-      </span>
-    </label>
-  );
-}
 
 export function OnboardingDialog({
   onClose,

@@ -347,3 +347,20 @@ test('el reintento operativo exige motivo y no acepta comandos ni actor del nave
   assert.equal(querySchema.parse({ scopeId: id }).scopeId, id);
   assert.throws(() => querySchema.parse({ legacyClientId: -1 }));
 });
+test('habilitar balanzas en lote exige una selección válida', () => {
+  const other = '00000000-0000-4000-8000-000000000003';
+  assert.deepEqual(
+    validateAction('equipment.bulk-configure', { clientId: id, enabled: true, ids: [id, other] }),
+    { clientId: id, enabled: true, ids: [id, other] }
+  );
+  assert.throws(() => validateAction('equipment.bulk-configure', { clientId: id, enabled: true, ids: [] }));
+  assert.throws(() => validateAction('equipment.bulk-configure', { clientId: id, enabled: true, ids: [id, id] }));
+  assert.throws(() => validateAction('equipment.bulk-configure', { clientId: id, enabled: 'true', ids: [id] }));
+  assert.throws(() =>
+    validateAction('equipment.bulk-configure', {
+      clientId: id,
+      enabled: true,
+      ids: Array.from({ length: 501 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`),
+    })
+  );
+});

@@ -33,9 +33,24 @@ RimMET sí administra:
 - preparación operativa, sincronización, privacidad, permisos y auditoría.
 
 RimMET no crea ni edita áreas, patrones, certificados o planes metrológicos del
-cliente. Tampoco consulta su historial privado. La bandeja de actualizaciones
-compara el catálogo con el snapshot confirmado; **Registrar revisión** solo
-agrega un comentario visible al cliente y nunca actualiza DataMET.
+cliente. Tampoco consulta su historial privado. **Casos compartidos** y
+**Actualizaciones de balanzas** son pestañas de la ficha de cada cliente: no hay
+bandejas generales que mezclen empresas. Las actualizaciones comparan el
+catálogo con el snapshot confirmado; **Registrar revisión** solo agrega un
+comentario visible al cliente y nunca actualiza DataMET.
+
+## Avisos y habilitación en lote
+
+- Cada tarjeta del directorio indica los casos compartidos en estado *Recibido*
+  y las actualizaciones sin revisar de ese cliente; las pestañas de la ficha
+  repiten esos números. Solo se muestran con permiso `support`.
+- En **Balanzas**, **Habilitar balanzas** (con el número de pendientes) abre un
+  diálogo con las balanzas activas y validadas sin habilitar, por planta y con
+  búsqueda. Se eligen una por una, por planta o todas y se habilitan juntas;
+  el lote se aplica completo o no se aplica.
+- Las suspendidas aparecen plegadas y fuera de «seleccionar todas»: solo se
+  reactivan si se marcan a propósito. Las que requieren revisión en DataMET no
+  aparecen. Suspender sigue haciéndose desde la ficha de cada balanza.
 
 ## Permisos internos
 
@@ -43,8 +58,13 @@ agrega un comentario visible al cliente y nunca actualiza DataMET.
 | --- | --- |
 | `admin` | Toda la administración interna, sin acceso general a evidencia privada. |
 | `commercial` | Clientes, licencias, tarifas, cobros, preparación e incorporación. |
-| `support` | Casos y actualizaciones que el cliente compartió. |
-| `metrologist` | Casos y actualizaciones compartidos; no configura planes del cliente. |
+| `support` | Directorio y ficha básica de clientes, con sus casos y actualizaciones compartidas. |
+| `metrologist` | Igual que soporte; no configura planes del cliente. |
+
+Soporte y metrología abren la ficha para llegar a lo compartido, pero el
+backend les entrega solo nombre, código, estado, plantas y conteos de catálogo:
+sin contratos, facturas, pagos, licencias, usuarios ni detalle de
+incorporaciones.
 
 ## Contrato HTTP
 
@@ -54,8 +74,11 @@ Todas las rutas parten de `/api/ivmet` y exigen `Authorization`,
 
 Lecturas `GET /ops/:section` vigentes: `session`, `cases`, `case`, `assignees`,
 `equipment-updates`, `staff`, `readiness`, `billing`, `privacy`, `audit`.
-`equipment-updates` admite `search`, `page` y `pageSize` y nunca devuelve
-planes, patrones o resultados.
+`cases` y `equipment-updates` se consultan con `clientId` desde la ficha;
+`equipment-updates` admite además `search`, `page` y `pageSize` y nunca devuelve
+planes, patrones o resultados. `GET /clients` y `GET /clients/:clientId`
+aceptan el permiso `commercial` o `support`; con `support` la respuesta se
+limita en el backend.
 
 Acciones `POST /ops/actions/:action` vigentes:
 
@@ -63,14 +86,21 @@ Acciones `POST /ops/actions/:action` vigentes:
 - `equipment-update.review`: id, versión y comentario; no toca DataMET.
 - `staff.save`: permiso interno validado contra el usuario de RimMET.
 
+Acciones `POST /actions/:action` de balanzas, con permiso `commercial`:
+
+- `equipment.configure`: una balanza, con versión.
+- `equipment.bulk-configure`: `clientId`, `enabled` e `ids` (hasta 500 por
+  solicitud; el diálogo divide selecciones mayores).
+
 Las acciones anteriores de áreas, patrones, certificados o planes metrológicos
 son rechazadas por validación y por el contrato de Supabase, aunque un cliente
 antiguo intente invocarlas directamente.
 
 ## Despliegue
 
-Esta UI requiere Supabase `202608280004` y worker contrato 4. Seguir primero
-`IvMET/docs/customer-configuration-release.md`. Después compilar y actualizar
+Esta UI requiere Supabase `202609160001` y worker contrato 4. Seguir primero
+`IvMET/docs/client-attention-bulk-equipment.md`: la migración va antes que
+RimMET. Después compilar y actualizar
 RimMET conservando `backend/.env`:
 
 ```powershell

@@ -206,7 +206,7 @@ test('HTTP: toda la API IvMET exige login, nivel actual 3 y código; no afecta o
   const previousController = require.cache[controllerId];
   const supabaseId = require.resolve('../src/config/supabase');
   const previousSupabase = require.cache[supabaseId];
-  require.cache[supabaseId] = { id:supabaseId,loaded:true,exports:{getSupabaseAdminClient:()=>({rpc:async()=>({data:{role:'admin'},error:null})})} };
+  require.cache[supabaseId] = { id:supabaseId,loaded:true,exports:{getSupabaseAdminClient:()=>({rpc:async()=>({data:{role:'admin',capabilities:['commercial','support','integration','staff']},error:null})})} };
   require.cache[dbId] = {
     id: dbId,
     loaded: true,

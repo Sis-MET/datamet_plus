@@ -6,18 +6,19 @@ import { ActionDialog } from './ActionDialog';
 import { RegisteredEquipment } from './RegisteredEquipment';
 
 const fields = { ubicacion: 'Ubicación', cod_interno: 'Código interno', marca: 'Marca', modelo: 'Modelo', serie: 'Serie' };
-export function EquipmentUpdates({ revision, onSaved }) {
+// Solo las actualizaciones que autorizó este cliente.
+export function EquipmentUpdates({ clientId, revision, onSaved }) {
   const [page, setPage] = useState(1), [search, setSearch] = useState(''), [dialog, setDialog] = useState(null);
-  const query = useIvmetQuery('ops/equipment-updates', { page, search }, revision, 15000);
+  const query = useIvmetQuery('ops/equipment-updates', { clientId, page, search }, revision, 15000);
   return <>
-    <SectionTitle eyebrow="AUTORIZADO POR EL CLIENTE" title="Actualizaciones de balanzas"
-      description="Información compartida para preparar próximas calibraciones. No incluye pruebas, planes ni patrones privados." />
+    <SectionTitle title="Actualizaciones de balanzas"
+      description="Autorizadas por el cliente para preparar próximas calibraciones. No incluye pruebas, planes ni patrones privados." />
     <div className="iv-privacy-note"><ShieldCheck size={20}/><p>Recibir o marcar una actualización como revisada no modifica DataMET. La aplicación al catálogo maestro requiere revisión por Métrica.</p></div>
     <div className="iv-toolbar"><SearchInput value={search} placeholder="Buscar código de balanza" onChange={(v) => { setSearch(v); setPage(1); }}/></div>
     <QueryState query={query}>
       {!query.data?.items.length && <Empty title="Sin actualizaciones autorizadas" text="El cliente decide desde su app qué cambios desea compartir con Métrica." />}
       {query.data?.items.map((item) => <article className="iv-plan-card" key={item.id}>
-        <SectionTitle title={item.snapshot.code} description={`Cliente ${item.snapshot.clientCode} · planta ${item.snapshot.plantCode} · ${new Date(item.autorizado_at).toLocaleString('es-BO')}`}/>
+        <SectionTitle title={item.snapshot.code} description={`Planta ${item.snapshot.plantCode} · ${new Date(item.autorizado_at).toLocaleString('es-BO')}`}/>
         <p>{item.mensaje}</p>
         {item.snapshot.kind === 'registration' ? <RegisteredEquipment snapshot={item.snapshot}/> : <div className="iv-table-wrap"><table className="iv-table"><thead><tr><th>Dato</th><th>Catálogo consultado</th><th>Confirmado por el cliente</th></tr></thead><tbody>
           {Object.entries(fields).map(([key, label]) => <tr key={key}><th scope="row">{label}</th><td>{item.snapshot.catalog?.[key] || '—'}</td><td>{item.snapshot.customer?.[key] || '—'}</td></tr>)}

@@ -3,9 +3,12 @@ import {
   ArrowLeft,
   Building2,
   Check,
+  CheckCheck,
   ChevronRight,
   ClipboardList,
+  FilePenLine,
   FileText,
+  Inbox,
   KeyRound,
   Layers,
   Plus,
@@ -15,6 +18,8 @@ import {
   X,
 } from 'lucide-react';
 import { useIvmetQuery } from '../useIvmetQuery';
+import { SharedCases } from './SharedCases';
+import { EquipmentUpdates } from './EquipmentUpdates';
 import {
   Badge,
   Empty,
@@ -26,13 +31,15 @@ import {
 import { dateText, effectiveState, money } from '../format';
 import { IvSelect } from './IvSelect';
 import { useDialogMotion } from '../useDialogMotion';
+import { EnableEquipmentDialog } from './EnableEquipmentDialog';
 
-function EquipmentView({ clientId, workspace, revision, open }) {
+function EquipmentView({ clientId, workspace, revision, open, onSaved }) {
   const [search, setSearch] = useState('');
   const [plantId, setPlant] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
+  const [enabling, setEnabling] = useState(false);
   const detail = useRef(null);
   const { closing, close } = useDialogMotion(
     detail,
@@ -53,11 +60,27 @@ function EquipmentView({ clientId, workspace, revision, open }) {
     setter(value);
     setPage(1);
   };
+  // Validadas que nadie habilitó ni suspendió, según el filtro de planta.
+  const pending = Number(query.data?.pendingEnable) || 0;
   return (
     <>
       <SectionTitle
         title="Balanzas del cliente"
-        description="Datos maestros de DataMET. Selecciona una balanza para ver su ficha y configurar su uso."
+        description="Datos maestros de DataMET. Abre una balanza para ver su ficha o habilita varias a la vez."
+        action={
+          <button
+            className="iv-button primary"
+            aria-label={
+              pending
+                ? `Habilitar balanzas, ${pending} pendientes`
+                : 'Habilitar balanzas'
+            }
+            onClick={() => setEnabling(true)}
+          >
+            <CheckCheck size={16} /> Habilitar balanzas
+            {pending > 0 && <span className="iv-button-count">{pending}</span>}
+          </button>
+        }
       />
       <div className="iv-toolbar">
         <SearchInput
@@ -136,7 +159,11 @@ function EquipmentView({ clientId, workspace, revision, open }) {
                     </td>
                     <td>
                       <Badge value={e.habilitado ? 'ACTIVE' : 'INACTIVE'}>
-                        {e.habilitado ? 'Habilitado' : 'Sin habilitar'}
+                        {e.habilitado
+                          ? 'Habilitado'
+                          : e.estado_configuracion === 'SUSPENDED'
+                            ? 'Suspendido'
+                            : 'Sin habilitar'}
                       </Badge>
                     </td>
                     <td>
@@ -257,6 +284,15 @@ function EquipmentView({ clientId, workspace, revision, open }) {
             </button>
           </footer>
         </dialog>
+      )}
+      {enabling && (
+        <EnableEquipmentDialog
+          clientId={clientId}
+          client={workspace.client}
+          plants={workspace.plants}
+          onClose={() => setEnabling(false)}
+          onSaved={onSaved}
+        />
       )}
     </>
   );
@@ -610,7 +646,7 @@ function PatternsView() {
   return <>
     <SectionTitle title="Configuración privada del cliente" description="El cliente organiza su operación desde la app IvMET." />
     <p className="iv-notice">Las áreas, los patrones, sus certificados y los planes metrológicos ya no se registran desde RimMET. El jefe de calidad define y asigna los planes en la app; los usuarios del cliente validan las fichas y registran sus áreas y patrones.</p>
-    <p className="iv-notice">Ubicación permite sugerir áreas por planta. Las correcciones son privadas; solo las autorizadas expresamente aparecen en «Actualizaciones del cliente».</p>
+    <p className="iv-notice">Ubicación permite sugerir áreas por planta. Las correcciones son privadas; solo las autorizadas expresamente aparecen en «Actualizaciones de balanzas».</p>
   </>;
 }
 function ActivityView({ clientId, revision }) {
@@ -669,17 +705,35 @@ function ActivityView({ clientId, revision }) {
     </>
   );
 }
+// Lo que el cliente comparte se atiende dentro de su ficha, no en bandejas generales.
 const tabs = [
-  ['equipment', 'Balanzas', Scale],
-  ['users', 'Usuarios y licencias', Users],
-  ['commercial', 'Contrato y pagos', KeyRound],
-  ['patterns', 'Configuración del cliente', Layers],
-  ['activity', 'Actividad', ClipboardList],
+  ['equipment', 'Balanzas', Scale, 'commercial'],
+  ['users', 'Usuarios y licencias', Users, 'commercial'],
+  ['commercial', 'Contrato y pagos', KeyRound, 'commercial'],
+  ['patterns', 'Configuración del cliente', Layers, 'commercial'],
+  ['cases', 'Casos compartidos', Inbox, 'support'],
+  ['updates', 'Actualizaciones de balanzas', FilePenLine, 'support'],
+  ['activity', 'Actividad', ClipboardList, 'commercial'],
 ];
-export function ClientWorkspace({ clientId, revision, onBack, open, plans }) {
+export function ClientWorkspace({
+  clientId,
+  revision,
+  onBack,
+  open,
+  plans,
+  can,
+  onSaved,
+}) {
   const query = useIvmetQuery(`clients/${clientId}`, {}, revision);
-  const [tab, setTab] = useState('equipment');
+  const visibleTabs = tabs.filter((t) => can(t[3]));
+  const [tab, setTab] = useState(visibleTabs[0]?.[0]);
+  const [caseId, setCaseId] = useState(null);
   const workspace = query.data;
+  // Casos y actualizaciones sin revisar; solo llegan con permiso de soporte.
+  const pendingByTab = {
+    cases: Number(workspace?.attention?.newCases) || 0,
+    updates: Number(workspace?.attention?.pendingUpdates) || 0,
+  };
   const act = (action, record = {}) =>
     open(action, { record, clientId, workspace, plans });
   return (
@@ -709,14 +763,20 @@ export function ClientWorkspace({ clientId, revision, onBack, open, plans }) {
               <Badge value={workspace.client.activo ? 'ACTIVE' : 'INACTIVE'} />
             </div>
             <nav className="iv-tabs" aria-label="Gestión del cliente">
-              {tabs.map(([id, label, icon]) => (
+              {visibleTabs.map(([id, label, icon]) => (
                 <button
                   key={id}
                   aria-current={tab === id ? 'page' : undefined}
-                  onClick={() => setTab(id)}
+                  onClick={() => {
+                    setTab(id);
+                    setCaseId(null);
+                  }}
                 >
                   {React.createElement(icon, { size: 16 })}
                   {label}
+                  {pendingByTab[id] > 0 && (
+                    <span className="iv-tab-count">{pendingByTab[id]}</span>
+                  )}
                 </button>
               ))}
             </nav>
@@ -727,6 +787,7 @@ export function ClientWorkspace({ clientId, revision, onBack, open, plans }) {
                   workspace={workspace}
                   revision={revision}
                   open={act}
+                  onSaved={onSaved}
                 />
               ) : tab === 'users' ? (
                 <UsersView
@@ -739,8 +800,24 @@ export function ClientWorkspace({ clientId, revision, onBack, open, plans }) {
                 <CommercialView workspace={workspace} open={act} />
               ) : tab === 'patterns' ? (
                 <PatternsView workspace={workspace} open={act} />
+              ) : tab === 'cases' ? (
+                <SharedCases
+                  clientId={clientId}
+                  revision={revision}
+                  onSaved={onSaved}
+                  selected={caseId}
+                  setSelected={setCaseId}
+                />
+              ) : tab === 'updates' ? (
+                <EquipmentUpdates
+                  clientId={clientId}
+                  revision={revision}
+                  onSaved={onSaved}
+                />
               ) : (
-                <ActivityView clientId={clientId} revision={revision} />
+                tab === 'activity' && (
+                  <ActivityView clientId={clientId} revision={revision} />
+                )
               )}
             </div>
           </>

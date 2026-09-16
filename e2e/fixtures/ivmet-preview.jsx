@@ -71,7 +71,7 @@ const clients = [
     razon_social: 'Andina Alimentos · datos de demostración',
     activo: true,
     plants: 2,
-    equipment: 3,
+    equipment: 6,
     licenses: 2,
     review: 1,
   },
@@ -156,6 +156,40 @@ const equipment = [
     habilitado: false,
   },
   {
+    id: id(25),
+    cliente_id: id(1),
+    planta_id: id(11),
+    cod_metrica: '0001-01-003',
+    instrumento: 'Balanza de mostrador',
+    marca: 'OHAUS',
+    modelo: 'Ranger 3000',
+    estado_catalogo: 'READY',
+    habilitado: false,
+  },
+  {
+    id: id(26),
+    cliente_id: id(1),
+    planta_id: id(12),
+    cod_metrica: '0001-02-002',
+    instrumento: 'Balanza de piso',
+    marca: 'METTLER TOLEDO',
+    modelo: 'PBA430',
+    estado_catalogo: 'READY',
+    habilitado: false,
+  },
+  {
+    id: id(27),
+    cliente_id: id(1),
+    planta_id: id(12),
+    cod_metrica: '0001-02-003',
+    instrumento: 'Balanza colgante',
+    marca: 'CAS',
+    modelo: 'THD',
+    estado_catalogo: 'READY',
+    habilitado: false,
+    estado_configuracion: 'SUSPENDED',
+  },
+  {
     id: id(24),
     cliente_id: id(2),
     planta_id: id(13),
@@ -167,6 +201,7 @@ const equipment = [
     habilitado: false,
   },
 ].map((e) => ({
+  estado_configuracion: e.habilitado ? 'READY' : 'PENDING',
   ...e,
   activo: true,
   config_version: '1',
@@ -285,6 +320,16 @@ const users = [
     debe_cambiar_password: true,
   },
 ];
+const role = new URLSearchParams(window.location.search).get('role') || 'admin';
+const capabilities = role==='admin'?['commercial','support','integration','staff']:role==='metrologist'?['support']:role==='commercial'?['commercial','integration']:[role];
+const limited = !capabilities.includes('commercial');
+const support = capabilities.includes('support');
+// Mismo criterio que Supabase: validadas que nadie habilitó ni suspendió.
+const pendingEnable = (e) => e.activo && e.estado_catalogo === 'READY' && !e.habilitado && e.estado_configuracion === 'PENDING';
+const attention = (clientId) => ({
+  newCases: [opsCase, opsRegisteredCase].filter((c) => c.cliente_id === clientId && c.estado === 'NEW').length,
+  pendingUpdates: [opsEquipmentUpdate, opsRegistrationUpdate].filter((u) => u.cliente_id === clientId && u.estado === 'NEW').length,
+});
 const paged = (items, params) => {
   const page = Number(params.get('page') || 1);
   const pageSize = 20;
@@ -298,6 +343,7 @@ const paged = (items, params) => {
 const opsStaff = [{actor:'RIMMET:demo',nombre:'Administrador de pruebas',rol:'admin',activo:true,row_version:'1'}];
 const opsEquipmentUpdate = {
   id:id(820),
+  cliente_id:id(1),
   autorizado_at:new Date().toISOString(),
   estado:'NEW',
   row_version:'1',
@@ -312,6 +358,7 @@ const opsEquipmentUpdate = {
 // Balanza que el cliente registró en IvMET: sin código de Métrica ni catálogo de DataMET.
 const opsRegistrationUpdate = {
   id:id(821),
+  cliente_id:id(1),
   autorizado_at:new Date().toISOString(),
   estado:'NEW',
   row_version:'1',
@@ -401,10 +448,9 @@ window.fetch = async (input, options = {}) => {
     );
   let data;
   if (path.startsWith('ops/')) {
-    const role = new URLSearchParams(window.location.search).get('role') || 'admin';
-    const capabilities = role==='admin'?['commercial','support','integration','staff']:role==='metrologist'?['support']:[role];
     if(path==='ops/session') data={role,actor:'RIMMET:demo',capabilities};
-    else if(path==='ops/cases') data=paginate([opsCase,opsRegisteredCase].filter((c)=>!url.searchParams.get('status') || c.estado===url.searchParams.get('status')),url);
+    else if(path==='ops/cases') data=paginate([opsCase,opsRegisteredCase].filter((c)=>(!url.searchParams.get('clientId') || c.cliente_id===url.searchParams.get('clientId'))
+      && (!url.searchParams.get('status') || c.estado===url.searchParams.get('status'))),url);
     else if(path==='ops/case') {
       caseReads+=1;
       if(new URLSearchParams(window.location.search).has('withdrawAfterRead') && caseReads>1)
@@ -414,7 +460,8 @@ window.fetch = async (input, options = {}) => {
     else if(path==='ops/assignees') data=[{actor:'RIMMET:demo',name:'Administrador de pruebas'}];
     else if(path==='ops/staff') data=opsStaff;
     else if(path==='ops/equipment-updates') data=paginate([opsEquipmentUpdate,opsRegistrationUpdate].filter((item)=>
-      !url.searchParams.get('search') || item.snapshot.code.includes(url.searchParams.get('search'))),url);
+      (!url.searchParams.get('clientId') || item.cliente_id===url.searchParams.get('clientId'))
+      && (!url.searchParams.get('search') || item.snapshot.code.includes(url.searchParams.get('search')))),url);
     else if(path==='ops/readiness') data=paginate(clients.filter((c)=>c.id).map((c)=>({id:c.id,code:c.codigo,name:c.nombre,contract:true,subscription:true,users:true,equipment:true,standards:false,plans:false,syncedAt:date})),url);
     else if(path==='ops/billing') data=paginate([],url);
     else if(path==='ops/privacy') data={contractVersion:4,privateEvidenceExport:false,sharedCasesOnly:true,queue:{PENDING:2}};
@@ -481,6 +528,13 @@ window.fetch = async (input, options = {}) => {
         onboarding: scope,
       });
     }
+    if (path === 'actions/equipment.bulk-configure') {
+      const targets = equipment.filter((e) => payload.ids.includes(e.id));
+      const state = payload.enabled ? 'READY' : 'SUSPENDED';
+      const changed = targets.filter((e) => e.habilitado !== payload.enabled || e.estado_configuracion !== state);
+      for (const e of changed) Object.assign(e, { habilitado: payload.enabled, estado_configuracion: state });
+      data = { requested: targets.length, changed: changed.length, enabled: payload.enabled };
+    }
     if (path === 'actions/scope.retry') {
       scopes.find((scope) => scope.id === payload.id).syncStatus = 'QUEUED';
       data = { id: payload.id };
@@ -496,7 +550,7 @@ window.fetch = async (input, options = {}) => {
       expiresSoon: 0,
     };
   else if (path === 'plans') data = plans;
-  else if (path === 'clients')
+  else if (path === 'clients') {
     data = paged(
       clients.filter((c) =>
         JSON.stringify(c)
@@ -505,6 +559,12 @@ window.fetch = async (input, options = {}) => {
       ),
       url.searchParams,
     );
+    data.items = data.items.map((c) => ({
+      ...(limited ? { id: c.id, codigo: c.codigo, nombre: c.nombre, razon_social: c.razon_social,
+        activo: c.activo, plants: c.plants, equipment: c.equipment, review: c.review } : c),
+      ...(support ? attention(c.id) : {}),
+    }));
+  }
   else if (path === 'integration' || path === 'onboarding')
     data = {
       scopes: scopes.filter(
@@ -590,7 +650,7 @@ window.fetch = async (input, options = {}) => {
     };
   else if (path.startsWith('clients/')) {
     const [, clientId, section] = path.split('/');
-    if (section === 'equipment')
+    if (section === 'equipment') {
       data = paged(
         equipment.filter(
           (e) =>
@@ -605,7 +665,9 @@ window.fetch = async (input, options = {}) => {
         ),
         url.searchParams,
       );
-    else if (section === 'users')
+      data.pendingEnable = equipment.filter((e) => e.cliente_id === clientId && pendingEnable(e)
+        && (!url.searchParams.get('plantId') || e.planta_id === url.searchParams.get('plantId'))).length;
+    } else if (section === 'users')
       data = paged(
         users.filter((u) => u.cliente_id === clientId),
         url.searchParams,
@@ -645,6 +707,9 @@ window.fetch = async (input, options = {}) => {
         invoices: clientId === id(1) ? invoices : [],
         metrologyPlans: [],
       };
+    if (limited && !section)
+      data = { client: data.client, plants: data.plants };
+    if (support && !section) data.attention = attention(clientId);
   } else throw new Error(`Ruta sin fixture: ${path}`);
   return Response.json({ success: true, data });
 };

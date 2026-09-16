@@ -146,6 +146,15 @@ const schemas = {
     planVersionId: z.literal('').optional(),
     enabled: z.boolean(),
   }),
+  'equipment.bulk-configure': z.object({
+    ...scope,
+    enabled: z.boolean(),
+    ids: z
+      .array(uuid)
+      .min(1)
+      .max(500)
+      .refine((v) => new Set(v).size === v.length, 'Balanzas duplicadas'),
+  }),
   'scope.request': z.object({
     legacyClientId: z.number().int().positive(),
     clientCode: z.string().regex(/^\d{4}$/),
