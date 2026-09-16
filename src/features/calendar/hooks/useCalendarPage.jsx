@@ -190,7 +190,7 @@ export function useCalendarPage() {
         description: `La más reciente: ${alertTask.morning} del ${taskDateStr}. Por favor, actualiza su estado.`,
         duration: 12000,
         action: {
-          label: "Ir a la tarea →",
+          label: "Ir a la tarea",
           onClick: () => {
             goToDate(alertTask.fecha);
             setTimeout(() => {
@@ -393,16 +393,16 @@ export function useCalendarPage() {
         duration: 10000,
         description: (
           <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
-            <span className="text-[13px] text-gray-600 dark:text-gray-300 leading-snug">
-              Vas a {isMoveKey ? "mover" : "copiar"} esta tarea a <strong className="font-semibold text-gray-800 dark:text-gray-100">{targetName}</strong>. ¿Estás seguro?
+            <span className="text-[13px] leading-snug text-fg-muted">
+              Vas a {isMoveKey ? "mover" : "copiar"} esta tarea a <strong className="font-semibold text-fg">{targetName}</strong>. ¿Estás seguro?
             </span>
             <div className="flex items-center gap-2">
               <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); executeAction(); }}
-                className="flex-1 py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-300 rounded-xl text-[13px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
+                className="flex-1 cursor-pointer rounded-xl bg-brand px-4 py-2 text-center text-[13px] font-semibold text-brand-fg shadow-xs ring-1 ring-inset ring-black/5 transition-colors hover:bg-brand-hover">
                 Sí, {isMoveKey ? "Mover" : "Copiar"}
               </div>
               <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); }}
-                className="flex-1 py-1.5 px-4 bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300 rounded-xl text-[13px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
+                className="flex-1 cursor-pointer rounded-xl border border-line-strong bg-surface px-4 py-2 text-center text-[13px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2">
                 Cancelar
               </div>
             </div>
@@ -419,21 +419,21 @@ export function useCalendarPage() {
         duration: 15000,
         description: (
           <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
-            <span className="text-[13px] text-gray-600 dark:text-gray-300 leading-snug">
-              Esta tarea también está asignada a <strong className="font-semibold text-gray-800 dark:text-gray-100">{otherNames}</strong>. ¿Deseas copiarla para todos al día {format(targetDateObj, 'd MMM', { locale: es })}?
+            <span className="text-[13px] leading-snug text-fg-muted">
+              Esta tarea también está asignada a <strong className="font-semibold text-fg">{otherNames}</strong>. ¿Deseas copiarla para todos al día {format(targetDateObj, 'd MMM', { locale: es })}?
             </span>
             <div className="flex flex-col gap-2">
               <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); executeAction(true, otherUsersWithTask); }}
-                className="w-full py-1.5 px-4 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-300 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
+                className="w-full cursor-pointer rounded-xl bg-brand px-4 py-2 text-center text-[13px] font-semibold text-brand-fg shadow-xs ring-1 ring-inset ring-black/5 transition-colors hover:bg-brand-hover">
                 Sí, copiar para todos ({otherUsersWithTask.length + 1})
               </div>
               <div className="flex items-center gap-2">
                 <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); executeAction(false, []); }}
-                  className="flex-1 py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
+                  className="flex-1 cursor-pointer rounded-xl border border-line-strong bg-surface px-4 py-2 text-center text-[13px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2">
                   Solo para mí
                 </div>
                 <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); }}
-                  className="flex-1 py-1.5 px-2 bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">
+                  className="flex-1 cursor-pointer rounded-xl border border-line-strong bg-surface px-4 py-2 text-center text-[13px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2">
                   Cancelar
                 </div>
               </div>
@@ -513,12 +513,12 @@ export function useCalendarPage() {
       duration: 30000,
       description: (
         <form onSubmit={onSubmit} className="flex flex-col gap-3 mt-2" onPointerDown={e => e.stopPropagation()}>
-          <p className="text-[13px] text-gray-600 dark:text-gray-300 leading-snug">Se reprogramarán las tareas vinculadas de la semana actual.</p>
+          <p className="text-[13px] leading-snug text-fg-muted">Se reprogramarán las tareas vinculadas de la semana actual.</p>
           <input type="date" defaultValue={selectedDateStr} onChange={(e) => selectedDateStr = e.target.value} required
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-          <div className="flex gap-2 pt-1 border-t border-gray-200 dark:border-gray-700">
-            <button type="submit" className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors">Continuar</button>
-            <button type="button" onClick={() => toast.dismiss()} className="flex-1 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-lg text-xs font-bold transition-colors">Cancelar</button>
+            className="field h-10 font-medium" />
+          <div className="flex gap-2 border-t border-line pt-3">
+            <button type="submit" className="flex-1 cursor-pointer rounded-xl bg-brand px-4 py-2 text-center text-[13px] font-semibold text-brand-fg shadow-xs ring-1 ring-inset ring-black/5 transition-colors hover:bg-brand-hover">Continuar</button>
+            <button type="button" onClick={() => toast.dismiss()} className="flex-1 cursor-pointer rounded-xl border border-line-strong bg-surface px-4 py-2 text-center text-[13px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2">Cancelar</button>
           </div>
         </form>
       )
@@ -632,14 +632,14 @@ export function useCalendarPage() {
         duration: 15000,
         description: (
           <div className="flex flex-col gap-3.5 mt-1" onPointerDown={(e) => e.stopPropagation()}>
-            <span className="text-[13px] text-gray-600 dark:text-gray-300 leading-snug">
-              <strong className="font-semibold text-gray-800 dark:text-gray-100">{targetName}</strong> ya está ocupando <strong className="font-semibold text-gray-800 dark:text-gray-100">{techVehicleWarning.vehicleName}</strong> para la tarea <strong className="font-semibold text-gray-800 dark:text-gray-100">"{techVehicleWarning.activity}"</strong> el {format(techVehicleWarning.date, 'EEEE d', { locale: es })}. ¿Deseas asignarle también este vehículo?
+            <span className="text-[13px] leading-snug text-fg-muted">
+              <strong className="font-semibold text-fg">{targetName}</strong> ya está ocupando <strong className="font-semibold text-fg">{techVehicleWarning.vehicleName}</strong> para la tarea <strong className="font-semibold text-fg">"{techVehicleWarning.activity}"</strong> el {format(techVehicleWarning.date, 'EEEE d', { locale: es })}. ¿Deseas asignarle también este vehículo?
             </span>
             <div className="flex items-center gap-2">
               <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); performAssignment(); toast.dismiss(); }}
-                className="flex-1 py-1.5 px-3 bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-300 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">Sí, guardar</div>
+                className="flex-1 cursor-pointer rounded-xl bg-brand px-4 py-2 text-center text-[13px] font-semibold text-brand-fg shadow-xs ring-1 ring-inset ring-black/5 transition-colors hover:bg-brand-hover">Sí, guardar</div>
               <div role="button" tabIndex={0} onClick={(e) => { e?.preventDefault(); e?.stopPropagation(); toast.dismiss(); }}
-                className="flex-1 py-1.5 px-3 bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-300 rounded-xl text-[12px] font-semibold transition-colors shadow-sm text-center cursor-pointer">Cancelar</div>
+                className="flex-1 cursor-pointer rounded-xl border border-line-strong bg-surface px-4 py-2 text-center text-[13px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2">Cancelar</div>
             </div>
           </div>
         )

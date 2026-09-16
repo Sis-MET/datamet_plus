@@ -2,7 +2,7 @@ import React, { useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MapPin } from 'lucide-react';
+import { AlertTriangle, Clock, MapPin, Plus, X } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
 import { useTaskTooltip } from './taskTooltipStore';
@@ -16,14 +16,16 @@ const normalizeForComparison = (value) => normalizeTaskText(value).toLocaleLower
  * Calcula si el texto debe ser oscuro o claro según el color de fondo.
  * Usa la fórmula de luminancia relativa (WCAG 2.1).
  * @param {string} hexColor - Color en formato #RRGGBB o #RGB
- * @returns {{ text: string, textSecondary: string, shadow: string }}
+ * @returns {{ text: string, textSecondary: string }}
  */
 function getContrastColors(hexColor) {
-  if (!hexColor) return { text: '#ffffff', textSecondary: 'rgba(255,255,255,0.85)', shadow: '0 1px 2px rgba(0,0,0,0.4)' };
+  if (!hexColor) return { text: '#ffffff', textSecondary: 'rgba(255,255,255,0.85)' };
   // Normalizar a #RRGGBB
   let hex = hexColor.replace('#', '');
   if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-  if (hex.length !== 6) return { text: '#ffffff', textSecondary: 'rgba(255,255,255,0.85)', shadow: '0 1px 2px rgba(0,0,0,0.4)' };
+  // Los colores predefinidos incluyen canal alfa (#RRGGBBAA): se ignora.
+  if (hex.length === 8) hex = hex.slice(0, 6);
+  if (hex.length !== 6) return { text: '#ffffff', textSecondary: 'rgba(255,255,255,0.85)' };
   const r = parseInt(hex.substring(0, 2), 16) / 255;
   const g = parseInt(hex.substring(2, 4), 16) / 255;
   const b = parseInt(hex.substring(4, 6), 16) / 255;
@@ -33,10 +35,34 @@ function getContrastColors(hexColor) {
   // Umbral: > 0.35 = fondo claro → texto oscuro
   const isDark = L > 0.35;
   return {
-    text: isDark ? '#1a1a1a' : '#ffffff',
-    textSecondary: isDark ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.85)',
-    shadow: isDark ? '0 1px 1px rgba(255,255,255,0.3)' : '0 1px 2px rgba(0,0,0,0.4)',
+    text: isDark ? '#161614' : '#ffffff',
+    textSecondary: isDark ? 'rgba(22,22,20,0.72)' : 'rgba(255,255,255,0.86)',
   };
+}
+
+// Estado de la tarea: punto sobre el color de la ficha y etiqueta en el tooltip.
+const STATE_DOT = {
+  Completado: 'bg-emerald-400',
+  Aprobado: 'bg-emerald-400',
+  Cancelado: 'bg-red-400',
+  Reprogramado: 'bg-sky-400',
+  Aceptado: 'bg-sky-400',
+};
+
+function getStateBadgeClass(estado) {
+  const base = 'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset';
+  switch (estado) {
+    case 'Completado':
+    case 'Aprobado':
+      return `${base} bg-success/10 text-success ring-success/25`;
+    case 'En Proceso':
+    case 'Aceptado':
+      return `${base} bg-info/10 text-info ring-info/25`;
+    case 'Cancelado':
+      return `${base} bg-danger/10 text-danger ring-danger/25`;
+    default:
+      return `${base} bg-warning/10 text-warning ring-warning/25`;
+  }
 }
 
 /**
@@ -74,8 +100,17 @@ function useLongPress(onLongPress, delay = 500) {
   return { onPointerDown: start, onPointerUp: cancel, onPointerCancel: cancel, onPointerMove: move, onClick: preventClick };
 }
 
+function TooltipField({ label, children }) {
+  return (
+    <div>
+      <p className="text-[11px] text-fg-subtle">{label}</p>
+      <div className="mt-0.5 break-words text-[13px] leading-snug text-fg">{children}</div>
+    </div>
+  );
+}
+
 // Sub-componente: cada tarjeta con su propio tooltip
-function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resourceId, onTaskClick, onTaskDrop, onTaskContextMenu, onTaskDragStart, onTaskDragEnd, date }) {
+function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTaskClick, onTaskDrop, onTaskContextMenu, onTaskDragStart, onTaskDragEnd, date }) {
   const tooltipKey = `${resourceId}:${task.id}`;
   const { tooltip, showTaskTooltip, hideTaskTooltip } = useTaskTooltip(tooltipKey);
   const renderTooltip = Boolean(tooltip);
@@ -104,19 +139,6 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
     dynamicLines.push({ text: activityText, role: 'primary' });
   }
 
-  // Para el tooltip (mantener textos completos)
-  const getStateBadgeClass = (estado) => {
-    switch(estado) {
-      case 'Completado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30';
-      case 'En Proceso': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30';
-      case 'Cancelado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-red-500/20 text-red-400 ring-1 ring-red-500/30';
-      case 'Aprobado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30';
-      case 'Aceptado': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30';
-      case 'Solicitud': return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/30';
-      default: return 'px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/30';
-    }
-  };
-
   const handleMouseEnter = (e) => {
     e.stopPropagation();
     showTaskTooltip(e.currentTarget);
@@ -137,6 +159,9 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
     }
   }, 500);
 
+  const contrast = getContrastColors(task.colorAM);
+  const hasColor = Boolean(task.morning && task.colorAM);
+
   return (
     <>
       <div
@@ -146,7 +171,7 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
         onClick={(e) => {
           longPressClick(e);
           if (e.isPropagationStopped()) return;
-          
+
           if (onTaskClick) {
             e.stopPropagation();
             onTaskClick(task, date, resourceId);
@@ -186,207 +211,143 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        style={{ touchAction: 'none' }}
-        className={`h-[54px] w-full shrink-0 border rounded-md overflow-hidden shadow-sm flex flex-col cursor-grab active:cursor-grabbing hover:ring-2 transition-[transform,box-shadow] duration-100 font-mono tracking-tight select-none ${
-          isDarkGantt
-            ? 'border-white/10 hover:ring-white/30'
-            : 'border-white/20 hover:ring-black/20'
-        }`}
+        style={{ touchAction: 'none', ...(hasColor ? { backgroundColor: task.colorAM } : {}) }}
+        className={cn(
+          'relative flex h-[54px] w-full shrink-0 cursor-grab select-none flex-col justify-center overflow-hidden rounded-lg px-2 py-1 shadow-xs ring-1 ring-inset ring-black/10 transition-[box-shadow,transform] duration-150 ease-out active:cursor-grabbing',
+          'hover:-translate-y-px hover:shadow-card hover:ring-black/25',
+          !hasColor && 'bg-surface-2 text-fg'
+        )}
       >
-        {(() => {
-          const contrast = getContrastColors(task.colorAM);
-          return (
-            <div
-              className={`flex-1 flex flex-col justify-center px-1.5 py-1 relative group/slot ${!(task.morning && task.colorAM) ? 'bg-transparent' : ''}`}
-              style={task.morning && task.colorAM ? { backgroundColor: task.colorAM } : {}}
-            >
-              {task.morning && task.colorAM && <div className={`absolute inset-0 pointer-events-none opacity-40 bg-gradient-to-b from-white/20 to-transparent`} />}
-              {task.morning && (
-                <div className="flex items-start gap-1.5 relative z-10 w-full overflow-hidden">
-                  <div 
-                    className={`w-2 h-2 rounded-full shrink-0 mt-[4px] ${
-                      (task.estadoAM === 'Completado' || task.estadoAM === 'Aprobado') ? 'bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)]' :
-                      task.estadoAM === 'Cancelado' ? 'bg-red-400 shadow-[0_0_5px_rgba(248,113,113,0.8)]' :
-                      (task.estadoAM === 'Reprogramado' || task.estadoAM === 'Aceptado') ? 'bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]' :
-                      'bg-yellow-400 shadow-[0_0_5px_rgba(250,204,21,0.8)]'
-                    }`}
-                    title={task.estadoAM || 'Pendiente'}
-                  />
-                  <div className="flex flex-col flex-1 min-w-0 justify-center h-full">
-                    {/* Líneas dinámicas: Cliente > Planta > Descripción */}
-                    {dynamicLines.map((line, idx) => (
-                      <span
-                        key={idx}
-                        className={cn(
-                          'line-clamp-1 break-all leading-tight',
-                          line.role === 'primary'
-                            ? 'font-bold text-xs'
-                            : 'text-[10px] mt-[1px] opacity-80'
-                        )}
-                        style={{
-                          color: task.colorAM
-                            ? (line.role === 'primary' ? contrast.text : contrast.textSecondary)
-                            : undefined,
-                          textShadow: contrast.shadow
-                        }}
-                      >
-                        {idx === 0 && task.creadoEn === 'Salida Personal' && <MapPin className="w-3 h-3 inline-block mr-1 opacity-80" />}
-                        {line.text}
-                      </span>
-                    ))}
-                    {/* Rango horario (siempre visible) */}
-                    {(task.horaInicio || task.horaFin) && (
-                      <span
-                        className="text-[10px] leading-tight truncate font-bold font-mono tracking-tight mt-[1px]"
-                        style={{ color: task.colorAM ? contrast.textSecondary : undefined, textShadow: contrast.shadow }}
-                      >
-                        {task.horaInicio || '08:30'} {task.horaFin ? `→ ${task.horaFin}` : ''}
-                      </span>
-                    )}
-                    {/* Tipo de tarea (siempre visible, texto pequeño) */}
-                    {activityText && (
-                      <span
-                        className="line-clamp-1 break-all text-[8px] leading-tight mt-[1px] opacity-60 uppercase tracking-wider"
-                        style={{ color: task.colorAM ? contrast.textSecondary : undefined, textShadow: contrast.shadow }}
-                      >
-                        {activityText}
-                      </span>
-                    )}
-                  </div>
-                </div>
+        {task.morning && (
+          <div className="flex w-full items-start gap-1.5 overflow-hidden">
+            <span
+              className={cn('mt-[5px] h-2 w-2 shrink-0 rounded-full ring-1 ring-black/25', STATE_DOT[task.estadoAM] || 'bg-yellow-300')}
+              title={task.estadoAM || 'Pendiente'}
+            />
+            <div className="flex h-full min-w-0 flex-1 flex-col justify-center">
+              {/* Líneas dinámicas: Cliente > Planta > Descripción */}
+              {dynamicLines.map((line, idx) => (
+                <span
+                  key={idx}
+                  className={cn(
+                    'line-clamp-1 break-all leading-tight',
+                    line.role === 'primary'
+                      ? 'text-xs font-semibold'
+                      : 'mt-px text-[10px]'
+                  )}
+                  style={{
+                    color: hasColor
+                      ? (line.role === 'primary' ? contrast.text : contrast.textSecondary)
+                      : undefined,
+                  }}
+                >
+                  {idx === 0 && task.creadoEn === 'Salida Personal' && <MapPin className="mr-1 inline-block h-3 w-3 opacity-80" />}
+                  {line.text}
+                </span>
+              ))}
+              {/* Rango horario (siempre visible) */}
+              {(task.horaInicio || task.horaFin) && (
+                <span
+                  className="mt-px truncate text-[10px] font-medium leading-tight tabular-nums"
+                  style={{ color: hasColor ? contrast.textSecondary : undefined }}
+                >
+                  {task.horaInicio || '08:30'} {task.horaFin ? `– ${task.horaFin}` : ''}
+                </span>
+              )}
+              {/* Tipo de tarea (siempre visible, texto pequeño) */}
+              {activityText && (
+                <span
+                  className="mt-px line-clamp-1 break-all text-[9px] font-medium uppercase leading-tight tracking-wide opacity-75"
+                  style={{ color: hasColor ? contrast.textSecondary : undefined }}
+                >
+                  {activityText}
+                </span>
               )}
             </div>
-          );
-        })()}
+          </div>
+        )}
       </div>
 
       {/* Tooltip por tarjeta - portalled */}
       {renderTooltip && tooltipPos && typeof document !== 'undefined' && createPortal(
         <div
           className={cn(
-            "fixed z-[9999] w-[min(260px,calc(100vw-20px))] pointer-events-none transition-all duration-[120ms] ease-out",
-            "border rounded-2xl p-4 ring-1",
-            isDarkGantt
-              ? "bg-[#1a1a1d] border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.9)] ring-white/5"
-              : "bg-slate-100/92 border-slate-500/25 shadow-[0_20px_50px_rgba(15,23,42,0.24)] ring-white/60",
-            tooltipPos.isTop ? "-translate-x-1/2 origin-top" : "-translate-x-1/2 -translate-y-full origin-bottom",
-            showTooltip ? "opacity-100 scale-100 mt-0" : "opacity-0 scale-95",
-            !showTooltip && tooltipPos.isTop ? "-mt-2" : "",
-            !showTooltip && !tooltipPos.isTop ? "mt-2" : ""
+            'glass pointer-events-none fixed z-[9999] w-[min(280px,calc(100vw-20px))] rounded-2xl border p-4 transition-[opacity,transform] duration-150 ease-out',
+            tooltipPos.isTop ? '-translate-x-1/2 origin-top' : '-translate-x-1/2 -translate-y-full origin-bottom',
+            showTooltip ? 'scale-100 opacity-100' : 'scale-[0.97] opacity-0',
+            !showTooltip && tooltipPos.isTop ? '-mt-1.5' : '',
+            !showTooltip && !tooltipPos.isTop ? 'mt-1.5' : ''
           )}
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
-          <div className={`border-b pb-3 mb-3 flex items-center justify-between gap-2 ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
-            <div className="flex flex-col gap-1">
-              <span className={`text-[10px] font-bold uppercase tracking-widest leading-none ${isDarkGantt ? 'text-primary-400' : 'text-primary-600'}`}>{resourceName || resourceId}</span>
-              <span className={`text-[13px] font-semibold capitalize leading-tight ${isDarkGantt ? 'text-gray-100' : 'text-gray-900'}`}>{formattedDateTooltip}</span>
+          <div className="mb-3 flex items-start justify-between gap-3 border-b border-line pb-3">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-fg-muted">{(resourceName || resourceId || '').replace(/_/g, ' ')}</p>
+              <p className="mt-0.5 text-sm font-semibold leading-tight text-fg first-letter:uppercase">{formattedDateTooltip}</p>
             </div>
-            <span className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
-              {activityText || 'Tarea'}
-            </span>
+            {task.morning && <span className={cn(getStateBadgeClass(task.estadoAM), 'shrink-0')}>{task.estadoAM || 'Pendiente'}</span>}
           </div>
 
-          <div className="space-y-3">
-            <div className="flex gap-3">
-              <div className="w-1.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: task.colorAM || '#37A65F' }} />
-              <div className="flex-1">
-                <div className="flex justify-between items-center mb-0.5">
-                  <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {clienteText ? 'Cliente' : descriptionText ? 'Descripción' : 'Tarea'}
-                  </p>
-                  {task.morning && <span className={getStateBadgeClass(task.estadoAM)}>{task.estadoAM || 'Pendiente'}</span>}
-                </div>
-                {/* Cliente */}
-                {clienteText && (
-                  <p className={`text-sm font-bold break-words leading-snug font-mono ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>
-                    {clienteText}
-                  </p>
-                )}
-                {/* Planta / Descripción */}
-                {descriptionText && (
-                  <div className={clienteText ? 'mt-1.5' : ''}>
-                    {clienteText && (
-                      <p className={`text-[9px] font-bold uppercase tracking-widest mb-0.5 ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
-                        Descripción
-                      </p>
-                    )}
-                    <p className={cn(
-                      'break-words leading-snug font-mono',
-                      clienteText
-                        ? `text-xs ${isDarkGantt ? 'text-gray-300' : 'text-gray-600'}`
-                        : `text-sm font-semibold ${isDarkGantt ? 'text-white' : 'text-gray-800'}`
-                    )}>
-                      {descriptionText}
-                    </p>
-                  </div>
-                )}
-                {/* Tipo de tarea */}
-                {activityText && normalizeForComparison(activityText) !== normalizeForComparison(descriptionText) && (
-                  <div className="mt-1.5">
-                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>Tipo de tarea</p>
-                    <p className={`text-xs break-words leading-snug font-mono ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
-                      {activityText}
-                    </p>
-                  </div>
-                )}
-                {plantaText && (
-                  <div className="mt-1.5">
-                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/55' : 'text-gray-500'}`}>Planta</p>
-                    <p className={`text-xs break-words leading-snug ${isDarkGantt ? 'text-gray-200' : 'text-gray-700'}`}>{plantaText}</p>
-                  </div>
-                )}
-                {quoteText && (
-                  <div className="mt-1.5">
-                    <p className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-white/55' : 'text-gray-500'}`}>Cotización</p>
-                    <p className={`text-xs break-words leading-snug font-mono ${isDarkGantt ? 'text-blue-300' : 'text-blue-700'}`}>{quoteText}</p>
-                  </div>
-                )}
-                {/* Si no hay cliente ni descripcion, mostrar actividad como principal */}
-                {!clienteText && !descriptionText && (
-                  <p className={`text-sm font-semibold break-words leading-snug font-mono ${isDarkGantt ? 'text-white' : 'text-gray-800'}`}>
-                    {activityText || '(Sin tarea)'}
-                  </p>
-                )}
-                {/* Rango horario */}
-                {task.horaFin && (
-                  <p className={`text-[12px] font-mono mt-1.5 ${isDarkGantt ? 'text-blue-400/80' : 'text-blue-600/80'}`}>
-                    ⏱ {task.horaInicio || '08:30'} → {task.horaFin}
-                  </p>
-                )}
-              </div>
+          <div className="flex gap-3">
+            <span className="w-1 shrink-0 rounded-full" style={{ backgroundColor: task.colorAM || '#37A65F' }} aria-hidden="true" />
+            <div className="min-w-0 flex-1 space-y-2.5">
+              {clienteText && (
+                <TooltipField label="Cliente">
+                  <span className="font-semibold">{clienteText}</span>
+                </TooltipField>
+              )}
+              {descriptionText && (
+                <TooltipField label="Descripción">{descriptionText}</TooltipField>
+              )}
+              {activityText && normalizeForComparison(activityText) !== normalizeForComparison(descriptionText) && (
+                <TooltipField label="Tipo de tarea">{activityText}</TooltipField>
+              )}
+              {plantaText && (
+                <TooltipField label="Planta">{plantaText}</TooltipField>
+              )}
+              {quoteText && (
+                <TooltipField label="Cotización">
+                  <span className="font-mono text-xs">{quoteText}</span>
+                </TooltipField>
+              )}
+              {/* Si no hay cliente ni descripcion, mostrar actividad como principal */}
+              {!clienteText && !descriptionText && !activityText && (
+                <TooltipField label="Tarea">(Sin tarea)</TooltipField>
+              )}
+              {/* Rango horario */}
+              {task.horaFin && (
+                <p className="flex items-center gap-1.5 text-[13px] font-medium tabular-nums text-fg">
+                  <Clock className="h-3.5 w-3.5 text-fg-muted" aria-hidden="true" />
+                  {task.horaInicio || '08:30'} – {task.horaFin}
+                </p>
+              )}
             </div>
           </div>
 
           {(task.author || task.timestampUpdated || task.creadoEn) && (
-            <div className={`mt-4 pt-3 border-t ${isDarkGantt ? 'border-white/10' : 'border-gray-200'}`}>
-              <p className={`text-[10px] font-mono tracking-wide leading-tight ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
-                {task.author && <span>Actualizado por: <span className={`font-medium ${isDarkGantt ? 'text-gray-300' : 'text-gray-600'}`}>{task.author}</span><br/></span>}
-                {task.timestampUpdated && <span>El {task.timestampUpdated}{task.creadoEn ? <br/> : null}</span>}
-                {task.creadoEn && <span className="mt-1 inline-block">Origen: <span className={`font-bold px-1 rounded-sm ${isDarkGantt ? 'bg-[#10b981]/20 text-[#10b981]' : 'bg-[#10b981]/10 text-emerald-600'}`}>{task.creadoEn}</span></span>}
-              </p>
+            <div className="mt-3 space-y-1 border-t border-line pt-3 text-[11px] leading-snug text-fg-muted">
+              {task.author && <p>Actualizado por <span className="font-medium text-fg">{task.author}</span></p>}
+              {task.timestampUpdated && <p>El {task.timestampUpdated}</p>}
+              {task.creadoEn && (
+                <p>
+                  Origen{' '}
+                  <span className="rounded-md bg-fg/[0.07] px-1.5 py-0.5 font-medium text-fg">{task.creadoEn}</span>
+                </p>
+              )}
             </div>
           )}
 
           {task.updatedBy && (
-            <div className="mt-2 pt-2 border-t border-red-500/30">
-              <div className={`rounded-lg p-2.5 border ${isDarkGantt ? 'bg-red-500/10 border-red-500/25' : 'bg-red-50 border-red-200'}`}>
-                <p className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${isDarkGantt ? 'text-red-400' : 'text-red-600'}`}>
-                  <span>⚠</span> Editado fuera de fecha
-                </p>
-                <p className={`text-[10px] font-mono mt-1 leading-relaxed ${isDarkGantt ? 'text-red-300/90' : 'text-red-600/80'}`}>
-                  {task.updatedBy && <span>Por: <strong className={isDarkGantt ? 'text-red-200' : 'text-red-700'}>{task.updatedBy}</strong></span>}
-                  {task.updatedAt && <span className="block">El {task.updatedAt}</span>}
-                </p>
-              </div>
+            <div className="mt-3 rounded-xl border border-danger/25 bg-danger/[0.07] p-2.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-danger">
+                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Editado fuera de fecha
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-fg-muted">
+                {task.updatedBy && <span>Por: <strong className="font-semibold text-fg">{task.updatedBy}</strong></span>}
+                {task.updatedAt && <span className="block">El {task.updatedAt}</span>}
+              </p>
             </div>
           )}
-
-          <div className={cn(
-            "absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent",
-            tooltipPos.isTop
-              ? (isDarkGantt ? "bottom-full border-b-[8px] border-b-[#1a1a1d] mb-[-1px]" : "bottom-full border-b-[8px] border-b-slate-100/90 mb-[-1px]")
-              : (isDarkGantt ? "top-full border-t-[8px] border-t-[#1a1a1d] mt-[-1px]" : "top-full border-t-[8px] border-t-slate-100/90 mt-[-1px]")
-          )} />
         </div>,
         document.body
       )}
@@ -394,11 +355,12 @@ function TaskCard({ task, isDarkGantt, formattedDateTooltip, resourceName, resou
   );
 }
 
-export function GanttTaskCell({ 
-  tasks, 
-  isToday: todayFlag, 
-  isPreview, 
-  previewOpacity, 
+export function GanttTaskCell({
+  tasks,
+  isToday: todayFlag,
+  isPreview,
+  previewOpacity,
+  isWeekStart,
   onTaskClick,
   onTaskDrop,
   onTaskContextMenu,
@@ -409,26 +371,20 @@ export function GanttTaskCell({
   resourceId,
   resourceName
 }) {
-  const isDarkGantt = true;
-
   const cellStyle = isPreview ? { opacity: previewOpacity } : {};
-  
-  const { isNonWorking, type } = isNonWorkingDay(date);
+
+  const { isNonWorking } = isNonWorkingDay(date);
   const isSelectedDay = selectedDay && isSameDay(date, selectedDay);
-  
-  const nonWorkClass = isNonWorking
-    ? (type === 'feriado' ? 'bg-yellow-500/10' : 'bg-red-500/10')
-    : '';
-  
-  let baseClasses = `gantt-cell ${todayFlag ? 'gantt-cell-today-bg' : ''} ${isPreview ? 'gantt-cell-preview' : ''} ${nonWorkClass}`;
 
-  if (isSelectedDay) {
-    baseClasses += ' bg-[#10b981]/[0.15] ring-[1px] ring-inset ring-[#10b981]/50 shadow-[inset_0_0_15px_rgba(16,185,129,0.1)] z-[5] transition-[background-color,box-shadow] duration-100';
-  }
-
-  if (onTaskClick) {
-    baseClasses += ` cursor-pointer transition-colors duration-100 ${isDarkGantt ? 'hover:bg-white/5' : 'hover:bg-white/30'}`;
-  }
+  const baseClasses = cn(
+    'gantt-cell',
+    todayFlag && 'gantt-cell-today-bg',
+    isPreview && 'gantt-cell-preview',
+    isNonWorking && 'gantt-cell-nonworking',
+    isSelectedDay && 'gantt-cell-selected',
+    isWeekStart && 'gantt-week-start',
+    onTaskClick && 'cursor-pointer transition-colors duration-100 hover:bg-fg/[0.03]'
+  );
 
   const handleClick = (e) => {
     if (onTaskClick) {
@@ -471,23 +427,27 @@ export function GanttTaskCell({
 
   if (validTasks.length === 0) {
     return (
-      <div 
-        className={`${baseClasses} gantt-cell-empty relative group`} 
+      <div
+        className={cn(baseClasses, 'gantt-cell-empty group relative')}
         style={cellStyle}
         onClick={handleClick}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className={`text-[12px] font-semibold ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>+</span>
-        </div>
+        {onTaskClick && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface text-fg-muted">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div 
-      className={`${baseClasses} gantt-cell-filled p-[3px] relative group`} 
+    <div
+      className={cn(baseClasses, 'gantt-cell-filled group relative p-[4px]')}
       style={cellStyle}
       onClick={handleClick}
       onDragOver={handleDragOver}
@@ -497,7 +457,6 @@ export function GanttTaskCell({
         <TaskCard
           key={task.id}
           task={task}
-          isDarkGantt={isDarkGantt}
           formattedDateTooltip={formattedDateTooltip}
           resourceName={resourceName}
           resourceId={resourceId}
@@ -515,35 +474,27 @@ export function GanttTaskCell({
         <div
           onClick={(e) => { e.stopPropagation(); onTaskClick(null, date, resourceId); }}
           className={cn(
-            'absolute bottom-0.5 right-0.5 rounded-md flex items-center justify-center cursor-pointer z-10 select-none',
-            'transition-all duration-100 ease-out',
+            'absolute bottom-1 right-1 z-10 flex cursor-pointer select-none items-center justify-center rounded-md',
+            'transition-[opacity,transform,background-color] duration-150 ease-out',
             // Desktop: oculto hasta hover, aparece con escala
-            'w-5 h-5 opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100',
+            'h-5 w-5 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100',
             // Touch (sin hover): siempre visible
-            '[@media(hover:none)]:opacity-100 [@media(hover:none)]:scale-100 [@media(hover:none)]:w-7 [@media(hover:none)]:h-7',
-            // Estilo sólido y visible
-            'bg-[#10b981] hover:bg-[#059669] text-white',
-            'shadow-[0_2px_8px_rgba(16,185,129,0.5)] hover:shadow-[0_3px_12px_rgba(16,185,129,0.7)]'
+            '[@media(hover:none)]:h-7 [@media(hover:none)]:w-7 [@media(hover:none)]:scale-100 [@media(hover:none)]:opacity-100',
+            'bg-brand text-brand-fg shadow-card ring-1 ring-inset ring-black/10 hover:bg-brand-hover'
           )}
           title={`Agregar tarea (${allValidTasks.length}/${MAX_TASKS_PER_CELL})`}
         >
-          <span className="text-[12px] font-bold leading-none">+</span>
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.6} aria-hidden="true" />
         </div>
       )}
 
       {/* Indicador de cupo lleno cuando se alcanza el máximo */}
       {!canAddMore && onTaskClick && (
         <div
-          className={cn(
-            'absolute bottom-0.5 right-0.5 w-5 h-5 rounded-md flex items-center justify-center',
-            'opacity-0 group-hover:opacity-100 transition-all duration-150 z-10 cursor-default',
-            isDarkGantt
-              ? 'bg-white/10 text-white/40 ring-1 ring-white/15'
-              : 'bg-gray-200 text-gray-400 ring-1 ring-gray-300'
-          )}
+          className="absolute bottom-1 right-1 z-10 flex h-5 w-5 cursor-default items-center justify-center rounded-md bg-surface text-fg-subtle opacity-0 shadow-xs ring-1 ring-line transition-opacity duration-150 group-hover:opacity-100"
           title={`Máximo de tareas alcanzado (${MAX_TASKS_PER_CELL}/${MAX_TASKS_PER_CELL})`}
         >
-          <span className="text-[9px] font-bold leading-none">✕</span>
+          <X className="h-3 w-3" strokeWidth={2.4} aria-hidden="true" />
         </div>
       )}
     </div>

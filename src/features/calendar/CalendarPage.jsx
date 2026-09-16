@@ -7,6 +7,9 @@ import { CellPopoverForm } from './components/CellPopoverForm';
 import { GanttPage } from './GanttPage';
 import { DepartureReadOnlyModal } from '../departures/components/DepartureReadOnlyModal';
 import { usePageScrollLock } from '../../shared/hooks/usePageScrollLock';
+import { cn } from '../../shared/utils/cn';
+
+const menuItem = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium text-fg transition-colors hover:bg-fg/[0.06]';
 
 export function CalendarPage() {
   const {
@@ -50,9 +53,11 @@ export function CalendarPage() {
     selectedDayEvents,
   };
 
+  const closeContextMenu = () => setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false });
+
   return (
     <main
-      className="calendar-workspace calendar-dark w-full h-full flex flex-col px-2 sm:px-4 xl:px-6 2xl:px-8 py-2.5 sm:py-4 relative"
+      className="calendar-workspace relative flex h-full w-full flex-col px-3 py-3 sm:px-5 sm:py-5 xl:px-6"
       onDragOver={(e) => {
         if (isDragging) {
            e.preventDefault();
@@ -60,32 +65,28 @@ export function CalendarPage() {
         }
       }}
     >
-      <div className={useMock ? 'mb-3' : ''}>
-        <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            {useMock && (
-              <span className="gantt-mock-badge">
-                <DatabaseZap size={10} />
-                Datos Oficiales
-              </span>
-            )}
-          </div>
+      {useMock && (
+        <div className="mb-3">
+          <span className="gantt-mock-badge">
+            <DatabaseZap size={12} />
+            Datos Oficiales
+          </span>
         </div>
-      </div>
+      )}
 
       <button
         type="button"
         onClick={() => setIsAgendaOpen(true)}
-        className="calendar-agenda-trigger mb-2.5 flex min-h-11 w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.06] px-3.5 text-sm font-semibold text-slate-100 lg:hidden"
+        className="calendar-agenda-trigger mb-3 min-h-11 w-full items-center justify-between rounded-xl border border-line bg-surface px-3.5 text-sm font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2"
         aria-haspopup="dialog"
         aria-expanded={isAgendaOpen}
       >
-        <span className="flex items-center gap-2"><PanelLeftOpen size={17} /> Agenda y detalle del día</span>
-        <span className="text-xs font-medium text-slate-300">Abrir</span>
+        <span className="flex items-center gap-2"><PanelLeftOpen size={17} className="text-fg-muted" /> Agenda y detalle del día</span>
+        <span className="text-xs font-medium text-fg-muted">Abrir</span>
       </button>
 
       <div className="flex items-start gap-5 xl:gap-6">
-        <div className="hidden lg:sticky lg:top-[92px] lg:block lg:w-[280px] lg:flex-none xl:w-[300px]">
+        <div className="calendar-agenda-column sticky top-[calc(var(--topbar-height)+1.25rem)] -mx-1 max-h-[calc(100dvh-var(--topbar-height)-2.5rem)] w-[288px] flex-none overflow-y-auto overscroll-contain px-1 pb-1 xl:w-[308px]">
           <LeftFilterSidebar {...agendaProps} />
         </div>
 
@@ -134,7 +135,7 @@ export function CalendarPage() {
                   toast.error('No puedes modificar tareas de fechas pasadas.', { duration: 3000 });
                   return;
                }
-               const menuW = 180, menuH = 220;
+               const menuW = 200, menuH = 240;
                const x = e.clientX + menuW > window.innerWidth ? window.innerWidth - menuW - 10 : e.clientX;
                const y = e.clientY + menuH > window.innerHeight ? window.innerHeight - menuH - 10 : e.clientY;
                setContextMenu({ visible: true, x, y, task, date, resourceId: res, showVehicles: false });
@@ -157,10 +158,10 @@ export function CalendarPage() {
       </div>
 
       {isAgendaOpen && (
-        <div className="calendar-agenda-layer fixed inset-0 z-40 lg:hidden" role="presentation">
+        <div className="calendar-agenda-layer fixed inset-0 z-[45]" role="presentation">
           <button
             type="button"
-            className="absolute inset-0 bg-black/65 backdrop-blur-[3px]"
+            className="scrim absolute inset-0"
             onClick={() => setIsAgendaOpen(false)}
             aria-label="Cerrar agenda"
           />
@@ -168,11 +169,11 @@ export function CalendarPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="calendar-agenda-title"
-            className="calendar-agenda-sheet absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-2xl border border-white/15 bg-[#14161d]/90 p-3 shadow-[0_-18px_55px_-24px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[360px] sm:rounded-none sm:border-y-0 sm:border-r-0 sm:p-4"
+            className="calendar-agenda-sheet glass absolute inset-x-2 bottom-2 max-h-[86dvh] overflow-y-auto rounded-[22px] border p-3 sm:inset-y-2 sm:left-auto sm:right-2 sm:max-h-none sm:w-[360px] sm:p-4"
           >
-            <div className="sticky top-0 z-20 mb-3 flex items-center justify-between rounded-xl bg-[#17181e]/95 px-1 py-1 backdrop-blur-lg">
-              <h2 id="calendar-agenda-title" className="text-sm font-semibold text-white">Agenda y detalle</h2>
-              <button type="button" onClick={() => setIsAgendaOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Cerrar">
+            <div className="sticky top-0 z-20 -mx-1 mb-3 flex items-center justify-between px-1 py-1">
+              <h2 id="calendar-agenda-title" className="text-sm font-semibold text-fg">Agenda y detalle</h2>
+              <button type="button" onClick={() => setIsAgendaOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-xl text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg" aria-label="Cerrar">
                 <X size={18} />
               </button>
             </div>
@@ -210,10 +211,10 @@ export function CalendarPage() {
 
       {isDragging && isCtrlPressed && (
          <div
-           className="fixed z-[9999] pointer-events-none px-2.5 py-1.5 rounded-md bg-blue-600/90 text-white text-[11px] font-bold shadow-lg flex items-center gap-1.5 transition-opacity"
+           className="pointer-events-none fixed z-[9999] flex items-center gap-1.5 rounded-lg bg-fg px-2.5 py-1.5 text-xs font-semibold text-canvas shadow-pop"
            style={{ left: dragPos.x + 15, top: dragPos.y + 15 }}
          >
-           <ArrowRightLeft className="w-3.5 h-3.5" /> Mover Tarea
+           <ArrowRightLeft className="h-3.5 w-3.5" /> Mover Tarea
          </div>
       )}
 
@@ -221,65 +222,71 @@ export function CalendarPage() {
          <>
            <div
              className="fixed inset-0 z-[9998]"
-             onPointerDown={() => setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false })}
-             onContextMenu={(e) => { e.preventDefault(); setContextMenu({ visible: false, x: 0, y: 0, task: null, date: null, resourceId: null, showVehicles: false }); }}
+             onPointerDown={closeContextMenu}
+             onContextMenu={(e) => { e.preventDefault(); closeContextMenu(); }}
            />
            <div
-             className="fixed z-[9999] w-44 overflow-visible rounded-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)] animate-fade-in"
-             style={{
-               top: contextMenu.y,
-               left: contextMenu.x,
-               background: 'rgba(30, 30, 35, 0.95)',
-               backdropFilter: 'blur(18px) saturate(1.18)'
-             }}
+             role="menu"
+             aria-label="Acciones de la tarea"
+             className="glass fixed z-[9999] w-[200px] overflow-visible rounded-2xl border p-1.5 animate-pop-in"
+             style={{ top: contextMenu.y, left: contextMenu.x }}
            >
-              <div className="pointer-events-none px-3 pb-1 pt-2.5 text-[9px] font-bold uppercase tracking-widest text-gray-200">Cambiar Estado</div>
+              <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-fg-subtle">Cambiar estado</p>
               <button
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-semibold text-emerald-400 transition-colors hover:bg-white/10"
+                role="menuitem"
+                className={menuItem}
                 onClick={(e) => { e.stopPropagation(); handleStateChange('Completado'); }}
               >
-                 <CheckCircle2 className="w-3.5 h-3.5" /> Completado
+                 <CheckCircle2 className="h-4 w-4 text-success" /> Completado
               </button>
               <button
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-semibold text-blue-400 transition-colors hover:bg-white/10"
+                role="menuitem"
+                className={menuItem}
                 onClick={(e) => { e.stopPropagation(); handleStateChange('Reprogramado'); }}
               >
-                 <CalendarClock className="w-3.5 h-3.5" /> Reprogramar
+                 <CalendarClock className="h-4 w-4 text-info" /> Reprogramar
               </button>
               <button
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-semibold text-gray-200 transition-colors hover:bg-white/10"
+                role="menuitem"
+                className={menuItem}
                 onClick={(e) => { e.stopPropagation(); handleStateChange('Cancelado'); }}
               >
-                 <XCircle className="w-3.5 h-3.5" /> Cancelado
+                 <XCircle className="h-4 w-4 text-fg-muted" /> Cancelado
               </button>
 
-              <div className="my-0.5 h-px w-full bg-white/10" />
+              <div className="mx-1 my-1 h-px bg-line" />
 
               <div className="relative">
                  <button
-                   className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[11px] font-semibold text-emerald-300 transition-colors hover:bg-white/10"
+                   role="menuitem"
+                   aria-haspopup="menu"
+                   aria-expanded={contextMenu.showVehicles}
+                   className={cn(menuItem, 'justify-between')}
                    onClick={(e) => { e.stopPropagation(); setContextMenu(prev => ({...prev, showVehicles: !prev.showVehicles})) }}
                  >
-                    <div className="flex items-center gap-2">
-                       <Car className="w-3.5 h-3.5" /> Asignar Vehículo
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <span className="flex items-center gap-2.5">
+                       <Car className="h-4 w-4 text-fg-muted" /> Asignar Vehículo
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 text-fg-subtle" />
                  </button>
 
                  {contextMenu.showVehicles && (
-                    <div className={`absolute top-0 ${(typeof window !== 'undefined' && contextMenu.x > window.innerWidth - 380) ? 'right-full mr-1' : 'left-full ml-1'} w-44 overflow-hidden rounded-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.8)] animate-fade-in`}
-                         style={{ background: 'rgba(30,30,35,0.98)', backdropFilter: 'blur(18px) saturate(1.18)' }}
+                    <div
+                      role="menu"
+                      aria-label="Vehículos"
+                      className={`glass absolute top-0 ${(typeof window !== 'undefined' && contextMenu.x > window.innerWidth - 420) ? 'right-full mr-2' : 'left-full ml-2'} w-[210px] overflow-hidden rounded-2xl border p-1.5 animate-pop-in`}
                     >
-                       <div className="pointer-events-none px-3 pb-1 pt-2.5 text-[9px] font-bold uppercase tracking-widest text-emerald-300">Vehículos</div>
-                       <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col py-0.5">
+                       <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-fg-subtle">Vehículos</p>
+                       <div className="flex max-h-48 flex-col overflow-y-auto">
                           {tecnicos.filter(t => t.area === 'VEHÍCULOS').length === 0 && (
-                            <span className="px-3 py-2 text-[10px] text-gray-300">Sin vehículos en el sistema</span>
+                            <span className="px-2.5 py-2 text-xs text-fg-muted">Sin vehículos en el sistema</span>
                           )}
                           {tecnicos.filter(t => t.area === 'VEHÍCULOS').map(vehiculo => (
                              <button
                                key={vehiculo.id}
+                               role="menuitem"
                                onClick={(e) => { e.stopPropagation(); handleAssignVehicleInit(vehiculo); }}
-                                className="w-full truncate px-3 py-2 text-left text-[11px] font-semibold text-gray-200 transition-colors hover:bg-white/10 hover:text-white"
+                               className={cn(menuItem, 'block truncate')}
                              >
                                {vehiculo.nombre}
                              </button>
@@ -289,13 +296,14 @@ export function CalendarPage() {
                  )}
               </div>
 
-              <div className="my-0.5 h-px w-full bg-white/10" />
+              <div className="mx-1 my-1 h-px bg-line" />
 
               <button
-                className="mb-0.5 flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] font-semibold text-red-500 transition-colors hover:bg-red-500/10"
+                role="menuitem"
+                className={cn(menuItem, 'text-danger hover:bg-danger/10')}
                 onClick={(e) => { e.stopPropagation(); handleDeleteTask(contextMenu.task, contextMenu.date, contextMenu.resourceId); }}
               >
-                 <Trash2 className="w-3.5 h-3.5" /> Eliminar Tarea
+                 <Trash2 className="h-4 w-4" /> Eliminar Tarea
               </button>
            </div>
          </>

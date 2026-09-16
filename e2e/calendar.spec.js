@@ -66,16 +66,19 @@ test('el calendario de escritorio conserva el gutter y un único scroll vertical
 
   const viewportMaterial = await page.locator('.gantt-scroll-viewport').evaluate(element => {
     const styles = getComputedStyle(element);
+    const surface = getComputedStyle(document.documentElement).getPropertyValue('--c-surface').trim();
     return {
       radius: parseFloat(styles.borderTopLeftRadius),
       overflow: styles.overflow,
       backgroundColor: styles.backgroundColor,
       backgroundImage: styles.backgroundImage,
+      surfaceColor: `rgb(${surface.split(/\s+/).join(', ')})`,
     };
   });
   expect(viewportMaterial.radius).toBeGreaterThanOrEqual(14);
   expect(viewportMaterial.overflow).toBe('hidden');
-  expect(viewportMaterial.backgroundColor).toBe('rgb(21, 22, 27)');
+  // Superficie sólida del tema activo: los datos no van sobre vidrio.
+  expect(viewportMaterial.backgroundColor).toBe(viewportMaterial.surfaceColor);
   expect(viewportMaterial.backgroundImage).toBe('none');
 
   await page.locator('.gantt-scroll-container').hover();
@@ -83,7 +86,8 @@ test('el calendario de escritorio conserva el gutter y un único scroll vertical
   await page.mouse.wheel(0, 420);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollBefore);
   const stickySidebarBox = await sidebar.boundingBox();
-  expect(stickySidebarBox.y).toBeGreaterThanOrEqual(88);
+  const topbarBox = await page.locator('header').first().boundingBox();
+  expect(stickySidebarBox.y).toBeGreaterThanOrEqual(topbarBox.y + topbarBox.height);
   await page.screenshot({ path: 'test-results/calendar-desktop-current.png' });
 });
 

@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CalendarClock, ChevronDown, Clock, Info, Loader2, Trash2, Users, X } from 'lucide-react';
+import { CalendarClock, ChevronDown, Clock, Info, Loader2, Palette, Trash2, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { HexColorPicker } from 'react-colorful';
 import { cn } from '../../../shared/utils/cn';
 import { safeStorage } from '../../../shared/utils/storage';
-import { useTheme } from '../../../shared/context/ThemeContext';
 import { usePageScrollLock } from '../../../shared/hooks/usePageScrollLock';
 import { api } from '../../../shared/api/client';
 import { CotizacionAutocomplete } from './CotizacionAutocomplete';
@@ -48,17 +47,24 @@ import {
 // se conserva intacto; poner esto en true lo vuelve a mostrar tal cual estaba.
 const QUOTES_ENABLED = false;
 
-// Bordes solidos de los campos. Se evita `border-white/N` porque al enfocar el
-// borde se interpola desde blanco translucido hacia el azul del foco y en el
-// camino se ve un destello blanco.
-const FIELD_BORDER = 'border-[#2a2a2e]';
-const FIELD_BORDER_SOFT = 'border-[#1f1f23]';
-// Transicion acotada: `transition-all` tambien anima el ring de Tailwind y
-// provoca el mismo parpadeo.
-const FIELD_TRANSITION = 'transition-[border-color,box-shadow] duration-150';
+// Los selectores personalizados comparten la apariencia de `.field`; en
+// pantallas angostas se usa el select nativo del sistema.
+const SELECT_TRIGGER = 'field hidden h-11 cursor-pointer items-center justify-between gap-2 text-left font-medium sm:flex';
+const NATIVE_SELECT = 'field h-11 cursor-pointer font-medium sm:hidden';
+const MENU = 'glass rounded-xl border p-1';
+
+function FieldLabel({ htmlFor, children, required, optional }) {
+  return (
+    <label htmlFor={htmlFor} className="field-label">
+      {children}
+      {required && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
+      {optional && <span className="ml-1 font-normal text-fg-subtle">(opcional)</span>}
+    </label>
+  );
+}
 
 const TaskDescriptionField = React.memo(React.forwardRef(function TaskDescriptionField(
-  { isDarkGantt },
+  _props,
   forwardedRef
 ) {
   const [value, setValue] = useState('');
@@ -69,12 +75,10 @@ const TaskDescriptionField = React.memo(React.forwardRef(function TaskDescriptio
   }), [value]);
 
   return (
-    <div className="mt-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <label htmlFor="task-description" className={`text-xs font-semibold ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
-          Descripción <span className={isDarkGantt ? 'text-red-300' : 'text-red-600'}>*</span>
-        </label>
-        <span className={`text-[11px] tabular-nums ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>
+    <div className="mt-5">
+      <div className="flex items-center justify-between gap-3">
+        <FieldLabel htmlFor="task-description" required>Descripción</FieldLabel>
+        <span className="mb-1.5 text-xs tabular-nums text-fg-subtle">
           {value.length}/200
         </span>
       </div>
@@ -85,13 +89,7 @@ const TaskDescriptionField = React.memo(React.forwardRef(function TaskDescriptio
         placeholder="Describe el trabajo, la dirección o cualquier indicación útil…"
         maxLength={200}
         spellCheck={false}
-        className={cn(
-          'min-h-[104px] w-full resize-y rounded-xl border px-3.5 py-3 text-sm leading-5 shadow-inner focus:outline-none focus:border-primary-500/60 focus:ring-2 focus:ring-primary-500/20',
-          FIELD_TRANSITION,
-          isDarkGantt
-            ? `${FIELD_BORDER} bg-[#111111] text-slate-100 placeholder:text-slate-500`
-            : 'border-slate-200 bg-slate-50 text-slate-950 placeholder:text-slate-500'
-        )}
+        className="field min-h-[112px] resize-y py-3 leading-relaxed"
       />
     </div>
   );
@@ -100,7 +98,7 @@ const TaskDescriptionField = React.memo(React.forwardRef(function TaskDescriptio
 TaskDescriptionField.displayName = 'TaskDescriptionField';
 
 
-function ActivitySelect({ value, onChange, options, isDarkGantt }) {
+function ActivitySelect({ value, onChange, options }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
   const buttonRef = useRef(null);
@@ -124,11 +122,7 @@ function ActivitySelect({ value, onChange, options, isDarkGantt }) {
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-label="Tipo de tarea"
-        className={`h-[45px] w-full rounded-xl border px-3 text-sm font-semibold shadow-inner outline-none ${FIELD_TRANSITION} focus:border-primary-500/50 focus:ring-2 focus:ring-primary-500/20 sm:hidden ${
-          isDarkGantt
-            ? `${FIELD_BORDER_SOFT} bg-[#111111] text-gray-100`
-            : 'border-gray-200 bg-gray-50 text-gray-900'
-        }`}
+        className={NATIVE_SELECT}
       >
         <option value="" disabled>Seleccionar...</option>
         {options.map(option => <option key={option} value={option}>{option}</option>)}
@@ -139,53 +133,35 @@ function ActivitySelect({ value, onChange, options, isDarkGantt }) {
         onClick={() => setOpen(current => !current)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`hidden h-[45px] w-full items-center justify-between gap-2 rounded-xl border px-4 text-sm font-semibold shadow-inner ${FIELD_TRANSITION} focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 sm:flex ${
-          isDarkGantt
-            ? `bg-[#111111] ${FIELD_BORDER_SOFT} text-gray-100`
-            : 'bg-gray-50 border-gray-200 text-gray-900'
-        }`}
+        className={SELECT_TRIGGER}
       >
-        <span className={`truncate ${value ? '' : isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
+        <span className={cn('truncate', !value && 'font-normal text-fg-subtle')}>
           {value || 'Seleccionar...'}
         </span>
-        <ChevronDown
-          className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${
-            open ? 'rotate-180' : ''
-          } ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}
-        />
+        <ChevronDown className={cn('h-4 w-4 shrink-0 text-fg-subtle transition-transform duration-150', open && 'rotate-180')} />
       </button>
 
       <FloatingDropdown
         open={open}
         anchorRef={buttonRef}
         onClose={() => setOpen(false)}
-        maxHeight={200}
+        maxHeight={220}
         ariaLabel="Tipos de tarea"
-        className={`rounded-xl border shadow-2xl ${
-            isDarkGantt
-              ? 'bg-[#1e1e24] border-white/10 shadow-black/80'
-              : 'bg-white border-gray-200 shadow-gray-300/40'
-          }`}
+        className={MENU}
       >
-          <div className="max-h-48 overflow-y-auto py-1 custom-scrollbar">
+          <div role="listbox" className="max-h-52 overflow-y-auto">
             {options.map(option => (
               <button
                 key={option}
                 type="button"
+                role="option"
+                aria-selected={option === value}
                 data-selected={option === value}
                 onClick={() => {
                   onChange(option);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors ${
-                  option === value
-                    ? isDarkGantt
-                      ? 'bg-blue-500/20 text-blue-300'
-                      : 'bg-blue-50 text-blue-600'
-                    : isDarkGantt
-                      ? 'text-gray-300 hover:bg-white/6 hover:text-white'
-                      : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                className="menu-item"
               >
                 {option}
               </button>
@@ -196,7 +172,7 @@ function ActivitySelect({ value, onChange, options, isDarkGantt }) {
   );
 }
 
-function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
+function ClienteAutocomplete({ value, onChange, onSelect }) {
   const [query, setQuery] = useState(value || '');
   const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -275,6 +251,7 @@ function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
       <div className="relative">
         <input
           ref={inputRef}
+          id="task-client"
           type="text"
           value={query}
           onChange={handleInput}
@@ -287,18 +264,12 @@ function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
           aria-autocomplete="list"
           aria-expanded={open && results.length > 0}
           spellCheck={false}
-          className={cn(
-            'w-full h-[45px] border rounded-xl px-4 pr-10 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 font-semibold shadow-inner',
-            FIELD_TRANSITION,
-            isDarkGantt
-              ? `bg-[#111111] ${FIELD_BORDER} text-gray-100 placeholder-gray-400`
-              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500'
-          )}
+          className="field h-11 pr-10 font-medium"
         />
         {isLoading && (
           /* El centrado va por margen y no por -translate-y-1/2: `animate-spin`
              reemplaza el transform completo y el icono se descolgaba hacia abajo. */
-          <Loader2 className="pointer-events-none absolute right-3 top-1/2 -mt-2 h-4 w-4 animate-spin text-primary-400" />
+          <Loader2 className="pointer-events-none absolute right-3.5 top-1/2 -mt-2 h-4 w-4 animate-spin text-fg-subtle" />
         )}
       </div>
 
@@ -306,25 +277,22 @@ function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
         open={open && results.length > 0}
         anchorRef={inputRef}
         onClose={() => setOpen(false)}
-        maxHeight={200}
+        maxHeight={220}
         ariaLabel="Resultados de clientes"
-        className={`rounded-xl border shadow-2xl ${
-          isDarkGantt ? 'bg-[#1e1e24] border-white/10 shadow-black/80' : 'bg-white border-gray-200 shadow-gray-300/40'
-        }`}
+        className={MENU}
       >
-          <div className="max-h-48 overflow-y-auto py-1 custom-scrollbar">
+          <div role="listbox" className="max-h-52 overflow-y-auto">
             {results.map(item => (
               <button
                 key={item.codigo_cliente || item.cliente}
                 type="button"
+                role="option"
                 onClick={() => handleSelect(item)}
-                className={`w-full text-left px-3 py-2 transition-colors ${
-                  isDarkGantt ? 'hover:bg-white/6 text-gray-200' : 'hover:bg-gray-50 text-gray-800'
-                }`}
+                className="menu-item flex-col items-start gap-0.5"
               >
-                <span className="block text-xs font-bold truncate">{item.cliente}</span>
+                <span className="block w-full truncate text-[13px] font-medium">{item.cliente}</span>
                 {item.codigo_cliente && (
-                  <span className={`block text-[10px] font-mono mt-0.5 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <span className="block font-mono text-[11px] text-fg-subtle">
                     {item.codigo_cliente}
                   </span>
                 )}
@@ -336,7 +304,7 @@ function ClienteAutocomplete({ value, onChange, onSelect, isDarkGantt }) {
   );
 }
 
-function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disabled, isDarkGantt }) {
+function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disabled }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
   const buttonRef = useRef(null);
@@ -370,13 +338,7 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled || isLoading}
         aria-label="Planta"
-        className={cn(
-          'h-[45px] w-full rounded-xl border px-3 text-sm font-semibold shadow-inner outline-none focus:border-primary-500/50 focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:hidden',
-          FIELD_TRANSITION,
-          isDarkGantt
-            ? `${FIELD_BORDER_SOFT} bg-[#111111] text-gray-100`
-            : 'border-gray-200 bg-gray-50 text-gray-900'
-        )}
+        className={NATIVE_SELECT}
       >
         <option value="">{placeholder}</option>
         {plantas.map(planta => (
@@ -396,36 +358,15 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isDropdownOpen && plantas.length > 0}
-        className={cn(
-          'hidden h-[45px] w-full items-center justify-between gap-2 rounded-xl border px-4 text-sm font-semibold shadow-inner focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 disabled:cursor-not-allowed disabled:opacity-50 sm:flex',
-          FIELD_TRANSITION,
-          isDarkGantt
-            ? `bg-[#111111] ${FIELD_BORDER_SOFT} text-gray-100`
-            : 'bg-gray-50 border-gray-200 text-gray-900'
-        )}
+        className={SELECT_TRIGGER}
       >
-        <span
-          className={cn(
-            'truncate text-left',
-            selectedPlanta
-              ? ''
-              : isDarkGantt
-                ? 'text-gray-400'
-                : 'text-gray-500'
-          )}
-        >
+        <span className={cn('truncate', !selectedPlanta && 'font-normal text-fg-subtle')}>
           {selectedPlanta ? getPlantOptionLabel(selectedPlanta, clienteLabel) : placeholder}
         </span>
         {isLoading ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary-400" />
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-fg-subtle" />
         ) : (
-          <ChevronDown
-            className={cn(
-              'h-3.5 w-3.5 shrink-0 transition-transform duration-150',
-              isDropdownOpen ? 'rotate-180' : '',
-              isDarkGantt ? 'text-gray-500' : 'text-gray-400'
-            )}
-          />
+          <ChevronDown className={cn('h-4 w-4 shrink-0 text-fg-subtle transition-transform duration-150', isDropdownOpen && 'rotate-180')} />
         )}
       </button>
 
@@ -433,16 +374,11 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
         open={isDropdownOpen && plantas.length > 0}
         anchorRef={buttonRef}
         onClose={() => setOpen(false)}
-        maxHeight={232}
+        maxHeight={250}
         ariaLabel="Plantas disponibles"
-        className={cn(
-            'rounded-xl border shadow-2xl',
-            isDarkGantt
-              ? 'bg-[#1e1e24] border-white/10 shadow-black/80'
-              : 'bg-white border-gray-200 shadow-gray-300/40'
-          )}
+        className={MENU}
       >
-          <div className="max-h-56 overflow-y-auto py-1 custom-scrollbar">
+          <div role="listbox" className="max-h-60 overflow-y-auto">
             {plantas.map(planta => {
               const plantaLabel = getPlantOptionLabel(planta, clienteLabel);
               const isSelected = planta.codigo_planta === value;
@@ -451,33 +387,18 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
                 <button
                   key={planta.codigo_planta}
                   type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  data-selected={isSelected}
                   onClick={() => {
                     onChange(planta.codigo_planta);
                     setOpen(false);
                   }}
-                  className={cn(
-                    'w-full text-left px-3 py-2 transition-colors',
-                    isSelected
-                      ? isDarkGantt
-                        ? 'bg-blue-500/20 text-blue-300'
-                        : 'bg-blue-50 text-blue-600'
-                      : isDarkGantt
-                        ? 'text-gray-300 hover:bg-white/6 hover:text-white'
-                        : 'text-gray-700 hover:bg-gray-50'
-                  )}
+                  className="menu-item flex-col items-start gap-0.5"
                 >
-                  <span className="block text-xs font-bold truncate">{plantaLabel}</span>
+                  <span className="block w-full truncate text-[13px]">{plantaLabel}</span>
                   {planta.codigo_planta && (
-                    <span className={cn(
-                      'block text-[10px] font-mono mt-0.5',
-                      isSelected
-                        ? isDarkGantt
-                          ? 'text-blue-200'
-                          : 'text-blue-500'
-                        : isDarkGantt
-                          ? 'text-gray-500'
-                          : 'text-gray-400'
-                    )}>
+                    <span className="block font-mono text-[11px] font-normal text-fg-subtle">
                       {planta.codigo_planta}
                     </span>
                   )}
@@ -502,7 +423,6 @@ export function CellPopoverForm({
   tecnicos = [],
 }) {
   usePageScrollLock(isOpen);
-  const { isDarkGantt } = useTheme();
   const [activityType, setActivityType] = useState('');
   const [cotizacionCode, setCotizacionCode] = useState('');
   const [cliente, setCliente] = useState('');
@@ -937,6 +857,7 @@ export function CellPopoverForm({
 
   const selectedVehicleName = vehiculos.find(vehicle => vehicle.id === selectedVehicle)?.nombre;
   const assignmentCount = additionalResources.length + (selectedVehicle ? 1 : 0);
+  const swatchClass = 'h-6 w-6 rounded-full ring-1 ring-inset ring-black/10 transition-transform duration-150 hover:scale-110';
 
   return (
     <div
@@ -947,32 +868,22 @@ export function CellPopoverForm({
       onMouseDown={(mouseEvent) => {
         if (mouseEvent.target === mouseEvent.currentTarget) requestClose();
       }}
-      className={`task-dialog-backdrop fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4 ${
-        isDarkGantt ? 'bg-black/65' : 'bg-slate-900/35'
-      }`}
+      className="task-dialog-backdrop scrim fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
     >
       <div
         data-state={isClosing ? 'closing' : 'open'}
-        className={`task-dialog-panel flex max-h-[calc(100dvh-0.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl ${
-          isDarkGantt
-            ? 'border-white/10 bg-[#17171c] shadow-black/70'
-            : 'border-slate-500/25 bg-slate-100 shadow-slate-950/30'
-        }`}
+        className="task-dialog-panel flex max-h-[calc(100dvh-0.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-t-[22px] border border-line bg-surface shadow-dialog sm:max-h-[90dvh] sm:rounded-[22px]"
         onMouseDown={(mouseEvent) => mouseEvent.stopPropagation()}
       >
-        <header
-          className={`flex items-center justify-between gap-4 border-b px-4 py-3.5 sm:px-6 sm:py-4 ${
-            isDarkGantt ? 'border-white/10 bg-[#1d1d22]' : 'border-slate-500/20 bg-slate-200'
-          }`}
-        >
+        <header className="flex items-center justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
           <div className="min-w-0">
-            <h2 id="task-form-title" className={`text-base font-semibold tracking-[-0.01em] sm:text-lg ${isDarkGantt ? 'text-white' : 'text-slate-950'}`}>
+            <h2 id="task-form-title" className="text-lg font-semibold tracking-[-0.01em] text-fg">
               {event ? 'Editar tarea' : 'Nueva tarea'}
             </h2>
-            <p className={`mt-0.5 truncate text-xs sm:text-sm ${isDarkGantt ? 'text-slate-300' : 'text-slate-600'}`}>
-              <span className="font-semibold">{tecnico?.nombre || prefilledResource?.replace(/_/g, ' ')}</span>
-              <span aria-hidden="true" className="px-1.5 opacity-50">·</span>
-              <span className="capitalize">{dateTitle}</span>
+            <p className="mt-0.5 truncate text-sm text-fg-muted">
+              <span className="font-medium text-fg">{tecnico?.nombre || prefilledResource?.replace(/_/g, ' ')}</span>
+              <span aria-hidden="true" className="px-1.5 text-fg-subtle">·</span>
+              <span>{dateTitle}</span>
             </p>
           </div>
           <button
@@ -980,26 +891,22 @@ export function CellPopoverForm({
             onClick={() => requestClose()}
             aria-label="Cerrar ficha de tarea"
             disabled={isSubmitting}
-            className={`flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-40 ${
-              isDarkGantt
-                ? 'text-slate-300 hover:bg-white/10 hover:text-white'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
-            }`}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
           >
             <X className="h-5 w-5" />
           </button>
         </header>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-              <section className="space-y-5 px-4 py-5 sm:px-6 sm:py-6 lg:pr-7" aria-labelledby="task-details-heading">
-                <div className="flex items-center justify-between gap-3">
+              <section className="px-5 py-6 sm:px-6 lg:pr-7" aria-labelledby="task-details-heading">
+                <div className="mb-5 flex items-start justify-between gap-3">
                   <div>
-                    <h3 id="task-details-heading" className={`text-sm font-semibold ${isDarkGantt ? 'text-slate-100' : 'text-slate-900'}`}>
+                    <h3 id="task-details-heading" className="text-sm font-semibold text-fg">
                       Datos de la tarea
                     </h3>
-                    <p className={`mt-0.5 text-xs ${isDarkGantt ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className="mt-0.5 text-[13px] text-fg-muted">
                       Define el tipo, el destino y lo que se realizará.
                     </p>
                   </div>
@@ -1017,11 +924,7 @@ export function CellPopoverForm({
                       setSelectedVehicle('');
                       setAdditionalResources([]);
                     }}
-                    className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-red-500/40 ${
-                      isDarkGantt
-                        ? 'text-red-300 hover:bg-red-500/15'
-                        : 'text-red-700 hover:bg-red-50'
-                    }`}
+                    className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-danger/10 hover:text-danger"
                     title="Limpiar campos"
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Limpiar
@@ -1029,153 +932,142 @@ export function CellPopoverForm({
                 </div>
 
                 <div>
-                  <div>
-                    <label className={`mb-2 block text-xs font-semibold ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
-                      Tipo de tarea <span className={isDarkGantt ? 'text-red-300' : 'text-red-600'}>*</span>
-                    </label>
-                    <div className="grid grid-cols-[minmax(0,1fr)_44px] items-start gap-2">
-                  <ActivitySelect
-                    value={activityType}
-                    onChange={handleActivityChange}
-                    options={ACTIVITY_OPTIONS}
-                    isDarkGantt={isDarkGantt}
-                  />
-                  <div className="relative shrink-0" ref={colorPickerRefAM}>
-                    <button
-                      ref={colorButtonRefAM}
-                      type="button"
-                      onClick={() => setActiveColorPicker(activeColorPicker === 'am' ? null : 'am')}
-                          aria-haspopup="dialog"
-                          aria-expanded={activeColorPicker === 'am'}
-                          aria-label={colorAM ? `Cambiar color de la ficha, actual ${colorAM}` : 'Elegir color de la ficha, obligatorio'}
-                          className={`relative flex h-11 w-11 items-center justify-center rounded-xl border shadow-sm ring-offset-2 transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary-500 ${
-                        !colorAM
-                          ? isDarkGantt ? 'border-red-500/50 ring-offset-[#111]' : 'border-red-400/60 ring-offset-white'
-                          : isDarkGantt ? 'border-white/10 ring-offset-[#111]' : 'border-gray-200 ring-offset-white'
-                      }`}
-                      style={{ backgroundColor: colorAM || 'transparent' }}
-                          title="Elegir color de la ficha"
-                    >
-                      {!colorAM && (
-                        <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
-                          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMmEyYTMwIj48L3JlY3Q+CjxyZWN0IHdpZHRoPSI0IiBoZWlnaHQ9IjQiIGZpbGw9IiMzYTNjNDIiPjwvcmVjdD4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iIzNhM2M0MiI+PC9yZWN0Pgo8L3N2Zz4=')] opacity-30" />
-                        </div>
-                      )}
-                      <div className={`w-5 h-5 rounded-full border-2 shadow-inner mix-blend-overlay relative z-10 ${isDarkGantt ? 'border-white/40' : 'border-black/20'}`} />
-                      {!colorAM && (
-                        <div className={`absolute -top-2 -right-2 z-20 flex items-center justify-center rounded-full bg-white dark:bg-[#1a1a1d] shadow-sm pointer-events-none ${isDarkGantt ? 'bg-[#1a1a1d]' : 'bg-white'}`}>
-                          <AlertCircle className="w-[18px] h-[18px] text-red-500" />
-                        </div>
-                      )}
-                    </button>
+                  <FieldLabel required>Tipo de tarea</FieldLabel>
+                  <div className="grid grid-cols-[minmax(0,1fr)_44px] items-start gap-2">
+                    <ActivitySelect
+                      value={activityType}
+                      onChange={handleActivityChange}
+                      options={ACTIVITY_OPTIONS}
+                    />
+                    <div className="relative shrink-0" ref={colorPickerRefAM}>
+                      <button
+                        ref={colorButtonRefAM}
+                        type="button"
+                        onClick={() => setActiveColorPicker(activeColorPicker === 'am' ? null : 'am')}
+                        aria-haspopup="dialog"
+                        aria-expanded={activeColorPicker === 'am'}
+                        aria-label={colorAM ? `Cambiar color de la ficha, actual ${colorAM}` : 'Elegir color de la ficha, obligatorio'}
+                        title="Elegir color de la ficha"
+                        className={cn(
+                          'relative flex h-11 w-11 items-center justify-center rounded-xl border transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px',
+                          colorAM
+                            ? 'border-black/10 shadow-xs'
+                            : 'border-dashed border-danger/60 bg-surface text-fg-subtle hover:border-danger'
+                        )}
+                        style={{ backgroundColor: colorAM || undefined }}
+                      >
+                        {colorAM ? (
+                          <span className="h-3.5 w-3.5 rounded-full border-2 border-white/80 shadow-xs" aria-hidden="true" />
+                        ) : (
+                          <>
+                            <Palette className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden="true" />
+                            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-danger ring-2 ring-surface" aria-hidden="true" />
+                          </>
+                        )}
+                      </button>
 
-                    <FloatingDropdown
-                      open={activeColorPicker === 'am'}
-                      anchorRef={colorButtonRefAM}
-                      onClose={() => setActiveColorPicker(null)}
-                      width={224}
-                      maxHeight={330}
-                      align="end"
-                      ariaLabel="Selector de color"
-                      className={`rounded-2xl border p-3 shadow-2xl ${isDarkGantt ? 'border-slate-700/70 bg-[#1e1e24]' : 'border-slate-200 bg-white'}`}
-                    >
-                        <div className="flex justify-between items-center mb-2">
-                          <span className={`text-xs font-semibold ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>Color *</span>
-                          <button
-                            type="button"
-                            onClick={() => setActiveColorPicker(null)}
-                            className={`transition-colors ${isDarkGantt ? 'text-gray-500 hover:text-white' : 'text-gray-400 hover:text-gray-800'}`}
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-
-                        <HexColorPicker
-                          color={colorAM || PRESET_COLORS[1]}
-                          onChange={setColorAM}
-                          style={{ width: '100%', height: '120px' }}
-                        />
-
-                        <div className="mt-3">
-                          <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest px-1 block mb-1.5">Predefinidos</span>
-                          <div className="flex flex-wrap gap-1.5 justify-center">
-                            {PRESET_COLORS.map(color => (
-                              <button
-                                key={color}
-                                type="button"
-                                onClick={() => setColorAM(color)}
-                                className={`w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ${isDarkGantt ? 'ring-white/10' : 'ring-black/5'}`}
-                                style={{ backgroundColor: color }}
-                              />
-                            ))}
+                      <FloatingDropdown
+                        open={activeColorPicker === 'am'}
+                        anchorRef={colorButtonRefAM}
+                        onClose={() => setActiveColorPicker(null)}
+                        width={232}
+                        maxHeight={340}
+                        align="end"
+                        ariaLabel="Selector de color"
+                        className="glass rounded-2xl border p-3"
+                      >
+                          <div className="mb-2.5 flex items-center justify-between">
+                            <span className="text-[13px] font-medium text-fg">Color de la ficha</span>
+                            <button
+                              type="button"
+                              onClick={() => setActiveColorPicker(null)}
+                              aria-label="Cerrar selector de color"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
+                            >
+                              <X size={14} />
+                            </button>
                           </div>
-                        </div>
 
-                        {recentColors.length > 0 && (
-                          <div className={`mt-3 border-t pt-2 ${isDarkGantt ? 'border-gray-700/50' : 'border-gray-200'}`}>
-                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest px-1 block mb-1.5">Recientes</span>
-                            <div className="flex flex-wrap gap-1.5 justify-center">
-                              {recentColors.map((color, index) => (
+                          <HexColorPicker
+                            color={colorAM || PRESET_COLORS[1]}
+                            onChange={setColorAM}
+                            style={{ width: '100%', height: '124px' }}
+                          />
+
+                          <div className="mt-3">
+                            <span className="mb-2 block text-[11px] font-medium text-fg-subtle">Predefinidos</span>
+                            <div className="flex flex-wrap gap-2">
+                              {PRESET_COLORS.map(color => (
                                 <button
-                                  key={`recent-${color}-${index}`}
+                                  key={color}
                                   type="button"
                                   onClick={() => setColorAM(color)}
-                                  className={`w-5 h-5 rounded-full hover:scale-110 transition-transform shadow-sm ring-1 ${isDarkGantt ? 'ring-white/10' : 'ring-black/5'}`}
+                                  aria-label={`Usar color ${color}`}
+                                  className={cn(swatchClass, colorAM === color && 'ring-2 ring-fg ring-offset-2 ring-offset-surface')}
                                   style={{ backgroundColor: color }}
                                 />
                               ))}
                             </div>
                           </div>
-                        )}
-                    </FloatingDropdown>
-                  </div>
-                    </div>
-                  </div>
 
-                  {QUOTES_ENABLED && (
-                  <div className={`task-disclosure ${requiresQuote ? 'is-open' : ''}`} aria-hidden={!requiresQuote}>
-                    <div>
-                    <div className="pt-4">
-                      <label className={`mb-2 block text-xs font-semibold ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
-                        Cotización
-                      </label>
-                      <CotizacionAutocomplete
-                        key={`${event?.rowId ?? 'new'}-${activityType}`}
-                        value={cotizacionCode}
-                        onChange={(value) => {
-                          setCotizacionCode(value);
-                          setCliente('');
-                          setCodCliente('');
-                          setSelectedPlantaCode('');
-                          setDescription('');
-                        }}
-                        onSelect={handleCotizacionSelect}
-                        placeholder="Buscar cotizacion"
-                        isDarkGantt={isDarkGantt}
-                      />
-                    </div>
+                          {recentColors.length > 0 && (
+                            <div className="mt-3 border-t border-line pt-3">
+                              <span className="mb-2 block text-[11px] font-medium text-fg-subtle">Recientes</span>
+                              <div className="flex flex-wrap gap-2">
+                                {recentColors.map((color, index) => (
+                                  <button
+                                    key={`recent-${color}-${index}`}
+                                    type="button"
+                                    onClick={() => setColorAM(color)}
+                                    aria-label={`Usar color ${color}`}
+                                    className={cn(swatchClass, colorAM === color && 'ring-2 ring-fg ring-offset-2 ring-offset-surface')}
+                                    style={{ backgroundColor: color }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                      </FloatingDropdown>
                     </div>
                   </div>
-                  )}
+                </div>
 
-                  <div className={`task-disclosure ${requiresPlantAssistance ? 'is-open' : ''}`} aria-hidden={!requiresPlantAssistance}>
+                {QUOTES_ENABLED && (
+                <div className={`task-disclosure ${requiresQuote ? 'is-open' : ''}`} aria-hidden={!requiresQuote}>
+                  <div>
+                  <div className="pt-5">
+                    <FieldLabel>Cotización</FieldLabel>
+                    <CotizacionAutocomplete
+                      key={`${event?.rowId ?? 'new'}-${activityType}`}
+                      value={cotizacionCode}
+                      onChange={(value) => {
+                        setCotizacionCode(value);
+                        setCliente('');
+                        setCodCliente('');
+                        setSelectedPlantaCode('');
+                        setDescription('');
+                      }}
+                      onSelect={handleCotizacionSelect}
+                      placeholder="Buscar cotizacion"
+                    />
+                  </div>
+                  </div>
+                </div>
+                )}
+
+                <div className={`task-disclosure ${requiresPlantAssistance ? 'is-open' : ''}`} aria-hidden={!requiresPlantAssistance}>
+                  <div>
+                  <div className="grid grid-cols-1 gap-3 pt-5 sm:grid-cols-2">
                     <div>
-                    <div className="grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2">
-                      <div>
-                        <label className={`mb-2 block text-xs font-semibold ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
-                          Cliente <span className={isDarkGantt ? 'text-red-300' : 'text-red-600'}>*</span>
-                        </label>
+                      <FieldLabel htmlFor="task-client" required>Cliente</FieldLabel>
                       <ClienteAutocomplete
                         value={cliente}
                         onChange={handleClienteInputChange}
                         onSelect={handleClienteSelect}
-                        isDarkGantt={isDarkGantt}
                       />
-                      </div>
-                      <div>
-                        <label className={`mb-2 block text-xs font-semibold ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
-                          Planta <span className={`font-normal ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>(opcional)</span>
-                        </label>
+                    </div>
+                    <div>
+                      <FieldLabel optional>Planta</FieldLabel>
                       <PlantaSelect
                         value={selectedPlantaCode}
                         onChange={handlePlantaChange}
@@ -1183,25 +1075,21 @@ export function CellPopoverForm({
                         clienteLabel={cliente}
                         isLoading={isLoadingPlantas}
                         disabled={!codCliente}
-                        isDarkGantt={isDarkGantt}
                       />
-                      </div>
-                    </div>
                     </div>
                   </div>
-
-                  <TaskDescriptionField ref={descriptionFieldRef} isDarkGantt={isDarkGantt} />
+                  </div>
                 </div>
+
+                <TaskDescriptionField ref={descriptionFieldRef} />
               </section>
 
-              <aside className={`border-t px-4 py-5 sm:px-6 sm:py-6 lg:border-l lg:border-t-0 ${
-                isDarkGantt ? 'border-white/10 bg-[#141418]' : 'border-slate-500/20 bg-slate-200'
-              }`} aria-labelledby="task-schedule-heading">
+              <aside className="border-t border-line bg-surface-2/50 px-5 py-6 sm:px-6 lg:border-l lg:border-t-0" aria-labelledby="task-schedule-heading">
                 <div>
-                  <h3 id="task-schedule-heading" className={`text-sm font-semibold ${isDarkGantt ? 'text-slate-100' : 'text-slate-900'}`}>
+                  <h3 id="task-schedule-heading" className="text-sm font-semibold text-fg">
                     Agenda y recursos
                   </h3>
-                  <p className={`mt-0.5 text-xs ${isDarkGantt ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <p className="mt-0.5 text-[13px] text-fg-muted">
                     Ajusta el horario y las asignaciones necesarias.
                   </p>
                 </div>
@@ -1209,26 +1097,23 @@ export function CellPopoverForm({
                 <div className="mt-5 space-y-4">
                   <div>
                     <div className="mb-2 flex items-center gap-2">
-                      <Clock className={`h-4 w-4 ${isDarkGantt ? 'text-blue-300' : 'text-blue-600'}`} />
-                      <span className={`text-xs font-semibold ${isDarkGantt ? 'text-slate-300' : 'text-slate-700'}`}>
+                      <Clock className="h-4 w-4 text-fg-muted" />
+                      <span className="text-[13px] font-medium text-fg">
                         Horario
                       </span>
                       {isJornadaFull && (
-                        <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${isDarkGantt ? 'bg-red-500/15 text-red-300' : 'bg-red-50 text-red-700'}`}>
+                        <span className="ml-auto rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">
                           Jornada completa
                         </span>
                       )}
                     </div>
 
-                    <div className={`grid grid-cols-[1fr_auto_1fr] items-center rounded-xl border ${
-                      isDarkGantt ? 'border-white/10 bg-[#111111]' : 'border-slate-500/20 bg-slate-100'
-                    }`}>
-                      <div className="min-w-0 px-3 py-1.5">
-                        <span className={`block text-[10px] font-medium ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>Desde</span>
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center rounded-xl border border-line-strong bg-surface shadow-xs">
+                      <div className="min-w-0 px-3.5 py-1.5">
+                        <span className="block text-[11px] text-fg-subtle">Desde</span>
                         <TimeSelect
                           value={horaInicio}
                           slots={horaInicioSlots}
-                          isDarkGantt={isDarkGantt}
                           onChange={(newInicio) => {
                             setHoraInicio(newInicio);
                             if (timeToMinutes(horaFin) <= timeToMinutes(newInicio)) {
@@ -1238,10 +1123,10 @@ export function CellPopoverForm({
                           }}
                         />
                       </div>
-                      <span className={`h-7 w-px ${isDarkGantt ? 'bg-white/10' : 'bg-slate-200'}`} />
-                      <div className="min-w-0 px-3 py-1.5">
-                        <span className={`block text-[10px] font-medium ${isDarkGantt ? 'text-slate-500' : 'text-slate-500'}`}>Hasta</span>
-                        <TimeSelect value={horaFin} slots={horaFinSlots} isDarkGantt={isDarkGantt} onChange={setHoraFin} />
+                      <span className="h-8 w-px bg-line" />
+                      <div className="min-w-0 px-3.5 py-1.5">
+                        <span className="block text-[11px] text-fg-subtle">Hasta</span>
+                        <TimeSelect value={horaFin} slots={horaFinSlots} onChange={setHoraFin} />
                       </div>
                     </div>
 
@@ -1249,15 +1134,13 @@ export function CellPopoverForm({
                       type="button"
                       onClick={() => setShowAvailability(previous => !previous)}
                       aria-expanded={showAvailability}
-                      className={`mt-2 flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${
-                        isDarkGantt ? 'text-slate-300 hover:bg-white/[0.06]' : 'text-slate-600 hover:bg-slate-100'
-                      }`}
+                      className="mt-2 flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 text-[13px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.05] hover:text-fg"
                     >
                       <span className="flex items-center gap-2">
                         <CalendarClock className="h-4 w-4" />
                         {showAvailability ? 'Ocultar disponibilidad' : 'Ver disponibilidad del día'}
                       </span>
-                      <ChevronDown className={`h-4 w-4 transition-transform duration-100 ${showAvailability ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={cn('h-4 w-4 transition-transform duration-150', showAvailability && 'rotate-180')} />
                     </button>
 
                     <div className={`task-disclosure ${showAvailability ? 'is-open' : ''}`} aria-hidden={!showAvailability}>
@@ -1267,13 +1150,12 @@ export function CellPopoverForm({
                             occupiedBlocks={occupiedBlocks}
                             horaInicio={horaInicio}
                             horaFin={horaFin}
-                            isDarkGantt={isDarkGantt}
                             jInicio={userJInicio}
                             jFin={userJFin}
                           />
                           {!isJornadaFull && occupiedBlocks.length > 0 && (
-                            <p className={`text-[11px] ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>
-                              Próximo tramo libre: <span className={`font-semibold tabular-nums ${isDarkGantt ? 'text-blue-300' : 'text-blue-700'}`}>{suggestedStart}–{userJFin}</span>
+                            <p className="text-xs text-fg-muted">
+                              Próximo tramo libre: <span className="font-semibold tabular-nums text-fg">{suggestedStart}–{userJFin}</span>
                             </p>
                           )}
                         </div>
@@ -1281,35 +1163,32 @@ export function CellPopoverForm({
                     </div>
                   </div>
 
-                  <div className={`h-px ${isDarkGantt ? 'bg-white/10' : 'bg-slate-200'}`} />
+                  <div className="h-px bg-line" />
 
                   <div>
                     <button
                       type="button"
                       onClick={() => setShowAssignments(previous => !previous)}
                       aria-expanded={showAssignments}
-                      className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-2.5 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${
-                        isDarkGantt ? 'hover:bg-white/[0.06]' : 'hover:bg-slate-100'
-                      }`}
+                      className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-2.5 text-left transition-colors hover:bg-fg/[0.05]"
                     >
                       <span className="flex min-w-0 items-center gap-3">
-                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                          assignmentCount > 0
-                            ? isDarkGantt ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
-                            : isDarkGantt ? 'bg-white/[0.06] text-slate-400' : 'bg-slate-200/70 text-slate-600'
-                        }`}>
+                        <span className={cn(
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border',
+                          assignmentCount > 0 ? 'border-fg bg-fg text-canvas' : 'border-line bg-surface text-fg-muted'
+                        )}>
                           <Users className="h-4 w-4" />
                         </span>
                         <span className="min-w-0">
-                          <span className={`block text-xs font-semibold ${isDarkGantt ? 'text-slate-200' : 'text-slate-800'}`}>Asignaciones</span>
-                          <span className={`block truncate text-[11px] ${isDarkGantt ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <span className="block text-[13px] font-semibold text-fg">Asignaciones</span>
+                          <span className="block truncate text-xs text-fg-muted">
                             {assignmentCount === 0
                               ? 'Sin vehículo ni personal adicional'
                               : `${selectedVehicleName || 'Sin vehículo'}${additionalResources.length ? ` · ${additionalResources.length} persona${additionalResources.length === 1 ? '' : 's'}` : ''}`}
                           </span>
                         </span>
                       </span>
-                      <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-100 ${showAssignments ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={cn('h-4 w-4 shrink-0 text-fg-muted transition-transform duration-150', showAssignments && 'rotate-180')} />
                     </button>
 
                     <div className={`task-disclosure ${showAssignments ? 'is-open' : ''}`} aria-hidden={!showAssignments}>
@@ -1317,7 +1196,6 @@ export function CellPopoverForm({
                         <div className="space-y-2 pb-1 pt-2">
                           <VehiclePicker
                             vehicles={vehiculos}
-                            isDarkGantt={isDarkGantt}
                             isOpen={showVehicles}
                             selectedVehicle={selectedVehicle}
                             availability={vehicleAvailability}
@@ -1340,7 +1218,6 @@ export function CellPopoverForm({
                           />
                           <AdditionalResourcesPicker
                             grupos={grupos}
-                            isDarkGantt={isDarkGantt}
                             isOpen={showAdditionalUsers}
                             selectedResources={additionalResources}
                             onToggleOpen={() => setShowAdditionalUsers(previous => !previous)}
@@ -1353,10 +1230,10 @@ export function CellPopoverForm({
                   </div>
 
                   {event && (event.author || event.timestampUpdated) && (
-                    <div className={`flex items-start gap-2 pt-1 text-[11px] leading-4 ${isDarkGantt ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <div className="flex items-start gap-2 pt-1 text-xs leading-4 text-fg-muted">
                       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <p>
-                        {event.author && <>Última edición por <span className={isDarkGantt ? 'text-slate-200' : 'text-slate-700'}>{event.author}</span></>}
+                        {event.author && <>Última edición por <span className="font-medium text-fg">{event.author}</span></>}
                         {event.author && event.timestampUpdated && <span aria-hidden="true"> · </span>}
                         {event.timestampUpdated && <span>{event.timestampUpdated}</span>}
                       </p>
@@ -1367,17 +1244,13 @@ export function CellPopoverForm({
             </div>
           </div>
 
-          <footer className={`flex shrink-0 items-center gap-2 border-t px-4 py-3 sm:px-6 ${
-            isDarkGantt ? 'border-white/10 bg-[#1a1a1f]' : 'border-slate-500/20 bg-slate-200'
-          }`}>
+          <footer className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-5 py-3 sm:px-6">
             {event && (
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={isSubmitting || isClosing}
-                className={`flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500/40 disabled:opacity-50 ${
-                  isDarkGantt ? 'text-red-300 hover:bg-red-500/15' : 'text-red-700 hover:bg-red-50'
-                }`}
+                className="flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
               >
                 <Trash2 className="h-4 w-4" />
                 <span className="hidden sm:inline">Eliminar</span>
@@ -1388,16 +1261,14 @@ export function CellPopoverForm({
                 type="button"
                 onClick={() => requestClose()}
                 disabled={isSubmitting || isClosing}
-                className={`min-h-11 rounded-xl px-3.5 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-50 ${
-                  isDarkGantt ? 'text-slate-300 hover:bg-white/10' : 'text-slate-700 hover:bg-slate-100'
-                }`}
+                className="h-10 rounded-xl px-4 text-sm font-semibold text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting || isClosing}
-                className="flex min-h-11 min-w-[116px] items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 text-sm font-semibold text-white shadow-[0_8px_24px_-12px_rgba(37,99,235,0.9)] transition-[transform,background-color,box-shadow] hover:-translate-y-0.5 hover:bg-primary-500 hover:shadow-[0_12px_28px_-12px_rgba(37,99,235,0.95)] active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                className="flex h-10 min-w-[128px] items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-brand-fg shadow-xs ring-1 ring-inset ring-black/5 transition-[background-color,transform] duration-150 hover:bg-brand-hover active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 {isSubmitting ? 'Guardando' : event ? 'Guardar cambios' : 'Crear tarea'}

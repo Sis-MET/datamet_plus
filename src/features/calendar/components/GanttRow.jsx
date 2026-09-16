@@ -16,13 +16,13 @@ export const GanttRow = React.memo(function GanttRow({ tecnico, weekDays, previe
 
   return (
     <div
-      className={`gantt-row ${readOnly ? 'bg-blue-950/10' : ''}`}
+      className={`gantt-row ${readOnly ? 'bg-info/[0.03]' : ''}`}
       style={{ '--gantt-row-height': `${rowHeight}px` }}
     >
       {/* Sticky name column */}
-      <div className="gantt-name-col" style={readOnly ? { background: '#0d1424' } : {}}>
+      <div className="gantt-name-col">
         <div className="flex items-center gap-1.5 leading-tight">
-          {readOnly && <Truck className="w-3 h-3 text-blue-400/60 flex-shrink-0" />}
+          {readOnly && <Truck className="h-3 w-3 flex-shrink-0 text-info" />}
           <div className="gantt-tecnico-name truncate" title={rawName}>
             {firstName && <span>{firstName} </span>}
             <span>{lastName}</span>
@@ -34,12 +34,13 @@ export const GanttRow = React.memo(function GanttRow({ tecnico, weekDays, previe
       </div>
 
       {/* Day cells activos */}
-      {activeCells.map(({ day, tasks }) => {
+      {activeCells.map(({ day, tasks }, index) => {
         return (
           <GanttTaskCell
             key={day.toISOString()}
             tasks={tasks}
             isToday={isToday(day)}
+            isWeekStart={index === 7 || index === 14}
             date={day}
             selectedDay={selectedDay}
             resourceId={tecnico.id}

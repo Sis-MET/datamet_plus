@@ -3,13 +3,11 @@ import { RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { useTheme } from '../../shared/context/ThemeContext';
 import { useDepartures } from './hooks/useDepartures';
 import { DepartureSidebarForm } from './components/DepartureSidebarForm';
 import { DeparturesPanels }     from './components/DeparturesPanels';
 
 export function DeparturesPage() {
-  const { isDarkGantt } = useTheme();
   const [viewDate, setViewDate] = useState(new Date());
   const [search,   setSearch]   = useState('');
 
@@ -60,13 +58,15 @@ export function DeparturesPage() {
   const prevLabel = format(subMonths(viewDate, 1), 'MMM yyyy', { locale: es });
   const nextLabel = format(addMonths(viewDate, 1), 'MMM yyyy', { locale: es });
 
+  const control = 'flex h-10 items-center rounded-xl border border-line bg-surface text-fg shadow-xs transition-colors';
+
   return (
-    <div className="flex gap-4 px-4 sm:px-6 2xl:px-10 py-4 h-[calc(100vh-80px)]">
+    <div className="flex flex-col gap-4 px-4 py-4 sm:px-6 lg:h-[calc(100dvh-var(--topbar-height))] lg:flex-row 2xl:px-8">
 
       {/* ════════════════════════════════
           COLUMNA IZQUIERDA — Formulario
           ════════════════════════════════ */}
-      <aside className="w-[380px] xl:w-[420px] flex-shrink-0 flex flex-col">
+      <aside className="flex w-full flex-shrink-0 flex-col lg:w-[380px] xl:w-[420px]">
         <DepartureSidebarForm
           tecnicos={tecnicos}
           onSaved={handleSaved}
@@ -77,45 +77,43 @@ export function DeparturesPage() {
       {/* ════════════════════════════════
           COLUMNA DERECHA — Paneles + toolbar
           ════════════════════════════════ */}
-      <div className="flex-1 min-w-0 flex flex-col gap-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
 
-        {/* Barra de controles — mismo estilo GanttPage */}
-        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
 
           {/* Navegador mes */}
-          <div className={`flex rounded-xl overflow-hidden backdrop-blur-md shadow-sm transition-colors group relative border ${isDarkGantt ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-white border-gray-200 hover:border-gray-300 shadow-gray-200/50'}`}>
-            <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-            <button onClick={() => setViewDate(d => subMonths(d, 1))}
-              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors border-r ${isDarkGantt ? 'text-white hover:bg-white/10 border-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-gray-200'}`}>
-              <ChevronLeft className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`} />
+          <div className={`${control} overflow-hidden`}>
+            <button onClick={() => setViewDate(d => subMonths(d, 1))} aria-label="Mes anterior"
+              className="flex h-full items-center gap-1.5 border-r border-line px-3 text-xs text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg">
+              <ChevronLeft className="h-4 w-4" />
               <span className="capitalize">{prevLabel}</span>
             </button>
-            <span className={`relative z-10 px-4 py-1.5 text-[11px] font-bold capitalize ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>{periodLabelCap}</span>
-            <button onClick={() => setViewDate(d => addMonths(d, 1))}
-              className={`relative z-10 flex items-center gap-1 p-1.5 px-3 text-[10px] font-medium transition-colors border-l ${isDarkGantt ? 'text-white hover:bg-white/10 border-white/10' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-gray-200'}`}>
+            <span className="px-4 text-[13px] font-semibold capitalize">{periodLabelCap}</span>
+            <button onClick={() => setViewDate(d => addMonths(d, 1))} aria-label="Mes siguiente"
+              className="flex h-full items-center gap-1.5 border-l border-line px-3 text-xs text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg">
               <span className="capitalize">{nextLabel}</span>
-              <ChevronRight className={`h-3.5 w-3.5 ${isDarkGantt ? 'text-gray-300' : 'text-gray-500'}`} />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
           {/* Refrescar */}
-          <button onClick={() => fetchDepartures(periodStart, periodEnd)} disabled={loading} title="Recargar"
-            className={`group relative p-1.5 rounded-xl backdrop-blur-md shadow-sm transition-colors overflow-hidden disabled:opacity-50 border ${isDarkGantt ? 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10 text-white' : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-600'}`}>
-            <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-            <RefreshCw className={`relative z-10 h-4 w-4 ${loading ? 'animate-spin text-primary-400' : ''}`} />
+          <button onClick={() => fetchDepartures(periodStart, periodEnd)} disabled={loading} title="Recargar" aria-label="Recargar"
+            className={`${control} w-10 justify-center hover:bg-surface-2 disabled:opacity-50`}>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-fg-muted' : ''}`} />
           </button>
 
           {/* Búsqueda */}
-          <div className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-md shadow-sm border flex-1 min-w-[160px] transition-colors ${isDarkGantt ? 'bg-white/5 border-white/10 hover:border-white/20' : 'bg-white border-gray-200 hover:border-gray-300 shadow-gray-200/50'}`}>
-            <Search className={`h-3.5 w-3.5 flex-shrink-0 ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`} />
+          <div className={`${control} min-w-[180px] flex-1 gap-2 px-3 focus-within:border-focus focus-within:ring-4 focus-within:ring-focus/15`}>
+            <Search className="h-4 w-4 flex-shrink-0 text-fg-subtle" />
             <input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar personal, tipo, motivo..."
-              className={`flex-1 bg-transparent text-[11px] font-medium outline-none ${isDarkGantt ? 'text-gray-200 placeholder-gray-600' : 'text-gray-800 placeholder-gray-400'}`} />
+              aria-label="Buscar salidas"
+              className="h-full flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-fg-subtle" />
           </div>
         </div>
 
         {/* Paneles — ocupan el resto del alto disponible */}
-        <div className="flex-1 min-h-0">
+        <div className="min-h-0 flex-1">
           <DeparturesPanels
             departures={filtered}
             tecnicos={tecnicos}

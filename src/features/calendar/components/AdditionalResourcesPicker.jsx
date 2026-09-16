@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Check, ChevronDown, Search, Users, X } from 'lucide-react';
+import { cn } from '../../../shared/utils/cn';
 
 // Comparacion sin tildes ni mayusculas, para que "telleria" encuentre "Tellería".
 const normalize = (text) => String(text || '')
@@ -10,7 +11,6 @@ const normalize = (text) => String(text || '')
 
 export function AdditionalResourcesPicker({
   grupos,
-  isDarkGantt,
   isOpen,
   selectedResources,
   onToggleOpen,
@@ -53,24 +53,29 @@ export function AdditionalResourcesPicker({
         type="button"
         onClick={onToggleOpen}
         aria-expanded={isOpen}
-        className={`flex min-h-11 items-center gap-2 px-3 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors w-full justify-between border focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
-          isDarkGantt ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] text-gray-200' : 'bg-slate-100/65 border-slate-500/20 hover:bg-white/55 text-slate-800'
-        }`}
+        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3 py-2.5 text-left shadow-xs transition-colors hover:border-fg/20"
       >
-        <div className="flex items-center gap-2">
-          <Users size={14} className={selectedResources.length > 0 ? 'text-primary-500' : ''} />
-          <span>Asignar a más personal {selectedResources.length > 0 && `(${selectedResources.length})`}</span>
-        </div>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="flex items-center gap-3">
+          <Users size={17} className={selectedResources.length > 0 ? 'text-fg' : 'text-fg-muted'} />
+          <span className="text-[13px] font-medium text-fg">
+            Asignar a más personal
+            {selectedResources.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-fg px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-canvas">
+                {selectedResources.length}
+              </span>
+            )}
+          </span>
+        </span>
+        <ChevronDown className={cn('h-4 w-4 text-fg-muted transition-transform duration-150', isOpen && 'rotate-180')} />
       </button>
 
       <div className={`task-disclosure ${isOpen ? 'is-open' : ''}`} aria-hidden={!isOpen}>
         <div>
-          <div className={`mt-2 w-full rounded-xl border flex flex-col ${isDarkGantt ? 'bg-[#111111] border-[#1f1f23]' : 'bg-slate-100/90 border-slate-500/20 shadow-inner'}`}>
+          <div className="mt-2 flex w-full flex-col overflow-hidden rounded-xl border border-line bg-surface">
 
             {hasPersonnel && (
-              <div className={`flex items-center gap-2 px-2.5 py-2 border-b ${isDarkGantt ? 'border-white/5' : 'border-slate-500/15'}`}>
-                <Search size={13} className={`shrink-0 ${isDarkGantt ? 'text-slate-500' : 'text-slate-400'}`} />
+              <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+                <Search size={14} className="shrink-0 text-fg-subtle" />
                 <input
                   type="text"
                   value={query}
@@ -79,18 +84,14 @@ export function AdditionalResourcesPicker({
                   autoComplete="off"
                   spellCheck={false}
                   aria-label="Buscar personal para asignar"
-                  className={`min-w-0 flex-1 bg-transparent text-[11px] font-semibold outline-none ${
-                    isDarkGantt ? 'text-gray-200 placeholder-gray-600' : 'text-slate-800 placeholder-slate-400'
-                  }`}
+                  className="min-w-0 flex-1 bg-transparent py-1 text-[13px] text-fg outline-none placeholder:text-fg-subtle"
                 />
                 {query && (
                   <button
                     type="button"
                     onClick={() => setQuery('')}
                     aria-label="Limpiar búsqueda"
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors ${
-                      isDarkGantt ? 'text-slate-500 hover:bg-white/10 hover:text-white' : 'text-slate-400 hover:bg-black/5 hover:text-slate-800'
-                    }`}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-fg/[0.06] hover:text-fg"
                   >
                     <X size={12} />
                   </button>
@@ -98,34 +99,50 @@ export function AdditionalResourcesPicker({
               </div>
             )}
 
-            <div className="overflow-y-auto custom-scrollbar flex flex-col" style={{ maxHeight: '180px' }}>
+            <div className="flex flex-col overflow-y-auto" style={{ maxHeight: '200px' }}>
               {!hasPersonnel && (
-                <p className="text-xs text-center text-gray-500 p-3">No hay más personal disponible</p>
+                <p className="p-3 text-center text-xs text-fg-muted">No hay más personal disponible</p>
               )}
               {hasPersonnel && matchCount === 0 && (
-                <p className="text-xs text-center text-gray-500 p-3">
+                <p className="p-3 text-center text-xs text-fg-muted">
                   Sin resultados para “{query.trim()}”
                 </p>
               )}
-              {filteredGrupos.map(([area, tecnicos], index) => {
+              {filteredGrupos.map(([area, tecnicos]) => {
                 const allSelected = tecnicos.length > 0 && tecnicos.every(tecnico => selectedResources.includes(tecnico.id));
                 return (
-                  <div key={area} className={index > 0 ? 'mt-2' : ''}>
-                    <div className={`flex items-center justify-between px-3 py-2 sticky top-0 z-10 border-b border-transparent ${isDarkGantt ? 'bg-[#1a1a1d]' : 'bg-gray-50'}`}>
-                      <span className={`text-[9px] font-bold uppercase tracking-widest ${isDarkGantt ? 'text-slate-400' : 'text-slate-600'}`}>{area}</span>
-                      <button type="button" onClick={() => onSelectArea(tecnicos)} className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors ${isDarkGantt ? 'text-blue-400 hover:bg-blue-500/20' : 'text-blue-600 hover:bg-blue-100'}`}>
+                  <div key={area}>
+                    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface-2 px-3 py-1.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">{area}</span>
+                      <button
+                        type="button"
+                        onClick={() => onSelectArea(tecnicos)}
+                        className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-fg transition-colors hover:bg-fg/[0.07]"
+                      >
                         {allSelected ? 'Quitar todos' : 'Todos'}
                       </button>
                     </div>
-                    <div className="flex flex-col gap-0.5 px-2 pb-1">
+                    <div className="flex flex-col gap-0.5 p-1">
                       {tecnicos.map(tecnico => {
                         const isSelected = selectedResources.includes(tecnico.id);
                         return (
-                          <button type="button" key={tecnico.id} onClick={() => onToggleResource(tecnico.id)} className={`flex min-h-10 w-full items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${isSelected ? (isDarkGantt ? 'bg-blue-500/20' : 'bg-blue-50') : (isDarkGantt ? 'hover:bg-white/5' : 'hover:bg-black/5')}`}>
-                            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-500 border-blue-500' : (isDarkGantt ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white')}`}>
-                              {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
-                            </div>
-                            <span className={`text-[11px] font-semibold truncate select-none ${isSelected ? (isDarkGantt ? 'text-blue-300' : 'text-blue-700') : (isDarkGantt ? 'text-gray-300' : 'text-gray-700')}`}>
+                          <button
+                            type="button"
+                            key={tecnico.id}
+                            onClick={() => onToggleResource(tecnico.id)}
+                            aria-pressed={isSelected}
+                            className={cn(
+                              'flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors',
+                              isSelected ? 'bg-fg/[0.06]' : 'hover:bg-fg/[0.04]'
+                            )}
+                          >
+                            <span className={cn(
+                              'flex h-4 w-4 items-center justify-center rounded-[5px] border transition-colors',
+                              isSelected ? 'border-fg bg-fg text-canvas' : 'border-line-strong bg-surface'
+                            )}>
+                              {isSelected && <Check size={10} strokeWidth={3} />}
+                            </span>
+                            <span className={cn('select-none truncate text-[13px]', isSelected ? 'font-medium text-fg' : 'text-fg-muted')}>
                               {tecnico.nombre}
                             </span>
                           </button>

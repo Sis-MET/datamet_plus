@@ -14,7 +14,6 @@ import { FloatingDropdown } from './FloatingDropdown';
  * @param {string}   value                 - Valor controlado (código de cotización)
  * @param {Function} onChange              - Callback al cambiar el valor del código
  * @param {string}   placeholder          - Placeholder del input
- * @param {boolean}  isDarkGantt          - Tema oscuro/claro
  * @param {string}   className            - Clases adicionales para el input
  */
 export function CotizacionAutocomplete({
@@ -22,7 +21,6 @@ export function CotizacionAutocomplete({
   onChange,
   onSelect,
   placeholder = 'EJ: 260001.COT01',
-  isDarkGantt = true,
   className = '',
 }) {
   const [query, setQuery] = useState(value || '');
@@ -134,17 +132,14 @@ export function CotizacionAutocomplete({
           spellCheck={false}
           maxLength={90}
           className={cn(
-            'w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/30 transition-all font-mono uppercase shadow-inner',
-            isDarkGantt
-              ? 'bg-[#111111] border-white/10 text-gray-100 placeholder-gray-400'
-              : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500',
+            'field h-11 font-mono uppercase',
             isLoading && 'pr-10',
             className
           )}
         />
         {/* Spinner mientras busca */}
         {isLoading && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-primary-400">
+          <div className="pointer-events-none absolute right-3.5 top-1/2 -mt-2 text-fg-subtle">
             <Loader2 className="h-4 w-4 animate-spin" />
           </div>
         )}
@@ -153,10 +148,7 @@ export function CotizacionAutocomplete({
       {/* Pista visual del CLIENTE — solo informativo, no se guarda */}
       {clienteHint && (
         <div className="flex items-center gap-1 mt-1 px-1">
-          <span className={cn(
-            'text-[10px] font-semibold truncate',
-            isDarkGantt ? 'text-gray-500' : 'text-gray-400'
-          )}>
+          <span className="truncate text-[11px] font-medium text-fg-subtle">
             {clienteHint}
           </span>
         </div>
@@ -169,15 +161,10 @@ export function CotizacionAutocomplete({
         onClose={() => setShowDropdown(false)}
         maxHeight={216}
         ariaLabel="Resultados de cotizaciones"
-        className={cn(
-          'rounded-xl border shadow-2xl',
-          isDarkGantt
-            ? 'bg-[#1a1a1d] border-gray-700/50'
-            : 'bg-white border-gray-200'
-        )}
+        className="glass rounded-xl border p-1"
       >
         <ul
-          className="max-h-52 overflow-y-auto custom-scrollbar"
+          className="max-h-52 overflow-y-auto"
         >
           {suggestions.map((item, idx) => {
             const clienteLabel = (item.nombre_cliente || '').trim();
@@ -191,26 +178,15 @@ export function CotizacionAutocomplete({
                   e.preventDefault();
                   handleSelect(item);
                 }}
-                className={cn(
-                  'flex flex-col px-3 py-2 cursor-pointer border-b last:border-b-0 transition-colors',
-                  isDarkGantt
-                    ? 'border-gray-700/30 hover:bg-primary-600/15'
-                    : 'border-gray-100 hover:bg-primary-50'
-                )}
+                className="menu-item cursor-pointer flex-col items-start gap-0.5"
               >
                 {/* Fila 1: Código de cotización */}
                 <div className="flex items-center gap-2">
-                  <span className={cn(
-                    'font-mono text-xs font-bold tracking-wide',
-                    isDarkGantt ? 'text-primary-400' : 'text-primary-600'
-                  )}>
+                  <span className="font-mono text-xs font-semibold tracking-wide text-fg">
                     {item.cod_cotizacion}
                   </span>
                   {item.cod_contacto && (
-                    <span className={cn(
-                      'text-[10px] font-mono px-1.5 py-0.5 rounded',
-                      isDarkGantt ? 'bg-gray-800 text-gray-500' : 'bg-gray-100 text-gray-400'
-                    )}>
+                    <span className="rounded bg-fg/[0.07] px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
                       {item.cod_contacto}
                     </span>
                   )}
@@ -219,20 +195,14 @@ export function CotizacionAutocomplete({
                 {(clienteLabel || plantaLabel) && (
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {clienteLabel && (
-                      <span className={cn(
-                        'text-xs font-semibold truncate',
-                        isDarkGantt ? 'text-gray-300' : 'text-gray-700'
-                      )}>
+                      <span className="truncate text-xs font-medium text-fg">
                         {clienteLabel}
                       </span>
                     )}
                     {plantaLabel && (
                       <>
-                        <span className={cn('text-[10px]', isDarkGantt ? 'text-gray-600' : 'text-gray-400')}>·</span>
-                        <span className={cn(
-                          'flex items-center gap-0.5 text-[10px] truncate',
-                          isDarkGantt ? 'text-gray-500' : 'text-gray-400'
-                        )}>
+                        <span className="text-[10px] text-fg-subtle">·</span>
+                        <span className="flex items-center gap-0.5 truncate text-[10px] text-fg-subtle">
                           <MapPin className="w-2.5 h-2.5 shrink-0" />
                           {plantaLabel}
                         </span>

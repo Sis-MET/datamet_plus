@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { FloatingDropdown } from './FloatingDropdown';
 
-export function TimeSelect({ value, onChange, slots, isDarkGantt }) {
+export function TimeSelect({ value, onChange, slots }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
   const listRef = useRef(null);
@@ -29,14 +29,12 @@ export function TimeSelect({ value, onChange, slots, isDarkGantt }) {
   }, [open]);
 
   return (
-    <div ref={containerRef} className="relative flex-1 min-w-0">
+    <div ref={containerRef} className="relative min-w-0 flex-1">
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-label="Hora"
-        className={`w-full bg-transparent py-2 text-xs font-semibold outline-none sm:hidden ${
-          isDarkGantt ? 'text-gray-100' : 'text-gray-800'
-        }`}
+        className="w-full bg-transparent py-1.5 text-sm font-semibold tabular-nums text-fg outline-none sm:hidden"
       >
         {slots.map(time => <option key={time} value={time}>{time}</option>)}
       </select>
@@ -46,15 +44,11 @@ export function TimeSelect({ value, onChange, slots, isDarkGantt }) {
         onClick={() => setOpen(current => !current)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`hidden w-full items-center justify-between gap-1 border-none bg-transparent py-2 text-xs font-semibold outline-none cursor-pointer sm:flex ${
-          isDarkGantt ? 'text-gray-100' : 'text-gray-800'
-        }`}
+        className="hidden w-full cursor-pointer items-center justify-between gap-1 rounded-md border-none bg-transparent py-1.5 text-sm font-semibold text-fg outline-none sm:flex"
       >
-        <span className="font-mono tracking-wide">{value}</span>
+        <span className="tabular-nums">{value}</span>
         <ChevronDown
-          className={`w-3 h-3 shrink-0 transition-transform duration-150 ${
-            open ? 'rotate-180' : ''
-          } ${isDarkGantt ? 'text-gray-500' : 'text-gray-400'}`}
+          className={`h-3.5 w-3.5 shrink-0 text-fg-subtle transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -62,36 +56,26 @@ export function TimeSelect({ value, onChange, slots, isDarkGantt }) {
         open={open}
         anchorRef={buttonRef}
         onClose={() => setOpen(false)}
-        width={96}
-        maxHeight={184}
+        width={104}
+        maxHeight={200}
         align="center"
         preferredPlacement="auto"
         ariaLabel="Horas disponibles"
-        className={`rounded-xl border shadow-2xl ${
-            isDarkGantt
-              ? 'bg-[#1e1e24] border-white/10 shadow-black/80'
-              : 'bg-white border-gray-200 shadow-gray-300/40'
-          }`}
+        className="glass rounded-xl border p-1"
       >
-          <div ref={listRef} className="max-h-44 overflow-y-auto py-1 custom-scrollbar">
+          <div ref={listRef} role="listbox" className="max-h-48 overflow-y-auto">
             {slots.map(time => (
               <button
                 key={time}
                 type="button"
+                role="option"
+                aria-selected={time === value}
                 data-selected={time === value}
                 onClick={() => {
                   onChange(time);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-3 py-[5px] text-xs font-mono font-semibold transition-colors ${
-                  time === value
-                    ? isDarkGantt
-                      ? 'bg-blue-500/20 text-blue-400'
-                      : 'bg-blue-50 text-blue-600'
-                    : isDarkGantt
-                      ? 'text-gray-300 hover:bg-white/6 hover:text-white'
-                      : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                className="menu-item justify-center py-1.5 tabular-nums"
               >
                 {time}
               </button>
