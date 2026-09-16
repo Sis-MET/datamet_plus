@@ -1,7 +1,12 @@
 import React from 'react';
 import { Check, X, Minus } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
-import { useTheme } from '../../../shared/context/ThemeContext';
+
+const OPTIONS = [
+  { value: 'present', label: 'Presente', icon: Check, selected: 'bg-success/[0.12] text-success ring-1 ring-inset ring-success/30' },
+  { value: 'missing', label: 'Faltante', icon: X, selected: 'bg-danger/10 text-danger ring-1 ring-inset ring-danger/30' },
+  { value: 'na', label: 'N/A', icon: Minus, selected: 'bg-surface text-fg shadow-xs ring-1 ring-inset ring-line-strong' },
+];
 
 export function InventoryItem({
   label,
@@ -9,60 +14,57 @@ export function InventoryItem({
   onChange,
   showQuantity = false,
   quantity,
-  onQuantityChange
+  onQuantityChange,
+  compact = false,
 }) {
-  const { isDarkGantt } = useTheme();
-  const getButtonClasses = (buttonValue) => {
-    const isSelected = value === buttonValue;
-    const baseClasses = "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer border-2";
-    if (buttonValue === 'present') {
-      return cn(baseClasses, isSelected
-        ? "bg-green-600 border-green-600 text-white shadow-lg shadow-green-600/30"
-        : (isDarkGantt ? "bg-transparent border-gray-600 text-gray-400 hover:border-green-500 hover:text-green-400" : "bg-transparent border-gray-300 text-gray-500 hover:border-green-600 hover:text-green-600"));
-    }
-    if (buttonValue === 'missing') {
-      return cn(baseClasses, isSelected
-        ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-600/30"
-        : (isDarkGantt ? "bg-transparent border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-400" : "bg-transparent border-gray-300 text-gray-500 hover:border-red-600 hover:text-red-600"));
-    }
-    if (buttonValue === 'na') {
-      return cn(baseClasses, isSelected
-        ? "bg-gray-600 border-gray-600 text-white shadow-lg shadow-gray-600/20"
-        : (isDarkGantt ? "bg-transparent border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300" : "bg-transparent border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-700"));
-    }
-  };
+  const control = (
+    <div
+      role="radiogroup"
+      aria-label={label || 'Estado del componente'}
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-xl border border-line bg-surface-2/70 p-0.5"
+    >
+      {OPTIONS.map(({ value: optionValue, label: optionLabel, icon, selected }) => {
+        const Icon = icon;
+        const isSelected = value === optionValue;
+        return (
+          <button
+            key={optionValue}
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            onClick={() => onChange(optionValue)}
+            className={cn(
+              'inline-flex h-8 items-center gap-1.5 rounded-[10px] px-2.5 text-xs font-medium transition-[background-color,color,box-shadow] duration-150',
+              isSelected ? selected : 'text-fg-muted hover:text-fg'
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" />
+            {optionLabel}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (compact) return control;
 
   return (
-    <div className={`flex flex-col sm:grid sm:grid-cols-12 gap-3 py-3 border-b ${isDarkGantt ? 'border-gray-700/50' : 'border-gray-200'} last:border-0`}>
-      <div className={`sm:col-span-4 text-sm font-medium ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>{label}</div>
-      <div className="sm:col-span-6 flex flex-wrap gap-2">
-        <button type="button" onClick={() => onChange('present')} className={getButtonClasses('present')}>
-          <Check className="h-3 w-3" /> Presente
-        </button>
-        <button type="button" onClick={() => onChange('missing')} className={getButtonClasses('missing')}>
-          <X className="h-3 w-3" /> Faltante
-        </button>
-        <button type="button" onClick={() => onChange('na')} className={getButtonClasses('na')}>
-          <Minus className="h-3 w-3" /> N/A
-        </button>
-      </div>
-      {showQuantity && (
-        <div className="sm:col-span-2">
+    <div className="flex flex-col gap-2.5 px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="text-sm font-medium text-fg sm:w-48 sm:shrink-0">{label}</div>
+      <div className="flex flex-1 flex-wrap items-center gap-3">
+        {control}
+        {showQuantity && (
           <input
             type="number"
             min="0"
             value={quantity || ''}
             onChange={(e) => onQuantityChange?.(e.target.value)}
             placeholder="Cant."
-            className={cn(
-              "w-full h-9 px-3 text-sm rounded-md border focus:ring-2 focus:ring-primary-500 focus:outline-none",
-              isDarkGantt 
-                ? "border-gray-600 bg-[#1e1e1e] text-gray-200" 
-                : "border-gray-300 bg-white text-gray-900"
-            )}
+            aria-label={`Cantidad de ${label}`}
+            className="field h-9 w-24 tabular-nums"
           />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

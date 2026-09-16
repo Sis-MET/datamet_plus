@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
-import { useTheme } from '../../context/ThemeContext';
 import { api } from '../../api/client';
 
 export const SearchableInput = React.forwardRef(({
@@ -10,9 +10,12 @@ export const SearchableInput = React.forwardRef(({
   value,
   onChange,
   onSelect,
+  id,
   ...props
 }, ref) => {
-  const { isDarkGantt } = useTheme();
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const listId = `${inputId}-list`;
   const [query, setQuery] = useState(value || '');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -100,58 +103,55 @@ export const SearchableInput = React.forwardRef(({
   };
 
   return (
-    <div className="w-full relative" ref={wrapperRef}>
+    <div className="relative w-full" ref={wrapperRef}>
       {label && (
-        <label className={`block text-sm font-medium mb-1 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
-          {label} {props.required && <span className="text-red-500">*</span>}
+        <label htmlFor={inputId} className="field-label">
+          {label}
+          {props.required && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
         </label>
       )}
       <div className="relative">
         <input
           ref={ref}
+          id={inputId}
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => { if (results.length > 0) setIsOpen(true); }}
-          className={cn(
-            'flex h-10 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50',
-            isDarkGantt 
-              ? 'border-gray-600 bg-[#1e1e1e] text-gray-200 placeholder:text-gray-500' 
-              : 'border-gray-300 bg-white text-gray-900 placeholder:text-gray-400',
-            error && 'border-red-500 focus:ring-red-500',
-            className
-          )}
+          role="combobox"
+          aria-expanded={isOpen && results.length > 0}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-invalid={error ? true : undefined}
+          className={cn('field h-10', isLoading && 'pr-10', error && 'field-invalid', className)}
           autoComplete="off"
           {...props}
         />
         {isLoading && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-gray-500 border-t-primary-400 rounded-full animate-spin" />
-          </div>
+          <Loader2 className="pointer-events-none absolute right-3.5 top-1/2 -mt-2 h-4 w-4 animate-spin text-fg-subtle" aria-hidden="true" />
         )}
       </div>
       {isOpen && results.length > 0 && (
-        <ul className={cn("absolute z-50 w-full mt-1 max-h-48 overflow-y-auto rounded-md border shadow-lg",
-          isDarkGantt ? "border-gray-600 bg-[#1e1e1e]" : "border-gray-200 bg-white"
-        )}>
+        <ul
+          id={listId}
+          role="listbox"
+          className="glass absolute z-50 mt-1.5 max-h-60 w-full overflow-y-auto rounded-xl border p-1 animate-pop-in"
+        >
           {results.map((item, index) => (
             <li
               key={index}
+              role="option"
+              aria-selected={index === highlightedIndex}
               onClick={() => handleSelectItem(item)}
-              className={cn(
-                'px-3 py-2 text-sm cursor-pointer transition-colors',
-                isDarkGantt ? 'text-gray-200' : 'text-gray-800',
-                index === highlightedIndex
-                  ? (isDarkGantt ? 'bg-primary-600/30 text-primary-300' : 'bg-primary-50 text-primary-600')
-                  : (isDarkGantt ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50')
-              )}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              className="menu-item cursor-pointer"
             >
               {item.cliente}
             </li>
           ))}
         </ul>
       )}
-      {error && <p className="mt-1 text-sm text-red-500">{error.message}</p>}
+      {error && <p className="field-error">{error.message}</p>}
     </div>
   );
 });

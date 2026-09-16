@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Loader2, Package, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Search, Loader2, Package, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
-import { useTheme } from '../../../shared/context/ThemeContext';
 import { api } from '../../../shared/api/client';
 
 /**
@@ -11,7 +10,6 @@ import { api } from '../../../shared/api/client';
  * - Al hacer clic en un ítem se auto-completan los campos del instrumento
  */
 export function EquipoSearch({ planta, clienteId, onSelect }) {
-  const { isDarkGantt } = useTheme();
   const [query, setQuery] = useState('');
   const [allEquipos, setAllEquipos] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,32 +71,28 @@ export function EquipoSearch({ planta, clienteId, onSelect }) {
   if (selectedCode) {
     const currentEquipo = allEquipos.find(e => e.cod_metrica === selectedCode);
     return (
-      <div className="flex flex-col gap-3 animate-fade-in-up">
-        <div className={`flex items-center justify-between p-4 rounded-xl border shadow-inner ${isDarkGantt ? 'bg-[#141414] border-primary-500/30' : 'bg-primary-50 border-primary-200'}`}>
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 shrink-0 rounded-full bg-primary-600/20 flex items-center justify-center">
-              <CheckCircle2 className="h-5 w-5 text-primary-400" />
-            </div>
-            <div className="min-w-0">
-              <p className={`text-sm font-semibold truncate ${isDarkGantt ? 'text-primary-300' : 'text-primary-700'}`}>
-                {selectedCode}
-              </p>
-              <p className={`text-xs mt-0.5 truncate ${isDarkGantt ? 'text-gray-400' : 'text-gray-600'}`}>
-                {[currentEquipo?.instrumento, currentEquipo?.marca, currentEquipo?.modelo].filter(Boolean).join(' · ')}
-              </p>
-            </div>
+      <div className="flex items-center justify-between gap-4 rounded-2xl border border-success/25 bg-success/[0.06] p-4 animate-fade-in-up">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-success/[0.12] text-success">
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-mono text-sm font-semibold text-fg">{selectedCode}</p>
+            <p className="mt-0.5 truncate text-xs text-fg-muted">
+              {[currentEquipo?.instrumento, currentEquipo?.marca, currentEquipo?.modelo].filter(Boolean).join(' · ')}
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedCode(null);
-              setQuery('');
-            }}
-            className="ml-4 shrink-0 px-4 py-2 text-xs font-medium text-white bg-primary-600 hover:bg-primary-500 rounded-lg transition-colors border border-primary-500 shadow-lg shadow-primary-900/40"
-          >
-            Seleccionar otro
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedCode(null);
+            setQuery('');
+          }}
+          className="h-9 shrink-0 rounded-xl border border-line-strong bg-surface px-3.5 text-[13px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2"
+        >
+          Seleccionar otro
+        </button>
       </div>
     );
   }
@@ -107,7 +101,7 @@ export function EquipoSearch({ planta, clienteId, onSelect }) {
     <div className="flex flex-col gap-3 animate-fade-in-up">
       {/* Input de filtro */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden="true" />
         <input
           type="text"
           value={query}
@@ -119,117 +113,89 @@ export function EquipoSearch({ planta, clienteId, onSelect }) {
               ? 'Activa "Asociar a Planta" y elige una planta...'
               : `Filtrar en planta ${planta}...`
           }
+          aria-label="Filtrar instrumentos"
           disabled={!planta || isLoading}
           autoComplete="off"
-          className={cn(
-            'w-full h-10 pl-9 pr-10 text-sm rounded-md border focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors',
-            isDarkGantt 
-              ? 'bg-[#1e1e1e] text-gray-200 placeholder:text-gray-500 border-gray-600' 
-              : 'bg-white text-gray-900 placeholder:text-gray-400 border-gray-300',
-            noContext && (isDarkGantt ? 'border-gray-700 opacity-50 cursor-not-allowed' : 'opacity-50 cursor-not-allowed')
-          )}
+          className={cn('field h-10 pl-10 pr-10', noContext && 'opacity-70')}
         />
         {isLoading && (
-          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 animate-spin" />
+          <Loader2 className="absolute right-3.5 top-1/2 -mt-2 h-4 w-4 animate-spin text-fg-subtle" aria-hidden="true" />
         )}
         {query && !isLoading && (
           <button
             type="button"
             onClick={() => setQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+            aria-label="Limpiar filtro"
+            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-fg-subtle transition-colors hover:bg-fg/[0.06] hover:text-fg"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <X className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
 
       {/* Lista de instrumentos */}
-      <div className={`border rounded-lg overflow-hidden shadow-2xl ${isDarkGantt ? 'border-gray-700/60' : 'border-gray-200 bg-white'}`}>
-        {/* Header de la lista */}
-        <div className={`flex items-center justify-between px-3 py-2 border-b ${isDarkGantt ? 'bg-[#252525] border-gray-700/60' : 'bg-gray-50 border-gray-200'}`}>
-          <p className={`text-xs font-semibold uppercase tracking-wider ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
-            Instrumentos disponibles
-          </p>
+      <div className="overflow-hidden rounded-2xl border border-line">
+        <div className="flex items-center justify-between border-b border-line bg-surface-2/60 px-4 py-2.5">
+          <p className="text-xs font-medium text-fg-muted">Instrumentos disponibles</p>
           {!isLoading && allEquipos.length > 0 && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs tabular-nums text-fg-subtle">
               {filtered.length} de {allEquipos.length}
             </p>
           )}
         </div>
 
-        {/* Contenido de la lista */}
-        <div className={`max-h-56 overflow-y-auto ${isDarkGantt ? 'bg-[#1a1a1a]' : 'bg-white'}`}>
+        <div className="max-h-64 overflow-y-auto">
           {noContext ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
-              <Package className={`h-8 w-8 ${isDarkGantt ? 'text-gray-700' : 'text-gray-300'}`} />
-              <p className={`text-xs ${isDarkGantt ? 'text-gray-600' : 'text-gray-500'}`}>
+            <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+              <Package className="h-7 w-7 text-fg-subtle" strokeWidth={1.6} aria-hidden="true" />
+              <p className="text-sm text-fg-muted">
                 {!clienteId
                   ? 'Selecciona un cliente (Paso 1) para comenzar'
                   : 'Selecciona una planta para ver sus instrumentos'}
               </p>
             </div>
           ) : isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-fg-muted" role="status">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               Cargando instrumentos...
             </div>
           ) : error ? (
-            <div className="flex items-center gap-2 px-4 py-6 text-sm text-red-400">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-2 px-4 py-6 text-sm text-danger" role="alert">
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
               {error}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 gap-2">
-              <p className="text-sm text-gray-500">
-                {allEquipos.length === 0
-                  ? 'No se encontraron instrumentos registrados en esta planta'
-                  : `Sin resultados para "${query}"`}
-              </p>
-            </div>
+            <p className="px-6 py-10 text-center text-sm text-fg-muted">
+              {allEquipos.length === 0
+                ? 'No se encontraron instrumentos registrados en esta planta'
+                : `Sin resultados para "${query}"`}
+            </p>
           ) : (
-            <ul>
-              {filtered.map((equipo) => {
-                return (
-                  <li
-                    key={equipo.cod_metrica}
+            <ul className="divide-y divide-line">
+              {filtered.map((equipo) => (
+                <li key={equipo.cod_metrica}>
+                  <button
+                    type="button"
                     onClick={() => handleSelect(equipo)}
-                    className={cn(
-                      'flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-all border-b last:border-0',
-                      isDarkGantt 
-                        ? 'border-gray-700/30 hover:bg-[#252528] active:bg-[#202022]'
-                        : 'border-gray-100 hover:bg-gray-50 active:bg-gray-100'
-                    )}
+                    className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-fg/[0.03] active:bg-fg/[0.06]"
                   >
-                    {/* Icono de estado */}
-                    <div className="mt-0.5 shrink-0">
-                      <Package className="h-4 w-4 text-gray-500" />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      {/* Código Métrica */}
-                      <p className={`text-sm font-mono font-semibold leading-tight ${isDarkGantt ? 'text-gray-200' : 'text-gray-800'}`}>
+                    <Package className="mt-0.5 h-4 w-4 shrink-0 text-fg-subtle" strokeWidth={1.8} aria-hidden="true" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-mono text-sm font-semibold leading-tight text-fg">
                         {equipo.cod_metrica}
-                      </p>
-                      {/* Descripción */}
-                      <p className={`text-xs mt-0.5 truncate ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-fg-muted">
                         {[equipo.instrumento, equipo.marca, equipo.modelo].filter(Boolean).join(' · ')}
-                      </p>
-                      {/* Detalles secundarios */}
-                      <div className="flex gap-3 mt-1 flex-wrap">
-                        {equipo.serie && (
-                          <span className="text-[10px] text-gray-500">S/N: {equipo.serie}</span>
-                        )}
-                        {equipo.cap_max1 != null && (
-                          <span className="text-[10px] text-gray-500">Cap: {equipo.cap_max1}</span>
-                        )}
-                        {equipo.ubicacion && (
-                          <span className="text-[10px] text-gray-500 truncate max-w-[200px]">{equipo.ubicacion}</span>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
+                      </span>
+                      <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-fg-subtle">
+                        {equipo.serie && <span>S/N: {equipo.serie}</span>}
+                        {equipo.cap_max1 != null && <span>Cap: {equipo.cap_max1}</span>}
+                        {equipo.ubicacion && <span className="max-w-[220px] truncate">{equipo.ubicacion}</span>}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
             </ul>
           )}
         </div>

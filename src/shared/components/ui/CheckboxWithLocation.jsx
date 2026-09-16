@@ -1,7 +1,6 @@
 import React from 'react';
-import { ChevronDown } from 'lucide-react';
+import { CornerDownRight } from 'lucide-react';
 import { cn } from '../../utils/cn';
-import { useTheme } from '../../context/ThemeContext';
 
 export function CheckboxWithLocation({
   options,
@@ -12,7 +11,6 @@ export function CheckboxWithLocation({
   className,
   locationOptions = []
 }) {
-  const { isDarkGantt } = useTheme();
   const handleCheckboxChange = (optionValue) => {
     const newValue = { ...value };
     if (newValue[optionValue]) {
@@ -34,59 +32,57 @@ export function CheckboxWithLocation({
 
   return (
     <div className={cn("w-full", className)}>
-      {label && (
-        <label className={`block text-sm font-medium mb-2 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
-          {label}
-        </label>
-      )}
-      <div className="space-y-2">
+      {label && <p className="field-label mb-2.5">{label}</p>}
+      <div className="grid items-start gap-2 sm:grid-cols-2">
         {options.map((option) => {
           const isChecked = !!value[option.value];
           const selectedLocations = value[option.value] || [];
           return (
-            <div key={option.value} className="space-y-2">
-              <label 
-                className={cn(
-                  "flex items-center px-3 py-2 rounded-md border cursor-pointer transition-colors",
-                  isDarkGantt 
-                    ? "border-gray-700 hover:bg-[#252525]" 
-                    : "border-gray-300 bg-white hover:bg-gray-50"
-                )}
-              >
+            <div
+              key={option.value}
+              className={cn(
+                'rounded-xl border transition-colors duration-150',
+                isChecked ? 'border-fg/25 bg-surface' : 'border-line bg-surface hover:border-fg/20'
+              )}
+            >
+              <label className="flex cursor-pointer items-center gap-3 px-3.5 py-2.5">
                 <input
                   type="checkbox"
                   checked={isChecked}
                   onChange={() => handleCheckboxChange(option.value)}
-                  className="mr-3 text-primary-600 focus:ring-primary-500 rounded"
+                  className="h-4 w-4 shrink-0 cursor-pointer rounded accent-fg"
                 />
-                <span className={`text-sm flex-1 ${isDarkGantt ? 'text-gray-200' : 'text-gray-900'}`}>{option.label}</span>
+                <span className={cn('text-sm', isChecked ? 'font-medium text-fg' : 'text-fg-muted')}>{option.label}</span>
               </label>
               {isChecked && locationOptions.length > 0 && (
-                <div className={`ml-8 pl-4 border-l-2 ${isDarkGantt ? 'border-gray-700' : 'border-gray-300'}`}>
-                  <div className={`mb-2 flex items-center text-xs ${isDarkGantt ? 'text-gray-400' : 'text-gray-600'}`}>
-                    <ChevronDown className="h-3 w-3 mr-1" />
+                <div className="border-t border-line px-3.5 pb-3 pt-2.5 animate-fade-in">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs text-fg-muted">
+                    <CornerDownRight className="h-3.5 w-3.5" aria-hidden="true" />
                     Ubicación del daño/suciedad:
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {locationOptions.map((location) => (
-                      <label
-                        key={location.value}
-                        className={cn(
-                          "flex items-center px-2 py-1.5 rounded text-xs cursor-pointer transition-all border",
-                          selectedLocations.includes(location.value)
-                            ? (isDarkGantt ? "bg-primary-600/20 border-primary-600/50 text-primary-300" : "bg-primary-50 border-primary-300 text-primary-700")
-                            : (isDarkGantt ? "bg-[#1e1e1e] border-gray-700 text-gray-400 hover:border-gray-600" : "bg-white border-gray-300 text-gray-600 hover:border-gray-400")
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedLocations.includes(location.value)}
-                          onChange={() => toggleLocation(option.value, location.value)}
-                          className="mr-2 text-primary-600 focus:ring-primary-500 rounded h-3 w-3"
-                        />
-                        {location.label}
-                      </label>
-                    ))}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {locationOptions.map((location) => {
+                      const selected = selectedLocations.includes(location.value);
+                      return (
+                        <label
+                          key={location.value}
+                          className={cn(
+                            'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus',
+                            selected
+                              ? 'border-fg bg-fg text-canvas'
+                              : 'border-line-strong text-fg-muted hover:border-fg/30 hover:text-fg'
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleLocation(option.value, location.value)}
+                            className="sr-only"
+                          />
+                          {location.label}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -94,7 +90,7 @@ export function CheckboxWithLocation({
           );
         })}
       </div>
-      {error && <p className="mt-1 text-sm text-red-500">{error.message}</p>}
+      {error && <p className="field-error">{error.message}</p>}
     </div>
   );
 }

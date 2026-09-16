@@ -1,29 +1,28 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { cn } from '../../utils/cn';
-import { useTheme } from '../../context/ThemeContext';
 
-export const Input = React.forwardRef(({ className, error, label, ...props }, ref) => {
-  const { isDarkGantt } = useTheme();
+export const Input = React.forwardRef(({ className, error, label, id, ...props }, ref) => {
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const errorId = `${inputId}-error`;
+
   return (
     <div className="w-full">
       {label && (
-        <label className={`block text-sm font-medium mb-1 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
-          {label} {props.required && <span className="text-red-500">*</span>}
+        <label htmlFor={inputId} className="field-label">
+          {label}
+          {props.required && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
         </label>
       )}
       <input
         ref={ref}
-        className={cn(
-          'flex h-10 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50',
-          isDarkGantt 
-            ? 'border-gray-600 bg-[#1e1e1e] text-gray-200 placeholder:text-gray-500' 
-            : 'border-gray-300 bg-white text-gray-900 placeholder:text-gray-400',
-          error && 'border-red-500 focus:ring-red-500',
-          className
-        )}
+        id={inputId}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        className={cn('field h-10', error && 'field-invalid', className)}
         {...props}
       />
-      {error && <p className="mt-1 text-sm text-red-500">{error.message}</p>}
+      {error && <p id={errorId} className="field-error">{error.message}</p>}
     </div>
   );
 });

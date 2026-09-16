@@ -1,14 +1,12 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useTheme } from '../../../shared/context/ThemeContext';
 import { generateRIMCode } from '../utils/rimCode';
 import { fileToBase64 } from '../../../utils/files';
 import { formSchema } from '../../../utils/validations';
 import { rimApi } from '../api/rim';
 
 export function useRimForm(currentUser) {
-  const { isDarkGantt } = useTheme();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -106,7 +104,6 @@ export function useRimForm(currentUser) {
   };
 
   return {
-    isDarkGantt,
     currentStep,
     isLoading,
     success,

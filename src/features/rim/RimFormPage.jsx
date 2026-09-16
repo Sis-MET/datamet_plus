@@ -1,7 +1,7 @@
 import React from 'react';
 import { Controller } from 'react-hook-form';
 import {
-  CheckCircle, Save, User, Building2, Loader2, Search,
+  Check, CheckCircle2, Save, Building2, Loader2, Search,
   ChevronRight, ChevronLeft, ClipboardList, CheckSquare,
   Plus, Trash2
 } from 'lucide-react';
@@ -25,9 +25,37 @@ const STEPS = [
   { id: 4, title: 'Recepción y Entrega', icon: CheckSquare },
 ];
 
+const INVENTORY_KEYS = [
+  'indicator', 'voltageAdapter', 'powerCable', 'bracket', 'column',
+  'weighingPan', 'windShield', 'structure', 'loadCellCable',
+  'loadCellConnector', 'junctionBox', 'manual', 'originalPackaging',
+  'loadCells', 'feet'
+];
+
+const MARK_ALL = [
+  { value: 'present', label: 'Presente', className: 'text-success hover:bg-success/10' },
+  { value: 'missing', label: 'Faltante', className: 'text-danger hover:bg-danger/10' },
+  { value: 'na', label: 'N/A', className: 'text-fg-muted hover:bg-fg/[0.06] hover:text-fg' },
+];
+
+function Section({ title, description, action, children, className }) {
+  return (
+    <section className={cn('border-t border-line pt-7 first:border-t-0 first:pt-0', className)}>
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold tracking-[-0.01em] text-fg">{title}</h3>
+          {description && <p className="mt-1 text-sm text-fg-muted">{description}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export function RimFormPage({ currentUser }) {
   const {
-    isDarkGantt, currentStep, isLoading, success,
+    currentStep, isLoading, success,
     clienteId, showPlanta, selectedPlanta, plantas, plantasLoading,
     setClienteId, setShowPlanta, setSelectedPlanta,
     fetchPlantas,
@@ -37,15 +65,18 @@ export function RimFormPage({ currentUser }) {
   } = useRimForm(currentUser);
 
   const { register, control, setValue, watch, formState: { errors } } = form;
+  const initials = userFullName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
 
   const renderStep1 = () => (
-    <div className="space-y-6 animate-fade-in-up">
-      <div className="mb-6">
-        <h4 className={`text-sm font-semibold font-medium mb-3 flex items-center ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
-          <span className="bg-primary-600/20 text-primary-400 px-2 py-1 rounded text-xs mr-2">Empresa</span>
-          Datos de la Empresa
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-8 animate-fade-in-up">
+      <Section title="Datos de la Empresa" description="Busca el cliente para completar sus datos registrados.">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
           <Controller
             control={control}
             name="companyName"
@@ -75,38 +106,39 @@ export function RimFormPage({ currentUser }) {
           <Input label="Razón Social" {...register('companyRazonSocial')} error={errors.companyRazonSocial} required />
           <Input label="NIT / RUT" {...register('taxId')} error={errors.taxId} required />
         </div>
-      </div>
+      </Section>
 
-      <div className="mt-8">
-        <h4 className={`text-sm font-semibold font-medium mb-3 flex items-center ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
-          <span className="bg-primary-600/20 text-primary-400 px-2 py-1 rounded text-xs mr-2">Contacto</span>
-          Datos del Contacto
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Section title="Datos del Contacto">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
           <Input label="Nombre de Contacto" {...register('clientName')} error={errors.clientName} required />
           <Input label="Cargo" {...register('clientCargo')} error={errors.clientCargo} required />
           <Input label="Teléfono" type="tel" {...register('phone')} error={errors.phone} required />
           <Input label="Email" type="email" {...register('email')} error={errors.email} required />
         </div>
-      </div>
+      </Section>
     </div>
   );
 
   const renderStep2 = () => (
-    <div className="space-y-6 animate-fade-in-up">
-      <div className={`border rounded-xl p-4 shadow-2xl ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Building2 className="h-5 w-5 text-primary-400" />
-            <div>
-              <p className={`text-sm font-semibold font-medium ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>Asociar a Planta del Cliente</p>
-              <p className={`text-xs font-medium ${isDarkGantt ? 'text-white/70' : 'text-gray-500'}`}>
+    <div className="space-y-8 animate-fade-in-up">
+      <div className="rounded-2xl border border-line bg-surface-2/60 p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-fg-muted">
+              <Building2 className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p id="rim-planta-toggle-label" className="text-sm font-semibold text-fg">Asociar a Planta del Cliente</p>
+              <p className="text-xs text-fg-muted">
                 {clienteId ? 'Activa para filtrar equipos por planta' : 'Selecciona un cliente para habilitar'}
               </p>
             </div>
           </div>
           <button
             type="button"
+            role="switch"
+            aria-checked={showPlanta}
+            aria-labelledby="rim-planta-toggle-label"
             disabled={!clienteId}
             onClick={() => {
               const next = !showPlanta;
@@ -117,19 +149,27 @@ export function RimFormPage({ currentUser }) {
                 setSelectedPlanta('');
               }
             }}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none ${!clienteId ? 'opacity-40 cursor-not-allowed bg-gray-700' : showPlanta ? 'bg-primary-600' : 'bg-gray-600'}`}
+            className={cn(
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40',
+              showPlanta ? 'bg-fg' : 'bg-fg/15'
+            )}
           >
-            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${showPlanta ? 'translate-x-6' : 'translate-x-1'}`} />
+            <span
+              className={cn(
+                'inline-block h-[18px] w-[18px] rounded-full bg-canvas shadow-xs transition-transform duration-200 ease-out',
+                showPlanta ? 'translate-x-[23px]' : 'translate-x-[3px]'
+              )}
+            />
           </button>
         </div>
         {showPlanta && (
-          <div className={`mt-4 pt-4 border-t ${isDarkGantt ? 'border-gray-700/50' : 'border-gray-200'}`}>
+          <div className="mt-4 border-t border-line pt-4 animate-fade-in">
             {plantasLoading ? (
-              <div className={`flex items-center gap-2 text-sm font-medium ${isDarkGantt ? 'text-white' : 'text-gray-600'}`}>
+              <div className="flex items-center gap-2 text-sm text-fg-muted" role="status">
                 <Loader2 className="h-4 w-4 animate-spin" /> Cargando plantas...
               </div>
             ) : plantas.length === 0 ? (
-              <p className="text-sm text-yellow-500/80">Este cliente no tiene plantas registradas.</p>
+              <p className="text-sm text-warning">Este cliente no tiene plantas registradas.</p>
             ) : (
               <div className="space-y-4">
                 <Controller
@@ -170,10 +210,12 @@ export function RimFormPage({ currentUser }) {
                   )}
                 />
                 {selectedPlanta && (
-                  <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl border shadow-inner ${isDarkGantt ? 'bg-[#141414] border-white/5' : 'bg-gray-50 border-gray-200'}`}>
-                    <Input label="Código Cliente y Planta" value={selectedPlanta} disabled className="opacity-80" />
-                    <Input label="Departamento" {...register('plantaDepartamento')} disabled className="opacity-80" />
-                    <Input label="Dirección y Nombre de la Planta" {...register('plantaDireccion')} disabled className="opacity-80 md:col-span-2" />
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input label="Código Cliente y Planta" value={selectedPlanta} disabled />
+                    <Input label="Departamento" {...register('plantaDepartamento')} disabled />
+                    <div className="md:col-span-2">
+                      <Input label="Dirección y Nombre de la Planta" {...register('plantaDireccion')} disabled />
+                    </div>
                   </div>
                 )}
               </div>
@@ -181,16 +223,16 @@ export function RimFormPage({ currentUser }) {
           </div>
         )}
       </div>
-      <div className={`mb-6 p-4 shadow-2xl border rounded-xl ${isDarkGantt ? 'bg-[#0f0f11] border-primary-600/20' : 'bg-white border-primary-300'}`}>
-        <div className="flex items-center gap-2 mb-3">
-          <Search className="h-4 w-4 text-primary-400" />
-          <p className={`text-sm font-semibold ${isDarkGantt ? 'text-primary-300' : 'text-primary-700'}`}>Buscar por Código Métrica</p>
-          {selectedPlanta && (
-            <span className="ml-auto text-xs bg-primary-600/20 text-primary-400 px-2 py-0.5 rounded-full border border-primary-600/30">
-              Planta: {selectedPlanta}
-            </span>
-          )}
-        </div>
+
+      <Section
+        title="Buscar por Código Métrica"
+        description="Elige un instrumento para completar sus datos."
+        action={selectedPlanta && (
+          <span className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2.5 py-1 text-xs font-medium text-fg-muted">
+            Planta <span className="ml-1 font-mono text-fg">{selectedPlanta}</span>
+          </span>
+        )}
+      >
         <EquipoSearch
           planta={selectedPlanta}
           clienteId={clienteId}
@@ -205,406 +247,399 @@ export function RimFormPage({ currentUser }) {
             setValue('workArea', equipo.ubicacion || '');
           }}
         />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input label="Instrumento" {...register('instrument')} error={errors.instrument} required />
-        <Input label="Marca" {...register('brand')} error={errors.brand} required />
-        <Input label="Modelo" {...register('model')} error={errors.model} required />
-        <Input label="Número de Serie" {...register('serialNumber')} error={errors.serialNumber} required />
-        <Input label="Capacidad Máxima" {...register('maxCapacity')} error={errors.maxCapacity} required />
-        <Input label="Unidad" {...register('unit')} error={errors.unit} required />
-        <Input label="Resolución" {...register('resolution')} error={errors.resolution} required />
-        <Input label="Area de Trabajo" className="md:col-span-2" {...register('workArea')} error={errors.workArea} required />
-      </div>
-      <div className="mt-4">
-        <TextArea label="Observaciones" {...register('notes')} rows={3} />
-      </div>
+      </Section>
+
+      <Section title="Datos del Instrumento">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
+          <Input label="Instrumento" {...register('instrument')} error={errors.instrument} required />
+          <Input label="Marca" {...register('brand')} error={errors.brand} required />
+          <Input label="Modelo" {...register('model')} error={errors.model} required />
+          <Input label="Número de Serie" {...register('serialNumber')} error={errors.serialNumber} required />
+          <Input label="Capacidad Máxima" {...register('maxCapacity')} error={errors.maxCapacity} required />
+          <Input label="Unidad" {...register('unit')} error={errors.unit} required />
+          <Input label="Resolución" {...register('resolution')} error={errors.resolution} required />
+          <div className="md:col-span-2">
+            <Input label="Area de Trabajo" {...register('workArea')} error={errors.workArea} required />
+          </div>
+          <div className="md:col-span-2">
+            <TextArea label="Observaciones" {...register('notes')} rows={3} />
+          </div>
+        </div>
+      </Section>
     </div>
   );
 
   const renderStep3 = () => (
     <div className="space-y-8 animate-fade-in-up">
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-          <h4 className={`text-sm font-semibold font-medium flex items-center m-0 ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
-            <span className="bg-primary-600/20 text-primary-400 px-2 py-1 rounded text-xs mr-2">3.1</span>
-            Inventario de Componentes
-          </h4>
-          <div className={`flex items-center gap-2 p-1.5 rounded-lg border shadow-inner ${isDarkGantt ? 'bg-[#1c1c21] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
-            <span className={`text-xs font-medium px-2 hidden md:inline ${isDarkGantt ? 'text-gray-400' : 'text-gray-500'}`}>Marcar todos:</span>
-            {['present', 'missing', 'na'].map((val) => (
+      <Section
+        title="Inventario de Componentes"
+        action={
+          <div className="flex items-center gap-1 self-start rounded-xl border border-line bg-surface-2/60 p-1 sm:self-auto">
+            <span className="hidden px-2 text-xs font-medium text-fg-muted md:inline">Marcar todos:</span>
+            {MARK_ALL.map(({ value: val, label, className }) => (
               <button
                 key={val}
                 type="button"
                 onClick={() => {
-                  const keys = [
-                    'indicator', 'voltageAdapter', 'powerCable', 'bracket', 'column',
-                    'weighingPan', 'windShield', 'structure', 'loadCellCable',
-                    'loadCellConnector', 'junctionBox', 'manual', 'originalPackaging',
-                    'loadCells', 'feet'
-                  ];
-                  keys.forEach(k => setValue(`inventory.${k}`, val, { shouldValidate: true }));
+                  INVENTORY_KEYS.forEach(k => setValue(`inventory.${k}`, val, { shouldValidate: true }));
                   otherFields.forEach((field, index) => {
                     setValue(`inventory.otherItems.${index}.status`, val, { shouldValidate: true });
                   });
                 }}
-                className={cn(
-                  'px-3 py-1 text-xs font-semibold rounded-md transition-colors border',
-                  val === 'present' ? 'bg-green-900/40 text-green-400 border-green-700/50 hover:bg-green-800/60' :
-                  val === 'missing' ? 'bg-red-900/40 text-red-400 border-red-700/50 hover:bg-red-800/60' :
-                  (isDarkGantt ? 'bg-gray-800 text-gray-400 border-gray-600 hover:bg-gray-700' : 'bg-gray-200 text-gray-600 border-gray-300 hover:bg-gray-300')
-                )}
+                className={cn('h-7 rounded-lg px-2.5 text-xs font-semibold transition-colors duration-150', className)}
               >
-                {val === 'present' ? 'Presente' : val === 'missing' ? 'Faltante' : 'N/A'}
+                {label}
               </button>
             ))}
           </div>
-        </div>
-        <div className={`shadow-inner ring-1 rounded-xl p-4 border ${isDarkGantt ? 'bg-[#1c1c21] ring-white/10 border-gray-700/50' : 'bg-white ring-black/5 border-gray-200'}`}>
-          <div className="grid gap-2">
-            {[
-              { name: 'inventory.indicator', label: 'Indicador' },
-              { name: 'inventory.voltageAdapter', label: 'Adaptador de Voltaje' },
-              { name: 'inventory.powerCable', label: 'Cable de Poder' },
-              { name: 'inventory.bracket', label: 'Bracket' },
-              { name: 'inventory.column', label: 'Columna' },
-              { name: 'inventory.weighingPan', label: 'Bandeja de Pesaje' },
-              { name: 'inventory.windShield', label: 'Cabina Corta Aire' },
-              { name: 'inventory.structure', label: 'Estructura' },
-              { name: 'inventory.loadCellCable', label: 'Cable de Celda' },
-              { name: 'inventory.loadCellConnector', label: 'Conector de Celda' },
-              { name: 'inventory.junctionBox', label: 'Caja Sumadora' },
-              { name: 'inventory.manual', label: 'Manual' },
-              { name: 'inventory.originalPackaging', label: 'Embalaje Original' },
-            ].map(({ name, label }) => (
+        }
+      >
+        <div className="divide-y divide-line rounded-2xl border border-line">
+          {[
+            { name: 'inventory.indicator', label: 'Indicador' },
+            { name: 'inventory.voltageAdapter', label: 'Adaptador de Voltaje' },
+            { name: 'inventory.powerCable', label: 'Cable de Poder' },
+            { name: 'inventory.bracket', label: 'Bracket' },
+            { name: 'inventory.column', label: 'Columna' },
+            { name: 'inventory.weighingPan', label: 'Bandeja de Pesaje' },
+            { name: 'inventory.windShield', label: 'Cabina Corta Aire' },
+            { name: 'inventory.structure', label: 'Estructura' },
+            { name: 'inventory.loadCellCable', label: 'Cable de Celda' },
+            { name: 'inventory.loadCellConnector', label: 'Conector de Celda' },
+            { name: 'inventory.junctionBox', label: 'Caja Sumadora' },
+            { name: 'inventory.manual', label: 'Manual' },
+            { name: 'inventory.originalPackaging', label: 'Embalaje Original' },
+          ].map(({ name, label }) => (
+            <Controller
+              key={name}
+              control={control}
+              name={name}
+              render={({ field }) => (
+                <InventoryItem label={label} value={field.value} onChange={field.onChange} />
+              )}
+            />
+          ))}
+          <Controller
+            control={control}
+            name="inventory.loadCells"
+            render={({ field: statusField }) => (
               <Controller
-                key={name}
                 control={control}
-                name={name}
-                render={({ field }) => (
-                  <InventoryItem label={label} value={field.value} onChange={field.onChange} />
+                name="inventory.loadCellsQty"
+                render={({ field: qtyField }) => (
+                  <InventoryItem label="Celda(s)" value={statusField.value} onChange={statusField.onChange} showQuantity quantity={qtyField.value} onQuantityChange={qtyField.onChange} />
                 )}
               />
-            ))}
-            <Controller
-              control={control}
-              name="inventory.loadCells"
-              render={({ field: statusField }) => (
-                <Controller
-                  control={control}
-                  name="inventory.loadCellsQty"
-                  render={({ field: qtyField }) => (
-                    <InventoryItem label="Celda(s)" value={statusField.value} onChange={statusField.onChange} showQuantity quantity={qtyField.value} onQuantityChange={qtyField.onChange} />
-                  )}
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="inventory.feet"
-              render={({ field: statusField }) => (
-                <Controller
-                  control={control}
-                  name="inventory.feetQty"
-                  render={({ field: qtyField }) => (
-                    <InventoryItem label="Patas" value={statusField.value} onChange={statusField.onChange} showQuantity quantity={qtyField.value} onQuantityChange={qtyField.onChange} />
-                  )}
-                />
-              )}
-            />
-          </div>
-          <div className={`mt-4 pt-4 border-t ${isDarkGantt ? 'border-gray-700/50' : 'border-gray-200'}`}>
-            <h5 className={`text-sm font-semibold mb-3 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>Otros Componentes Agregados</h5>
-            <div className="flex flex-col gap-3">
-              {otherFields.map((field, index) => (
-                <div key={field.id} className="flex flex-col lg:flex-row lg:items-center gap-3 bg-[#141414] p-3 rounded-lg border border-gray-700/30 shadow-inner">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="Ej. Cable RS232, Pesa patrón..."
-                      {...register(`inventory.otherItems.${index}.name`)}
-                      className="h-10 text-sm"
-                    />
-                  </div>
-                  <div className="flex-1 pl-2 border-l-2 border-primary-500/30">
-                    <Controller
-                      control={control}
-                      name={`inventory.otherItems.${index}.status`}
-                      render={({ field: statusField }) => (
-                        <InventoryItem label="" value={statusField.value} onChange={statusField.onChange} />
-                      )}
-                    />
-                  </div>
+            )}
+          />
+          <Controller
+            control={control}
+            name="inventory.feet"
+            render={({ field: statusField }) => (
+              <Controller
+                control={control}
+                name="inventory.feetQty"
+                render={({ field: qtyField }) => (
+                  <InventoryItem label="Patas" value={statusField.value} onChange={statusField.onChange} showQuantity quantity={qtyField.value} onQuantityChange={qtyField.onChange} />
+                )}
+              />
+            )}
+          />
+        </div>
+
+        <div className="mt-6">
+          <h4 className="mb-3 text-sm font-semibold text-fg">Otros Componentes Agregados</h4>
+          <div className="flex flex-col gap-2.5">
+            {otherFields.map((field, index) => (
+              <div key={field.id} className="flex flex-col gap-3 rounded-2xl border border-line p-3 animate-fade-in lg:flex-row lg:items-center">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Ej. Cable RS232, Pesa patrón..."
+                    aria-label={`Nombre del componente ${index + 1}`}
+                    {...register(`inventory.otherItems.${index}.name`)}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <Controller
+                    control={control}
+                    name={`inventory.otherItems.${index}.status`}
+                    render={({ field: statusField }) => (
+                      <InventoryItem label="" compact value={statusField.value} onChange={statusField.onChange} />
+                    )}
+                  />
                   <button
                     type="button"
                     onClick={() => removeOther(index)}
-                    className="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-md transition-colors"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-fg-muted transition-colors hover:bg-danger/10 hover:text-danger"
                     title="Eliminar este componente"
+                    aria-label="Eliminar este componente"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                className="self-start text-xs border-dashed border-gray-600 hover:border-primary-500 hover:text-primary-400 mt-2"
-                onClick={() => appendOther({ name: '', status: 'present' })}
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Agregar nuevo componente
-              </Button>
-            </div>
-          </div>
-          <div className="mt-4">
-            <TextArea label="Observaciones de inventario" {...register('inventoryNotes')} rows={2} />
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="self-start border border-dashed border-line-strong"
+              onClick={() => appendOther({ name: '', status: 'present' })}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Agregar nuevo componente
+            </Button>
           </div>
         </div>
-      </div>
+        <div className="mt-6">
+          <TextArea label="Observaciones de inventario" {...register('inventoryNotes')} rows={2} />
+        </div>
+      </Section>
 
-      <div className="mb-8">
-        <h4 className={`text-sm font-semibold font-medium mb-3 flex items-center ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
-          <span className="bg-primary-600/20 text-primary-400 px-2 py-1 rounded text-xs mr-2">3.2</span>
-          Daños Físicos
-        </h4>
-        <div className={`shadow-inner ring-1 rounded-xl p-4 border ${isDarkGantt ? 'bg-[#1c1c21] ring-white/10 border-gray-700/50' : 'bg-white ring-black/5 border-gray-200'}`}>
-          <Controller
-            control={control}
-            name="damageLevel"
-            render={({ field }) => (
-              <RadioGroup
-                label="Estado General del Instrumento"
-                options={[
-                  { value: 'excellent', label: 'Excelente' },
-                  { value: 'good', label: 'Bueno' },
-                  { value: 'fair', label: 'Regular' },
-                  { value: 'poor', label: 'Malo' },
-                  { value: 'critical', label: 'Crítico' },
-                ]}
-                {...field}
-                error={errors.damageLevel}
-                required
-              />
-            )}
-          />
-          <div className="mt-6">
-            <Controller
-              control={control}
-              name="damageTypes"
-              render={({ field }) => (
-                <CheckboxWithLocation
-                  label="Tipos de daños detectados"
-                  options={[
-                    { value: 'scratches', label: 'Rayones' },
-                    { value: 'dents', label: 'Abolladuras' },
-                    { value: 'corrosion', label: 'Corrosión' },
-                    { value: 'cracks', label: 'Grietas' },
-                    { value: 'broken', label: 'Piezas rotas' },
-                    { value: 'wear', label: 'Desgaste' },
-                    { value: 'other', label: 'Otros' },
-                  ]}
-                  locationOptions={[
-                    { value: 'platform', label: 'Plataforma' },
-                    { value: 'display', label: 'Display' },
-                    { value: 'structure', label: 'Estructura' },
-                    { value: 'loadCells', label: 'Celdas' },
-                    { value: 'wiring', label: 'Cableado' },
-                  ]}
-                  value={field.value || {}}
-                  onChange={field.onChange}
-                />
-              )}
+      <Section title="Daños Físicos">
+        <Controller
+          control={control}
+          name="damageLevel"
+          render={({ field }) => (
+            <RadioGroup
+              label="Estado General del Instrumento"
+              options={[
+                { value: 'excellent', label: 'Excelente' },
+                { value: 'good', label: 'Bueno' },
+                { value: 'fair', label: 'Regular' },
+                { value: 'poor', label: 'Malo' },
+                { value: 'critical', label: 'Crítico' },
+              ]}
+              {...field}
+              error={errors.damageLevel}
+              required
             />
-          </div>
-          <div className="mt-4">
-            <TextArea label="Descripción de daños" {...register('damageDescription')} rows={2} />
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h4 className={`text-sm font-semibold font-medium mb-3 flex items-center ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
-          <span className="bg-primary-600/20 text-primary-400 px-2 py-1 rounded text-xs mr-2">3.3</span>
-          Nivel de Suciedad
-        </h4>
-        <div className={`shadow-inner ring-1 rounded-xl p-4 border ${isDarkGantt ? 'bg-[#1c1c21] ring-white/10 border-gray-700/50' : 'bg-white ring-black/5 border-gray-200'}`}>
+          )}
+        />
+        <div className="mt-6">
           <Controller
             control={control}
-            name="cleanlinessLevel"
+            name="damageTypes"
             render={({ field }) => (
-              <RadioGroup
-                label="Nivel de Suciedad"
+              <CheckboxWithLocation
+                label="Tipos de daños detectados"
                 options={[
-                  { value: 'clean', label: 'Limpio' },
-                  { value: 'light', label: 'Polvo ligero' },
-                  { value: 'moderate', label: 'Moderado' },
-                  { value: 'heavy', label: 'Muy sucio' },
+                  { value: 'scratches', label: 'Rayones' },
+                  { value: 'dents', label: 'Abolladuras' },
+                  { value: 'corrosion', label: 'Corrosión' },
+                  { value: 'cracks', label: 'Grietas' },
+                  { value: 'broken', label: 'Piezas rotas' },
+                  { value: 'wear', label: 'Desgaste' },
+                  { value: 'other', label: 'Otros' },
                 ]}
-                {...field}
-                error={errors.cleanlinessLevel}
-                required
+                locationOptions={[
+                  { value: 'platform', label: 'Plataforma' },
+                  { value: 'display', label: 'Display' },
+                  { value: 'structure', label: 'Estructura' },
+                  { value: 'loadCells', label: 'Celdas' },
+                  { value: 'wiring', label: 'Cableado' },
+                ]}
+                value={field.value || {}}
+                onChange={field.onChange}
               />
             )}
           />
         </div>
-      </div>
+        <div className="mt-6">
+          <TextArea label="Descripción de daños" {...register('damageDescription')} rows={2} />
+        </div>
+      </Section>
+
+      <Section title="Nivel de Suciedad">
+        <Controller
+          control={control}
+          name="cleanlinessLevel"
+          render={({ field }) => (
+            <RadioGroup
+              label="Nivel de Suciedad"
+              options={[
+                { value: 'clean', label: 'Limpio' },
+                { value: 'light', label: 'Polvo ligero' },
+                { value: 'moderate', label: 'Moderado' },
+                { value: 'heavy', label: 'Muy sucio' },
+              ]}
+              {...field}
+              error={errors.cleanlinessLevel}
+              required
+            />
+          )}
+        />
+      </Section>
     </div>
   );
 
   const renderStep4 = () => (
     <div className="space-y-8 animate-fade-in-up">
-      <div>
-        <h4 className={`text-sm font-semibold font-medium mb-3 flex items-center ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
-          <span className="bg-primary-600/20 text-primary-400 px-2 py-1 rounded text-xs mr-2">4.1</span>
-          Síntomas y Evidencias
-        </h4>
-        <div className={`shadow-inner ring-1 rounded-xl p-4 border mb-4 ${isDarkGantt ? 'bg-[#1c1c21] ring-white/10 border-gray-700/50' : 'bg-white ring-black/5 border-gray-200'}`}>
-          <Controller
-            control={control}
-            name="functionalityTestPerformed"
-            render={({ field }) => (
-              <RadioGroup
-                label="¿Se realizaron pruebas de funcionamiento?"
-                options={[{ value: 'yes', label: 'Sí' }, { value: 'no', label: 'No' }]}
-                {...field}
-                error={errors.functionalityTestPerformed}
-                required
-              />
-            )}
-          />
-          {watch('functionalityTestPerformed') === 'yes' && (
-            <div className="mt-4">
-              <TextArea label="Descripción de pruebas" {...register('functionalityTestDescription')} rows={3} />
-            </div>
+      <Section title="Síntomas y Evidencias">
+        <Controller
+          control={control}
+          name="functionalityTestPerformed"
+          render={({ field }) => (
+            <RadioGroup
+              label="¿Se realizaron pruebas de funcionamiento?"
+              options={[{ value: 'yes', label: 'Sí' }, { value: 'no', label: 'No' }]}
+              {...field}
+              error={errors.functionalityTestPerformed}
+              required
+            />
           )}
-        </div>
-      </div>
-
-      <div>
-        <h4 className={`text-sm font-semibold font-medium mb-3 flex items-center ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>
-          <span className="bg-primary-600/20 text-primary-400 px-2 py-1 rounded text-xs mr-2">4.2</span>
-          Recepción y Ejecución
-        </h4>
-        <div className={`shadow-inner ring-1 rounded-xl p-4 border mb-4 ${isDarkGantt ? 'bg-[#1c1c21] ring-white/10 border-gray-700/50' : 'bg-white ring-black/5 border-gray-200'}`}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Nombre del Cliente" {...register('receptionClientName')} error={errors.receptionClientName} required />
-            <Input label="Representante Métrica" {...register('receptionMetricaRepresentative')} error={errors.receptionMetricaRepresentative} required />
-            <Input label="Lugar de Recepción" {...register('receptionLocation')} error={errors.receptionLocation} required />
-            <Input label="Técnico Asignado" {...register('executionAssignedTechnician')} error={errors.executionAssignedTechnician} />
+        />
+        {watch('functionalityTestPerformed') === 'yes' && (
+          <div className="mt-5 animate-fade-in">
+            <TextArea label="Descripción de pruebas" {...register('functionalityTestDescription')} rows={3} />
           </div>
+        )}
+      </Section>
+
+      <Section title="Recepción y Ejecución">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
+          <Input label="Nombre del Cliente" {...register('receptionClientName')} error={errors.receptionClientName} required />
+          <Input label="Representante Métrica" {...register('receptionMetricaRepresentative')} error={errors.receptionMetricaRepresentative} required />
+          <Input label="Lugar de Recepción" {...register('receptionLocation')} error={errors.receptionLocation} required />
+          <Input label="Técnico Asignado" {...register('executionAssignedTechnician')} error={errors.executionAssignedTechnician} />
         </div>
-      </div>
+      </Section>
     </div>
   );
 
+  const current = STEPS[currentStep - 1];
+
   return (
-    <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+    <main className="mx-auto w-full max-w-[1320px] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       {success && (
-        <div className="mb-6 bg-green-900/30 border border-green-700/50 rounded-lg p-4 flex items-center text-green-400 animate-fade-in-up mx-auto w-full max-w-2xl text-center justify-center">
-          <CheckCircle className="h-5 w-5 mr-3" />
+        <div
+          className="mx-auto mb-6 flex w-full max-w-2xl items-center justify-center gap-2.5 rounded-2xl border border-success/25 bg-success/10 px-4 py-3 text-success animate-fade-in-up"
+          role="status"
+        >
+          <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
           <h4 className="font-semibold">Registro Exitoso</h4>
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+      <form onSubmit={onSubmit} className="flex flex-col items-start gap-6 lg:flex-row lg:gap-8">
 
-        {/* SIDEBAR IZQUIERDO */}
-        <div className="lg:w-1/3 xl:w-1/4 shrink-0 w-full lg:sticky lg:top-8">
-          <div className="space-y-6">
-            <div className={`shadow-2xl border rounded-2xl p-6 ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
-              <div className={`flex items-center gap-4 mb-6 pb-6 border-b ${isDarkGantt ? 'border-gray-800' : 'border-gray-200'}`}>
-                <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center shrink-0">
-                  <User className="h-6 w-6 text-white font-medium" />
-                </div>
-                <div>
-                  <p className={`text-xs font-medium uppercase ${isDarkGantt ? 'text-white/80' : 'text-gray-500'}`}>{userRole}</p>
-                  <p className={`text-sm font-semibold font-medium ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>{userFullName}</p>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <p className={`text-xs uppercase tracking-wider font-medium font-semibold mb-2 ${isDarkGantt ? 'text-white' : 'text-gray-700'}`}>Código RIM Generado</p>
-                <div className="bg-primary-900/20 border-2 border-primary-500/30 rounded-xl p-4 flex flex-col items-center justify-center text-center gap-2 relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-primary-600/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <p className="text-xl font-bold text-primary-400 font-mono tracking-wider break-all leading-tight relative z-10">
-                    {rimCode}
-                  </p>
-                </div>
+        {/* Resumen y pasos */}
+        <aside className="w-full shrink-0 space-y-4 lg:sticky lg:top-[calc(var(--topbar-height)+1.5rem)] lg:w-[300px]">
+          <div className="card p-5 shadow-card">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[13px] font-semibold text-fg" aria-hidden="true">
+                {initials || '—'}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-fg">{userFullName}</p>
+                <p className="truncate text-xs text-fg-muted">{userRole}</p>
               </div>
             </div>
+            <div className="mt-5 border-t border-line pt-5">
+              <p className="text-xs font-medium text-fg-muted">Código RIM Generado</p>
+              <p className="mt-2 break-all rounded-xl bg-surface-2 px-3 py-2.5 font-mono text-[17px] font-semibold tracking-wide text-fg">
+                {rimCode}
+              </p>
+            </div>
+          </div>
 
-            <div className={`shadow-2xl border rounded-2xl p-4 hidden lg:block ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
-              <div className="space-y-2">
-                {STEPS.map((step) => {
-                  const isActive = currentStep === step.id;
-                  const isCompleted = currentStep > step.id;
-                  const StepIcon = step.icon;
-                  return (
-                    <div
-                      key={step.id}
+          <ol className="card hidden p-2 shadow-card lg:block" aria-label="Pasos del formulario">
+            {STEPS.map((step, index) => {
+              const isActive = currentStep === step.id;
+              const isCompleted = currentStep > step.id;
+              const StepIcon = step.icon;
+              return (
+                <li key={step.id} className="relative">
+                  {index < STEPS.length - 1 && (
+                    <span
                       className={cn(
-                        "flex items-center gap-4 p-3 rounded-xl transition-all duration-300 ease-out",
-                        isActive ? "bg-primary-600/10 border border-primary-500/30" : "border border-transparent",
-                        isCompleted ? "opacity-70" : ""
+                        'absolute left-[27px] top-[46px] h-[calc(100%-36px)] w-px',
+                        isCompleted ? 'bg-fg/40' : 'bg-line'
+                      )}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <div
+                    aria-current={isActive ? 'step' : undefined}
+                    className={cn(
+                      'flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200',
+                      isActive && 'bg-surface-2'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors duration-200',
+                        isActive && 'border-fg bg-fg text-canvas',
+                        isCompleted && 'border-fg/40 bg-surface text-fg',
+                        !isActive && !isCompleted && 'border-line-strong bg-surface text-fg-subtle'
                       )}
                     >
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                        isActive ? "bg-primary-500 text-white" :
-                        isCompleted ? "bg-green-500/20 text-green-400" : (isDarkGantt ? "bg-gray-800 text-white font-medium" : "bg-gray-200 text-gray-700 font-medium")
-                      )}>
-                        {isCompleted ? <CheckCircle className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
-                      </div>
-                      <div>
-                        <p className={`text-xs font-medium ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>Paso {step.id}</p>
-                        <p className={cn("text-sm font-semibold", isActive ? "text-primary-400" : (isDarkGantt ? "text-white font-medium" : "text-gray-900 font-medium"))}>{step.title}</p>
-                      </div>
+                      {isCompleted
+                        ? <Check className="h-4 w-4" strokeWidth={2.4} aria-hidden="true" />
+                        : <StepIcon className="h-4 w-4" strokeWidth={1.9} aria-hidden="true" />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs text-fg-subtle">Paso {step.id}</p>
+                      <p className={cn('truncate text-sm font-medium', isActive ? 'text-fg' : isCompleted ? 'text-fg' : 'text-fg-muted')}>
+                        {step.title}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </aside>
 
-        {/* CONTENIDO PRINCIPAL */}
-        <div className="flex-1 space-y-1">
-          <div className={`lg:hidden flex items-center justify-between shadow-2xl p-4 rounded-xl border ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+        {/* Contenido del paso */}
+        <div className="flex w-full min-w-0 flex-1 flex-col gap-4">
+          <div className="card flex items-center justify-between gap-3 p-4 shadow-card lg:hidden">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-fg text-sm font-semibold text-canvas">
                 {currentStep}
-              </div>
-              <div>
-                <p className={`text-xs font-medium ${isDarkGantt ? 'text-white' : 'text-gray-500'}`}>Paso {currentStep} de {STEPS.length}</p>
-                <p className={`text-sm font-semibold font-medium ${isDarkGantt ? 'text-white' : 'text-gray-900'}`}>{STEPS[currentStep - 1].title}</p>
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-fg-muted">Paso {currentStep} de {STEPS.length}</p>
+                <p className="truncate text-sm font-semibold text-fg">{current.title}</p>
               </div>
             </div>
-            <p className="text-xs text-primary-400 font-mono tracking-wider bg-primary-900/30 px-2 py-1 rounded hidden sm:block">
-              {rimCode}
-            </p>
+            <div className="flex gap-1" aria-hidden="true">
+              {STEPS.map((step) => (
+                <span
+                  key={step.id}
+                  className={cn('h-1.5 w-5 rounded-full', step.id <= currentStep ? 'bg-fg' : 'bg-fg/15')}
+                />
+              ))}
+            </div>
           </div>
 
-          <div className={`shadow-2xl ring-1 border rounded-2xl p-6 min-h-[500px] ${isDarkGantt ? 'bg-[#151518] ring-white/5 border-gray-700/50' : 'bg-[#F9FAFB] ring-black/5 border-gray-200'}`}>
+          <div className="card min-h-[500px] p-5 shadow-card sm:p-8">
+            <div className="mb-8 hidden lg:block">
+              <p className="text-sm text-fg-muted">Paso {currentStep} de {STEPS.length}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-fg">{current.title}</h2>
+            </div>
             {currentStep === 1 && renderStep1()}
             {currentStep === 2 && renderStep2()}
             {currentStep === 3 && renderStep3()}
             {currentStep === 4 && renderStep4()}
           </div>
 
-          <div className={`shadow-2xl border rounded-2xl p-4 flex items-center justify-between ${isDarkGantt ? 'bg-[#0f0f11] border-gray-700/50' : 'bg-white border-gray-200'}`}>
+          <div className="card flex items-center justify-between gap-3 p-3 shadow-card">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               onClick={prevStep}
               disabled={currentStep === 1 || isLoading}
             >
-              <ChevronLeft className="h-4 w-4 mr-2" /> Atrás
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Atrás
             </Button>
             {currentStep < 4 ? (
-              <Button type="button" onClick={nextStep} className="bg-primary-600 hover:bg-primary-500 text-white">
-                Siguiente <ChevronRight className="h-4 w-4 ml-2" />
+              <Button type="button" onClick={nextStep}>
+                Siguiente <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             ) : (
-              <Button type="submit" isLoading={isLoading} className="bg-green-600 hover:bg-green-500 text-white min-w-[150px]">
-                <Save className="h-4 w-4 mr-2" /> Exportar RIM
+              <Button type="submit" isLoading={isLoading} className="min-w-[150px]">
+                {!isLoading && <Save className="h-4 w-4" aria-hidden="true" />} Exportar RIM
               </Button>
             )}
           </div>
