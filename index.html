@@ -1,10 +1,27 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/src/assets/isotipo_w.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f6f3" />
     <title>CronoMET</title>
+    <script>
+      // Aplica el tema guardado (o el del sistema) antes del primer pintado.
+      (function () {
+        try {
+          var saved = window.localStorage.getItem('rimmet_theme');
+          var dark = saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+          if (dark) root.classList.add('dark');
+          root.style.colorScheme = dark ? 'dark' : 'light';
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0c0c0d' : '#f6f6f3');
+        } catch (error) {
+          /* Sin acceso a localStorage se mantiene el tema claro. */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

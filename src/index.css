@@ -2,295 +2,466 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base visual compartida por Cronograma y Gestión IvMET. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOKENS
+   Canales RGB para que Tailwind aplique opacidad (`bg-fg/5`). El tema claro
+   vive en :root y el oscuro en .dark (clase en <html>, ver ThemeContext).
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  --rim-surface: #15161b;
-  --rim-surface-raised: #1a1a1d;
-  --rim-control: #111114;
-  --rim-text: #f3f4f6;
-  --rim-muted: #94a3b8;
-  --rim-border: rgba(255, 255, 255, 0.1);
-  --rim-accent: #93c5fd;
-  --rim-focus: rgba(96, 165, 250, 0.85);
-  --rim-glass: linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.018) 34%, rgba(9, 13, 24, 0.1) 80%), rgba(20, 22, 30, 0.48);
+  color-scheme: light;
+
+  --c-canvas: 246 246 243;
+  --c-surface: 255 255 255;
+  --c-surface-2: 242 242 238;
+  --c-surface-3: 232 232 227;
+  --c-line: 228 228 222;
+  --c-line-strong: 208 208 201;
+  --c-fg: 24 24 22;
+  --c-fg-muted: 92 92 86;
+  --c-fg-subtle: 112 112 105;
+
+  /* Amarillo del logotipo Métrica: relleno de acciones primarias y "hoy". */
+  --c-brand: 249 227 0;
+  --c-brand-hover: 240 218 0;
+  --c-brand-fg: 22 22 20;
+
+  --c-focus: 24 24 22;
+  --c-success: 21 128 61;
+  --c-warning: 180 83 9;
+  --c-danger: 190 30 30;
+  --c-info: 29 78 216;
+
+  --shadow-xs: 0 1px 2px rgb(24 24 22 / 0.05);
+  --shadow-card: 0 1px 2px rgb(24 24 22 / 0.04), 0 4px 16px -8px rgb(24 24 22 / 0.08);
+  --shadow-pop: 0 2px 6px -2px rgb(24 24 22 / 0.08), 0 16px 40px -12px rgb(24 24 22 / 0.2);
+  --shadow-dialog: 0 4px 12px -4px rgb(24 24 22 / 0.08), 0 32px 80px -24px rgb(24 24 22 / 0.32);
+
+  /* Vidrio: solo en capas que flotan sobre contenido (barra superior, menús,
+     tooltips, avisos y el panel lateral en móvil). */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-bar: rgb(246 246 243 / 0.74);
+  --glass-border: rgb(24 24 22 / 0.08);
+  --glass-highlight: inset 0 1px 0 rgb(255 255 255 / 0.7);
+  --scrim: rgb(24 24 22 / 0.28);
+
+  --sidebar-width: 256px;
+  --topbar-height: 56px;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --c-canvas: 12 12 13;
+  --c-surface: 21 21 23;
+  --c-surface-2: 28 28 31;
+  --c-surface-3: 38 38 42;
+  --c-line: 40 40 44;
+  --c-line-strong: 58 58 63;
+  --c-fg: 237 237 234;
+  --c-fg-muted: 163 163 158;
+  --c-fg-subtle: 134 134 129;
+
+  --c-brand: 249 227 0;
+  --c-brand-hover: 255 236 51;
+  --c-brand-fg: 22 22 20;
+
+  --c-focus: 249 227 0;
+  --c-success: 74 222 128;
+  --c-warning: 251 191 36;
+  --c-danger: 248 113 113;
+  --c-info: 125 176 255;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.5);
+  --shadow-pop: 0 2px 8px -2px rgb(0 0 0 / 0.5), 0 20px 48px -12px rgb(0 0 0 / 0.7);
+  --shadow-dialog: 0 4px 16px -4px rgb(0 0 0 / 0.5), 0 40px 96px -24px rgb(0 0 0 / 0.85);
+
+  --glass-bg: rgb(28 28 31 / 0.66);
+  --glass-bar: rgb(12 12 13 / 0.7);
+  --glass-border: rgb(255 255 255 / 0.08);
+  --glass-highlight: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --scrim: rgb(0 0 0 / 0.55);
+}
+
+/* Durante el cambio de tema se congelan las transiciones para que los colores
+   no se animen uno por uno. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
 }
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply antialiased;
-    background-color: #141414;
-    color: #e5e5e5;
+    background-color: rgb(var(--c-canvas));
+    color: rgb(var(--c-fg));
+    font-family: theme('fontFamily.sans');
+    text-rendering: optimizeLegibility;
   }
 
   ::selection {
-    background: rgba(59, 130, 246, 0.3);
-    color: inherit;
+    background: rgb(var(--c-brand) / 0.45);
+    color: rgb(var(--c-fg));
+  }
+
+  .dark ::selection {
+    background: rgb(var(--c-brand) / 0.3);
+  }
+
+  input,
+  textarea {
+    caret-color: rgb(var(--c-fg));
   }
 
   :focus-visible {
-    outline: 2px solid var(--rim-focus);
+    outline: 2px solid rgb(var(--c-focus));
     outline-offset: 2px;
   }
 
-  /* ── Custom Scrollbar Global ── */
+  kbd {
+    font-family: theme('fontFamily.sans');
+  }
+
+  /* ── Barras de desplazamiento ── */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.58) rgba(15, 23, 42, 0.08);
+    scrollbar-color: rgb(var(--c-fg) / 0.2) transparent;
   }
 
   ::-webkit-scrollbar {
-    width: 9px;
-    height: 9px;
+    width: 10px;
+    height: 10px;
   }
 
   ::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.08);
-    border-radius: 9999px;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: rgba(148, 163, 184, 0.58);
-    border: 2px solid transparent;
+    background-color: rgb(var(--c-fg) / 0.18);
+    border: 3px solid transparent;
     background-clip: padding-box;
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(100, 116, 139, 0.78);
+    background-color: rgb(var(--c-fg) / 0.32);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }
 
-/* ═══════════════════════════════════════════════════
-   GANTT TIMELAPSE CALENDAR
-   ═══════════════════════════════════════════════════ */
 @layer components {
+  /* ── Materiales ── */
+  .glass {
+    background-color: var(--glass-bg);
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-highlight), var(--shadow-pop);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    backdrop-filter: blur(18px) saturate(1.6);
+  }
 
-  /* ── Wrapper scrollable ── */
+  .glass-bar {
+    background-color: var(--glass-bar);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    backdrop-filter: blur(16px) saturate(1.5);
+  }
+
+  .scrim {
+    background-color: var(--scrim);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .glass {
+      background-color: rgb(var(--c-surface));
+    }
+
+    .glass-bar {
+      background-color: rgb(var(--c-canvas));
+    }
+  }
+
+  .card {
+    @apply rounded-2xl border border-line bg-surface;
+  }
+
+  /* ── Controles de formulario ── */
+  .field {
+    @apply block w-full rounded-xl border border-line-strong bg-surface px-3.5 text-sm text-fg shadow-xs;
+    @apply placeholder:text-fg-subtle;
+    @apply transition-[border-color,box-shadow] duration-150 ease-out;
+    @apply hover:border-fg/25;
+    @apply focus:border-focus focus:outline-none focus:ring-4 focus:ring-focus/15;
+    @apply disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-muted disabled:shadow-none disabled:hover:border-line-strong;
+  }
+
+  /* El autocompletado del navegador respeta la superficie del tema. */
+  .field:-webkit-autofill,
+  .field:-webkit-autofill:hover {
+    -webkit-text-fill-color: rgb(var(--c-fg));
+    box-shadow: 0 0 0 40px rgb(var(--c-surface)) inset, var(--shadow-xs);
+    transition: background-color 9999s ease-out, border-color 150ms ease-out;
+  }
+
+  .field:-webkit-autofill:focus {
+    box-shadow: 0 0 0 40px rgb(var(--c-surface)) inset, 0 0 0 4px rgb(var(--c-focus) / 0.15);
+  }
+
+  .field-invalid {
+    @apply border-danger/70 hover:border-danger focus:border-danger focus:ring-danger/15;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-[13px] font-medium text-fg;
+  }
+
+  .field-error {
+    @apply mt-1.5 text-xs font-medium text-danger;
+  }
+
+  /* Opciones de listas flotantes (menús, autocompletados, selects). */
+  .menu-item {
+    @apply flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-fg transition-colors duration-100;
+    @apply hover:bg-fg/[0.06] focus-visible:bg-fg/[0.06] focus-visible:outline-none;
+  }
+
+  .menu-item[data-selected='true'],
+  .menu-item[aria-selected='true'] {
+    @apply bg-fg/[0.08] font-semibold;
+  }
+
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-line-strong bg-surface px-1.5 text-[10px] font-semibold leading-none text-fg-muted shadow-xs;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CRONOGRAMA (GANTT)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@layer components {
   .gantt-scroll-container {
-    @apply rounded-2xl;
     overflow-x: auto;
     overflow-y: hidden;
-    background: #15161b;
+    background: rgb(var(--c-surface));
     overscroll-behavior-x: contain;
     overscroll-behavior-y: auto;
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
-    scrollbar-color: rgba(148, 163, 184, 0.64) rgba(255, 255, 255, 0.04);
+    scrollbar-color: rgb(var(--c-fg) / 0.22) transparent;
   }
 
-  /* ── Grid interno ── */
   .gantt-grid {
     @apply min-w-max;
   }
 
-  /* ── Separador de Área en el Gantt ── */
   .gantt-area-separator {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 6px 16px;
-    background: #111114;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 0 16px 0 0;
+    min-height: 30px;
+    background: rgb(var(--c-surface-2));
+    border-bottom: 1px solid rgb(var(--c-line));
     width: 100%;
     min-width: 100%;
   }
 
-  .gantt-area-separator-vehicles {
-    background: #0f172a;
-    border-bottom-color: rgba(59, 130, 246, 0.22);
+  .gantt-area-label {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: fit-content;
+    padding: 6px 16px;
+    background: rgb(var(--c-surface-2));
+    color: rgb(var(--c-fg-muted));
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
-  /* ── Filas (header + data) ── */
+  .gantt-area-separator-vehicles .gantt-area-label {
+    color: rgb(var(--c-info));
+  }
+
   .gantt-header-row {
-    @apply flex items-stretch border-b border-gray-700/40 sticky top-0 z-30;
-    background-color: #1a1a1d; /* Fondo sólido igual al contenedor */
+    @apply sticky top-0 z-30 flex items-stretch;
+    background-color: rgb(var(--c-surface));
+    border-bottom: 1px solid rgb(var(--c-line));
   }
 
   .gantt-row {
-    @apply flex items-stretch border-b border-gray-700/40;
+    @apply flex items-stretch;
+    border-bottom: 1px solid rgb(var(--c-line));
     min-height: var(--gantt-row-height, 64px);
+    transition: background-color 120ms ease-out;
   }
 
   .gantt-virtual-row {
     width: 100%;
     min-width: 100%;
   }
+
   .gantt-row:hover {
-    background: rgba(255,255,255,0.03);
-    transition: background 0.15s;
+    background: rgb(var(--c-fg) / 0.018);
   }
 
-  /* ── Columna sticky de nombre ── */
   .gantt-name-col {
-    @apply flex flex-col justify-center px-4 py-2 sticky left-0 z-20;
-    min-width: 160px;
-    max-width: 160px;
-    background: #1e1e22; /* Fondo sólido original */
-    border-right: 1px solid rgba(255,255,255,0.08);
+    @apply sticky left-0 z-20 flex flex-col justify-center px-4 py-2;
+    min-width: 172px;
+    max-width: 172px;
+    background: rgb(var(--c-surface));
+    border-right: 1px solid rgb(var(--c-line));
+    transition: background-color 120ms ease-out;
   }
 
-  /* ── Header de la columna de nombre ── */
+  .gantt-row:hover .gantt-name-col {
+    background: color-mix(in srgb, rgb(var(--c-fg)) 1.8%, rgb(var(--c-surface)));
+  }
+
   .gantt-name-header {
-    @apply text-xs font-semibold uppercase tracking-widest text-slate-300;
-    min-height: 64px;
+    min-height: 68px;
     justify-content: flex-end;
-    padding-bottom: 10px;
+    padding-bottom: 12px;
+    color: rgb(var(--c-fg-muted));
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
-  /* ── Nombre e info del técnico ── */
   .gantt-tecnico-name {
-    @apply text-sm font-semibold text-gray-100 leading-tight;
+    color: rgb(var(--c-fg));
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.25;
   }
+
   .gantt-tecnico-cargo {
-    @apply text-[10px] text-slate-400 leading-tight mt-0.5 truncate;
+    @apply truncate;
+    margin-top: 2px;
+    color: rgb(var(--c-fg-muted));
+    font-size: 11px;
+    line-height: 1.25;
   }
 
-  /* ── Celdas de día en el header ── */
   .gantt-day-header-cell {
-    @apply flex flex-col items-center justify-end px-1 pb-2 gap-0.5 border-r border-gray-700/30 text-slate-400;
-    min-width: 110px;
-    width: 110px;
-    min-height: 64px;
-    transition: background 0.15s;
+    @apply flex flex-col items-center justify-end;
+    gap: 3px;
+    min-width: 116px;
+    width: 116px;
+    min-height: 68px;
+    padding: 0 4px 9px;
+    border-right: 1px solid rgb(var(--c-line));
+    color: rgb(var(--c-fg-muted));
+    transition: background-color 150ms ease-out;
   }
-  .gantt-day-header-preview {
-    @apply bg-gradient-to-b from-white/5 to-transparent;
-    flex: 1; /* Llenar espacio restante equitativamente */
-    min-width: 80px;
-    border-right: none;
-    border-left: 1px dashed rgba(255,255,255,0.05);
-  }
-  .gantt-day-header-today {
-    @apply bg-primary-900/30;
-  }
+
   .gantt-day-label {
-    @apply text-[10px] font-semibold uppercase tracking-wider;
-  }
-  .gantt-day-number {
-    @apply text-lg font-bold leading-none text-slate-200;
-  }
-  .gantt-day-number-today {
-    @apply text-primary-400;
-  }
-  .gantt-day-month {
-    @apply text-[10px] capitalize text-slate-400;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
-  /* ── Celdas de datos ── */
-  .gantt-cell {
-    @apply flex flex-col gap-1 px-1.5 py-1.5 border-r border-gray-700/30;
-    min-width: 110px;
-    width: 110px;
-    height: auto;
-    min-height: 64px;
-    position: relative;
+  .gantt-day-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 6px;
+    border-radius: 9999px;
+    color: rgb(var(--c-fg));
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
+
+  .gantt-day-number-today {
+    background: rgb(var(--c-brand));
+    color: rgb(var(--c-brand-fg));
+  }
+
+  .gantt-day-month {
+    color: rgb(var(--c-fg-subtle));
+    font-size: 10px;
+    text-transform: capitalize;
+  }
+
+  .gantt-cell {
+    @apply flex flex-col;
+    position: relative;
+    gap: 4px;
+    min-width: 116px;
+    width: 116px;
+    min-height: 64px;
+    padding: 5px;
+    border-right: 1px solid rgb(var(--c-line));
+  }
+
   .gantt-cell-preview {
-    @apply bg-gradient-to-r from-transparent to-black/10;
-    flex: 1; /* Llenar espacio restante */
+    flex: 1;
     min-width: 80px;
     border-right: none;
-    border-left: 1px dashed rgba(255,255,255,0.05);
-  }
-  .gantt-cell-empty {
-    /* empty intentional */
-  }
-  .gantt-cell-filled {
-    /* has tasks */
-  }
-  .gantt-cell-today-bg {
-    background: rgba(99, 102, 241, 0.06);
   }
 
-  /* ── Task chips ── */
-  .gantt-task-chip {
-    @apply w-full text-left rounded-md px-2 py-0.5 text-[10px] font-bold leading-tight
-           transition-all duration-150 cursor-pointer shadow-sm;
-    @apply hover:brightness-110 hover:shadow-md hover:scale-[1.02];
-    word-break: break-word;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .gantt-task-chip-text {
-    @apply block truncate;
+  /* Estados de columna: hoy (amarillo Métrica), no laborable y seleccionado. */
+  .gantt-cell-today-bg,
+  .gantt-day-header-today {
+    background: rgb(var(--c-brand) / 0.08);
   }
 
-  /* ── Colores por tipo (chip + dot) ── */
-  .gantt-cell-carga        { @apply bg-yellow-500/80  text-yellow-950; }
-  .gantt-cell-capacitacion { @apply bg-amber-400/80   text-amber-950;  }
-  .gantt-cell-calibracion  { @apply bg-green-600/80   text-green-100;  }
-  .gantt-cell-comercial    { @apply bg-orange-500/80  text-orange-100; }
-  .gantt-cell-relevamiento { @apply bg-red-700/80     text-red-100;    }
-  .gantt-cell-instalacion  { @apply bg-blue-600/80    text-blue-100;   }
-  .gantt-cell-yanbal       { @apply bg-pink-600/80    text-pink-100;   }
-  .gantt-cell-retorno      { @apply bg-purple-700/80  text-purple-100; }
-  .gantt-cell-vacacion     { @apply bg-gray-500/80    text-white;      }
-  .gantt-cell-soporte      { @apply bg-cyan-600/80    text-cyan-100;   }
-  .gantt-cell-default      { @apply bg-slate-600/80   text-white;      }
-
-  /* ── Tooltip ── */
-  .gantt-tooltip {
-    @apply absolute z-50 w-52 rounded-xl p-3 shadow-2xl text-xs;
-    @apply bg-[#252528] border border-gray-600/60;
-    top: calc(100% + 4px);
-    left: 0;
-    animation: tooltipFadeIn 0.15s ease;
-  }
-  @keyframes tooltipFadeIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .gantt-tooltip-header {
-    @apply flex items-center justify-between mb-2;
-  }
-  .gantt-tooltip-badge {
-    @apply rounded-md px-2 py-0.5 text-[10px] font-bold;
-  }
-  .gantt-tooltip-close {
-    @apply text-gray-500 hover:text-gray-300 transition-colors ml-1 flex-shrink-0;
-  }
-  .gantt-tooltip-desc {
-    @apply text-gray-200 font-medium mb-2 leading-tight;
-  }
-  .gantt-tooltip-row {
-    @apply flex items-center gap-1.5 text-gray-400 mt-1;
+  .gantt-cell-nonworking,
+  .gantt-day-header-nonworking {
+    background: rgb(var(--c-fg) / 0.028);
   }
 
-  /* ── Leyenda ── */
-  .gantt-legend {
-    @apply flex flex-wrap gap-x-4 gap-y-1.5 mt-4 justify-end;
-  }
-  .gantt-legend-item {
-    @apply flex items-center gap-1.5 text-[11px] text-gray-500;
-  }
-  .gantt-legend-dot {
-    @apply w-2.5 h-2.5 rounded-sm flex-shrink-0;
+  .gantt-day-header-nonworking .gantt-day-label,
+  .gantt-day-header-nonworking .gantt-day-number:not(.gantt-day-number-today) {
+    color: rgb(var(--c-danger));
   }
 
-  /* ── Mock data badge ── */
+  .gantt-cell-selected,
+  .gantt-day-header-selected {
+    background: rgb(var(--c-fg) / 0.045);
+    box-shadow:
+      inset 1px 0 0 rgb(var(--c-fg) / 0.35),
+      inset -1px 0 0 rgb(var(--c-fg) / 0.35);
+  }
+
+  .gantt-day-header-selected {
+    box-shadow:
+      inset 1px 0 0 rgb(var(--c-fg) / 0.35),
+      inset -1px 0 0 rgb(var(--c-fg) / 0.35),
+      inset 0 2px 0 rgb(var(--c-fg) / 0.7);
+  }
+
+  .gantt-week-start {
+    border-left: 1px solid rgb(var(--c-line-strong));
+  }
+
   .gantt-mock-badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium;
-    @apply bg-amber-500/10 text-amber-400 border border-amber-500/20;
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium;
+    border-color: rgb(var(--c-warning) / 0.25);
+    background: rgb(var(--c-warning) / 0.1);
+    color: rgb(var(--c-warning));
   }
-
-}
-
-/* Superficies compartidas del calendario oscuro. */
-.calendar-workspace {
-  --calendar-muted: var(--rim-muted);
-  --calendar-subtle: #64748b;
-}
-
-.calendar-glass {
-  background: var(--rim-glass);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.13),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
-    0 18px 42px -28px rgba(0, 0, 0, 0.92);
-  backdrop-filter: blur(10px) saturate(1.16);
-  -webkit-backdrop-filter: blur(10px) saturate(1.16);
 }
 
 .calendar-toolbar {
@@ -308,7 +479,7 @@
 }
 
 .calendar-toolbar-control {
-  min-height: 40px;
+  min-height: 38px;
 }
 
 .gantt-scroll-shell {
@@ -319,10 +490,10 @@
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgb(var(--c-line));
   border-radius: 16px;
-  background: #15161b;
-  box-shadow: 0 16px 38px -26px rgba(0, 0, 0, 0.9);
+  background: rgb(var(--c-surface));
+  box-shadow: var(--shadow-card);
 }
 
 .gantt-scroll-tools {
@@ -331,7 +502,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
-  padding: 0 0.25rem 0.4rem;
+  padding: 0 0.125rem 0.5rem;
 }
 
 .gantt-scroll-tools button {
@@ -340,21 +511,22 @@
   height: 30px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
-  transition: background-color 100ms ease-out, color 100ms ease-out, opacity 100ms ease-out;
+  border: 1px solid rgb(var(--c-line));
+  border-radius: 10px;
+  background: rgb(var(--c-surface));
+  color: rgb(var(--c-fg));
+  box-shadow: var(--shadow-xs);
+  transition: background-color 120ms ease-out, opacity 120ms ease-out;
 }
 
 .gantt-scroll-tools button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: rgb(var(--c-surface-2));
 }
 
 .gantt-scroll-tools button:disabled {
   cursor: default;
-  opacity: 0.3;
+  opacity: 0.35;
+  box-shadow: none;
 }
 
 .gantt-scroll-edge {
@@ -362,15 +534,15 @@
   top: 0;
   bottom: 0;
   z-index: 35;
-  width: 30px;
+  width: 28px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 100ms ease-out;
+  transition: opacity 120ms ease-out;
 }
 
 .gantt-scroll-edge.is-visible { opacity: 1; }
-.gantt-scroll-edge-left { left: 0; background: linear-gradient(90deg, rgba(4, 6, 12, 0.78), transparent); }
-.gantt-scroll-edge-right { right: 0; background: linear-gradient(270deg, rgba(4, 6, 12, 0.78), transparent); }
+.gantt-scroll-edge-left { left: 172px; background: linear-gradient(90deg, rgb(var(--c-fg) / 0.07), transparent); }
+.gantt-scroll-edge-right { right: 0; background: linear-gradient(270deg, rgb(var(--c-fg) / 0.07), transparent); }
 
 .gantt-empty-state {
   display: flex;
@@ -380,14 +552,14 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  color: #94a3b8;
+  color: rgb(var(--c-fg-muted));
 }
 
-.gantt-empty-state strong { color: #e2e8f0; font-size: 0.875rem; }
+.gantt-empty-state strong { color: rgb(var(--c-fg)); font-size: 0.875rem; font-weight: 600; }
 .gantt-empty-state span { font-size: 0.75rem; }
 
-.calendar-agenda-layer { animation: calendar-agenda-fade-in 100ms ease-out both; }
-.calendar-agenda-sheet { animation: calendar-agenda-sheet-in 120ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.calendar-agenda-layer { animation: calendar-agenda-fade-in 140ms ease-out both; }
+.calendar-agenda-sheet { animation: calendar-agenda-sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 @keyframes calendar-agenda-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes calendar-agenda-sheet-in {
@@ -395,26 +567,37 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-
-@media (max-width: 1023px) {
-  .gantt-tecnico-name  { font-size: 11px !important; }
-  .gantt-tecnico-cargo { font-size: 9px  !important; }
-  .gantt-task-chip     { font-size: 9px  !important; }
-  .gantt-day-number    { font-size: 14px !important; }
-  .gantt-day-label     { font-size: 9px  !important; }
-  .gantt-day-month     { font-size: 9px  !important; }
-  .gantt-name-col      { min-width: 130px; max-width: 130px; }
-  .gantt-day-header-cell, .gantt-cell { min-width: 90px; width: 90px; }
-
-  .gantt-mock-badge { font-size: 9px !important; }
-
+/* La agenda lateral del cronograma depende del ancho real del área de trabajo
+   (la barra lateral de la app puede estar visible u oculta), no del viewport. */
+.calendar-workspace {
+  container-type: inline-size;
+  container-name: calendar;
 }
 
-/* ── Portrait muy angosto (< 480px): celdas más compactas ── */
+.calendar-agenda-column { display: none; }
+.calendar-agenda-trigger { display: flex; }
+
+@container calendar (min-width: 1000px) {
+  .calendar-agenda-column { display: block; }
+  .calendar-agenda-trigger { display: none; }
+}
+
+@media (max-width: 1023px) {
+  .gantt-tecnico-name  { font-size: 12px; }
+  .gantt-tecnico-cargo { font-size: 10px; }
+  .gantt-day-number    { font-size: 14px; min-width: 26px; height: 26px; }
+  .gantt-day-label     { font-size: 9px; }
+  .gantt-day-month     { font-size: 9px; }
+  .gantt-name-col      { min-width: 136px; max-width: 136px; }
+  .gantt-scroll-edge-left { left: 136px; }
+  .gantt-day-header-cell, .gantt-cell { min-width: 96px; width: 96px; }
+}
+
 @media (max-width: 479px) {
-  .gantt-name-col      { min-width: 104px; max-width: 104px; padding-left: 10px; padding-right: 10px; }
-  .gantt-day-header-cell, .gantt-cell { min-width: 78px; width: 78px; }
-  .gantt-day-number    { font-size: 13px !important; }
+  .gantt-name-col      { min-width: 108px; max-width: 108px; padding-left: 10px; padding-right: 10px; }
+  .gantt-scroll-edge-left { left: 108px; }
+  .gantt-day-header-cell, .gantt-cell { min-width: 84px; width: 84px; }
+  .gantt-day-number    { font-size: 13px; }
 
   .calendar-toolbar {
     display: flex;
@@ -447,7 +630,6 @@
     padding-right: 0.625rem;
   }
 
-  .gantt-scroll-container,
   .gantt-scroll-viewport { border-radius: 14px; }
 }
 
@@ -462,13 +644,15 @@
   }
 }
 
-/* Ficha de tarea: una sola entrada coreografiada y transiciones de contenido. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   FICHA DE TAREA: entrada coreografiada y transiciones de contenido
+   ═══════════════════════════════════════════════════════════════════════════ */
 .task-dialog-backdrop {
-  animation: task-dialog-backdrop-in 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: task-dialog-backdrop-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .task-dialog-panel {
-  animation: task-dialog-panel-in 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: task-dialog-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: 50% 42%;
 }
 
@@ -488,10 +672,10 @@
   visibility: hidden;
   transform: translateY(-4px);
   transition:
-    grid-template-rows 120ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 100ms ease,
-    transform 120ms cubic-bezier(0.16, 1, 0.3, 1),
-    visibility 0s linear 120ms;
+    grid-template-rows 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease,
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 160ms;
 }
 
 .task-disclosure > div {
@@ -515,15 +699,11 @@
      de foco y las sombras de los controles internos quedaban cortados contra
      el borde del bloque. El retardo cubre la animacion de apertura. */
   overflow: visible;
-  transition: overflow 0s linear 120ms;
-}
-
-.task-field-reveal {
-  animation: task-field-reveal 120ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: overflow 0s linear 160ms;
 }
 
 .task-floating-menu {
-  animation: task-floating-menu-in 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: task-floating-menu-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: top right;
 }
 
@@ -540,8 +720,7 @@
 @keyframes task-dialog-panel-in {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.985);
-    box-shadow: 0 12px 36px -24px rgb(15 23 42 / 0.25);
+    transform: translateY(12px) scale(0.985);
   }
   to {
     opacity: 1;
@@ -554,13 +733,8 @@
   to { opacity: 0; transform: translateY(8px) scale(0.99); }
 }
 
-@keyframes task-field-reveal {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: none; }
-}
-
 @keyframes task-floating-menu-in {
-  from { opacity: 0; transform: translateY(-5px) scale(0.97); }
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -583,6 +757,24 @@
     from { opacity: 1; transform: translateY(0); }
     to { opacity: 0; transform: translateY(28px); }
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AVISOS (sonner)
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-sonner-toaster] [data-sonner-toast].rim-toast {
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: rgb(var(--c-fg));
+  box-shadow: var(--glass-highlight), var(--shadow-pop);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+  font-family: theme('fontFamily.sans');
+}
+
+[data-sonner-toaster] [data-sonner-toast].rim-toast [data-description] {
+  color: rgb(var(--c-fg-muted));
 }
 
 @media (prefers-reduced-motion: reduce) {

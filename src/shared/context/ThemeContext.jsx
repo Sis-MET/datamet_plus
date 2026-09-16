@@ -1,6 +1,22 @@
-// La aplicación tiene una única apariencia oscura. Se conserva este hook como
-// contrato interno mientras los componentes compartidos terminan de migrar a
-// tokens estáticos, pero ya no existe estado, persistencia ni selector de tema.
+import { useContext } from 'react';
+import { ThemeContext } from './theme';
+
+const noop = () => {};
+
+// Fuera del ThemeProvider (por ejemplo, en fixtures de prueba) se lee el tema
+// que ya aplicó index.html sobre <html>.
 export function useTheme() {
-  return { isDarkGantt: true };
+  const context = useContext(ThemeContext);
+  if (context) return context;
+
+  const isDark = typeof document !== 'undefined'
+    && document.documentElement.classList.contains('dark');
+  return {
+    theme: 'system',
+    resolvedTheme: isDark ? 'dark' : 'light',
+    isDark,
+    isDarkGantt: isDark,
+    setTheme: noop,
+    toggleTheme: noop,
+  };
 }
