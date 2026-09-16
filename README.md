@@ -8,7 +8,8 @@ Aplicación interna de Métrica Ltda. que reúne el formulario RIM, el cronogram
 - **Validación Robusta:** Uso de Zod y React Hook Form para asegurar la integridad de datos.
 - **Firmas Digitales:** Captura de firma en pantalla táctil o con mouse.
 - **Evidencias:** Subida de fotos con drag & drop y previsualización.
-- **Diseño Moderno:** Interfaz limpia y profesional construida con Tailwind CSS.
+- **Diseño minimalista:** tokens de color en `src/index.css` con tema claro y oscuro (sigue al sistema hasta que se elige uno desde la barra superior), tipografía Figtree autoalojada y vidrio solo en capas flotantes (barra superior, menús, avisos).
+- **Barra lateral:** módulos, sesión y cierre de sesión; se oculta o muestra con `Ctrl+B` (`⌘B` en macOS) y en móvil se abre como panel.
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
 - **Gestión IvMET:** panel administrativo para clientes contratados, licencias, planes y revisión del catálogo sincronizado.
 
@@ -28,8 +29,9 @@ Para desarrollo local puede usarse temporalmente `SUPABASE_SERVICE_ROLE_KEY` en 
 
 El módulo incluye fichas por cliente/planta/balanza, cuentas y licencias,
 contratos, tarifas mensuales/anuales, pagos parciales, renovaciones, cupos,
-áreas, patrones/certificados y sincronización selectiva. Usa vidrio en la
-navegación/formularios y superficies sólidas en los datos.
+áreas, patrones/certificados y sincronización selectiva. Comparte los tokens
+de tema de la aplicación: superficies sólidas en datos y formularios, y vidrio
+en las listas desplegables.
 
 Antes de abrirlo, aplicar las migraciones administrativas del repositorio IvMET.
 Consultar [la guía de operación y despliegue](docs/ivmet-management.md).
