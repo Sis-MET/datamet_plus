@@ -8,6 +8,7 @@ import { APP_VIEWS, canManageIvmet } from './shared/components/layout/navigation
 import { useSidebar } from './shared/hooks/useSidebar';
 import { useTheme } from './shared/context/ThemeContext';
 import { safeStorage } from './shared/utils/storage';
+import { decodeJwtPayload, isJwtExpired } from './shared/utils/jwt';
 
 const RimFormPage = lazy(() => import('./features/rim/RimFormPage')
   .then(module => ({ default: module.RimFormPage })));
@@ -91,20 +92,9 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
 
 function App() {
   const checkTokenValidity = () => {
-    const token = safeStorage.getItem('rimmet_token');
-    if (!token) return false;
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/, '/');
-      const payload = JSON.parse(window.atob(base64));
-      // Verificar si existe la fecha de expiración y ya fue superada (en segundos)
-      if (payload.exp && Date.now() >= payload.exp * 1000) {
-        return false;
-      }
-      return true;
-    } catch {
-      return false;
-    }
+    const payload = decodeJwtPayload(safeStorage.getItem('rimmet_token'));
+    // Sin payload legible no hay sesión; si lo hay, vale mientras no caduque.
+    return Boolean(payload) && !isJwtExpired(payload);
   };
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {

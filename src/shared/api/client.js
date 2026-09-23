@@ -1,5 +1,6 @@
 import { API_BASE } from '../../config/api';
 import { safeStorage } from '../utils/storage';
+import { decodeJwtPayload } from '../utils/jwt';
 
 class ApiError extends Error {
   constructor(message, status, data) {
@@ -89,13 +90,7 @@ async function request(endpoint, { method = 'GET', body, params, headers = {}, r
 }
 
 function parseToken() {
-  const token = getToken();
-  if (!token) return null;
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
-  }
+  return decodeJwtPayload(getToken());
 }
 
 export const api = {
