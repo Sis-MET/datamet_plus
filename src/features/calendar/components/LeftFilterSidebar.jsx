@@ -3,6 +3,7 @@ import { ChevronRight, Bell, ChevronLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '../../../shared/utils/cn';
+import { VehicleAvailabilityPanel } from './VehicleAvailabilityPanel';
 
 const iconButton = 'flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg';
 
@@ -66,7 +67,7 @@ export function LeftFilterSidebar({
   const tecnicosDelDia = Object.values(tecnicoMap);
 
   return (
-    <aside className="calendar-sidebar flex w-full flex-shrink-0 flex-col gap-4 lg:w-[280px] xl:w-[300px]">
+    <aside className="calendar-sidebar flex w-full min-w-0 flex-col gap-4">
 
       {/* ── 1. Mini Calendario ── */}
       {currentDate && (
@@ -105,7 +106,10 @@ export function LeftFilterSidebar({
         </div>
       )}
 
-      {/* ── 2. Detalle del Día (Compacto) ── */}
+      {/* ── 2. Disponibilidad de Vehículos ── */}
+      <VehicleAvailabilityPanel tecnicos={tecnicos} selectedDayEvents={selectedDayEvents} />
+
+      {/* ── 3. Detalle del Día (Compacto) ── */}
       <div className="calendar-day-detail flex flex-col gap-2">
         <h3 className="px-1 text-xs font-medium text-fg-muted">Detalle del Día</h3>
         {tecnicosDelDia.length === 0 ? (
@@ -158,7 +162,7 @@ export function LeftFilterSidebar({
       </div>
 
 
-      {/* ── 3. Referencia de Colores ── */}
+      {/* ── 4. Referencia de Colores ── */}
       <div className="calendar-reference card p-4 shadow-xs">
         <h3 className="mb-3 text-xs font-medium text-fg-muted">Referencia de Colores</h3>
         <ul className="flex flex-col gap-2.5 text-[13px] text-fg">
