@@ -6,6 +6,7 @@ import { AlertTriangle, Clock, MapPin, Plus, X } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
 import { useTaskTooltip } from './taskTooltipStore';
+import { TASK_CARD_HEIGHT, TASK_CARD_PADDING_Y } from '../utils/ganttRowLayout';
 
 const MAX_TASKS_PER_CELL = 4;
 
@@ -161,6 +162,17 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
 
   const contrast = getContrastColors(task.colorAM);
   const hasColor = Boolean(task.morning && task.colorAM);
+  const primaryColor = hasColor ? contrast.text : undefined;
+  const secondaryColor = hasColor ? contrast.textSecondary : undefined;
+
+  // La ficha muestra hasta cuatro líneas: las dos primeras dinámicas, el horario
+  // y el tipo de tarea. El resto del detalle queda en el tooltip.
+  const [titleLine, detailLine] = dynamicLines;
+  const titleText = titleLine?.text || '';
+  const detailText = detailLine?.text || '';
+  const hasTimeRange = Boolean(task.horaInicio || task.horaFin);
+  const showActivity = Boolean(activityText)
+    && normalizeForComparison(activityText) !== normalizeForComparison(titleText);
 
   return (
     <>
@@ -211,55 +223,45 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        style={{ touchAction: 'none', ...(hasColor ? { backgroundColor: task.colorAM } : {}) }}
         className={cn(
-          'relative flex h-[54px] w-full shrink-0 cursor-grab select-none flex-col justify-center overflow-hidden rounded-lg px-2 py-1 shadow-xs ring-1 ring-inset ring-black/10 transition-[box-shadow,transform] duration-150 ease-out active:cursor-grabbing',
+          'relative flex w-full shrink-0 cursor-grab select-none flex-col justify-center overflow-hidden rounded-lg px-2 shadow-xs ring-1 ring-inset ring-black/10 transition-[box-shadow,transform] duration-150 ease-out active:cursor-grabbing',
           'hover:-translate-y-px hover:shadow-card hover:ring-black/25',
           !hasColor && 'bg-surface-2 text-fg'
         )}
+        style={{
+          touchAction: 'none',
+          height: TASK_CARD_HEIGHT,
+          paddingBlock: TASK_CARD_PADDING_Y,
+          ...(hasColor ? { backgroundColor: task.colorAM } : {}),
+        }}
       >
         {task.morning && (
-          <div className="flex w-full items-start gap-1.5 overflow-hidden">
+          <div className="flex w-full min-w-0 items-start gap-1.5">
             <span
-              className={cn('mt-[5px] h-2 w-2 shrink-0 rounded-full ring-1 ring-black/25', STATE_DOT[task.estadoAM] || 'bg-yellow-300')}
+              className={cn('mt-1 h-2 w-2 shrink-0 rounded-full ring-1 ring-black/25', STATE_DOT[task.estadoAM] || 'bg-yellow-300')}
               title={task.estadoAM || 'Pendiente'}
             />
-            <div className="flex h-full min-w-0 flex-1 flex-col justify-center">
-              {/* Líneas dinámicas: Cliente > Planta > Descripción */}
-              {dynamicLines.map((line, idx) => (
-                <span
-                  key={idx}
-                  className={cn(
-                    'line-clamp-1 break-all leading-tight',
-                    line.role === 'primary'
-                      ? 'text-xs font-semibold'
-                      : 'mt-px text-[10px]'
-                  )}
-                  style={{
-                    color: hasColor
-                      ? (line.role === 'primary' ? contrast.text : contrast.textSecondary)
-                      : undefined,
-                  }}
-                >
-                  {idx === 0 && task.creadoEn === 'Salida Personal' && <MapPin className="mr-1 inline-block h-3 w-3 opacity-80" />}
-                  {line.text}
-                </span>
-              ))}
-              {/* Rango horario (siempre visible) */}
-              {(task.horaInicio || task.horaFin) && (
-                <span
-                  className="mt-px truncate text-[10px] font-medium leading-tight tabular-nums"
-                  style={{ color: hasColor ? contrast.textSecondary : undefined }}
-                >
-                  {task.horaInicio || '08:30'} {task.horaFin ? `– ${task.horaFin}` : ''}
+            {/* Cada línea tiene una altura fija algo mayor que su cuerpo de letra:
+                acentos y descendentes no se recortan y las cuatro líneas posibles
+                (16 + 14 + 14 + 12 px) caben en la ficha sin desbordarla. */}
+            <div className="min-w-0 flex-1">
+              {/* Título: Cliente > Planta > Descripción > Tipo de tarea */}
+              <span className="block truncate text-xs font-semibold leading-4" style={{ color: primaryColor }}>
+                {task.creadoEn === 'Salida Personal' && <MapPin className="-mt-0.5 mr-1 inline-block h-3 w-3 align-middle opacity-80" />}
+                {titleText}
+              </span>
+              {detailText && (
+                <span className="block truncate text-[11px] leading-[14px]" style={{ color: secondaryColor }}>
+                  {detailText}
                 </span>
               )}
-              {/* Tipo de tarea (siempre visible, texto pequeño) */}
-              {activityText && (
-                <span
-                  className="mt-px line-clamp-1 break-all text-[9px] font-medium uppercase leading-tight tracking-wide opacity-75"
-                  style={{ color: hasColor ? contrast.textSecondary : undefined }}
-                >
+              {hasTimeRange && (
+                <span className="block truncate text-[11px] font-medium leading-[14px] tabular-nums" style={{ color: secondaryColor }}>
+                  {task.horaInicio || '08:30'}{task.horaFin ? ` – ${task.horaFin}` : ''}
+                </span>
+              )}
+              {showActivity && (
+                <span className="block truncate text-[9px] font-semibold uppercase leading-3 tracking-wide opacity-80" style={{ color: secondaryColor }}>
                   {activityText}
                 </span>
               )}
@@ -447,7 +449,7 @@ export function GanttTaskCell({
 
   return (
     <div
-      className={cn(baseClasses, 'gantt-cell-filled group relative p-[4px]')}
+      className={cn(baseClasses, 'gantt-cell-filled group relative')}
       style={cellStyle}
       onClick={handleClick}
       onDragOver={handleDragOver}

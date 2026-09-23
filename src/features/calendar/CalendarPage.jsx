@@ -169,9 +169,9 @@ export function CalendarPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="calendar-agenda-title"
-            className="calendar-agenda-sheet glass absolute inset-x-2 bottom-2 max-h-[86dvh] overflow-y-auto rounded-[22px] border p-3 sm:inset-y-2 sm:left-auto sm:right-2 sm:max-h-none sm:w-[360px] sm:p-4"
+            className="calendar-agenda-sheet glass absolute inset-x-2 bottom-2 max-h-[86dvh] overflow-y-auto rounded-[22px] border px-3 pb-3 sm:inset-y-2 sm:left-auto sm:right-2 sm:max-h-none sm:w-[360px] sm:px-4 sm:pb-4"
           >
-            <div className="sticky top-0 z-20 -mx-1 mb-3 flex items-center justify-between px-1 py-1">
+            <div className="calendar-agenda-sheet-header sticky top-0 z-20 -mx-3 mb-3 flex items-center justify-between rounded-t-[20px] px-3 pb-2 pt-3 sm:-mx-4 sm:px-4 sm:pt-4">
               <h2 id="calendar-agenda-title" className="text-sm font-semibold text-fg">Agenda y detalle</h2>
               <button type="button" onClick={() => setIsAgendaOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-xl text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg" aria-label="Cerrar">
                 <X size={18} />

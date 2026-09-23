@@ -46,6 +46,9 @@
 
   --sidebar-width: 256px;
   --topbar-height: 56px;
+
+  /* Duración del fundido al cambiar de tema. Único sitio donde se ajusta. */
+  --theme-transition-duration: 260ms;
 }
 
 .dark {
@@ -83,13 +86,44 @@
   --scrim: rgb(0 0 0 / 0.55);
 }
 
-/* Durante el cambio de tema se congelan las transiciones para que los colores
-   no se animen uno por uno. */
+/* El cambio de tema anima los colores de toda la interfaz a la vez. Se impone
+   la misma duración, curva y retardo cero en cada elemento: sin esto cada
+   control usaría su propia transición y el cambio se vería escalonado. Solo se
+   animan propiedades de color, para no interferir con transformaciones. */
+/* Durante el cambio se congelan las transiciones propias de cada componente.
+   Sin esto, `.gantt-row` (120ms), `.gantt-day-header-cell` (150ms), los botones
+   y los toasts animan su color cada uno a su ritmo y el tema parece cambiar en
+   cascada. Congelarlas hace que el DOM salte de golpe al estado final, que es
+   justo lo que la View Transition necesita capturar. */
 .theme-switching,
 .theme-switching *,
 .theme-switching *::before,
 .theme-switching *::after {
   transition: none !important;
+}
+
+/* El cambio de tema recolorea casi todo el documento a la vez. Animarlo con
+   transiciones CSS obliga al hilo principal a repintar cientos de nodos en cada
+   fotograma (de ahí los tirones) y deja fuera lo que no es animable
+   -`scrollbar-color`, `color-scheme`, los degradados-, que saltaba de golpe y
+   hacía que el cambio pareciera ir en cascada.
+
+   La View Transition funde dos capturas del viewport en el compositor: el coste
+   no depende del tamaño del DOM y todo cambia junto, incluido lo no animable.
+   La captura nueva aparece sobre la vieja; sin `mix-blend-mode: normal` el
+   fundido por defecto (`plus-lighter`) lavaría los colores. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  animation: theme-cross-fade var(--theme-transition-duration) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes theme-cross-fade {
+  from { opacity: 0; }
 }
 
 @layer base {
@@ -306,14 +340,28 @@
 
   .gantt-row {
     @apply flex items-stretch;
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: max-content;
+    height: var(--gantt-row-height, 64px);
+    /* `clip` y no `hidden`: `hidden` convierte la fila en su propio contenedor
+       de scroll y la columna sticky de nombres deja de anclarse al scroll
+       horizontal del cronograma (se va con la grilla y desaparece). */
+    overflow: clip;
     border-bottom: 1px solid rgb(var(--c-line));
-    min-height: var(--gantt-row-height, 64px);
     transition: background-color 120ms ease-out;
   }
 
+  /* El slot virtual y la fila interior deben medir lo mismo: si la fila
+     crece por padding, overflow-y: hidden del scroll recorta las fichas
+     y parecen despegadas de la grilla. */
   .gantt-virtual-row {
+    display: flex;
+    align-items: stretch;
     width: 100%;
-    min-width: 100%;
+    min-width: max-content;
+    overflow: clip; /* mismo motivo que en .gantt-row */
   }
 
   .gantt-row:hover {
@@ -406,12 +454,15 @@
 
   .gantt-cell {
     @apply flex flex-col;
+    box-sizing: border-box;
     position: relative;
-    gap: 4px;
+    justify-content: flex-start;
+    gap: 4px; /* TASK_CARD_GAP */
     min-width: 116px;
     width: 116px;
+    height: 100%;
     min-height: 64px;
-    padding: 5px;
+    padding: 3px; /* CELL_PADDING_Y / 2 — debe coincidir con ganttRowLayout.js */
     border-right: 1px solid rgb(var(--c-line));
   }
 
@@ -561,6 +612,23 @@
 .calendar-agenda-layer { animation: calendar-agenda-fade-in 140ms ease-out both; }
 .calendar-agenda-sheet { animation: calendar-agenda-sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* La cabecera de la agenda queda fija mientras el panel se desplaza, así que
+   necesita su propio material: sin fondo, el mini calendario pasaba por detrás
+   del título y el vidrio se veía roto justo en la franja superior. El desenfoque
+   se aplica sobre el contenido del propio panel, no sobre la página. */
+.calendar-agenda-sheet-header {
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow: 0 1px 0 var(--glass-border);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .calendar-agenda-sheet-header {
+    background-color: rgb(var(--c-surface));
+  }
+}
+
 @keyframes calendar-agenda-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes calendar-agenda-sheet-in {
   from { opacity: 0; transform: translateY(18px); }
@@ -574,7 +642,13 @@
   container-name: calendar;
 }
 
-.calendar-agenda-column { display: none; }
+/* El hueco de la barra vertical se reserva siempre: si apareciera y
+   desapareciera según la altura del contenido, el ancho útil cambiaría 10px y
+   la agenda se reajustaría sola. */
+.calendar-agenda-column {
+  display: none;
+  scrollbar-gutter: stable;
+}
 .calendar-agenda-trigger { display: flex; }
 
 @container calendar (min-width: 1000px) {
