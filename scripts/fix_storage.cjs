@@ -1,5 +1,13 @@
+// Codemod de un solo uso: sustituyó los accesos directos a `localStorage` por
+// `safeStorage` en todo src/. YA ESTÁ APLICADO y se conserva solo como
+// referencia. Reescribe los ficheros en el sitio y sin copia de seguridad, así
+// que no conviene ejecutarlo salvo que se quiera repetir la migración aposta.
+
 const fs = require('fs');
 const path = require('path');
+
+const SRC_DIR = path.join(__dirname, '..', 'src');
+const STORAGE_MODULE = path.join(SRC_DIR, 'shared', 'utils', 'storage.js');
 
 function walk(dir) {
   let results = [];
@@ -18,14 +26,14 @@ function walk(dir) {
   return results;
 }
 
-const files = walk('c:/Users/jhona/RimMET/src');
+const files = walk(SRC_DIR);
 
 files.forEach(file => {
   if (file.includes('fix_storage.cjs') || file.includes('fix_storage.js') || file.includes('storage.js')) return;
   let content = fs.readFileSync(file, 'utf8');
   if (content.includes('localStorage.')) {
     if (!content.includes('safeStorage')) {
-      let relativePath = path.relative(path.dirname(file), 'c:/Users/jhona/RimMET/src/shared/utils/storage.js').replace(/\\/g, '/');
+      let relativePath = path.relative(path.dirname(file), STORAGE_MODULE).replace(/\\/g, '/');
       let importPath = relativePath.startsWith('.') ? relativePath : './' + relativePath;
       importPath = importPath.replace('.js', '');
       const importStmt = "import { safeStorage } from '" + importPath + "';\n";
