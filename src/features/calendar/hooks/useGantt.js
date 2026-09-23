@@ -19,6 +19,7 @@ import {
 } from '../domain/optimisticSchedule';
 
 const EMPTY_TASKS = Object.freeze([]);
+const POLL_INTERVAL_MS = 30000;
 
 const toApiPayload = (payload) => {
   if (typeof payload === 'string' && payload.trim()) {
@@ -47,6 +48,7 @@ const toApiPayload = (payload) => {
     horaFin: payload.horaFin || '',
     lastModified: payload.lastModified || null,
     rowId: payload.rowId || null,
+    grupo_id: payload.grupo_id || null,
     autor: tokenData?.nombre || tokenData?.usuario || 'Sistema',
     creado_en: 'CronoMET',
   };
@@ -63,6 +65,7 @@ export function useGantt() {
   const [useMock, setUseMock] = useState(true);
   const tasksRef = useRef([]);
   const mutationSequenceRef = useRef(0);
+  const scheduleVersionRef = useRef(null);
 
   const commitTasks = useCallback((nextTasks) => {
     tasksRef.current = nextTasks;
@@ -84,6 +87,21 @@ export function useGantt() {
   // previewDays ya no se usa pero lo mantenemos vacío para compatibilidad
   const previewDays = [];
 
+  const rangeParams = useMemo(() => ({
+    start: format(prevWeekStart, 'yyyy-MM-dd'),
+    end: format(nextWeekEnd, 'yyyy-MM-dd'),
+  }), [prevWeekStart, nextWeekEnd]);
+
+  // Huella del rango en el servidor; null si el backend aún no expone el endpoint.
+  const fetchScheduleVersion = useCallback(async () => {
+    try {
+      const response = await api.get('/calendar/cronograma/version', rangeParams);
+      return response?.data?.version ?? null;
+    } catch {
+      return null;
+    }
+  }, [rangeParams]);
+
   // Intentar cargar del backend; si falla, conservar mock
   const fetchData = useCallback(async ({ silent = false } = {}) => {
     const token = safeStorage.getItem('rimmet_token');
@@ -92,13 +110,12 @@ export function useGantt() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const startStr = format(prevWeekStart, 'yyyy-MM-dd');
-      const endStr   = format(nextWeekEnd,   'yyyy-MM-dd');
-
-      const [scheduleRaw, techniciansRaw] = await Promise.all([
-        api.get('/calendar/cronograma', { start: startStr, end: endStr }),
+      const [scheduleRaw, techniciansRaw, version] = await Promise.all([
+        api.get('/calendar/cronograma', rangeParams),
         api.get('/calendar/tecnicos'),
+        fetchScheduleVersion(),
       ]);
+      scheduleVersionRef.current = version;
       const scheduleData = parseScheduleResponse(scheduleRaw);
       const tecnicosData = parseTechniciansResponse(techniciansRaw);
 
@@ -169,7 +186,9 @@ export function useGantt() {
             createdAt: row.fecha_creacion && row.hora_creacion ? `${row.fecha_creacion} ${row.hora_creacion}`.trim() : '',
             updatedBy: row.actualizado_por || '',
             updatedAt: row.fecha_modificacion && row.hora_modificacion ? `${row.fecha_modificacion} ${row.hora_modificacion}`.trim() : '',
-            creadoEn: row.creado_en || ''
+            creadoEn: row.creado_en || '',
+            grupoId: row.grupo_id || null,
+            createdById: row.id_creador ?? null,
           };
         }).filter(Boolean);
 
@@ -186,11 +205,30 @@ export function useGantt() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [commitTasks, prevWeekStart, nextWeekEnd]);
+  }, [commitTasks, fetchScheduleVersion, rangeParams]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Sondeo liviano: pregunta solo la huella y descarga el cronograma completo
+  // cuando cambió. Con la pestaña oculta no consulta; al volver, revisa enseguida.
+  useEffect(() => {
+    const pollForChanges = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!safeStorage.getItem('rimmet_token')) return;
+      const version = await fetchScheduleVersion();
+      if (version && version === scheduleVersionRef.current) return;
+      await fetchData({ silent: true });
+    };
+
+    const intervalId = setInterval(pollForChanges, POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', pollForChanges);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', pollForChanges);
+    };
+  }, [fetchData, fetchScheduleVersion]);
 
   const tasksByResourceAndDay = useMemo(() => {
     const index = new Map();
@@ -252,11 +290,16 @@ export function useGantt() {
     }
   }, [commitTasks, fetchData, tecnicos]);
 
+  /**
+   * Guarda varias filas en una sola transacción: o se aplican todas o ninguna.
+   * Cada asignación puede traer su propia `date`; si no, usa `date`.
+   */
   const upsertScheduleAssignments = useCallback(async (date, assignments) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    const normalizedAssignments = assignments.map(({ resource, payload }) => ({
-      resource,
-      payload: toApiPayload(payload),
+    const normalizedAssignments = assignments.map(assignment => ({
+      date: assignment.date ? format(assignment.date, 'yyyy-MM-dd') : dateStr,
+      resource: assignment.resource,
+      payload: toApiPayload(assignment.payload),
     }));
     const previousTasks = tasksRef.current;
     const mutationId = ++mutationSequenceRef.current;
@@ -272,11 +315,7 @@ export function useGantt() {
     try {
       const response = await api.post('/calendar/cronograma/asignaciones', {
         date: dateStr,
-        assignments: normalizedAssignments.map(({ resource, payload }) => ({
-          date: dateStr,
-          resource,
-          payload,
-        })),
+        assignments: normalizedAssignments,
       });
       const serverResults = Array.isArray(response?.data) ? response.data : [];
       commitTasks(reconcileOptimisticAssignments(

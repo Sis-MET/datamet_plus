@@ -24,6 +24,8 @@ const getSchedule = async (start, end) => {
         CONVERT(varchar(8), hora_fin,    8) as hora_fin,
         hora_total,
         creado_por,
+        id_creador,
+        grupo_id,
         creado_en,
         CONVERT(varchar, fecha_creacion, 23) as fecha_creacion,
         CONVERT(varchar, hora_creacion, 8) as hora_creacion,
@@ -36,6 +38,32 @@ const getSchedule = async (start, end) => {
     `);
 
   return result.recordset;
+};
+
+/**
+ * Huella barata del rango: cambia con cualquier alta, edición, anulación o
+ * movimiento. El cliente la consulta en cada sondeo y solo pide el cronograma
+ * completo cuando cambia.
+ */
+const getScheduleVersion = async (start, end) => {
+  const pool = getPool();
+
+  const result = await pool.request()
+    .input('start', sql.Date, start)
+    .input('end', sql.Date, end)
+    .query(`
+      SELECT
+        COUNT_BIG(*) AS total,
+        CHECKSUM_AGG(BINARY_CHECKSUM(
+          id, fecha, estado, tipo_tarea, cotizacion, descripcion, cliente, planta, color,
+          hora_inicio, hora_fin, fecha_modificacion, hora_modificacion, id_usuario, usuario
+        )) AS checksum
+      FROM DATA_CRONOGRAMA
+      WHERE fecha >= @start AND fecha <= @end
+    `);
+
+  const row = result.recordset[0] || {};
+  return `${row.total ?? 0}:${row.checksum ?? 0}`;
 };
 
 const getTecnicos = async () => {
@@ -78,5 +106,6 @@ const getTecnicos = async () => {
 
 module.exports = {
   getSchedule,
+  getScheduleVersion,
   getTecnicos
 };

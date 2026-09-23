@@ -8,6 +8,7 @@ import { GanttPage } from './GanttPage';
 import { DepartureReadOnlyModal } from '../departures/components/DepartureReadOnlyModal';
 import { usePageScrollLock } from '../../shared/hooks/usePageScrollLock';
 import { cn } from '../../shared/utils/cn';
+import { isVehicleResource } from './domain/vehicleAvailability';
 
 const menuItem = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium text-fg transition-colors hover:bg-fg/[0.06]';
 
@@ -19,11 +20,11 @@ export function CalendarPage() {
     currentDate, selectedDay, calendarDays, selectedDayEvents,
     eventsForDay, selectDay, nextMonth, prevMonth, isToday, isSameDay, isSameMonth,
     filteredTecnicos, selectedArea, setSelectedArea,
-    isFormOpen, editingEvent, prefilledDate, prefilledResource,
+    isFormOpen, editingEvent, editingLinkedTasks, prefilledDate, prefilledResource,
     selectedDeparture,
     isDragging, dragPos, isCtrlPressed,
     contextMenu,
-    isAdmin, isJefeDeArea, canModifyTask, user,
+    isAdmin, isJefeDeArea, canModifyTask, getVehicleLockMessage, getTaskLockMessage, user,
     handleOpenForm, handleSaveForm, handleDeleteTask,
     handleTaskDrop, handleStateChange,
     handleAssignVehicleInit,
@@ -111,6 +112,11 @@ export function CalendarPage() {
                   toast.error('No puedes modificar tareas de fechas pasadas.', { duration: 3000 });
                   return;
                }
+               const vehicleLock = getTaskLockMessage(evt, res, date);
+               if (vehicleLock) {
+                  toast.error(vehicleLock, { duration: 5000 });
+                  return;
+               }
                handleOpenForm(evt, date, res);
             } : undefined}
             onTaskDrop={isAdmin || isJefeDeArea ? (sourceTask, targetDate, targetResource, isMoveKey) => {
@@ -126,6 +132,11 @@ export function CalendarPage() {
                   toast.error('No puedes mover tareas de fechas pasadas.', { duration: 3000 });
                   return;
                }
+               const vehicleLock = isMoveKey && getVehicleLockMessage(sourceTask, sourceTask?.sourceResource);
+               if (vehicleLock) {
+                  toast.error(vehicleLock, { duration: 5000 });
+                  return;
+               }
                handleTaskDrop(sourceTask, targetDate, targetResource, isMoveKey);
             } : undefined}
             onTaskContextMenu={isAdmin || isJefeDeArea ? (e, task, date, res) => {
@@ -133,6 +144,11 @@ export function CalendarPage() {
                const isOwnPendingTask = String(task?.id_usuario) === String(user?.id) && (task?.estadoAM === 'Pendiente' || task?.estadoAM === 'En Proceso');
                if (!canModifyTask(date) && !isOwnPendingTask) {
                   toast.error('No puedes modificar tareas de fechas pasadas.', { duration: 3000 });
+                  return;
+               }
+               const vehicleLock = getVehicleLockMessage(task, res);
+               if (vehicleLock) {
+                  toast.error(vehicleLock, { duration: 5000 });
                   return;
                }
                const menuW = 200, menuH = 240;
@@ -191,6 +207,7 @@ export function CalendarPage() {
           prefilledDate={prefilledDate}
           prefilledResource={prefilledResource}
           existingTasks={tasksForCell(prefilledResource, prefilledDate)}
+          linkedTasks={editingLinkedTasks}
           getTasksForResource={tasksForCell}
           tecnicos={tecnicos}
         />
@@ -278,10 +295,10 @@ export function CalendarPage() {
                     >
                        <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-fg-subtle">Vehículos</p>
                        <div className="flex max-h-48 flex-col overflow-y-auto">
-                          {tecnicos.filter(t => t.area === 'VEHÍCULOS').length === 0 && (
+                          {tecnicos.filter(isVehicleResource).length === 0 && (
                             <span className="px-2.5 py-2 text-xs text-fg-muted">Sin vehículos en el sistema</span>
                           )}
-                          {tecnicos.filter(t => t.area === 'VEHÍCULOS').map(vehiculo => (
+                          {tecnicos.filter(isVehicleResource).map(vehiculo => (
                              <button
                                key={vehiculo.id}
                                role="menuitem"

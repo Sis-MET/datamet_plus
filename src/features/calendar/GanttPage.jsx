@@ -8,6 +8,7 @@ import { GanttHelpButton } from './components/GanttHelpButton';
 import { TaskTooltipProvider } from './components/TaskTooltipProvider';
 import { getGanttRowLayout } from './utils/ganttRowLayout';
 import { cn } from '../../shared/utils/cn';
+import { isVehicleResource } from './domain/vehicleAvailability';
 
 const getAreaLabel = (area) => (typeof area === 'string' && area.trim() !== '' ? area.trim() : 'Sin Área');
 
@@ -340,10 +341,10 @@ export function GanttPage({
               {grupos.map(([area, tecnicosDelArea]) => (
                 <React.Fragment key={area}>
                   {/* ── Separador de Área ── */}
-                  <div className={cn('gantt-area-separator', area === 'VEHÍCULOS' && 'gantt-area-separator-vehicles')}>
+                  <div className={cn('gantt-area-separator', isVehicleResource({ area }) && 'gantt-area-separator-vehicles')}>
                     <div className="gantt-area-label">
-                      {area === 'VEHÍCULOS' && <Truck className="h-3.5 w-3.5" aria-hidden="true" />}
-                      <span>{area === 'VEHÍCULOS' ? 'Vehículos' : area}</span>
+                      {isVehicleResource({ area }) && <Truck className="h-3.5 w-3.5" aria-hidden="true" />}
+                      <span>{isVehicleResource({ area }) ? 'Vehículos' : area}</span>
                       <span className="rounded-full bg-fg/[0.07] px-1.5 py-px text-[10px] font-semibold normal-case tabular-nums tracking-normal text-fg-muted">
                         {tecnicosDelArea.length}
                       </span>

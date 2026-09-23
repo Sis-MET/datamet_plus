@@ -15,6 +15,7 @@ import { TimelineBar } from './TimelineBar';
 import { TimeSelect } from './TimeSelect';
 import { FloatingDropdown } from './FloatingDropdown';
 import { useVehicleAvailability } from '../hooks/useVehicleAvailability';
+import { isVehicleResource } from '../domain/vehicleAvailability';
 import {
   ACTIVITY_OPTIONS,
   NO_CLIENT_ACTIVITY_TYPES,
@@ -411,6 +412,8 @@ function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disab
   );
 }
 
+const NO_LINKED_TASKS = Object.freeze([]);
+
 export function CellPopoverForm({
   isOpen,
   onClose,
@@ -421,6 +424,7 @@ export function CellPopoverForm({
   existingTasks = [],
   getTasksForResource,
   tecnicos = [],
+  linkedTasks = NO_LINKED_TASKS,
 }) {
   usePageScrollLock(isOpen);
   const [activityType, setActivityType] = useState('');
@@ -468,7 +472,7 @@ export function CellPopoverForm({
         ? item.area.trim()
         : 'Sin Area';
 
-      if (normalizeArea(area) === 'VEHICULOS') return;
+      if (isVehicleResource(item)) return;
       if (!map[area]) map[area] = [];
       map[area].push(item);
     });
@@ -478,9 +482,15 @@ export function CellPopoverForm({
 
   const vehiculos = useMemo(
     () => tecnicos
-      .filter(item => normalizeArea(item.area || '') === 'VEHICULOS' && item.id !== prefilledResource)
+      .filter(item => isVehicleResource(item) && item.id !== prefilledResource)
       .sort((a, b) => a.nombre.localeCompare(b.nombre)),
     [tecnicos, prefilledResource]
+  );
+
+  // Las filas de esta misma ficha no cuentan como ocupación del vehículo.
+  const ownRowIds = useMemo(
+    () => [event?.rowId, ...linkedTasks.map(task => task.rowId)].filter(Boolean),
+    [event?.rowId, linkedTasks]
   );
 
   const vehicleAvailability = useVehicleAvailability({
@@ -488,7 +498,7 @@ export function CellPopoverForm({
     date: prefilledDate,
     start: horaInicio,
     end: horaFin,
-    sourceTask: event,
+    ignoredRowIds: ownRowIds,
     getTasksForResource,
   });
 
@@ -660,14 +670,17 @@ export function CellPopoverForm({
       setHoraFin(getMaxEndForStart(blocks, freeStart, userJFin));
     }
 
+    // Al editar se muestran las personas y el vehículo que ya son parte de la ficha.
+    const isVehicleRow = (task) => isVehicleResource(tecnicos.find(item => item.id === task.Tecnico));
+    const linkedOthers = event ? linkedTasks.filter(task => task.Tecnico !== prefilledResource) : [];
     setActiveColorPicker(null);
-    setAdditionalResources([]);
-    setSelectedVehicle('');
+    setAdditionalResources([...new Set(linkedOthers.filter(task => !isVehicleRow(task)).map(task => task.Tecnico))]);
+    setSelectedVehicle(linkedOthers.find(isVehicleRow)?.Tecnico || '');
     setShowVehicles(false);
     setShowAdditionalUsers(false);
     setShowAssignments(false);
     setShowAvailability(false);
-  }, [event, existingTasks, initializationKey, isOpen, setDescription, userJFin, userJInicio]);
+  }, [event, existingTasks, initializationKey, isOpen, linkedTasks, prefilledResource, setDescription, tecnicos, userJFin, userJInicio]);
 
   useEffect(() => {
     if (!isOpen) {

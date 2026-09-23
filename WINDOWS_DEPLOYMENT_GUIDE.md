@@ -68,6 +68,12 @@ El firewall de Windows bloquea conexiones externas por defecto. Debes abrir los 
    ```
    > **Nota:** Ya no necesitas usar la IP del contenedor Docker para el `DB_SERVER`. Si SQL Server corre en la misma máquina, usa `localhost` o `127.0.0.1`.
 
+4. Aplica las migraciones pendientes de la base de datos **antes** de levantar o reiniciar la API. Haz un respaldo primero; cada migración se aplica una sola vez.
+   ```cmd
+   corepack pnpm migrate
+   ```
+   > **Importante:** desde la migración `003` el cronograma usa las columnas `grupo_id` e `id_creador`. Si actualizas el código sin migrar, guardar fichas fallará.
+
 ## 4. Levantar la API como Servicio con PM2 (Recomendado)
 
 En producción o en un servidor, no debes levantar tu app corriendo un simple `pnpm start` en una terminal visible, porque si cierras la ventana o si el servidor se reinicia, tu API se cae. **Usaremos PM2.**

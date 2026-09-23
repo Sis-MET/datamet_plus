@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { safeStorage } from '../../../shared/utils/storage';
 import { api } from '../../../shared/api/client';
 import { parseToken } from '../../../shared/api/client';
+import { isVehicleResource } from '../../calendar/domain/vehicleAvailability';
 
 const SOURCE_TAG = 'Salida Personal';
 
@@ -22,7 +23,7 @@ export function useDepartures() {
     try {
       const data = await api.get('/calendar/tecnicos');
       if (data.success) {
-        setTecnicos(data.data.filter(t => t.area !== 'VEHÍCULOS'));
+        setTecnicos(data.data.filter(t => !isVehicleResource(t)));
       }
     } catch (e) {
       console.error('useDepartures: fetchTecnicos error', e);

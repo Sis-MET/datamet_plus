@@ -1,4 +1,5 @@
 import { timeToMinutes } from '../utils/calendarTime';
+import { hasTaskContent, hasTimeOverlap } from './taskLinks';
 
 export const PRESET_COLORS = [
   '#dadd12ff',
@@ -31,22 +32,6 @@ export const normalizeArea = (area = '') => String(area)
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
   .toUpperCase();
-
-const normalizeTaskValue = (value) => String(value || '').trim().toLowerCase();
-
-export const isCopyOfEditedTask = (task, sourceTask) => {
-  if (!sourceTask) return false;
-
-  return (
-    normalizeTaskValue(task.tipoTarea || task.morning) === normalizeTaskValue(sourceTask.tipoTarea || sourceTask.morning) &&
-    normalizeTaskValue(task.cotizacion) === normalizeTaskValue(sourceTask.cotizacion) &&
-    normalizeTaskValue(task.descripcion) === normalizeTaskValue(sourceTask.descripcion) &&
-    normalizeTaskValue(task.cliente) === normalizeTaskValue(sourceTask.cliente) &&
-    normalizeTaskValue(task.planta) === normalizeTaskValue(sourceTask.planta) &&
-    normalizeTaskValue(task.horaInicio) === normalizeTaskValue(sourceTask.horaInicio) &&
-    normalizeTaskValue(task.horaFin) === normalizeTaskValue(sourceTask.horaFin)
-  );
-};
 
 export const getVehicleTaskLabel = (task) => (
   task.tipoTarea || task.morning || task.descripcion || 'Otra tarea'
@@ -99,18 +84,20 @@ export const isPlantCode = (value) => /^\d+\s*-\s*\d+/i.test(String(value || '')
 
 export const getClientCodeFromPlantCode = (value) => String(value || '').trim().split('-')[0].trim();
 
-export const findVehicleConflict = ({ tasks = [], sourceTask, start, end }) => {
-  const requestedStart = timeToMinutes(start);
-  const requestedEnd = timeToMinutes(end);
+/**
+ * Primera tarea del vehículo que choca con el horario pedido. `ignoredRowIds`
+ * son las filas de la misma ficha que se está editando: su propia reserva no
+ * cuenta como conflicto.
+ */
+export const findVehicleConflict = ({ tasks = [], ignoredRowIds = [], start, end }) => {
+  const ignored = new Set(ignoredRowIds.filter(Boolean).map(String));
+  const requested = { horaInicio: start, horaFin: end };
 
-  return tasks.find(task => {
-    if (isCopyOfEditedTask(task, sourceTask)) return false;
-    if (!normalizeTaskValue(task.tipoTarea || task.morning || task.afternoon || task.descripcion)) return false;
-
-    const taskStart = timeToMinutes(task.horaInicio || '00:00');
-    const taskEnd = timeToMinutes(task.horaFin || '23:59');
-    return requestedStart < taskEnd && requestedEnd > taskStart;
-  }) || null;
+  return tasks.find(task => (
+    !ignored.has(String(task.rowId)) &&
+    hasTaskContent(task) &&
+    hasTimeOverlap(task, requested)
+  )) || null;
 };
 
 export const validateTaskDraft = ({

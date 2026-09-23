@@ -208,7 +208,10 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
             estadoAM: task.estadoAM,
             horaInicio: task.horaInicio,
             horaFin: task.horaFin,
-            creadoEn: task.creadoEn
+            creadoEn: task.creadoEn,
+            createdBy: task.createdBy,
+            createdById: task.createdById,
+            grupoId: task.grupoId
           });
           e.dataTransfer.setData('application/json', dragData);
           e.dataTransfer.effectAllowed = 'copyMove';

@@ -6,7 +6,7 @@ export function useVehicleAvailability({
   date,
   start,
   end,
-  sourceTask,
+  ignoredRowIds,
   getTasksForResource,
 }) {
   return useMemo(() => Object.fromEntries(
@@ -14,7 +14,7 @@ export function useVehicleAvailability({
       const tasks = typeof getTasksForResource === 'function'
         ? getTasksForResource(vehicle.id, date) || []
         : [];
-      const conflict = findVehicleConflict({ tasks, sourceTask, start, end });
+      const conflict = findVehicleConflict({ tasks, ignoredRowIds, start, end });
 
       return [vehicle.id, {
         available: !conflict,
@@ -25,5 +25,5 @@ export function useVehicleAvailability({
         } : null,
       }];
     })
-  ), [date, end, getTasksForResource, sourceTask, start, vehicles]);
+  ), [date, end, getTasksForResource, ignoredRowIds, start, vehicles]);
 }

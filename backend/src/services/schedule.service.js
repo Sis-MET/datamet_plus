@@ -1,5 +1,6 @@
 const { getPool, sql } = require('../config/db');
 const { validateScheduleBatch, validateScheduleInput } = require('./schedule.validation');
+const { buildVehicleReservationError, canManageVehicleReservation, toUserId } = require('./vehicleReservation.policy');
 
 const calculateHourTotal = (horaInicio, horaFin) => {
   if (!horaInicio || !horaFin) return null;
@@ -23,7 +24,24 @@ const calculateHourTotal = (horaInicio, horaFin) => {
   return Number((diffMinutes / 60).toFixed(2));
 };
 
-const executeUpsertScheduleCell = async (data, createRequest) => {
+const findActorAliases = async (actor, createRequest) => {
+  if (!actor?.usuario) return [];
+  const result = await createRequest()
+    .input('actor_usr', sql.VarChar, actor.usuario)
+    .query('SELECT TRIM(nombre1) AS nombre FROM DATA_USERS WHERE usuario = @actor_usr');
+  return result.recordset.map(row => row.nombre).filter(Boolean);
+};
+
+const assertCanManageVehicleReservation = async ({ actor, creadoPor, creadorId, createRequest }) => {
+  if (canManageVehicleReservation({ actor, creadoPor, creadorId })) return;
+  // Sin id_creador (fila antigua) el creador pudo quedar como primer nombre.
+  const actorAliases = toUserId(creadorId) ? [] : await findActorAliases(actor, createRequest);
+  if (!canManageVehicleReservation({ actor, creadoPor, creadorId, actorAliases })) {
+    throw buildVehicleReservationError(creadoPor);
+  }
+};
+
+const executeUpsertScheduleCell = async (data, createRequest, actor) => {
   const { date, resource, payload } = data;
 
   const tipoTarea    = payload ? (payload.tipo_tarea || payload.tipoTarea || payload.morning || '') : '';
@@ -34,16 +52,20 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
   const planta       = payload ? (payload.planta || '') : '';
   const color        = payload ? (payload.color   || payload.colorAM || '#10B981') : '#10B981';
   const estado       = payload ? (payload.estado  || payload.estadoAM || 'Pendiente') : 'Pendiente';
-  const autor        = payload ? (payload.autor   || 'Sistema') : 'Sistema';
+  // El autor sale del token: el cliente no puede firmar en nombre de otro.
+  const autor        = actor?.usuario || (payload ? (payload.autor || 'Sistema') : 'Sistema');
   const lastModified = payload ? (payload.lastModified || null) : null;
   const rowId        = payload ? (payload.rowId   || null) : null;
   const horaInicio   = payload ? (payload.horaInicio || '') : '';
   const horaFin      = payload ? (payload.horaFin    || '') : '';
   const horaTotal    = calculateHourTotal(horaInicio, horaFin);
   const creadoEn     = payload ? (payload.creado_en  || null) : null;
+  const grupoId      = payload ? (payload.grupo_id   || null) : null;
+  const creadorId    = toUserId(actor?.id);
 
   let id_usuario     = null;
   let usuario_nombre = null;
+  let targetIsVehicle = false;
 
   const userMatch = await createRequest()
     .input('res', sql.VarChar, resource)
@@ -70,6 +92,7 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
     if (vehMatch.recordset.length > 0) {
       id_usuario     = vehMatch.recordset[0].id;
       usuario_nombre = vehMatch.recordset[0].fullname;
+      targetIsVehicle = true;
     } else {
       id_usuario     = 999999;
       usuario_nombre = resource;
@@ -96,7 +119,9 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
     .input('hinicio', sql.VarChar,  horaInicio || null)
     .input('hfin',    sql.VarChar,  horaFin    || null)
     .input('htotal',  sql.Decimal(5, 2), horaTotal)
-    .input('creado_en', sql.VarChar, creadoEn   || null);
+    .input('creado_en', sql.VarChar, creadoEn   || null)
+    .input('grupo',   sql.VarChar(36), grupoId)
+    .input('id_creador', sql.Int,   creadorId);
 
   if (!rowId) {
     if (!tipoTarea.trim()) {
@@ -124,7 +149,7 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
         `);
       if (overlapCheck.recordset[0].cnt > 0) {
         const err = new Error(
-          `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este recurso en este día.`
+          `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para ${usuario_nombre} en este día.`
         );
         err.statusCode = 409;
         throw err;
@@ -134,7 +159,7 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
     const insertResult = await upsertReq.query(`
       INSERT INTO DATA_CRONOGRAMA
         (id_usuario, usuario, fecha, tipo_tarea, cotizacion, descripcion, cliente, cod_cliente, planta, color, estado, hora_inicio, hora_fin, hora_total,
-         creado_por, fecha_creacion, hora_creacion, creado_en)
+         creado_por, fecha_creacion, hora_creacion, creado_en, grupo_id, id_creador)
       VALUES
         (@id_us, @usr, @f, @tipo, @cot, @desc, @cliente, @cod_cliente, @planta, @col, @est,
          CASE WHEN @hinicio IS NULL OR @hinicio = '' THEN NULL ELSE CAST(@hinicio AS time(7)) END,
@@ -143,7 +168,9 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
          @autor,
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS DATE),
          CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),
-         @creado_en);
+         @creado_en,
+         @grupo,
+         @id_creador);
 
       SELECT
         CAST(SCOPE_IDENTITY() AS INT) AS id,
@@ -165,17 +192,36 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
   upsertReq.input('row_id', sql.Int, rowId);
 
   const existingRes = await upsertReq.query(`
-    SELECT id,
-      CONVERT(varchar, fecha_modificacion, 23) as fmod,
-      CONVERT(varchar, hora_modificacion, 8)   as hmod,
-      CONVERT(varchar, fecha_creacion, 23)     as fcrea,
-      CONVERT(varchar, hora_creacion, 8)       as hcrea
-    FROM DATA_CRONOGRAMA WITH (UPDLOCK, HOLDLOCK)
-    WHERE id = @row_id
+    SELECT c.id,
+      c.creado_por,
+      c.id_creador,
+      CONVERT(varchar, c.fecha_modificacion, 23) as fmod,
+      CONVERT(varchar, c.hora_modificacion, 8)   as hmod,
+      CONVERT(varchar, c.fecha_creacion, 23)     as fcrea,
+      CONVERT(varchar, c.hora_creacion, 8)       as hcrea,
+      CASE WHEN EXISTS (
+        SELECT 1 FROM DATA_ACTIVOS a
+        WHERE a.id = c.id_usuario
+          AND a.categoria = 'VEHICULO'
+          AND TRIM(ISNULL(a.identificacion, '')) = c.usuario
+      ) THEN 1 ELSE 0 END AS es_vehiculo
+    FROM DATA_CRONOGRAMA c WITH (UPDLOCK, HOLDLOCK)
+    WHERE c.id = @row_id
   `);
 
   if (existingRes.recordset.length === 0) {
     return { status: 'ignored_not_found', resource };
+  }
+
+  // Editar, mover, cambiar estado o anular una reserva de vehículo: solo su dueño.
+  const existingRow = existingRes.recordset[0];
+  if (existingRow.es_vehiculo || targetIsVehicle) {
+    await assertCanManageVehicleReservation({
+      actor,
+      creadoPor: existingRow.creado_por,
+      creadorId: existingRow.id_creador,
+      createRequest,
+    });
   }
 
   if (!tipoTarea.trim()) {
@@ -190,7 +236,7 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
     return { status: 'deleted', resource, id: rowId };
   }
 
-  const row = existingRes.recordset[0];
+  const row = existingRow;
   const fmod = row.fmod ? String(row.fmod).trim() : null;
   const hmod = row.hmod ? String(row.hmod).trim() : null;
   let currentTimestamp = (fmod && hmod) ? `${fmod} ${hmod}` : null;
@@ -236,7 +282,7 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
       `);
     if (overlapCheck.recordset[0].cnt > 0) {
       const err = new Error(
-        `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para este recurso en este día.`
+        `El rango horario ${horaInicio}–${horaFin} se superpone con una actividad ya registrada para ${usuario_nombre} en este día.`
       );
       err.statusCode = 409;
       throw err;
@@ -261,7 +307,8 @@ const executeUpsertScheduleCell = async (data, createRequest) => {
         hora_modificacion  = CAST(SYSDATETIMEOFFSET() AT TIME ZONE 'SA Western Standard Time' AS TIME),
         fecha              = @f,
         id_usuario         = @id_us,
-        usuario            = @usr
+        usuario            = @usr,
+        grupo_id           = COALESCE(@grupo, grupo_id)
     WHERE id = @row_id;
 
     SELECT
@@ -308,17 +355,17 @@ const runTransaction = async (work) => {
   }
 };
 
-const upsertScheduleCell = async (data) => {
+const upsertScheduleCell = async (data, actor) => {
   const normalized = validateScheduleInput(data);
-  return runTransaction(createRequest => executeUpsertScheduleCell(normalized, createRequest));
+  return runTransaction(createRequest => executeUpsertScheduleCell(normalized, createRequest, actor));
 };
 
-const upsertScheduleAssignments = async (data) => {
+const upsertScheduleAssignments = async (data, actor) => {
   const assignments = validateScheduleBatch(data);
   return runTransaction(async createRequest => {
     const results = [];
     for (const assignment of assignments) {
-      results.push(await executeUpsertScheduleCell(assignment, createRequest));
+      results.push(await executeUpsertScheduleCell(assignment, createRequest, actor));
     }
     return results;
   });

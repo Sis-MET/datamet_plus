@@ -12,6 +12,39 @@ const VEHICLE_AREA = 'VEHICULOS';
 export const isVehicleResource = (resource) =>
   normalizeArea(resource?.area || '') === VEHICLE_AREA;
 
+const normalizeName = (value) => String(value ?? '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
+
+const UNOWNED_AUTHORS = new Set(['', 'sistema']);
+
+const toUserId = (value) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+/**
+ * Una reserva en la fila de un vehículo pertenece a quien la creó. Espejo de
+ * backend/src/services/vehicleReservation.policy.js: la UI avisa antes de
+ * intentar y el servidor es quien realmente lo impide. Las filas nuevas se
+ * comparan por id de creador; las antiguas, por nombre.
+ */
+export function canManageVehicleReservation(task, user) {
+  if (String(user?.acceso_cron) === '3') return true;
+
+  const ownerId = toUserId(task?.createdById);
+  if (ownerId) return toUserId(user?.id) === ownerId;
+
+  const owner = normalizeName(task?.createdBy);
+  if (UNOWNED_AUTHORS.has(owner)) return true;
+
+  return [user?.usuario, user?.nombre]
+    .map(normalizeName)
+    .some(name => name && name === owner);
+}
+
 const toShiftTime = (value, fallback) => (
   typeof value === 'string' && value.trim() ? value.trim().substring(0, 5) : fallback
 );

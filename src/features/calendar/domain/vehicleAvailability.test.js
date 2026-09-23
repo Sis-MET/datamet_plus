@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canManageVehicleReservation,
   getVehicleDayAvailability,
   isVehicleResource,
   summarizeVehicleAvailability,
@@ -79,5 +80,29 @@ describe('vehicleAvailability', () => {
       'libre-a', 'libre-b', 'parcial', 'ocupado',
     ]);
     expect(summary).toMatchObject({ total: 4, freeCount: 2, partialCount: 1, busyCount: 1 });
+  });
+});
+
+describe('canManageVehicleReservation', () => {
+  const admin = { usuario: 'jperez', nombre: 'Juan', acceso_cron: '2' };
+
+  it('permite al creador por usuario o por nombre', () => {
+    expect(canManageVehicleReservation({ createdBy: 'JPerez' }, admin)).toBe(true);
+    expect(canManageVehicleReservation({ createdBy: 'Juán ' }, admin)).toBe(true);
+  });
+
+  it('bloquea a otro administrador', () => {
+    expect(canManageVehicleReservation({ createdBy: 'mlopez' }, admin)).toBe(false);
+  });
+
+  it('con id de creador compara por id y no por nombre', () => {
+    expect(canManageVehicleReservation({ createdById: 7, createdBy: 'x' }, { ...admin, id: 7 })).toBe(true);
+    expect(canManageVehicleReservation({ createdById: 7, createdBy: 'jperez' }, { ...admin, id: 9 })).toBe(false);
+  });
+
+  it('deja pasar a desarrolladores y reservas sin creador real', () => {
+    expect(canManageVehicleReservation({ createdBy: 'mlopez' }, { usuario: 'dev', acceso_cron: '3' })).toBe(true);
+    expect(canManageVehicleReservation({ createdBy: 'Sistema' }, admin)).toBe(true);
+    expect(canManageVehicleReservation({ createdBy: '' }, admin)).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const GROUP_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const text = (value, maxLength, label = 'El campo') => {
   const normalized = String(value ?? '').trim();
@@ -61,6 +62,7 @@ const validateScheduleInput = (data) => {
       estadoAM: text(payload.estadoAM || payload.estado, 50, 'El estado'),
       autor: text(payload.autor, 200, 'El autor'),
       creado_en: text(payload.creado_en, 100, 'El origen'),
+      grupo_id: GROUP_ID_PATTERN.test(String(payload.grupo_id || '')) ? String(payload.grupo_id).toLowerCase() : '',
       horaInicio,
       horaFin,
     },
@@ -82,7 +84,10 @@ const validateScheduleBatch = (data) => {
   const seen = new Set();
   return data.assignments.map(assignment => {
     const normalized = validateScheduleInput({ ...assignment, date: assignment.date || data.date });
-    const key = `${normalized.date}|${normalized.resource}`;
+    // Una misma fila no puede tocarse dos veces, ni insertarse dos fichas nuevas
+    // para el mismo recurso y día; sí se permite anular una fila y crear otra
+    // en la misma operación (p. ej. al reprogramar).
+    const key = `${normalized.date}|${normalized.resource}|${normalized.payload.rowId || 'nueva'}`;
     if (seen.has(key)) {
       const error = new Error(`El recurso ${normalized.resource} está repetido en la operación.`);
       error.statusCode = 400;

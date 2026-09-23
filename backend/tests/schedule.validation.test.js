@@ -36,6 +36,39 @@ test('rechaza recursos duplicados dentro de una operación atómica', () => {
   }), /repetido/);
 });
 
+test('permite anular una fila y crear otra del mismo recurso en un lote', () => {
+  const result = validateScheduleBatch({
+    date: '2026-08-17',
+    assignments: [
+      { resource: 'TECNICO_1', payload: { rowId: 10 } },
+      { resource: 'TECNICO_1', payload: { tipo_tarea: 'Visita' } },
+    ],
+  });
+  assert.equal(result.length, 2);
+});
+
+test('acepta fechas distintas por asignación dentro del lote', () => {
+  const result = validateScheduleBatch({
+    date: '2026-08-17',
+    assignments: [
+      { resource: 'TECNICO_1', payload: {} },
+      { date: '2026-08-18', resource: 'TECNICO_1', payload: {} },
+    ],
+  });
+  assert.deepEqual(result.map(item => item.date), ['2026-08-17', '2026-08-18']);
+});
+
+test('solo conserva grupo_id con formato UUID', () => {
+  const valid = validateScheduleInput({
+    date: '2026-08-17', resource: 'T', payload: { grupo_id: '3F2504E0-4F89-41D3-9A0C-0305E82C3301' },
+  });
+  const invalid = validateScheduleInput({
+    date: '2026-08-17', resource: 'T', payload: { grupo_id: "x'; DROP" },
+  });
+  assert.equal(valid.payload.grupo_id, '3f2504e0-4f89-41d3-9a0c-0305e82c3301');
+  assert.equal(invalid.payload.grupo_id, '');
+});
+
 test('rechaza texto largo en vez de truncar datos silenciosamente', () => {
   assert.throws(() => validateScheduleInput({
     date: '2026-08-17',

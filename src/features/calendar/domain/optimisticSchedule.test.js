@@ -34,6 +34,18 @@ describe('optimisticSchedule', () => {
     });
   });
 
+  it('respeta la fecha de cada asignación y conserva el creador al editar', () => {
+    const current = [{ id: 'task_9', rowId: 9, morning: 'Servicio', createdBy: 'ana', createdById: 7, grupoId: 'g1' }];
+    const result = applyOptimisticAssignments(current, '2026-08-17', [
+      { resource: 'Ana_QA', payload: { rowId: 9, tipo_tarea: 'Servicio', autor: 'luis' } },
+      { date: '2026-08-19', resource: 'Ana_QA', payload: { tipo_tarea: 'Visita', grupo_id: 'g2' } },
+    ], technicians, 'batch');
+
+    expect(result.tasks[0]).toMatchObject({ rowId: 9, createdBy: 'ana', createdById: 7, grupoId: 'g1', updatedBy: 'luis' });
+    expect(result.tasks[1].fecha.toISOString().slice(0, 10)).toBe('2026-08-19');
+    expect(result.tasks[1].grupoId).toBe('g2');
+  });
+
   it('reemplaza y elimina por rowId sin duplicar la ficha', () => {
     const current = [{ id: 'task_9', rowId: 9, morning: 'Servicio' }];
     const updated = applyOptimisticAssignments(current, '2026-08-18', [{

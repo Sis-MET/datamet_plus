@@ -19,6 +19,8 @@ export const scheduleRowSchema = z.object({
   hora_fin: nullableText,
   hora_total: z.coerce.number().nullable().optional(),
   creado_por: nullableText,
+  id_creador: z.coerce.number().nullable().optional(),
+  grupo_id: nullableText,
   creado_en: nullableText,
   fecha_creacion: nullableText,
   hora_creacion: nullableText,

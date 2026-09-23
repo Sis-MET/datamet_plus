@@ -6,7 +6,7 @@ const findTechnician = (technicians, resource) => (
   technicians.find(technician => technician.id === resource)
 );
 
-const buildOptimisticTask = ({ date, resource, payload, technicians, optimisticId }) => {
+const buildOptimisticTask = ({ date, resource, payload, technicians, optimisticId, previousTask }) => {
   const technician = findTechnician(technicians, resource);
   const rowId = payload.rowId || null;
   const type = taskType(payload);
@@ -36,7 +36,16 @@ const buildOptimisticTask = ({ date, resource, payload, technicians, optimisticI
     updatedBy: '',
     updatedAt: '',
     creadoEn: payload.creado_en || 'CronoMET',
+    grupoId: payload.grupo_id || previousTask?.grupoId || null,
+    createdById: previousTask?.createdById ?? null,
     optimistic: true,
+    // Al editar, el creador sigue siendo el original: de él depende quién puede
+    // tocar una reserva de vehículo.
+    ...(previousTask ? {
+      createdBy: previousTask.createdBy,
+      createdAt: previousTask.createdAt,
+      updatedBy: payload.autor || 'Sistema',
+    } : {}),
   };
 };
 
@@ -49,6 +58,9 @@ export function applyOptimisticAssignments(currentTasks, date, assignments, tech
     const rowId = payload.rowId || null;
     const optimisticId = `optimistic_${mutationId}_${index}`;
     const type = taskType(payload);
+    const previousTask = rowId
+      ? nextTasks.find(task => String(task.rowId) === String(rowId))
+      : null;
 
     if (rowId) {
       nextTasks = nextTasks.filter(task => String(task.rowId) !== String(rowId));
@@ -62,11 +74,12 @@ export function applyOptimisticAssignments(currentTasks, date, assignments, tech
 
     if (type) {
       const task = buildOptimisticTask({
-        date,
+        date: assignment.date || date,
         resource: assignment.resource,
         payload,
         technicians,
         optimisticId,
+        previousTask,
       });
       nextTasks = [...nextTasks, task];
       operation.taskId = task.id;
