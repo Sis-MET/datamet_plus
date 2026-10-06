@@ -1,0 +1,31 @@
+const express = require('express');
+const controller = require('../controllers/calibration.controller');
+const { protect } = require('../middleware/auth.middleware');
+const { requireCalibrationEditor } = require('../middleware/calibration.middleware');
+
+const router = express.Router();
+const editor = [protect, requireCalibrationEditor];
+
+// Lectura: cualquier usuario con sesión.
+router.get('/plan', protect, controller.getPlan);
+router.get('/alertas/resumen', protect, controller.getAlertSummary);
+router.get('/personal', protect, controller.getPersonal);
+router.post('/vista-previa', protect, controller.previewDates);
+
+// Escritura: área Calibración y nivel 3.
+router.put('/equipos', editor, controller.updateEquipos);
+router.put('/equipos/:id', editor, controller.updateEquipo);
+router.post('/actividades', editor, controller.createActividad);
+router.put('/actividades/:id', editor, controller.updateActividad);
+router.delete('/actividades/:id', editor, controller.deleteActividad);
+router.put('/eventos', editor, controller.saveEvento);
+router.delete('/eventos', editor, controller.resetEvento);
+router.get('/alertas/ajustes', editor, controller.getAlertSettings);
+router.put('/alertas/ajustes', editor, controller.updateAjustes);
+router.post('/alertas/contactos', editor, controller.createContacto);
+router.put('/alertas/contactos/:id', editor, controller.updateContacto);
+router.delete('/alertas/contactos/:id', editor, controller.deleteContacto);
+router.post('/alertas/prueba', editor, controller.sendTestEmail);
+router.post('/alertas/ejecutar', editor, controller.runAlerts);
+
+module.exports = router;
