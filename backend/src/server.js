@@ -1,6 +1,7 @@
 const app = require('./app');
 const env = require('./config/env');
 const { connectDB } = require('./config/db');
+const { startCalibrationScheduler, stopCalibrationScheduler } = require('./services/calibration.scheduler');
 
 const startServer = async () => {
   try {
@@ -12,9 +13,14 @@ const startServer = async () => {
       console.log(`Servidor backend HTTP corriendo en el puerto ${env.port}`);
       console.log(`Entorno: ${env.nodeEnv}`);
     });
+
+    // 3. Revisión diaria de alertas de calibración por correo
+    startCalibrationScheduler();
+
     // Manejo de cierres gráciles (Graceful Shutdown)
     const shutdown = () => {
       console.log('Apagando servidor...');
+      stopCalibrationScheduler();
       server.close(() => {
         console.log('Servidor HTTP cerrado.');
         process.exit(0);
