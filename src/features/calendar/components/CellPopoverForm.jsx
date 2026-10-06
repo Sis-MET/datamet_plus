@@ -13,7 +13,7 @@ import { AdditionalResourcesPicker } from './AdditionalResourcesPicker';
 import { VehiclePicker } from './VehiclePicker';
 import { TimelineBar } from './TimelineBar';
 import { TimeSelect } from './TimeSelect';
-import { FloatingDropdown } from './FloatingDropdown';
+import { FloatingDropdown } from '../../../shared/components/ui/FloatingDropdown';
 import { useVehicleAvailability } from '../hooks/useVehicleAvailability';
 import { isVehicleResource } from '../domain/vehicleAvailability';
 import {

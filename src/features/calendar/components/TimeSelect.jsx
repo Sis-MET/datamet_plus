@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { FloatingDropdown } from './FloatingDropdown';
+import { FloatingDropdown } from '../../../shared/components/ui/FloatingDropdown';
 
 export function TimeSelect({ value, onChange, slots }) {
   const [open, setOpen] = useState(false);

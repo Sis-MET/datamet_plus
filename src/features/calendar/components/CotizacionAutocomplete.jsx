@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { api } from '../../../shared/api/client';
-import { FloatingDropdown } from './FloatingDropdown';
+import { FloatingDropdown } from '../../../shared/components/ui/FloatingDropdown';
 
 /**
  * Input de autocompletado para cotizaciones.
