@@ -88,14 +88,21 @@ const MODAL_SIZES = {
   md: 'max-w-2xl',
 };
 
+// Fichas abiertas, de abajo hacia arriba. Solo la de arriba atiende el
+// teclado (Escape, Tab): por ejemplo, registrar un certificado encima de la
+// ficha del equipo.
+const openModals = [];
+const isTopModal = (id) => openModals[openModals.length - 1] === id;
+
 /**
  * Ficha modal con el mismo armazón que la ficha de tarea del Cronograma:
  * centrada en escritorio y como hoja inferior en móvil, cabecera y pie fijos.
  * Atrapa el foco, se cierra con Escape o tocando fuera y devuelve el foco.
  * `children` y `footer` pueden ser funciones que reciben `close`.
  */
-export function Modal({ title, subtitle, onClose, children, footer, size = 'lg', busy = false }) {
+export function Modal({ title, subtitle, actions, onClose, children, footer, size = 'lg', busy = false }) {
   const titleId = useId();
+  const modalId = useId();
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
   const busyRef = useRef(busy);
@@ -121,12 +128,21 @@ export function Modal({ title, subtitle, onClose, children, footer, size = 'lg',
   }, [closing]);
 
   useEffect(() => {
+    openModals.push(modalId);
+    return () => {
+      const index = openModals.lastIndexOf(modalId);
+      if (index >= 0) openModals.splice(index, 1);
+    };
+  }, [modalId]);
+
+  useEffect(() => {
     const previous = document.activeElement;
     const panel = panelRef.current;
     // La ficha ya está en el DOM: el foco entra sin esperar al siguiente cuadro.
     const target = panel?.querySelector('[data-autofocus]') || panel?.querySelector('.cal-modal-body ' + FOCUSABLE) || panel;
     target?.focus({ preventScroll: true });
     const handleKeyDown = (event) => {
+      if (!isTopModal(modalId)) return;
       if (event.key === 'Escape') {
         requestClose();
         return;
@@ -149,7 +165,7 @@ export function Modal({ title, subtitle, onClose, children, footer, size = 'lg',
       document.removeEventListener('keydown', handleKeyDown);
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
     };
-  }, [requestClose]);
+  }, [modalId, requestClose]);
 
   const state = closing ? 'closing' : 'open';
   return createPortal(
@@ -178,6 +194,7 @@ export function Modal({ title, subtitle, onClose, children, footer, size = 'lg',
             <h2 id={titleId} className="truncate text-lg font-semibold tracking-[-0.01em] text-fg">{title}</h2>
             {subtitle && <div className="mt-0.5 truncate text-sm text-fg-muted">{subtitle}</div>}
           </div>
+          {actions && <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>}
           <button
             type="button"
             onClick={requestClose}
@@ -267,12 +284,14 @@ export function PrimaryButton({ onClick, busy, disabled, children, busyLabel = '
   );
 }
 
-export function DangerButton({ onClick, disabled, children }) {
+export function DangerButton({ onClick, disabled, children, label }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-label={label}
+      title={label}
       className="flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
     >
       {children}

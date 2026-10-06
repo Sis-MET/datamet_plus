@@ -105,7 +105,7 @@ export function ActivityModal({ actividad, categorias = [], ajustes, personal, c
             type="button"
             onClick={() => remove(close)}
             disabled={saving}
-            className="flex h-10 items-center justify-center gap-2 rounded-xl bg-danger px-4 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-danger/90 disabled:opacity-50"
+            className="flex h-10 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-red-700 disabled:opacity-50"
           >
             Sí, quitar
           </button>
@@ -115,7 +115,7 @@ export function ActivityModal({ actividad, categorias = [], ajustes, personal, c
     return (
       <>
         {editing && (
-          <DangerButton onClick={() => setConfirmDelete(true)} disabled={saving}>
+          <DangerButton onClick={() => setConfirmDelete(true)} disabled={saving} label="Eliminar actividad">
             <Trash2 className="h-4 w-4" />
             <span className="hidden sm:inline">Eliminar</span>
           </DangerButton>
