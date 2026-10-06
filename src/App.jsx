@@ -4,11 +4,12 @@ import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-
 import { Sidebar } from './shared/components/layout/Sidebar';
 import { Topbar } from './shared/components/layout/Topbar';
 import { Footer } from './shared/components/layout/Footer';
-import { APP_VIEWS, canManageIvmet } from './shared/components/layout/navigation';
+import { APP_VIEWS, canManageIvmet, managesCalibration } from './shared/components/layout/navigation';
 import { useSidebar } from './shared/hooks/useSidebar';
 import { useTheme } from './shared/context/ThemeContext';
 import { safeStorage } from './shared/utils/storage';
 import { decodeJwtPayload, isJwtExpired } from './shared/utils/jwt';
+import { useCalibrationAlertCount } from './features/calibration/hooks/useCalibrationAlertCount';
 
 const RimFormPage = lazy(() => import('./features/rim/RimFormPage')
   .then(module => ({ default: module.RimFormPage })));
@@ -18,6 +19,8 @@ const DeparturesPage = lazy(() => import('./features/departures/DeparturesPage')
   .then(module => ({ default: module.DeparturesPage })));
 const LoginPage = lazy(() => import('./features/auth/LoginPage')
   .then(module => ({ default: module.LoginPage })));
+const CalibrationPage = lazy(() => import('./features/calibration/CalibrationPage')
+  .then(module => ({ default: module.CalibrationPage })));
 const IvmetManagementPage = lazy(() => import('./features/ivmet/IvmetManagementPage')
   .then(module => ({ default: module.IvmetManagementPage })));
 
@@ -50,6 +53,7 @@ function AppToaster() {
 function AppContent({ activeView, setActiveView, currentUser, handleLogout, renderView }) {
   const sidebar = useSidebar();
   const { isDesktop, close: closeSidebar } = sidebar;
+  const calibrationAlerts = useCalibrationAlertCount(managesCalibration(currentUser));
 
   const handleNavigate = useCallback((view) => {
     safeStorage.setItem('rimmet_last_view', view);
@@ -67,6 +71,13 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
           onNavigate={handleNavigate}
           currentUser={currentUser}
           onLogout={handleLogout}
+          badges={calibrationAlerts?.total ? {
+            calibration: {
+              count: calibrationAlerts.total,
+              urgent: calibrationAlerts.vencidas > 0,
+              label: `${calibrationAlerts.total} fechas de calibración requieren atención`,
+            },
+          } : undefined}
           isOpen={sidebar.isOpen}
           isDesktop={isDesktop}
           onClose={closeSidebar}
@@ -180,6 +191,8 @@ function App() {
           : <RimFormPage currentUser={currentUser} />;
       case 'calendar':
         return <CalendarPage />;
+      case 'calibration':
+        return <CalibrationPage />;
       case 'departures':
         return <DeparturesPage />;
       case 'rim':

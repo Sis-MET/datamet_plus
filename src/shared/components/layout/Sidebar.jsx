@@ -19,6 +19,7 @@ export function Sidebar({
   onNavigate,
   currentUser,
   onLogout,
+  badges,
   isOpen,
   isDesktop,
   onClose,
@@ -83,6 +84,7 @@ export function Sidebar({
         {navigation.map((view) => {
           const Icon = view.icon;
           const active = activeView === view.id;
+          const badge = badges?.[view.id];
           return (
             <button
               key={view.id}
@@ -105,9 +107,21 @@ export function Sidebar({
                 aria-hidden="true"
               />
               <span className="truncate">{view.label}</span>
+              {badge && (
+                <span
+                  className={cn(
+                    'ml-auto min-w-5 shrink-0 rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold leading-tight tabular-nums',
+                    badge.urgent ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
+                  )}
+                  title={badge.label}
+                >
+                  {badge.count}
+                  <span className="sr-only"> {badge.label}</span>
+                </span>
+              )}
               {active && (
                 <span
-                  className="ml-auto h-2 w-2 shrink-0 rounded-full bg-brand ring-2 ring-brand/25"
+                  className={cn('h-2 w-2 shrink-0 rounded-full bg-brand ring-2 ring-brand/25', !badge && 'ml-auto')}
                   aria-hidden="true"
                 />
               )}
