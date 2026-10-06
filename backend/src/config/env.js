@@ -43,6 +43,13 @@ if (ivmetEnabled) {
   }
 }
 
+const smtpPort = Number(process.env.SMTP_PORT) || 587;
+const flag = (value, fallback) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return fallback;
+  return normalized === 'true';
+};
+
 module.exports = {
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -71,6 +78,22 @@ module.exports = {
   jwt: {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN
+  },
+  // Correo saliente (alertas de calibración). Sin SMTP_HOST el envío queda
+  // desactivado y las alertas solo se ven dentro del cronograma.
+  smtp: {
+    host: String(process.env.SMTP_HOST || '').trim(),
+    port: smtpPort,
+    secure: flag(process.env.SMTP_SECURE, smtpPort === 465),
+    user: String(process.env.SMTP_USER || '').trim(),
+    password: process.env.SMTP_PASSWORD || '',
+    from: String(process.env.SMTP_FROM || process.env.SMTP_USER || '').trim(),
+    rejectUnauthorized: flag(process.env.SMTP_TLS_REJECT_UNAUTHORIZED, true),
+  },
+  calibration: {
+    alertsEnabled: flag(process.env.CAL_ALERTS_ENABLED, true),
+    // Enlace al cronograma que se incluye en los correos (opcional).
+    appUrl: String(process.env.APP_URL || '').trim(),
   },
   ivmet: {
     enabled: ivmetEnabled,
