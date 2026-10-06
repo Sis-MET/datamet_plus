@@ -2,6 +2,7 @@ const env = require('../config/env');
 const { isMailConfigured } = require('./mailer.service');
 const { timeLocal, todayLocal } = require('./calibration.schedule');
 const calibrationService = require('./calibration.service');
+const { recordFailure } = require('./system.failures');
 
 const CHECK_INTERVAL_MS = 10 * 60 * 1000;
 let timer = null;
@@ -35,6 +36,7 @@ const tick = async () => {
       return;
     }
     console.error('Error en las alertas de calibración:', error.message);
+    recordFailure({ origen: 'TAREA', error, mensaje: `Alertas de calibración: ${error.message}` });
   }
 };
 

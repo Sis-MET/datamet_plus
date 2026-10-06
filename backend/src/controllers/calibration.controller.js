@@ -1,6 +1,7 @@
 const calibrationService = require('../services/calibration.service');
 const equipmentService = require('../services/calibration.equipment');
 const { parse } = require('../services/calibration.validation');
+const { recordFailure } = require('../services/system.failures');
 
 const readId = (value) => {
   const id = Number(value);
@@ -21,6 +22,7 @@ const handle = (action) => async (req, res, next) => {
     }
     // Tabla o columna ausente: falta aplicar una migración del módulo.
     if (/Invalid (object|column) name '(dbo\.CAL_|registro_ref|revisado_|revision_obs|corregido_)/i.test(error.message || '')) {
+      recordFailure({ origen: 'SERVIDOR', error: Object.assign(error, { statusCode: 503 }), req });
       return res.status(503).json({
         success: false,
         message: 'Faltan migraciones del módulo de calibración en la base de datos. Ejecuta "pnpm migrate" en backend.',

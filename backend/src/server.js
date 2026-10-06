@@ -2,6 +2,13 @@ const app = require('./app');
 const env = require('./config/env');
 const { connectDB } = require('./config/db');
 const { startCalibrationScheduler, stopCalibrationScheduler } = require('./services/calibration.scheduler');
+const { recordFailure } = require('./services/system.failures');
+
+// Errores que escapan a las rutas y tareas: también al registro de fallas.
+process.on('unhandledRejection', (reason) => {
+  console.error('Promesa rechazada sin manejar:', reason);
+  recordFailure({ origen: 'PROCESO', error: reason instanceof Error ? reason : new Error(String(reason)) });
+});
 
 const startServer = async () => {
   try {

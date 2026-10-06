@@ -10,6 +10,7 @@ const calendarRoutes = require('./calendar.routes');
 const cotizacionesRoutes = require('./cotizaciones.routes');
 const ivmetRoutes = require('./ivmet.routes');
 const calibrationRoutes = require('./calibration.routes');
+const systemRoutes = require('./system.routes');
 
 // Define rutas base (prefijos)
 router.use('/health', healthRoutes);
@@ -21,6 +22,7 @@ router.use('/calendar', calendarRoutes);
 router.use('/cotizaciones', cotizacionesRoutes);
 router.use('/ivmet', ivmetRoutes);
 router.use('/calibracion', calibrationRoutes);
+router.use('/sistema', systemRoutes);
 
 module.exports = router;
 
