@@ -555,8 +555,12 @@ button.cal-tl-label:focus-visible { outline-offset: -2px; }
 .cal-switch:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Tabla de equipos ── */
+/* relative: lo absoluto de la tabla (sr-only) queda dentro del scroll y no
+   ensancha la página. */
 .cal-table-wrap {
+  position: relative;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   border: 1px solid rgb(var(--c-line));
   border-radius: 16px;
   background: rgb(var(--c-surface));
