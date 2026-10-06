@@ -14,6 +14,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
   Weight,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -46,11 +47,12 @@ import { CertificateModal } from './components/CertificateModal';
 import { ReasonModal } from './components/ReasonModal';
 import { ActivitiesList } from './components/ActivitiesList';
 import { AlertSettings } from './components/AlertSettings';
+import { CompliancePanel } from './components/CompliancePanel';
 import './calibration.css';
 
 const TAB_KEY = 'rimmet_cal_tab';
 const VIEW_KEY = 'rimmet_cal_view';
-const TABS = ['cronograma', 'equipos', 'actividades', 'alertas'];
+const TABS = ['cronograma', 'equipos', 'actividades', 'alertas', 'cumplimiento'];
 const VIEWS = ['anio', 'mes', 'agenda'];
 
 const STATUS_FILTERS = [
@@ -86,7 +88,7 @@ function PlanSkeleton() {
 }
 
 export function CalibrationPage() {
-  const [tab, setTabState] = useState(() => readStored(TAB_KEY, TABS, 'cronograma'));
+  const [storedTab, setTabState] = useState(() => readStored(TAB_KEY, TABS, 'cronograma'));
   const [view, setViewState] = useState(() => readStored(VIEW_KEY, VIEWS, 'anio'));
   const [anio, setAnio] = useState(() => new Date().getFullYear());
   const [mes, setMes] = useState(() => new Date().getMonth());
@@ -116,6 +118,8 @@ export function CalibrationPage() {
 
   const hoy = data?.hoy;
   const canEdit = Boolean(data?.permisos?.canEdit);
+  // Cumplimiento es solo para quienes editan; sin permiso se vuelve al cronograma.
+  const tab = storedTab === 'cumplimiento' && data && !canEdit ? 'cronograma' : storedTab;
   const ajustes = data?.ajustes;
 
   const categorias = useMemo(
@@ -276,7 +280,8 @@ export function CalibrationPage() {
             { id: 'equipos', label: 'Equipos', icon: Weight, count: data?.equipos.length },
             { id: 'actividades', label: 'Actividades', icon: ClipboardList, count: data?.actividades.length },
             { id: 'alertas', label: 'Alertas', icon: BellRing, count: alertCount || null, alert: vencidas > 0 },
-          ].map((section) => {
+            canEdit && { id: 'cumplimiento', label: 'Cumplimiento', icon: ShieldCheck },
+          ].filter(Boolean).map((section) => {
             const Icon = section.icon;
             return (
               <button
@@ -515,6 +520,8 @@ export function CalibrationPage() {
           onPlanChanged={reload}
         />
       )}
+
+      {data && tab === 'cumplimiento' && canEdit && <CompliancePanel />}
 
       {ficha?.type === 'event' && (
         <EventModal

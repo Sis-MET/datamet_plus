@@ -1,4 +1,5 @@
 import { api } from '../../../shared/api/client';
+import { APP_VERSION } from '../../../shared/utils/appVersion';
 
 const BASE = '/calibracion';
 
@@ -16,6 +17,8 @@ export const calibrationApi = {
   alertSummary: () => unwrap(api.get(`${BASE}/alertas/resumen`)),
   personal: () => unwrap(api.get(`${BASE}/personal`)),
   preview: (body) => unwrap(api.post(`${BASE}/vista-previa`, body)),
+  // Evaluación NB/ISO/IEC 17025 (7.5, 7.11 y 8.4) con los datos actuales.
+  cumplimiento: () => unwrap(api.get(`${BASE}/cumplimiento`, { version: APP_VERSION })),
 
   saveEquipo: (id, body) => write(api.put(`${BASE}/equipos/${id}`, body)),
   saveEquipos: (body) => write(api.put(`${BASE}/equipos`, body)),

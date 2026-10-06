@@ -603,6 +603,54 @@ button.cal-tl-label:focus-visible { outline-offset: -2px; }
   cursor: pointer;
 }
 
+/* ═══ Cumplimiento NB/ISO/IEC 17025 ═══ */
+.cal-ink { color: var(--tone); }
+.cal-dot {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--tone, currentColor);
+}
+/* Reparto de los requisitos por estado: un tramo por estado, proporcional. */
+.cal-dist { display: flex; gap: 3px; height: 8px; }
+.cal-dist > span {
+  flex: 1 1 0;
+  min-width: 8px;
+  border-radius: 9999px;
+  background: var(--tone);
+}
+/* Un punto por requisito de la cláusula, en su orden. */
+.cal-req-dots { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.cal-req-dots > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 2.5px;
+  background: var(--tone);
+}
+.cal-req-data { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.cal-req-data dt { color: rgb(var(--c-fg-muted)); font-size: 12px; }
+.cal-req-data dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: rgb(var(--c-fg));
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* Requisito elegido desde el plan de acción. */
+.cal-req-highlight > button { animation: cal-req-flash 1.8s ease-out; }
+@keyframes cal-req-flash {
+  from { background: rgb(var(--c-brand) / 0.18); }
+  to { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-req-highlight > button { animation: none; background: rgb(var(--c-brand) / 0.1); }
+}
+
 @media (max-width: 1023px) {
   .cal-timeline { --cal-label-w: 168px; }
 }
