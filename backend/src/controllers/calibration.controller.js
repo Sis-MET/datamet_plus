@@ -1,4 +1,5 @@
 const calibrationService = require('../services/calibration.service');
+const equipmentService = require('../services/calibration.equipment');
 const { parse } = require('../services/calibration.validation');
 
 const readId = (value) => {
@@ -21,7 +22,7 @@ const handle = (action) => async (req, res, next) => {
     if (/Invalid object name 'dbo\.CAL_/i.test(error.message || '')) {
       return res.status(503).json({
         success: false,
-        message: 'El módulo de calibración aún no está instalado en la base de datos. Aplica la migración 004 con "pnpm migrate" en backend.',
+        message: 'Faltan migraciones del módulo de calibración en la base de datos. Ejecuta "pnpm migrate" en backend.',
       });
     }
     return next(error);
@@ -40,6 +41,35 @@ module.exports = {
     req.user
   )),
   updateEquipos: handle(req => calibrationService.updateEquiposMasivo(parse('equiposMasivo', req.body), req.user)),
+
+  // Gestión de los equipos de DATA_EQUIPOS_CAL.
+  getEquipoHistorial: handle(req => equipmentService.getEquipoHistorial(readId(req.params.id))),
+  createEquipo: handle(req => equipmentService.createEquipo(parse('equipoAlta', req.body), req.user)),
+  updateEquipoDatos: handle(req => equipmentService.updateEquipoDatos(
+    readId(req.params.id),
+    parse('equipoDatos', req.body),
+    req.user
+  )),
+  registrarCertificado: handle(req => equipmentService.registrarCertificado(
+    readId(req.params.id),
+    parse('certificado', req.body),
+    req.user
+  )),
+  corregirCertificado: handle(req => equipmentService.corregirCertificado(
+    readId(req.params.id),
+    parse('certificado', req.body),
+    req.user
+  )),
+  anularCertificado: handle(req => equipmentService.anularCertificado(
+    readId(req.params.id),
+    parse('anulacion', req.body),
+    req.user
+  )),
+  cambiarEstadoEquipo: handle(req => equipmentService.cambiarEstado(
+    readId(req.params.id),
+    parse('estadoEquipo', req.body),
+    req.user
+  )),
 
   createActividad: handle(req => calibrationService.createActividad(parse('actividad', req.body), req.user)),
   updateActividad: handle(req => calibrationService.updateActividad(

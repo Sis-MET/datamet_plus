@@ -11,10 +11,17 @@ router.get('/plan', protect, controller.getPlan);
 router.get('/alertas/resumen', protect, controller.getAlertSummary);
 router.get('/personal', protect, controller.getPersonal);
 router.post('/vista-previa', protect, controller.previewDates);
+router.get('/equipos/:id/historial', protect, controller.getEquipoHistorial);
 
 // Escritura: área Calibración y nivel 3.
 router.put('/equipos', editor, controller.updateEquipos);
 router.put('/equipos/:id', editor, controller.updateEquipo);
+router.post('/equipos', editor, controller.createEquipo);
+router.put('/equipos/:id/datos', editor, controller.updateEquipoDatos);
+router.put('/equipos/:id/estado', editor, controller.cambiarEstadoEquipo);
+router.post('/equipos/:id/certificados', editor, controller.registrarCertificado);
+router.put('/equipos/:id/certificados/vigente', editor, controller.corregirCertificado);
+router.post('/equipos/:id/certificados/vigente/anular', editor, controller.anularCertificado);
 router.post('/actividades', editor, controller.createActividad);
 router.put('/actividades/:id', editor, controller.updateActividad);
 router.delete('/actividades/:id', editor, controller.deleteActividad);

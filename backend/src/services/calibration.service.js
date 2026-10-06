@@ -13,6 +13,16 @@ const {
 } = require('./calibration.schedule');
 const { buildDigests, renderDigestEmail, normalizeEmail } = require('./calibration.alerts');
 const { isMailConfigured, mailStatus, sendMail } = require('./mailer.service');
+const {
+  EQUIPO_SELECT,
+  IS_ACTIVE,
+  actorName,
+  clean,
+  httpError,
+  mapEquipo,
+  normalizeArea,
+  withTransaction,
+} = require('./calibration.db');
 
 // Hacia atrás se mira poco más de un año (vencidas sin resolver). Hacia
 // adelante, tres años: cubre ventanas de aviso largas y la próxima fecha de
@@ -20,53 +30,44 @@ const { isMailConfigured, mailStatus, sendMail } = require('./mailer.service');
 const ALERT_HORIZON_DAYS = 400;
 const NEXT_HORIZON_DAYS = 1100;
 
-const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
-
-const normalizeArea = (value) => String(value || '')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .trim()
-  .toLowerCase();
-
-const actorName = (actor) => String(actor?.usuario || 'Sistema').slice(0, 50);
-
 // ─── Lecturas ──────────────────────────────────────────────────────────────
 
-// Algunos registros traen espacios de no separación (U+00A0) que RTRIM no
-// quita; trim() de JavaScript sí.
-const clean = (value) => String(value ?? '').trim() || null;
-
-const mapEquipo = (row) => ({
-  id: row.id,
-  codigo: clean(row.codigo) || '',
-  instrumento: clean(row.instrumento) || '',
-  certificado: clean(row.certificado),
-  certFecha: row.cert_fecha || null,
-  periodoDias: row.cert_periodo ?? null,
-  enteCalibrador: clean(row.ente_calibrador),
-  planta: clean(row.planta) || 'Sin planta',
-  observaciones: clean(row.obs),
-  registradoPor: clean(row.reg_usuario),
-});
-
 const getEquipos = async () => {
-  const result = await getPool().request().query(`
-    SELECT
-      id,
-      LTRIM(RTRIM(instrumento))      AS instrumento,
-      LTRIM(RTRIM(cod_instrumento))  AS codigo,
-      LTRIM(RTRIM(certificado))      AS certificado,
-      CONVERT(varchar(10), cert_fecha, 23) AS cert_fecha,
-      cert_periodo,
-      LTRIM(RTRIM(ente_calibrador))  AS ente_calibrador,
-      LTRIM(RTRIM(planta))           AS planta,
-      LTRIM(RTRIM(reg_usuario))      AS reg_usuario,
-      obs
-    FROM DATA_EQUIPOS_CAL
-    WHERE UPPER(LTRIM(RTRIM(ISNULL(estado, 'ACTIVO')))) = 'ACTIVO'
+  const result = await getPool().request().query(`${EQUIPO_SELECT}
+    WHERE ${IS_ACTIVE}
     ORDER BY planta, cod_instrumento
   `);
   return result.recordset.map(mapEquipo);
+};
+
+/** Equipos dados de baja: fuera del plan, pero se pueden reactivar. */
+const getEquiposBaja = async () => {
+  const result = await getPool().request().query(`${EQUIPO_SELECT}
+    WHERE NOT (${IS_ACTIVE})
+    ORDER BY planta, cod_instrumento
+  `);
+  return result.recordset.map(mapEquipo);
+};
+
+/** Valores ya usados, para sugerirlos al registrar o editar equipos. */
+const getCatalogos = async () => {
+  const result = await getPool().request().query(`
+    SELECT DISTINCT 'instrumento' AS campo, instrumento AS valor FROM DATA_EQUIPOS_CAL
+    UNION SELECT DISTINCT 'ente', ente_calibrador FROM DATA_EQUIPOS_CAL
+    UNION SELECT DISTINCT 'planta', planta FROM DATA_EQUIPOS_CAL
+  `);
+  const catalogos = { instrumentos: new Map(), entes: new Map(), plantas: new Map() };
+  const target = { instrumento: catalogos.instrumentos, ente: catalogos.entes, planta: catalogos.plantas };
+  for (const row of result.recordset) {
+    const valor = clean(row.valor);
+    if (valor) target[row.campo].set(valor.toLowerCase(), valor);
+  }
+  const sorted = (map) => [...map.values()].sort((a, b) => a.localeCompare(b, 'es'));
+  return {
+    instrumentos: sorted(catalogos.instrumentos),
+    entes: sorted(catalogos.entes),
+    plantas: sorted(catalogos.plantas),
+  };
 };
 
 const mapPrograma = (row) => ({
@@ -267,7 +268,12 @@ const getPlan = async ({ anio, user }) => {
   const desde = `${year}-01-01`;
   const hasta = `${year}-12-31`;
 
-  const [sources, permisos] = await Promise.all([loadPlanSources(), getCalibrationPermissions(user)]);
+  const [sources, permisos, bajas, catalogos] = await Promise.all([
+    loadPlanSources(),
+    getCalibrationPermissions(user),
+    getEquiposBaja(),
+    getCatalogos(),
+  ]);
   const { equipos, programas, ajustes } = sources;
   const eventos = buildOccurrences({ ...sources, desde, hasta, hoy });
   const horizon = horizonOccurrences(sources, hoy);
@@ -317,6 +323,8 @@ const getPlan = async ({ anio, user }) => {
       alertaCorreo: ajustes.alertaCorreo,
     },
     equipos: equiposPlan,
+    bajas,
+    catalogos,
     actividades,
     eventos,
     alertas: activeAlerts(horizon),
@@ -364,19 +372,6 @@ const previewDates = async ({ tipo, equipoId, frecuenciaMeses, fechaInicio }) =>
 };
 
 // ─── Escrituras ────────────────────────────────────────────────────────────
-
-const withTransaction = async (work) => {
-  const transaction = new sql.Transaction(getPool());
-  await transaction.begin();
-  try {
-    const result = await work(() => new sql.Request(transaction));
-    await transaction.commit();
-    return result;
-  } catch (error) {
-    try { await transaction.rollback(); } catch { /* ya revertida */ }
-    throw error;
-  }
-};
 
 const findResponsable = async (createRequest, responsableId) => {
   if (responsableId == null) return null;

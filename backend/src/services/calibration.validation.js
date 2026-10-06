@@ -16,7 +16,36 @@ const verificacion = z.object({
   fechaInicio: date.nullable().default(null),
 });
 
+// Texto obligatorio sin espacios de no separación en los extremos.
+const requiredText = (max, message) => z.string()
+  .transform(value => value.replace(/\u00a0/g, ' ').trim())
+  .pipe(z.string().min(1, message).max(max, `Máximo ${max} caracteres.`));
+
+const equipoDatos = z.object({
+  // Los códigos existentes están en mayúsculas (F1-202, M1-1-05XX).
+  codigo: requiredText(30, 'Escribe el código del equipo.').transform(value => value.toUpperCase()),
+  instrumento: requiredText(30, 'Indica el instrumento.'),
+  planta: requiredText(50, 'Indica la planta.'),
+  observaciones: optionalText(200),
+});
+
+const certificado = z.object({
+  numero: requiredText(100, 'Escribe el número del certificado.'),
+  fecha: date,
+  periodoDias: z.number().int().min(1, 'La vigencia debe ser de al menos un día.').max(3650, 'La vigencia no puede superar 10 años.'),
+  ente: requiredText(50, 'Indica el ente calibrador.'),
+  observaciones: optionalText(300),
+});
+
 const schemas = {
+  equipoDatos,
+  equipoAlta: equipoDatos.extend({ certificado: certificado.nullable().default(null) }),
+  certificado,
+  anulacion: z.object({ motivo: requiredText(300, 'Escribe el motivo de la anulación.') }),
+  estadoEquipo: z.object({
+    activo: z.boolean(),
+    motivo: optionalText(300),
+  }).refine(data => data.activo || data.motivo, 'Escribe el motivo de la baja.'),
   equipoConfig: z.object({
     calibracion: z.object({
       activo: z.boolean().default(true),
