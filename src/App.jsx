@@ -4,12 +4,13 @@ import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-
 import { Sidebar } from './shared/components/layout/Sidebar';
 import { Topbar } from './shared/components/layout/Topbar';
 import { Footer } from './shared/components/layout/Footer';
-import { APP_VIEWS, canManageIvmet, managesCalibration } from './shared/components/layout/navigation';
+import { APP_VIEWS, allowedView, canManageIvmet, isSystemAdmin, managesCalibration } from './shared/components/layout/navigation';
 import { useSidebar } from './shared/hooks/useSidebar';
 import { useTheme } from './shared/context/ThemeContext';
 import { safeStorage } from './shared/utils/storage';
 import { decodeJwtPayload, isJwtExpired } from './shared/utils/jwt';
 import { useCalibrationAlertCount } from './features/calibration/hooks/useCalibrationAlertCount';
+import { useFailureSummary } from './features/system/hooks/useFailureSummary';
 
 const RimFormPage = lazy(() => import('./features/rim/RimFormPage')
   .then(module => ({ default: module.RimFormPage })));
@@ -23,6 +24,10 @@ const CalibrationPage = lazy(() => import('./features/calibration/CalibrationPag
   .then(module => ({ default: module.CalibrationPage })));
 const IvmetManagementPage = lazy(() => import('./features/ivmet/IvmetManagementPage')
   .then(module => ({ default: module.IvmetManagementPage })));
+const ChangeControlPage = lazy(() => import('./features/system/ChangeControlPage')
+  .then(module => ({ default: module.ChangeControlPage })));
+const FailureLogPage = lazy(() => import('./features/system/FailureLogPage')
+  .then(module => ({ default: module.FailureLogPage })));
 
 function ViewFallback() {
   return (
@@ -54,6 +59,8 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
   const sidebar = useSidebar();
   const { isDesktop, close: closeSidebar } = sidebar;
   const calibrationAlerts = useCalibrationAlertCount(managesCalibration(currentUser));
+  const failures = useFailureSummary(isSystemAdmin(currentUser));
+  const pendingFailures = (failures?.abiertas || 0) + (failures?.enCurso || 0);
 
   const handleNavigate = useCallback((view) => {
     safeStorage.setItem('rimmet_last_view', view);
@@ -71,13 +78,22 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
           onNavigate={handleNavigate}
           currentUser={currentUser}
           onLogout={handleLogout}
-          badges={calibrationAlerts?.total ? {
-            calibration: {
-              count: calibrationAlerts.total,
-              urgent: calibrationAlerts.vencidas > 0,
-              label: `${calibrationAlerts.total} fechas de calibración requieren atención`,
-            },
-          } : undefined}
+          badges={{
+            ...(calibrationAlerts?.total ? {
+              calibration: {
+                count: calibrationAlerts.total,
+                urgent: calibrationAlerts.vencidas > 0,
+                label: `${calibrationAlerts.total} fechas de calibración requieren atención`,
+              },
+            } : {}),
+            ...(pendingFailures > 0 ? {
+              failures: {
+                count: pendingFailures,
+                urgent: failures.abiertas > 0,
+                label: `${pendingFailures} fallas del sistema sin cerrar`,
+              },
+            } : {}),
+          }}
           isOpen={sidebar.isOpen}
           isDesktop={isDesktop}
           onClose={closeSidebar}
@@ -128,10 +144,7 @@ function App() {
   });
 
   const [activeView, setActiveView] = useState(() => {
-    const savedView = safeStorage.getItem('rimmet_last_view') || 'rim';
-    return savedView === 'ivmet' && !canManageIvmet(currentUser)
-      ? 'rim'
-      : savedView;
+    return allowedView(safeStorage.getItem('rimmet_last_view') || 'rim', currentUser);
   });
 
   const handleLogin = (user, selectedView) => {
@@ -195,6 +208,10 @@ function App() {
         return <CalibrationPage />;
       case 'departures':
         return <DeparturesPage />;
+      case 'changes':
+        return isSystemAdmin(currentUser) ? <ChangeControlPage /> : <RimFormPage currentUser={currentUser} />;
+      case 'failures':
+        return isSystemAdmin(currentUser) ? <FailureLogPage /> : <RimFormPage currentUser={currentUser} />;
       case 'rim':
       default:
         return <RimFormPage currentUser={currentUser} />;

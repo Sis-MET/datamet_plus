@@ -1,0 +1,28 @@
+/* Control de cambios y registro de fallas. Usa los tokens de la aplicación
+   (src/index.css) y los de Calibración (calibration.css). */
+
+/* Avance de un cambio: registrado, validado, aprobado, implementado. */
+.sys-track { display: inline-flex; gap: 3px; }
+.sys-track > span {
+  width: 18px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgb(var(--c-fg) / 0.1);
+}
+.sys-track > span[data-state='done'] { background: rgb(var(--c-success)); }
+.sys-track > span[data-state='failed'] { background: rgb(var(--c-danger)); }
+
+/* Detalle técnico de una falla (traza del servidor). */
+.sys-trace {
+  max-height: 280px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid rgb(var(--c-line));
+  border-radius: 12px;
+  background: rgb(var(--c-surface-2));
+  color: rgb(var(--c-fg-muted));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre;
+}

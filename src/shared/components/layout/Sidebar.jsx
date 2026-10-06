@@ -26,6 +26,8 @@ export function Sidebar({
 }) {
   const panelRef = useRef(null);
   const navigation = getNavigation(currentUser);
+  const modules = navigation.filter(view => !view.group);
+  const system = navigation.filter(view => view.group === 'system');
   const isDrawer = !isDesktop;
   const fullName = [currentUser?.nombre, currentUser?.apellido].filter(Boolean).join(' ').trim();
 
@@ -81,7 +83,7 @@ export function Sidebar({
       </div>
 
       <nav aria-label="Módulos" className="flex flex-col gap-1 px-3 pt-4">
-        {navigation.map((view) => {
+        {modules.map((view) => {
           const Icon = view.icon;
           const active = activeView === view.id;
           const badge = badges?.[view.id];
@@ -131,6 +133,52 @@ export function Sidebar({
       </nav>
 
       <div className="mt-auto flex flex-col gap-2 p-3">
+        {system.length > 0 && (
+          <nav aria-label="Sistema" className="mb-1 flex flex-col gap-1">
+            <p className="px-3 pb-0.5 text-xs font-medium text-fg-subtle">Sistema</p>
+            {system.map((view) => {
+              const Icon = view.icon;
+              const active = activeView === view.id;
+              const badge = badges?.[view.id];
+              return (
+                <button
+                  key={view.id}
+                  type="button"
+                  onClick={() => onNavigate(view.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'group relative flex h-9 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-offset-0 transition-colors duration-150',
+                    active
+                      ? 'bg-surface text-fg shadow-xs ring-1 ring-line'
+                      : 'text-fg-muted hover:bg-fg/[0.05] hover:text-fg'
+                  )}
+                >
+                  <Icon
+                    className={cn('h-4 w-4 shrink-0 transition-colors', active ? 'text-fg' : 'text-fg-subtle group-hover:text-fg')}
+                    strokeWidth={1.9}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate">{view.label}</span>
+                  {badge && (
+                    <span
+                      className={cn(
+                        'ml-auto min-w-5 shrink-0 rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold leading-tight tabular-nums',
+                        badge.urgent ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
+                      )}
+                      title={badge.label}
+                    >
+                      {badge.count}
+                      <span className="sr-only"> {badge.label}</span>
+                    </span>
+                  )}
+                  {active && (
+                    <span className={cn('h-2 w-2 shrink-0 rounded-full bg-brand ring-2 ring-brand/25', !badge && 'ml-auto')} aria-hidden="true" />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        )}
         {currentUser && (
           <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-2.5 shadow-xs">
             <span
