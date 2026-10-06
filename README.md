@@ -13,12 +13,13 @@ Aplicación interna de Métrica Ltda. que reúne el formulario RIM, el cronogram
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
 - **Gestión IvMET:** panel administrativo para clientes contratados, licencias, planes y revisión del catálogo sincronizado.
 - **Calibración:** plan anual de calibraciones, verificaciones internas y actividades del área, con alertas en el cronograma y por correo.
+- **Control de cambios y registro de fallas:** historial de los cambios del sistema con su validación y aprobación, y registro de las fallas con sus acciones (NB/ISO/IEC 17025, 7.11).
 
 ## Calibración
 
 Módulo independiente del cronograma del personal. Gestiona los equipos de
 `DATA_EQUIPOS_CAL` y guarda su planificación e historial en tablas `CAL_*`
-(migraciones `004` y `005`, aplicar con `pnpm migrate` en `backend`).
+(migraciones `004` a `006`, aplicar con `pnpm migrate` en `backend`).
 
 - **Calibración:** la fecha sale del certificado: `cert_fecha + cert_periodo`
   (días). No se usa `cert_fechaven` porque en varios registros está vacía o
@@ -58,6 +59,45 @@ Desde la pestaña Equipos y la ficha de cada equipo:
 Si otro sistema cambia el certificado directamente en `DATA_EQUIPOS_CAL`, el
 módulo lo archiva como `EXTERNO` antes de reemplazarlo.
 
+### Trazabilidad de los registros (NB/ISO/IEC 17025, 7.5)
+
+Migración `006`:
+
+- **Versiones de cada fecha:** cada cambio de estado, resultado, hoja de datos
+  o reprogramación queda en `CAL_EVENTOS_HISTORIAL` con la versión anterior y
+  la nueva completas, quién y cuándo. Cambiar una fecha que ya figuraba como
+  realizada exige el motivo; «Restablecer» deja la última versión en el
+  historial antes de volver a la programación original.
+- **Verificaciones:** al registrarla como realizada se exigen el resultado y la
+  hoja o el archivo donde quedaron sus datos (`registro_ref`).
+- **Revisión por un segundo usuario:** certificados y verificaciones los
+  revisa otra persona; el sistema impide que lo haga quien los registró o
+  corrigió. Si los datos cambian, la revisión vuelve a quedar pendiente.
+- **Corrección de certificados:** exige el motivo y conserva la versión
+  anterior completa (observaciones incluidas) en `CAL_EQUIPOS_HISTORIAL`.
+- **Configuración del plan:** frecuencias, responsables, avisos y actividades
+  guardan cada versión en `CAL_PLAN_HISTORIAL`.
+
+La ficha de cada equipo une en su actividad los cambios del equipo, de su plan
+y de sus fechas; la de cada actividad, los de su configuración y sus fechas.
+
+### Cumplimiento NB/ISO/IEC 17025
+
+La pestaña **Cumplimiento** (área Calibración y nivel 3) evalúa el módulo frente
+a la NB/ISO/IEC 17025:2018 (acreditación DTA-IBMETRO), puntos **7.5** registros
+técnicos, **7.11** control de los datos y gestión de la información y **8.4**
+control de registros. Cada vez que se abre, `GET /api/calibracion/cumplimiento`
+reúne datos con consultas de solo lectura (integridad de `DATA_EQUIPOS_CAL`,
+historial, migraciones registradas, respaldos de `msdb`, configuración del
+servidor) y marca cada requisito como cumple, parcial, no cumple o «del
+laboratorio» (falta evidencia que no vive en el software), con su evidencia,
+lo que falta y un plan de acción por prioridad.
+
+El catálogo de requisitos está en `backend/src/services/calibration.compliance.js`
+y sus reglas en la skill `.claude/skills/nb-iso-17025`: cuando un cambio
+resuelva una brecha, actualiza el catálogo y sus pruebas. Los requisitos están
+resumidos con palabras propias; ante una duda manda el texto de la norma.
+
 ### Alertas
 
 Cada serie usa los avisos generales o los suyos propios: días de anticipación y
@@ -85,6 +125,37 @@ SMTP_FROM="Calibración Métrica <calibracion@ejemplo.com>"
 CAL_ALERTS_ENABLED=true
 APP_URL=http://<servidor>:3000
 ```
+
+## Control de cambios y registro de fallas
+
+Dos apartados al pie de la barra lateral, sobre el usuario, solo para el nivel 3
+(migración `007`, rutas `/api/sistema/*`):
+
+- **Control de cambios** (NB/ISO/IEC 17025, 7.11.2): cada cambio del sistema
+  (módulo, mejora, corrección, seguridad, base de datos o configuración) se
+  documenta, se valida (qué se probó, con qué datos y el resultado), se aprueba
+  y recién entonces se implementa. Cada paso queda en `APP_CAMBIOS_HISTORIAL`;
+  un cambio aprobado ya no se edita. Los cambios se agrupan por versión y la
+  cabecera indica si la versión en uso (`package.json`) tiene todos sus
+  cambios aprobados. La migración siembra lo implementado según el historial
+  de git: lo anterior al módulo Calibración figura como en uso y registrado a
+  posteriori (falta su validación y aprobación) y lo de Calibración (2.7.0)
+  queda por validar.
+- **Registro de fallas** (7.11.3 e): los errores 5xx del servidor, de las
+  tareas programadas y del proceso se guardan solos en `APP_FALLAS` (sin el
+  cuerpo de la petición), agrupando sus repeticiones mientras siguen abiertas.
+  Las fallas que la aplicación no puede ver (servidor o red caídos) se
+  registran a mano. Cerrar una falla exige la acción inmediata y la correctiva,
+  y puede ligarse al cambio que la corrigió.
+
+Al publicar una versión: registra sus cambios, valídalos y apruébalos antes de
+desplegarla, y después registra la fecha de implementación.
+
+> Pendiente de coordinar con el Jefe de Sistemas: las contraseñas de
+> `DATA_USERS` se guardan y comparan en texto plano porque varios sistemas las
+> leen así. La norma pide proteger el acceso (7.11.3 a) y guardarlas con hash es
+> la forma esperada de cumplirlo; el cambio debe hacerse a la vez en todos los
+> sistemas que usan esa tabla.
 
 ## Gestión IvMET
 
