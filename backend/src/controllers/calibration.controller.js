@@ -1,5 +1,6 @@
 const calibrationService = require('../services/calibration.service');
 const equipmentService = require('../services/calibration.equipment');
+const complianceService = require('../services/calibration.compliance');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -100,4 +101,7 @@ module.exports = {
   deleteContacto: handle(req => calibrationService.deleteContacto(readId(req.params.id))),
   sendTestEmail: handle(req => calibrationService.sendTestEmail(parse('prueba', req.body).email)),
   runAlerts: handle(() => calibrationService.runAlerts()),
+
+  // Cumplimiento NB/ISO/IEC 17025 (7.5, 7.11 y 8.4), evaluado con los datos actuales.
+  getCompliance: handle(req => complianceService.getCompliance({ version: String(req.query.version || '').slice(0, 20) || null })),
 };

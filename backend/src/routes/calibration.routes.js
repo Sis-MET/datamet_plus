@@ -38,5 +38,6 @@ router.put('/alertas/contactos/:id', editor, controller.updateContacto);
 router.delete('/alertas/contactos/:id', editor, controller.deleteContacto);
 router.post('/alertas/prueba', editor, controller.sendTestEmail);
 router.post('/alertas/ejecutar', editor, controller.runAlerts);
+router.get('/cumplimiento', editor, controller.getCompliance);
 
 module.exports = router;
