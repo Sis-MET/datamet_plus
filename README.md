@@ -1,6 +1,6 @@
 # DataMET+
 
-Aplicación interna de Métrica Ltda. que reúne el formulario RIM, el cronograma operativo y la administración de IvMET.
+Aplicación interna de Métrica Ltda. que reúne el formulario RIM, el cronograma operativo, el cronograma de calibración y la administración de IvMET.
 
 ## Características
 
@@ -12,6 +12,57 @@ Aplicación interna de Métrica Ltda. que reúne el formulario RIM, el cronogram
 - **Barra lateral:** módulos, sesión y cierre de sesión; se oculta o muestra con `Ctrl+B` (`⌘B` en macOS) y en móvil se abre como panel.
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
 - **Gestión IvMET:** panel administrativo para clientes contratados, licencias, planes y revisión del catálogo sincronizado.
+- **Calibración:** plan anual de calibraciones, verificaciones internas y actividades del área, con alertas en el cronograma y por correo.
+
+## Calibración
+
+Módulo independiente del cronograma del personal. Lee los equipos activos de
+`DATA_EQUIPOS_CAL` (sin modificarla) y guarda su planificación en tablas
+`CAL_*` (migración `004`, aplicar con `pnpm migrate` en `backend`).
+
+- **Calibración:** la fecha sale del certificado: `cert_fecha + cert_periodo`
+  (días). No se usa `cert_fechaven` porque en varios registros está vacía o
+  repite la emisión. Al registrar un certificado nuevo el plan se recalcula.
+- **Verificación interna:** por equipo, cada N meses contando desde cada
+  calibración o desde una fecha fija. Se omite si cae a menos de 14 días de la
+  recalibración; las fechas que dependen de una calibración futura se muestran
+  como estimadas y no generan avisos.
+- **Actividades del área:** tareas propias (p. ej. revisar documentos legales en
+  Fundaempresa o la política de calidad), únicas o periódicas.
+- **Vistas:** año (línea de tiempo con la vigencia del certificado), mes y
+  agenda; además pestañas de equipos (configuración individual o por lote),
+  actividades y alertas.
+- **Seguimiento:** cada fecha puede marcarse en proceso, realizada (con
+  resultado en verificaciones), reprogramada o cancelada.
+- **Permisos:** consultan todos; editan el área Calibración y el nivel 3.
+
+### Alertas
+
+Cada serie usa los avisos generales o los suyos propios: días de anticipación y
+frecuencia (una vez, semanal, diaria o sin alertas). Las fechas en aviso y las
+vencidas aparecen en «Requieren atención» y en el contador de la barra lateral.
+Por correo, cada día a la hora configurada se envía un resumen al responsable
+de cada serie (si su correo está registrado en el módulo) y a quienes reciben
+todas las alertas. `CAL_ALERTAS_ENVIOS` registra cada aviso para no repetirlo
+antes de tiempo.
+
+Por ahora la configuración de correo (destinatarios, servidor, frecuencia, hora
+e historial) está oculta en la interfaz con `EMAIL_ALERTS_UI = false` en
+`src/features/calibration/domain/format.js`; el envío del backend sigue
+intacto. Ponerla en `true` la vuelve a mostrar.
+
+Variables del backend (sin `SMTP_HOST` las alertas solo se ven en la app):
+
+```dotenv
+SMTP_HOST=smtp.ejemplo.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<usuario>
+SMTP_PASSWORD=<clave>
+SMTP_FROM="Calibración Métrica <calibracion@ejemplo.com>"
+CAL_ALERTS_ENABLED=true
+APP_URL=http://<servidor>:3000
+```
 
 ## Gestión IvMET
 
