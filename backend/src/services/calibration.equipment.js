@@ -19,6 +19,7 @@ const {
   mapEquipo,
   withTransaction,
 } = require('./calibration.db');
+const { conflictingAuthor, describeChanges } = require('./calibration.history');
 
 const ESTADO_ACTIVO = 'ACTIVO';
 // DESACTIVADO es el valor que ya usan DATA_USERS y DATA_ACTIVOS; "BAJA
@@ -53,14 +54,31 @@ const checkNewCertificate = (current, next, hoy) => {
   return null;
 };
 
-/** Resumen legible de lo que cambió: "Planta: La Paz → Santa Cruz". */
-const describeChanges = (before, after, labels) => Object.entries(labels)
-  .filter(([key]) => String(before[key] ?? '') !== String(after[key] ?? ''))
-  .map(([key, label]) => `${label}: ${before[key] || '—'} → ${after[key] || '—'}`)
-  .join('; ');
-
 const DATOS_LABELS = { codigo: 'Código', instrumento: 'Instrumento', planta: 'Planta', observaciones: 'Observaciones' };
 const CERT_LABELS = { numero: 'Número', fecha: 'Emisión', periodoDias: 'Vigencia (días)', ente: 'Ente' };
+const CERT_CORRECTION_LABELS = { ...CERT_LABELS, observaciones: 'Observaciones' };
+const formatCertValue = (key, value) => {
+  if (key === 'fecha') return formatIso(value);
+  if (key === 'observaciones') return String(value).length > 60 ? `«${String(value).slice(0, 59)}…»` : `«${value}»`;
+  return value;
+};
+
+/** Versión completa de un certificado para el historial. */
+const certVersion = (cert) => (cert ? {
+  numero: cert.numero || null,
+  fecha: cert.fecha || null,
+  periodoDias: cert.periodoDias ?? null,
+  vence: expiryDate(cert.fecha, cert.periodoDias),
+  ente: cert.ente || null,
+  observaciones: cert.observaciones || null,
+} : null);
+
+const datosVersion = (datos) => ({
+  codigo: datos.codigo || null,
+  instrumento: datos.instrumento || null,
+  planta: datos.planta || null,
+  observaciones: datos.observaciones || null,
+});
 
 const certFromEquipo = (equipo) => ({
   numero: equipo.certificado,
@@ -120,14 +138,18 @@ const assertCodeAvailable = async (createRequest, codigo, excludeId = null) => {
   }
 };
 
-const logAction = (createRequest, equipoId, accion, detalle, usuario) => createRequest()
+/** Bitácora del equipo; `extra` guarda las versiones completas y el motivo. */
+const logAction = (createRequest, equipoId, accion, detalle, usuario, extra = {}) => createRequest()
   .input('eid', sql.Int, equipoId)
   .input('accion', sql.VarChar(20), accion)
   .input('detalle', sql.NVarChar(400), detalle ? String(detalle).slice(0, 400) : null)
   .input('usuario', sql.NVarChar(50), usuario)
+  .input('antes', sql.NVarChar(sql.MAX), extra.antes ? JSON.stringify(extra.antes) : null)
+  .input('despues', sql.NVarChar(sql.MAX), extra.despues ? JSON.stringify(extra.despues) : null)
+  .input('motivo', sql.NVarChar(300), extra.motivo || null)
   .query(`
-    INSERT INTO dbo.CAL_EQUIPOS_HISTORIAL (equipo_id, accion, detalle, usuario)
-    VALUES (@eid, @accion, @detalle, @usuario)
+    INSERT INTO dbo.CAL_EQUIPOS_HISTORIAL (equipo_id, accion, detalle, usuario, antes, despues, motivo)
+    VALUES (@eid, @accion, @detalle, @usuario, @antes, @despues, @motivo)
   `);
 
 const insertCertificate = (createRequest, equipoId, cert, { origen, usuario }) => createRequest()
@@ -248,7 +270,8 @@ const createEquipo = async (data, actor) => withTransaction(async (createRequest
     id,
     'ALTA',
     [data.codigo, data.instrumento, data.planta, cert ? `certificado ${cert.numero}` : 'sin certificado'].join(' · '),
-    who.usuario
+    who.usuario,
+    { despues: { ...datosVersion(data), certificado: certVersion(cert) } }
   );
   return { id };
 });
@@ -273,7 +296,7 @@ const updateEquipoDatos = async (id, data, actor) => withTransaction(async (crea
       SET instrumento = @instrumento, cod_instrumento = @codigo, planta = @planta, obs = @obs
       WHERE id = @eid
     `);
-  await logAction(createRequest, id, 'EDICION', changes, who.usuario);
+  await logAction(createRequest, id, 'EDICION', changes, who.usuario, { antes: datosVersion(equipo), despues: datosVersion(data) });
   return { id, cambios: 1 };
 });
 
@@ -295,12 +318,40 @@ const registrarCertificado = async (id, data, actor) => withTransaction(async (c
     id,
     'CERTIFICADO',
     `${data.numero} · emitido ${formatIso(data.fecha)} · vence ${formatIso(vence)}${equipo.certificado ? ` · reemplaza ${equipo.certificado}` : ''}`,
-    who.usuario
+    who.usuario,
+    { antes: equipo.certFecha ? certVersion(certFromEquipo(equipo)) : null, despues: certVersion(data) }
   );
   return { id, vence };
 });
 
-/** Corrige un error en el certificado vigente sin crear uno nuevo. */
+/** Fila del historial con todos sus datos. */
+const loadCertificateRow = async (createRequest, certId) => {
+  const result = await createRequest()
+    .input('cid', sql.Int, certId)
+    .query(`
+      SELECT id, certificado, CONVERT(varchar(10), cert_fecha, 23) AS cert_fecha, cert_periodo,
+        ente_calibrador, observaciones, registrado_por, corregido_por, revisado_por
+      FROM dbo.CAL_CERTIFICADOS WITH (UPDLOCK) WHERE id = @cid
+    `);
+  const row = result.recordset[0];
+  return row ? {
+    id: row.id,
+    numero: clean(row.certificado),
+    fecha: row.cert_fecha,
+    periodoDias: row.cert_periodo,
+    ente: clean(row.ente_calibrador),
+    observaciones: clean(row.observaciones),
+    registradoPor: clean(row.registrado_por),
+    corregidoPor: clean(row.corregido_por),
+    revisadoPor: clean(row.revisado_por),
+  } : null;
+};
+
+/**
+ * Corrige un error en el certificado vigente sin crear uno nuevo. La versión
+ * anterior queda completa en el historial con el motivo, y la revisión vuelve
+ * a quedar pendiente.
+ */
 const corregirCertificado = async (id, data, actor) => withTransaction(async (createRequest) => {
   const hoy = todayLocal();
   const equipo = await loadEquipo(createRequest, id, { lock: true });
@@ -324,27 +375,71 @@ const corregirCertificado = async (id, data, actor) => withTransaction(async (cr
     throw httpError(400, `La emisión debe ser posterior a la del certificado anterior (${formatIso(anterior)}).`);
   }
 
-  const changes = describeChanges(certFromEquipo(equipo), data, CERT_LABELS);
-  if (!changes && String(data.observaciones || '') === '') return { id, cambios: 0 };
+  const current = await loadCertificateRow(createRequest, currentId);
+  const before = certVersion(current);
+  // Sin observaciones nuevas se conservan las que tenía.
+  const after = certVersion({ ...data, observaciones: data.observaciones ?? current.observaciones });
+  const changes = describeChanges(before, after, CERT_CORRECTION_LABELS, formatCertValue);
+  if (!changes) return { id, cambios: 0 };
 
   await writeCurrentCertificate(createRequest, id, data, null);
   await createRequest()
     .input('cid', sql.Int, currentId)
-    .input('numero', sql.NVarChar(100), data.numero)
-    .input('fecha', sql.Date, data.fecha)
-    .input('periodo', sql.Int, data.periodoDias)
-    .input('vence', sql.Date, expiryDate(data.fecha, data.periodoDias))
-    .input('ente', sql.NVarChar(50), data.ente)
-    .input('obs', sql.NVarChar(300), data.observaciones || null)
+    .input('numero', sql.NVarChar(100), after.numero)
+    .input('fecha', sql.Date, after.fecha)
+    .input('periodo', sql.Int, after.periodoDias)
+    .input('vence', sql.Date, after.vence)
+    .input('ente', sql.NVarChar(50), after.ente)
+    .input('obs', sql.NVarChar(300), after.observaciones)
+    .input('usuario', sql.NVarChar(50), who.usuario)
     .query(`
       UPDATE dbo.CAL_CERTIFICADOS
       SET certificado = @numero, cert_fecha = @fecha, cert_periodo = @periodo,
-        cert_fechaven = @vence, ente_calibrador = @ente,
-        observaciones = COALESCE(@obs, observaciones)
+        cert_fechaven = @vence, ente_calibrador = @ente, observaciones = @obs,
+        corregido_por = @usuario, corregido_en = SYSUTCDATETIME(),
+        revisado_por = NULL, revisado_en = NULL, revision_obs = NULL
       WHERE id = @cid
     `);
-  await logAction(createRequest, id, 'CORRECCION', changes || 'Observaciones del certificado', who.usuario);
+  await logAction(createRequest, id, 'CORRECCION', changes, who.usuario, { antes: before, despues: after, motivo: data.motivo });
   return { id, cambios: 1 };
+});
+
+/**
+ * Un segundo usuario compara el certificado vigente con el original (7.5.1 y
+ * 7.11.6). Quien lo registró o lo corrigió no puede revisarlo.
+ */
+const revisarCertificado = async (id, { observaciones }, actor) => withTransaction(async (createRequest) => {
+  const equipo = await loadEquipo(createRequest, id, { lock: true });
+  assertActive(equipo);
+  if (!equipo.certFecha) throw httpError(409, 'El equipo no tiene certificado que revisar.');
+  const who = await findActor(createRequest, actor);
+
+  // Si otro sistema lo cambió, se archiva sin autor: no lo registró quien revisa.
+  const currentId = await archiveCurrentIfMissing(createRequest, equipo, null);
+  const current = await loadCertificateRow(createRequest, currentId);
+  if (current.revisadoPor) throw httpError(409, `Este certificado ya lo revisó ${current.revisadoPor}.`);
+  if (conflictingAuthor([who.usuario, who.registro], [current.registradoPor, current.corregidoPor])) {
+    throw httpError(409, 'La revisión la debe hacer otra persona: tú registraste o corregiste este certificado.');
+  }
+
+  await createRequest()
+    .input('cid', sql.Int, currentId)
+    .input('usuario', sql.NVarChar(50), who.usuario)
+    .input('obs', sql.NVarChar(300), observaciones || null)
+    .query(`
+      UPDATE dbo.CAL_CERTIFICADOS
+      SET revisado_por = @usuario, revisado_en = SYSUTCDATETIME(), revision_obs = @obs
+      WHERE id = @cid
+    `);
+  await logAction(
+    createRequest,
+    id,
+    'REVISION',
+    `${current.numero || 'Certificado'} revisado contra el original${observaciones ? `: ${observaciones}` : ''}`,
+    who.usuario,
+    { despues: certVersion(current) }
+  );
+  return { id, revisadoPor: who.usuario };
 });
 
 /** Anula el certificado vigente y vuelve a regir el anterior. */
@@ -390,7 +485,17 @@ const anularCertificado = async (id, { motivo }, actor) => withTransaction(async
     id,
     'ANULACION',
     `${equipo.certificado || 'Certificado'} anulado: ${motivo}. Vuelve a regir ${clean(anterior.certificado) || 'el anterior'}`,
-    who.usuario
+    who.usuario,
+    {
+      antes: certVersion(certFromEquipo(equipo)),
+      despues: certVersion({
+        numero: clean(anterior.certificado),
+        fecha: anterior.cert_fecha,
+        periodoDias: anterior.cert_periodo,
+        ente: clean(anterior.ente_calibrador),
+      }),
+      motivo,
+    }
   );
   return { id };
 });
@@ -407,39 +512,72 @@ const cambiarEstado = async (id, { activo, motivo }, actor) => withTransaction(a
     .input('eid', sql.Int, id)
     .input('estado', sql.NVarChar(12), activo ? ESTADO_ACTIVO : ESTADO_BAJA)
     .query('UPDATE DATA_EQUIPOS_CAL SET estado = @estado WHERE id = @eid');
-  await logAction(createRequest, id, activo ? 'REACTIVACION' : 'BAJA', motivo || null, who.usuario);
+  await logAction(createRequest, id, activo ? 'REACTIVACION' : 'BAJA', motivo || null, who.usuario, { motivo });
   return { id, estado: activo ? ESTADO_ACTIVO : ESTADO_BAJA };
 });
 
-/** Ficha histórica de un equipo: certificados, verificaciones y bitácora. */
-const getEquipoHistorial = async (id) => {
+/** Revisión del certificado vigente vista por quien consulta. */
+const reviewState = (vigente, who) => {
+  if (!vigente) return null;
+  if (vigente.revisadoPor) {
+    return { estado: 'REVISADO', revisadoPor: vigente.revisadoPor, revisadoEn: vigente.revisadoEn, observaciones: vigente.revisionObs };
+  }
+  const autor = conflictingAuthor([who.usuario, who.registro], [vigente.registradoPor, vigente.corregidoPor]);
+  return {
+    estado: 'PENDIENTE',
+    puedeRevisar: !autor,
+    motivo: autor ? 'Lo registraste o corregiste tú: debe revisarlo otra persona.' : null,
+  };
+};
+
+/**
+ * Ficha histórica de un equipo: certificados (con su revisión), verificaciones
+ * realizadas y una bitácora que une los cambios del equipo, de su plan y de
+ * sus fechas.
+ */
+const getEquipoHistorial = async (id, user = null) => {
   const createRequest = () => getPool().request();
   const equipo = await loadEquipo(createRequest, id);
-  const [certificados, actividad, verificaciones] = await Promise.all([
+  const [certificados, actividad, verificaciones, who] = await Promise.all([
     createRequest().input('eid', sql.Int, id).query(`
       SELECT id, certificado, CONVERT(varchar(10), cert_fecha, 23) AS cert_fecha, cert_periodo,
         CONVERT(varchar(10), cert_fechaven, 23) AS cert_fechaven, ente_calibrador, observaciones,
         origen, anulado, motivo_anulacion, anulado_por,
         CONVERT(varchar(19), anulado_en, 126) AS anulado_en,
-        registrado_por, CONVERT(varchar(19), registrado_en, 126) AS registrado_en
+        registrado_por, CONVERT(varchar(19), registrado_en, 126) AS registrado_en,
+        corregido_por, CONVERT(varchar(19), corregido_en, 126) AS corregido_en,
+        revisado_por, CONVERT(varchar(19), revisado_en, 126) AS revisado_en, revision_obs
       FROM dbo.CAL_CERTIFICADOS
       WHERE equipo_id = @eid
       ORDER BY cert_fecha DESC, id DESC
     `),
-    createRequest().input('eid', sql.Int, id).query(`
-      SELECT TOP 60 id, accion, detalle, usuario, CONVERT(varchar(19), fecha, 126) AS fecha
-      FROM dbo.CAL_EQUIPOS_HISTORIAL
-      WHERE equipo_id = @eid
-      ORDER BY fecha DESC, id DESC
-    `),
+    createRequest()
+      .input('eid', sql.Int, id)
+      .query(`
+        SELECT TOP 80 * FROM (
+          SELECT 'EQUIPO' AS fuente, id, CAST(NULL AS varchar(20)) AS tipo, accion, detalle, motivo,
+            CAST(NULL AS varchar(10)) AS fecha_programada, usuario, CONVERT(varchar(19), fecha, 126) AS fecha, fecha AS orden
+          FROM dbo.CAL_EQUIPOS_HISTORIAL WHERE equipo_id = @eid
+          UNION ALL
+          SELECT 'PLAN', id, tipo, accion, detalle, NULL, NULL, usuario, CONVERT(varchar(19), fecha, 126), fecha
+          FROM dbo.CAL_PLAN_HISTORIAL WHERE equipo_id = @eid AND accion <> 'INICIAL'
+          UNION ALL
+          SELECT 'FECHA', id, tipo, accion, detalle, motivo, CONVERT(varchar(10), fecha_programada, 23),
+            usuario, CONVERT(varchar(19), fecha, 126), fecha
+          FROM dbo.CAL_EVENTOS_HISTORIAL WHERE equipo_id = @eid AND accion <> 'INICIAL'
+        ) h
+        ORDER BY orden DESC, id DESC
+      `),
     createRequest().input('serie', sql.VarChar(30), `VER-${id}`).query(`
       SELECT CONVERT(varchar(10), fecha_programada, 23) AS fecha_programada,
         CONVERT(varchar(10), fecha_realizada, 23) AS fecha_realizada,
-        resultado, observaciones, actualizado_por
+        resultado, observaciones, registro_ref, actualizado_por, revisado_por,
+        CONVERT(varchar(19), revisado_en, 126) AS revisado_en
       FROM dbo.CAL_EVENTOS
       WHERE serie = @serie AND estado = 'REALIZADO'
       ORDER BY fecha_realizada DESC
     `),
+    user ? findActor(createRequest, user) : Promise.resolve({ usuario: null, registro: null }),
   ]);
 
   const utc = (value) => (value ? `${value}Z` : null);
@@ -458,18 +596,24 @@ const getEquipoHistorial = async (id) => {
     anuladoEn: utc(row.anulado_en),
     registradoPor: clean(row.registrado_por),
     registradoEn: utc(row.registrado_en),
+    corregidoPor: clean(row.corregido_por),
+    corregidoEn: utc(row.corregido_en),
+    revisadoPor: clean(row.revisado_por),
+    revisadoEn: utc(row.revisado_en),
+    revisionObs: clean(row.revision_obs),
     vigente: false,
   }));
 
   // El vigente es el que coincide con DATA_EQUIPOS_CAL. Si otro sistema lo
   // cambió y aún no está en el historial, se muestra igual.
+  let vigente = null;
   if (equipo.certFecha) {
-    const vigente = lista.find(item => !item.anulado && item.fecha === equipo.certFecha
+    vigente = lista.find(item => !item.anulado && item.fecha === equipo.certFecha
       && (item.numero || '') === (equipo.certificado || ''));
     if (vigente) {
       vigente.vigente = true;
     } else {
-      lista.unshift({
+      vigente = {
         id: null,
         ...certFromEquipo(equipo),
         vence: expiryDate(equipo.certFecha, equipo.periodoDias),
@@ -479,7 +623,8 @@ const getEquipoHistorial = async (id) => {
         registradoPor: equipo.registradoPor,
         registradoEn: equipo.registradoEn,
         vigente: true,
-      });
+      };
+      lista.unshift(vigente);
     }
   }
   const anteriores = lista.filter(item => !item.anulado && !item.vigente);
@@ -487,18 +632,26 @@ const getEquipoHistorial = async (id) => {
   return {
     equipo,
     puedeAnular: Boolean(equipo.certFecha) && anteriores.some(item => item.fecha < equipo.certFecha),
+    revision: reviewState(vigente, who),
     certificados: lista,
     verificaciones: verificaciones.recordset.map(row => ({
       fechaProgramada: row.fecha_programada,
       fechaRealizada: row.fecha_realizada,
       resultado: row.resultado,
       observaciones: clean(row.observaciones),
+      registroRef: clean(row.registro_ref),
       registradoPor: clean(row.actualizado_por),
+      revisadoPor: clean(row.revisado_por),
+      revisadoEn: utc(row.revisado_en),
     })),
     actividad: actividad.recordset.map(row => ({
-      id: row.id,
+      id: `${row.fuente}-${row.id}`,
+      fuente: row.fuente,
+      tipo: row.tipo || null,
       accion: row.accion,
       detalle: clean(row.detalle),
+      motivo: clean(row.motivo),
+      fechaProgramada: row.fecha_programada || null,
       usuario: clean(row.usuario),
       fecha: utc(row.fecha),
     })),
@@ -516,6 +669,7 @@ module.exports = {
   updateEquipoDatos,
   registrarCertificado,
   corregirCertificado,
+  revisarCertificado,
   anularCertificado,
   cambiarEstado,
   getEquipoHistorial,

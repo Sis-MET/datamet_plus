@@ -172,8 +172,11 @@ const withOverride = (occurrence, saved) => {
     fechaRealizada: saved.fechaRealizada || null,
     resultado: saved.resultado || null,
     observaciones: saved.observaciones || null,
+    registroRef: saved.registroRef || null,
     actualizadoPor: saved.actualizadoPor || null,
     actualizadoEn: saved.actualizadoEn || null,
+    revisadoPor: saved.revisadoPor || null,
+    revisadoEn: saved.revisadoEn || null,
     guardado: true,
   };
 };
@@ -201,8 +204,11 @@ const emptyOccurrence = (fields) => ({
   fechaRealizada: null,
   resultado: null,
   observaciones: null,
+  registroRef: null,
   actualizadoPor: null,
   actualizadoEn: null,
+  revisadoPor: null,
+  revisadoEn: null,
   guardado: false,
   proyectado: false,
   editable: true,

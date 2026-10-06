@@ -23,6 +23,17 @@ const {
   normalizeArea,
   withTransaction,
 } = require('./calibration.db');
+const {
+  AJUSTES_LABELS,
+  PROGRAMA_LABELS,
+  conflictingAuthor,
+  describeEventChanges,
+  describePlanChanges,
+  eventView,
+  logEvento,
+  logPlan,
+  parseSnapshot,
+} = require('./calibration.history');
 
 // Hacia atrás se mira poco más de un año (vencidas sin resolver). Hacia
 // adelante, tres años: cubre ventanas de aviso largas y la próxima fecha de
@@ -70,6 +81,27 @@ const getCatalogos = async () => {
   };
 };
 
+/**
+ * Revisión del certificado vigente de cada equipo activo (7.5.1): REVISADO o
+ * PENDIENTE. El vigente es la fila del historial que coincide con
+ * DATA_EQUIPOS_CAL; si otro sistema lo cambió y aún no está, queda pendiente.
+ */
+const getCertRevisions = async () => {
+  const same = (column) => `LTRIM(RTRIM(REPLACE(ISNULL(${column}, ''), NCHAR(160), N' ')))`;
+  const result = await getPool().request().query(`
+    SELECT e.id, actual.revisado_por
+    FROM DATA_EQUIPOS_CAL e
+    OUTER APPLY (
+      SELECT TOP 1 c.revisado_por FROM dbo.CAL_CERTIFICADOS c
+      WHERE c.equipo_id = e.id AND c.anulado = 0 AND c.cert_fecha = e.cert_fecha
+        AND ${same('c.certificado')} = ${same('e.certificado')}
+      ORDER BY c.id DESC
+    ) actual
+    WHERE e.cert_fecha IS NOT NULL AND ${IS_ACTIVE}
+  `);
+  return new Map(result.recordset.map(row => [row.id, clean(row.revisado_por) ? 'REVISADO' : 'PENDIENTE']));
+};
+
 const mapPrograma = (row) => ({
   id: row.id,
   tipo: row.tipo,
@@ -107,8 +139,10 @@ const getEventos = async () => {
       CONVERT(varchar(10), fecha_reprogramada, 23) AS fecha_reprogramada,
       estado,
       CONVERT(varchar(10), fecha_realizada, 23)    AS fecha_realizada,
-      resultado, observaciones, actualizado_por,
-      CONVERT(varchar(19), actualizado_en, 126)    AS actualizado_en
+      resultado, observaciones, registro_ref, actualizado_por,
+      CONVERT(varchar(19), actualizado_en, 126)    AS actualizado_en,
+      revisado_por,
+      CONVERT(varchar(19), revisado_en, 126)       AS revisado_en
     FROM dbo.CAL_EVENTOS
   `);
   return result.recordset.map(row => ({
@@ -119,8 +153,11 @@ const getEventos = async () => {
     fechaRealizada: row.fecha_realizada,
     resultado: row.resultado,
     observaciones: row.observaciones,
+    registroRef: clean(row.registro_ref),
     actualizadoPor: row.actualizado_por,
     actualizadoEn: row.actualizado_en ? `${row.actualizado_en}Z` : null,
+    revisadoPor: clean(row.revisado_por),
+    revisadoEn: row.revisado_en ? `${row.revisado_en}Z` : null,
   }));
 };
 
@@ -268,11 +305,12 @@ const getPlan = async ({ anio, user }) => {
   const desde = `${year}-01-01`;
   const hasta = `${year}-12-31`;
 
-  const [sources, permisos, bajas, catalogos] = await Promise.all([
+  const [sources, permisos, bajas, catalogos, revisiones] = await Promise.all([
     loadPlanSources(),
     getCalibrationPermissions(user),
     getEquiposBaja(),
     getCatalogos(),
+    getCertRevisions(),
   ]);
   const { equipos, programas, ajustes } = sources;
   const eventos = buildOccurrences({ ...sources, desde, hasta, hoy });
@@ -287,6 +325,7 @@ const getPlan = async ({ anio, user }) => {
     return {
       ...equipo,
       ...certificateStatus(equipo, hoy, alerta.dias),
+      certRevision: revisiones.get(equipo.id) || null,
       enPlan: !calibracion || calibracion.activo,
       calibracion: publicPrograma(calibracion),
       verificacion: publicPrograma(verificacion),
@@ -316,7 +355,8 @@ const getPlan = async ({ anio, user }) => {
   return {
     anio: year,
     hoy,
-    permisos,
+    // El usuario sirve para saber quién puede revisar lo que registró otro.
+    permisos: { ...permisos, usuario: actorName(user) },
     ajustes: {
       alertaDias: ajustes.alertaDias,
       alertaFrecuencia: ajustes.alertaFrecuencia,
@@ -407,35 +447,84 @@ const PROGRAMA_COLUMNS = {
   alerta_correo: sql.Bit,
 };
 
+const selectPrograma = (lock = false) => `
+  SELECT id, tipo, equipo_id, activo, titulo, categoria, descripcion, frecuencia_meses,
+    CONVERT(varchar(10), fecha_inicio, 23) AS fecha_inicio, responsable_id, responsable_nombre,
+    alerta_dias, alerta_frecuencia, alerta_correo
+  FROM dbo.CAL_PROGRAMAS${lock ? ' WITH (UPDLOCK, HOLDLOCK)' : ''}`;
+
+const programaRow = (row) => (row ? {
+  ...row,
+  activo: Boolean(row.activo),
+  alerta_correo: row.alerta_correo == null ? null : Boolean(row.alerta_correo),
+} : null);
+
+/** Versión de una serie tal como queda en el historial del plan. */
+const programaVersion = (row) => (row
+  ? Object.fromEntries(Object.keys(PROGRAMA_LABELS).map(key => [key, row[key] ?? null]))
+  : null);
+
+const changedColumns = (before, values) => Object.keys(values)
+  .filter(column => String(before[column] ?? '') !== String(values[column] ?? ''));
+
 /**
  * Crea o actualiza la serie de un equipo modificando solo las columnas
- * recibidas (las demás conservan su valor).
+ * recibidas (las demás conservan su valor). Cada cambio queda en
+ * CAL_PLAN_HISTORIAL con la versión anterior y la nueva.
  */
 const upsertEquipoPrograma = async (createRequest, { tipo, equipoId, fields, actor }) => {
-  const columns = Object.keys(fields);
+  const usuario = actorName(actor);
+  const found = await createRequest()
+    .input('tipo', sql.VarChar(20), tipo)
+    .input('equipo', sql.Int, equipoId)
+    .query(`${selectPrograma(true)} WHERE tipo = @tipo AND equipo_id = @equipo`);
+  const before = programaRow(found.recordset[0]);
+
+  if (before) {
+    const columns = changedColumns(before, fields);
+    if (columns.length === 0) return;
+    const request = createRequest()
+      .input('id', sql.Int, before.id)
+      .input('actor', sql.NVarChar(50), usuario);
+    for (const column of columns) request.input(column, PROGRAMA_COLUMNS[column], fields[column]);
+    const setClause = [...columns.map(column => `${column} = @${column}`), 'actualizado_por = @actor', 'actualizado_en = SYSUTCDATETIME()'].join(', ');
+    await request.query(`UPDATE dbo.CAL_PROGRAMAS SET ${setClause} WHERE id = @id`);
+    const after = { ...before, ...fields };
+    await logPlan(createRequest, {
+      programaId: before.id,
+      tipo,
+      equipoId,
+      accion: 'EDICION',
+      detalle: describePlanChanges(before, after) || 'Configuración actualizada',
+      antes: programaVersion(before),
+      despues: programaVersion(after),
+      usuario,
+    });
+    return;
+  }
+
+  // Una verificación creada solo para guardar responsable o alertas nace apagada.
+  const values = { activo: tipo !== 'VERIFICACION', ...fields };
+  const columns = Object.keys(values);
   const request = createRequest()
     .input('tipo', sql.VarChar(20), tipo)
     .input('equipo', sql.Int, equipoId)
-    .input('actor', sql.NVarChar(50), actorName(actor));
-  for (const column of columns) request.input(column, PROGRAMA_COLUMNS[column], fields[column]);
-
-  const insertColumns = [...columns];
-  if (!insertColumns.includes('activo')) {
-    // Una verificación creada solo para guardar responsable o alertas nace apagada.
-    request.input('activo', sql.Bit, tipo !== 'VERIFICACION');
-    insertColumns.push('activo');
-  }
-
-  const setClause = [...columns.map(column => `${column} = @${column}`), 'actualizado_por = @actor', 'actualizado_en = SYSUTCDATETIME()'].join(', ');
-  await request.query(`
-    UPDATE dbo.CAL_PROGRAMAS WITH (UPDLOCK, SERIALIZABLE)
-    SET ${setClause}
-    WHERE tipo = @tipo AND equipo_id = @equipo;
-
-    IF @@ROWCOUNT = 0
-      INSERT INTO dbo.CAL_PROGRAMAS (tipo, equipo_id, ${insertColumns.join(', ')}, creado_por)
-      VALUES (@tipo, @equipo, ${insertColumns.map(column => `@${column}`).join(', ')}, @actor);
+    .input('actor', sql.NVarChar(50), usuario);
+  for (const column of columns) request.input(column, PROGRAMA_COLUMNS[column], values[column]);
+  const inserted = await request.query(`
+    INSERT INTO dbo.CAL_PROGRAMAS (tipo, equipo_id, ${columns.join(', ')}, creado_por)
+    OUTPUT INSERTED.id
+    VALUES (@tipo, @equipo, ${columns.map(column => `@${column}`).join(', ')}, @actor)
   `);
+  await logPlan(createRequest, {
+    programaId: inserted.recordset[0].id,
+    tipo,
+    equipoId,
+    accion: 'CREACION',
+    detalle: describePlanChanges({}, values),
+    despues: programaVersion(values),
+    usuario,
+  });
 };
 
 const alertFields = (data) => ({
@@ -518,6 +607,29 @@ const bindActividad = (request, data, responsableNombre, actor) => request
   .input('acorreo', sql.Bit, data.alertaCorreo)
   .input('actor', sql.NVarChar(50), actorName(actor));
 
+/** Columnas de una actividad con los datos del formulario. */
+const actividadValues = (data, responsableNombre) => ({
+  titulo: data.titulo,
+  categoria: data.categoria,
+  descripcion: data.descripcion,
+  frecuencia_meses: data.frecuenciaMeses,
+  fecha_inicio: data.fechaInicio,
+  responsable_id: data.responsableId,
+  responsable_nombre: responsableNombre,
+  alerta_dias: data.alertaDias,
+  alerta_frecuencia: data.alertaFrecuencia,
+  alerta_correo: data.alertaCorreo,
+});
+
+const loadActividad = async (createRequest, id) => {
+  const result = await createRequest()
+    .input('id', sql.Int, id)
+    .query(`${selectPrograma(true)} WHERE id = @id AND tipo = 'ACTIVIDAD' AND activo = 1`);
+  const row = programaRow(result.recordset[0]);
+  if (!row) throw httpError(404, 'La actividad no existe.');
+  return row;
+};
+
 const createActividad = async (data, actor) => withTransaction(async (createRequest) => {
   const responsable = await findResponsable(createRequest, data.responsableId);
   const result = await bindActividad(createRequest(), data, responsable, actor).query(`
@@ -529,12 +641,25 @@ const createActividad = async (data, actor) => withTransaction(async (createRequ
       ('ACTIVIDAD', @titulo, @categoria, @descripcion, @frecuencia, @inicio, @rid,
        @rnombre, @adias, @afrec, @acorreo, 1, @actor);
   `);
-  return { id: result.recordset[0].id };
+  const id = result.recordset[0].id;
+  await logPlan(createRequest, {
+    programaId: id,
+    tipo: 'ACTIVIDAD',
+    accion: 'CREACION',
+    detalle: `Nueva actividad: ${data.titulo}`,
+    despues: programaVersion({ activo: true, ...actividadValues(data, responsable) }),
+    usuario: actorName(actor),
+  });
+  return { id };
 });
 
 const updateActividad = async (id, data, actor) => withTransaction(async (createRequest) => {
+  const before = await loadActividad(createRequest, id);
   const responsable = await findResponsable(createRequest, data.responsableId);
-  const result = await bindActividad(createRequest(), data, responsable, actor)
+  const values = actividadValues(data, responsable);
+  if (changedColumns(before, values).length === 0) return { id };
+
+  await bindActividad(createRequest(), data, responsable, actor)
     .input('id', sql.Int, id)
     .query(`
       UPDATE dbo.CAL_PROGRAMAS
@@ -542,24 +667,77 @@ const updateActividad = async (id, data, actor) => withTransaction(async (create
         frecuencia_meses = @frecuencia, fecha_inicio = @inicio, responsable_id = @rid,
         responsable_nombre = @rnombre, alerta_dias = @adias, alerta_frecuencia = @afrec,
         alerta_correo = @acorreo, actualizado_por = @actor, actualizado_en = SYSUTCDATETIME()
-      WHERE id = @id AND tipo = 'ACTIVIDAD' AND activo = 1
+      WHERE id = @id
     `);
-  if (result.rowsAffected[0] === 0) throw httpError(404, 'La actividad no existe.');
+  const after = { ...before, ...values };
+  await logPlan(createRequest, {
+    programaId: id,
+    tipo: 'ACTIVIDAD',
+    accion: 'EDICION',
+    detalle: describePlanChanges(before, after) || 'Actividad actualizada',
+    antes: programaVersion(before),
+    despues: programaVersion(after),
+    usuario: actorName(actor),
+  });
   return { id };
 });
 
 /** Retira la actividad del plan; su historial se conserva. */
-const deleteActividad = async (id, actor) => {
-  const result = await getPool().request()
+const deleteActividad = async (id, actor) => withTransaction(async (createRequest) => {
+  const before = await loadActividad(createRequest, id);
+  await createRequest()
     .input('id', sql.Int, id)
     .input('actor', sql.NVarChar(50), actorName(actor))
     .query(`
       UPDATE dbo.CAL_PROGRAMAS
       SET activo = 0, actualizado_por = @actor, actualizado_en = SYSUTCDATETIME()
-      WHERE id = @id AND tipo = 'ACTIVIDAD' AND activo = 1
+      WHERE id = @id
     `);
-  if (result.rowsAffected[0] === 0) throw httpError(404, 'La actividad no existe.');
+  await logPlan(createRequest, {
+    programaId: id,
+    tipo: 'ACTIVIDAD',
+    accion: 'RETIRO',
+    detalle: `Retirada del plan: ${before.titulo}`,
+    antes: programaVersion(before),
+    despues: programaVersion({ ...before, activo: false }),
+    usuario: actorName(actor),
+  });
   return { id };
+});
+
+// Una línea de historial de cualquiera de las tres bitácoras.
+const mapActivity = (row) => ({
+  id: `${row.fuente}-${row.id}`,
+  fuente: row.fuente,
+  tipo: row.tipo || null,
+  accion: row.accion,
+  detalle: clean(row.detalle),
+  motivo: clean(row.motivo),
+  fechaProgramada: row.fecha_programada || null,
+  usuario: clean(row.usuario),
+  fecha: row.fecha ? `${row.fecha}Z` : null,
+});
+
+/** Historial de una actividad: su configuración y lo registrado en cada fecha. */
+const getActividadHistorial = async (id) => {
+  const result = await getPool().request()
+    .input('id', sql.Int, id)
+    .input('serie', sql.VarChar(30), serieKey('ACTIVIDAD', id))
+    .query(`
+      SELECT TOP 60 * FROM (
+        SELECT 'PLAN' AS fuente, id, tipo, accion, detalle, CAST(NULL AS nvarchar(300)) AS motivo,
+          CAST(NULL AS varchar(10)) AS fecha_programada, usuario, CONVERT(varchar(19), fecha, 126) AS fecha, fecha AS orden
+        FROM dbo.CAL_PLAN_HISTORIAL
+        WHERE entidad = 'PROGRAMA' AND programa_id = @id
+        UNION ALL
+        SELECT 'FECHA', id, tipo, accion, detalle, motivo,
+          CONVERT(varchar(10), fecha_programada, 23), usuario, CONVERT(varchar(19), fecha, 126), fecha
+        FROM dbo.CAL_EVENTOS_HISTORIAL
+        WHERE serie = @serie
+      ) h
+      ORDER BY orden DESC, id DESC
+    `);
+  return result.recordset.map(mapActivity);
 };
 
 const parseSerie = (serie) => {
@@ -582,63 +760,247 @@ const findEditableOccurrence = async ({ serie, fechaProgramada }) => {
   return occurrence;
 };
 
+const EVENTO_COLUMNS = `
+  id, serie, tipo, equipo_id, programa_id,
+  CONVERT(varchar(10), fecha_programada, 23)   AS fecha_programada,
+  CONVERT(varchar(10), fecha_reprogramada, 23) AS fecha_reprogramada,
+  estado,
+  CONVERT(varchar(10), fecha_realizada, 23)    AS fecha_realizada,
+  resultado, observaciones, registro_ref, actualizado_por, revisado_por`;
+
+const loadEvento = async (createRequest, { serie, fechaProgramada }) => {
+  const result = await createRequest()
+    .input('serie', sql.VarChar(30), serie)
+    .input('fp', sql.Date, fechaProgramada)
+    .query(`
+      SELECT ${EVENTO_COLUMNS}
+      FROM dbo.CAL_EVENTOS WITH (UPDLOCK, HOLDLOCK)
+      WHERE serie = @serie AND fecha_programada = @fp
+    `);
+  const row = result.recordset[0];
+  return row ? {
+    id: row.id,
+    tipo: row.tipo,
+    estado: row.estado,
+    fechaReprogramada: row.fecha_reprogramada,
+    fechaRealizada: row.fecha_realizada,
+    resultado: row.resultado,
+    observaciones: clean(row.observaciones),
+    registroRef: clean(row.registro_ref),
+    actualizadoPor: clean(row.actualizado_por),
+    revisadoPor: clean(row.revisado_por),
+  } : null;
+};
+
+// Si cambia alguno de estos datos, la revisión anterior deja de valer.
+const REVIEWED_FIELDS = ['estado', 'fechaRealizada', 'resultado', 'registroRef', 'observaciones'];
+
+/**
+ * Registra el seguimiento de una fecha (7.5). Cada cambio guarda la versión
+ * anterior y la nueva en CAL_EVENTOS_HISTORIAL; cambiar una fecha que ya
+ * figuraba como realizada exige un motivo. Una fecha sin datos vuelve a su
+ * programación original y su última versión queda en el historial.
+ */
 const saveEvento = async (data, actor) => {
   const occurrence = await findEditableOccurrence(data);
   const { tipo } = parseSerie(data.serie);
+  const usuario = actorName(actor);
+  const realizado = data.estado === 'REALIZADO';
   const resetting = data.estado === 'PROGRAMADO'
-    && !data.fechaReprogramada && !data.fechaRealizada && !data.resultado && !data.observaciones;
-  if (resetting) return deleteEvento(data);
+    && !data.fechaReprogramada && !data.observaciones && !data.registroRef;
+  const after = resetting ? null : eventView({
+    estado: data.estado,
+    fechaReprogramada: data.fechaReprogramada,
+    fechaRealizada: realizado ? data.fechaRealizada : null,
+    resultado: realizado ? data.resultado : null,
+    registroRef: realizado ? data.registroRef : null,
+    observaciones: data.observaciones,
+  });
+  const key = {
+    serie: data.serie,
+    tipo,
+    equipoId: occurrence.equipoId,
+    programaId: occurrence.programaId,
+    fechaProgramada: data.fechaProgramada,
+  };
 
-  await getPool().request()
-    .input('serie', sql.VarChar(30), data.serie)
-    .input('tipo', sql.VarChar(20), tipo)
-    .input('equipo', sql.Int, occurrence.equipoId)
-    .input('programa', sql.Int, occurrence.programaId)
-    .input('fp', sql.Date, data.fechaProgramada)
-    .input('frep', sql.Date, data.fechaReprogramada)
-    .input('estado', sql.VarChar(20), data.estado)
-    .input('freal', sql.Date, data.estado === 'REALIZADO' ? data.fechaRealizada : null)
-    .input('resultado', sql.VarChar(20), data.estado === 'REALIZADO' ? data.resultado : null)
-    .input('obs', sql.NVarChar(500), data.observaciones)
-    .input('actor', sql.NVarChar(50), actorName(actor))
-    .query(`
-      UPDATE dbo.CAL_EVENTOS WITH (UPDLOCK, SERIALIZABLE)
-      SET fecha_reprogramada = @frep, estado = @estado, fecha_realizada = @freal,
-        resultado = @resultado, observaciones = @obs, actualizado_por = @actor,
-        actualizado_en = SYSUTCDATETIME()
-      WHERE serie = @serie AND fecha_programada = @fp;
+  return withTransaction(async (createRequest) => {
+    const before = await loadEvento(createRequest, data);
+    const detalle = describeEventChanges(before, after);
+    if (!detalle) return { serie: data.serie, fechaProgramada: data.fechaProgramada, cambios: 0 };
+    if (before?.estado === 'REALIZADO' && !data.motivo) {
+      throw httpError(400, 'Esta fecha ya figura como realizada: escribe el motivo del cambio para que quede en el historial.');
+    }
 
-      IF @@ROWCOUNT = 0
-        INSERT INTO dbo.CAL_EVENTOS
-          (serie, tipo, equipo_id, programa_id, fecha_programada, fecha_reprogramada, estado,
-           fecha_realizada, resultado, observaciones, actualizado_por)
-        VALUES
-          (@serie, @tipo, @equipo, @programa, @fp, @frep, @estado, @freal, @resultado, @obs, @actor);
-    `);
-  return { serie: data.serie, fechaProgramada: data.fechaProgramada };
+    if (resetting) {
+      await createRequest()
+        .input('id', sql.Int, before.id)
+        .query('DELETE FROM dbo.CAL_EVENTOS WHERE id = @id');
+      await logEvento(createRequest, {
+        ...key,
+        accion: 'RESTABLECIMIENTO',
+        detalle,
+        antes: eventView(before),
+        motivo: data.motivo,
+        usuario,
+      });
+      return { serie: data.serie, fechaProgramada: data.fechaProgramada, cambios: 1 };
+    }
+
+    const previous = eventView(before);
+    const resetReview = REVIEWED_FIELDS.some(field => String(previous[field] ?? '') !== String(after[field] ?? ''));
+    await createRequest()
+      .input('serie', sql.VarChar(30), data.serie)
+      .input('tipo', sql.VarChar(20), tipo)
+      .input('equipo', sql.Int, occurrence.equipoId)
+      .input('programa', sql.Int, occurrence.programaId)
+      .input('fp', sql.Date, data.fechaProgramada)
+      .input('frep', sql.Date, after.fechaReprogramada)
+      .input('estado', sql.VarChar(20), after.estado)
+      .input('freal', sql.Date, after.fechaRealizada)
+      .input('resultado', sql.VarChar(20), after.resultado)
+      .input('obs', sql.NVarChar(500), after.observaciones)
+      .input('ref', sql.NVarChar(150), after.registroRef)
+      .input('actor', sql.NVarChar(50), usuario)
+      .input('reset', sql.Bit, resetReview)
+      .query(`
+        UPDATE dbo.CAL_EVENTOS
+        SET fecha_reprogramada = @frep, estado = @estado, fecha_realizada = @freal,
+          resultado = @resultado, observaciones = @obs, registro_ref = @ref,
+          actualizado_por = @actor, actualizado_en = SYSUTCDATETIME(),
+          revisado_por = CASE WHEN @reset = 1 THEN NULL ELSE revisado_por END,
+          revisado_en = CASE WHEN @reset = 1 THEN NULL ELSE revisado_en END
+        WHERE serie = @serie AND fecha_programada = @fp;
+
+        IF @@ROWCOUNT = 0
+          INSERT INTO dbo.CAL_EVENTOS
+            (serie, tipo, equipo_id, programa_id, fecha_programada, fecha_reprogramada, estado,
+             fecha_realizada, resultado, observaciones, registro_ref, actualizado_por)
+          VALUES
+            (@serie, @tipo, @equipo, @programa, @fp, @frep, @estado, @freal, @resultado, @obs, @ref, @actor);
+      `);
+    await logEvento(createRequest, {
+      ...key,
+      accion: before ? 'MODIFICACION' : 'REGISTRO',
+      detalle,
+      antes: before ? previous : null,
+      despues: after,
+      motivo: data.motivo,
+      usuario,
+    });
+    return { serie: data.serie, fechaProgramada: data.fechaProgramada, cambios: 1 };
+  });
 };
 
-async function deleteEvento({ serie, fechaProgramada }) {
-  await getPool().request()
+/** Devuelve la fecha a su programación original; su última versión queda en el historial. */
+const resetEvento = ({ serie, fechaProgramada, motivo }, actor) => saveEvento({
+  serie,
+  fechaProgramada,
+  estado: 'PROGRAMADO',
+  fechaReprogramada: null,
+  fechaRealizada: null,
+  resultado: null,
+  observaciones: null,
+  registroRef: null,
+  motivo,
+}, actor);
+
+/** Un segundo usuario confirma los datos de una verificación realizada (7.5.1). */
+const revisarEvento = async ({ serie, fechaProgramada }, actor) => withTransaction(async (createRequest) => {
+  const before = await loadEvento(createRequest, { serie, fechaProgramada });
+  if (!before || before.estado !== 'REALIZADO' || before.tipo !== 'VERIFICACION') {
+    throw httpError(409, 'Solo se revisa una verificación registrada como realizada.');
+  }
+  if (before.revisadoPor) throw httpError(409, `Esta verificación ya la revisó ${before.revisadoPor}.`);
+  const usuario = actorName(actor);
+  if (conflictingAuthor([usuario], [before.actualizadoPor])) {
+    throw httpError(409, 'La revisión la debe hacer otra persona: tú registraste estos datos.');
+  }
+  await createRequest()
+    .input('id', sql.Int, before.id)
+    .input('usuario', sql.NVarChar(50), usuario)
+    .query('UPDATE dbo.CAL_EVENTOS SET revisado_por = @usuario, revisado_en = SYSUTCDATETIME() WHERE id = @id');
+  const occurrenceKey = parseSerie(serie);
+  await logEvento(createRequest, {
+    serie,
+    tipo: before.tipo,
+    equipoId: occurrenceKey.refId,
+    fechaProgramada,
+    accion: 'REVISION',
+    detalle: `Datos revisados; registrados por ${before.actualizadoPor || 'otro usuario'}`,
+    antes: eventView(before),
+    despues: eventView(before),
+    usuario,
+  });
+  return { serie, fechaProgramada, revisadoPor: usuario };
+});
+
+/** Todas las versiones de una fecha del plan, de la más reciente a la primera. */
+const getEventoHistorial = async ({ serie, fechaProgramada }) => {
+  const result = await getPool().request()
     .input('serie', sql.VarChar(30), serie)
     .input('fp', sql.Date, fechaProgramada)
-    .query('DELETE FROM dbo.CAL_EVENTOS WHERE serie = @serie AND fecha_programada = @fp');
-  return { serie, fechaProgramada };
-}
+    .query(`
+      SELECT TOP 50 id, accion, detalle, antes, despues, motivo, usuario,
+        CONVERT(varchar(19), fecha, 126) AS fecha
+      FROM dbo.CAL_EVENTOS_HISTORIAL
+      WHERE serie = @serie AND fecha_programada = @fp
+      ORDER BY fecha DESC, id DESC
+    `);
+  return result.recordset.map(row => ({
+    id: row.id,
+    accion: row.accion,
+    detalle: clean(row.detalle),
+    motivo: clean(row.motivo),
+    usuario: clean(row.usuario),
+    fecha: row.fecha ? `${row.fecha}Z` : null,
+    antes: parseSnapshot(row.antes),
+    despues: parseSnapshot(row.despues),
+  }));
+};
 
 const updateAjustes = async (data, actor) => {
-  await getPool().request()
-    .input('dias', sql.Int, data.alertaDias)
-    .input('frec', sql.VarChar(10), data.alertaFrecuencia)
-    .input('correo', sql.Bit, data.alertaCorreo)
-    .input('hora', sql.Char(5), data.horaEnvio)
-    .input('actor', sql.NVarChar(50), actorName(actor))
-    .query(`
-      UPDATE dbo.CAL_AJUSTES
-      SET alerta_dias = @dias, alerta_frecuencia = @frec, alerta_correo = @correo,
-        hora_envio = @hora, actualizado_por = @actor, actualizado_en = SYSUTCDATETIME()
-      WHERE id = 1
+  await withTransaction(async (createRequest) => {
+    const found = await createRequest().query(`
+      SELECT alerta_dias, alerta_frecuencia, alerta_correo, hora_envio
+      FROM dbo.CAL_AJUSTES WITH (UPDLOCK, HOLDLOCK) WHERE id = 1
     `);
+    const row = found.recordset[0];
+    const before = row ? {
+      alerta_dias: row.alerta_dias,
+      alerta_frecuencia: row.alerta_frecuencia,
+      alerta_correo: Boolean(row.alerta_correo),
+      hora_envio: String(row.hora_envio || '').trim(),
+    } : null;
+    const after = {
+      alerta_dias: data.alertaDias,
+      alerta_frecuencia: data.alertaFrecuencia,
+      alerta_correo: data.alertaCorreo,
+      hora_envio: data.horaEnvio,
+    };
+    const detalle = describePlanChanges(before, after, AJUSTES_LABELS);
+    if (!detalle) return;
+    await createRequest()
+      .input('dias', sql.Int, data.alertaDias)
+      .input('frec', sql.VarChar(10), data.alertaFrecuencia)
+      .input('correo', sql.Bit, data.alertaCorreo)
+      .input('hora', sql.Char(5), data.horaEnvio)
+      .input('actor', sql.NVarChar(50), actorName(actor))
+      .query(`
+        UPDATE dbo.CAL_AJUSTES
+        SET alerta_dias = @dias, alerta_frecuencia = @frec, alerta_correo = @correo,
+          hora_envio = @hora, actualizado_por = @actor, actualizado_en = SYSUTCDATETIME()
+        WHERE id = 1
+      `);
+    await logPlan(createRequest, {
+      entidad: 'AJUSTES',
+      accion: 'EDICION',
+      detalle,
+      antes: before,
+      despues: after,
+      usuario: actorName(actor),
+    });
+  });
   return getAjustes();
 };
 
@@ -801,8 +1163,11 @@ module.exports = {
   createActividad,
   updateActividad,
   deleteActividad,
+  getActividadHistorial,
   saveEvento,
-  deleteEvento,
+  resetEvento,
+  revisarEvento,
+  getEventoHistorial,
   getAjustes,
   updateAjustes,
   getAlertSettings,

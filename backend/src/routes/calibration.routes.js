@@ -12,6 +12,8 @@ router.get('/alertas/resumen', protect, controller.getAlertSummary);
 router.get('/personal', protect, controller.getPersonal);
 router.post('/vista-previa', protect, controller.previewDates);
 router.get('/equipos/:id/historial', protect, controller.getEquipoHistorial);
+router.get('/actividades/:id/historial', protect, controller.getActividadHistorial);
+router.get('/eventos/historial', protect, controller.getEventoHistorial);
 
 // Escritura: área Calibración y nivel 3.
 router.put('/equipos', editor, controller.updateEquipos);
@@ -22,11 +24,13 @@ router.put('/equipos/:id/estado', editor, controller.cambiarEstadoEquipo);
 router.post('/equipos/:id/certificados', editor, controller.registrarCertificado);
 router.put('/equipos/:id/certificados/vigente', editor, controller.corregirCertificado);
 router.post('/equipos/:id/certificados/vigente/anular', editor, controller.anularCertificado);
+router.post('/equipos/:id/certificados/vigente/revision', editor, controller.revisarCertificado);
 router.post('/actividades', editor, controller.createActividad);
 router.put('/actividades/:id', editor, controller.updateActividad);
 router.delete('/actividades/:id', editor, controller.deleteActividad);
 router.put('/eventos', editor, controller.saveEvento);
-router.delete('/eventos', editor, controller.resetEvento);
+router.post('/eventos/restablecer', editor, controller.resetEvento);
+router.post('/eventos/revision', editor, controller.revisarEvento);
 router.get('/alertas/ajustes', editor, controller.getAlertSettings);
 router.put('/alertas/ajustes', editor, controller.updateAjustes);
 router.post('/alertas/contactos', editor, controller.createContacto);

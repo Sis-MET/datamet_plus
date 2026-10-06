@@ -19,7 +19,8 @@ const handle = (action) => async (req, res, next) => {
     if ([400, 403, 404, 409, 503].includes(error.statusCode)) {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
-    if (/Invalid object name 'dbo\.CAL_/i.test(error.message || '')) {
+    // Tabla o columna ausente: falta aplicar una migración del módulo.
+    if (/Invalid (object|column) name '(dbo\.CAL_|registro_ref|revisado_|revision_obs|corregido_)/i.test(error.message || '')) {
       return res.status(503).json({
         success: false,
         message: 'Faltan migraciones del módulo de calibración en la base de datos. Ejecuta "pnpm migrate" en backend.',
@@ -43,7 +44,7 @@ module.exports = {
   updateEquipos: handle(req => calibrationService.updateEquiposMasivo(parse('equiposMasivo', req.body), req.user)),
 
   // Gestión de los equipos de DATA_EQUIPOS_CAL.
-  getEquipoHistorial: handle(req => equipmentService.getEquipoHistorial(readId(req.params.id))),
+  getEquipoHistorial: handle(req => equipmentService.getEquipoHistorial(readId(req.params.id), req.user)),
   createEquipo: handle(req => equipmentService.createEquipo(parse('equipoAlta', req.body), req.user)),
   updateEquipoDatos: handle(req => equipmentService.updateEquipoDatos(
     readId(req.params.id),
@@ -57,7 +58,12 @@ module.exports = {
   )),
   corregirCertificado: handle(req => equipmentService.corregirCertificado(
     readId(req.params.id),
-    parse('certificado', req.body),
+    parse('certificadoCorreccion', req.body),
+    req.user
+  )),
+  revisarCertificado: handle(req => equipmentService.revisarCertificado(
+    readId(req.params.id),
+    parse('certificadoRevision', req.body),
     req.user
   )),
   anularCertificado: handle(req => equipmentService.anularCertificado(
@@ -78,9 +84,12 @@ module.exports = {
     req.user
   )),
   deleteActividad: handle(req => calibrationService.deleteActividad(readId(req.params.id), req.user)),
+  getActividadHistorial: handle(req => calibrationService.getActividadHistorial(readId(req.params.id))),
 
   saveEvento: handle(req => calibrationService.saveEvento(parse('evento', req.body), req.user)),
-  resetEvento: handle(req => calibrationService.deleteEvento(parse('eventoClave', req.query))),
+  resetEvento: handle(req => calibrationService.resetEvento(parse('eventoRestablecer', req.body), req.user)),
+  revisarEvento: handle(req => calibrationService.revisarEvento(parse('eventoClave', req.body), req.user)),
+  getEventoHistorial: handle(req => calibrationService.getEventoHistorial(parse('eventoClave', req.query))),
 
   getAlertSettings: handle(() => calibrationService.getAlertSettings()),
   updateAjustes: handle(req => calibrationService.updateAjustes(parse('ajustes', req.body), req.user)),

@@ -17,7 +17,7 @@ const verificacion = z.object({
 });
 
 // Texto obligatorio sin espacios de no separación en los extremos.
-const requiredText = (max, message) => z.string()
+const requiredText = (max, message) => z.string({ error: message })
   .transform(value => value.replace(/\u00a0/g, ' ').trim())
   .pipe(z.string().min(1, message).max(max, `Máximo ${max} caracteres.`));
 
@@ -37,10 +37,18 @@ const certificado = z.object({
   observaciones: optionalText(300),
 });
 
+const serie = z.string().regex(/^(CAL|VER|ACT)-\d{1,9}$/);
+const eventoClave = z.object({ serie, fechaProgramada: date });
+
 const schemas = {
   equipoDatos,
   equipoAlta: equipoDatos.extend({ certificado: certificado.nullable().default(null) }),
   certificado,
+  // Corregir el vigente deja su versión anterior en el historial con el motivo.
+  certificadoCorreccion: certificado.extend({
+    motivo: requiredText(300, 'Escribe el motivo de la corrección.'),
+  }),
+  certificadoRevision: z.object({ observaciones: optionalText(300) }),
   anulacion: z.object({ motivo: requiredText(300, 'Escribe el motivo de la anulación.') }),
   estadoEquipo: z.object({
     activo: z.boolean(),
@@ -76,22 +84,28 @@ const schemas = {
     responsableId: id.nullable().default(null),
     ...alerta,
   }),
-  evento: z.object({
-    serie: z.string().regex(/^(CAL|VER|ACT)-\d{1,9}$/),
-    fechaProgramada: date,
+  evento: eventoClave.extend({
     estado: z.enum(ESTADOS),
     fechaReprogramada: date.nullable().default(null),
     fechaRealizada: date.nullable().default(null),
     resultado: z.enum(['CONFORME', 'NO_CONFORME']).nullable().default(null),
     observaciones: optionalText(500),
-  }).refine(
-    data => data.estado !== 'REALIZADO' || data.fechaRealizada,
-    'Indica la fecha en que se realizó.'
-  ),
-  eventoClave: z.object({
-    serie: z.string().regex(/^(CAL|VER|ACT)-\d{1,9}$/),
-    fechaProgramada: date,
-  }),
+    // Hoja o archivo donde quedaron los datos de la verificación (7.5.1).
+    registroRef: optionalText(150),
+    // Obligatorio al cambiar una fecha que ya figuraba como realizada (7.5.2).
+    motivo: optionalText(300),
+  })
+    .refine(data => data.estado !== 'REALIZADO' || data.fechaRealizada, 'Indica la fecha en que se realizó.')
+    .refine(
+      data => data.estado !== 'REALIZADO' || !data.serie.startsWith('VER-') || data.resultado,
+      'Indica el resultado de la verificación.'
+    )
+    .refine(
+      data => data.estado !== 'REALIZADO' || !data.serie.startsWith('VER-') || data.registroRef,
+      'Indica la hoja o el archivo donde quedaron los datos de la verificación.'
+    ),
+  eventoClave,
+  eventoRestablecer: eventoClave.extend({ motivo: optionalText(300) }),
   ajustes: z.object({
     alertaDias: z.number().int().min(0).max(365),
     alertaFrecuencia: z.enum(FRECUENCIAS_ALERTA),
