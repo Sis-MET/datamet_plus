@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   alertSummary,
   effectiveAlert,
+  expiryOf,
   frequencyLabel,
   matchesQuery,
   occurrenceWhen,
   periodLabel,
   relativeDays,
+  vigenciaOf,
   yearFraction,
 } from './format';
 
@@ -45,6 +47,16 @@ describe('formato del cronograma de calibración', () => {
     expect(yearFraction('2026-12-31', 2026)).toBeCloseTo(364.5 / 365);
     expect(yearFraction('2025-12-31', 2026)).toBe(0);
     expect(yearFraction('2027-01-01', 2026)).toBe(1);
+  });
+
+  it('calcula el vencimiento y la vigencia de un certificado', () => {
+    expect(expiryOf('2026-06-11', 730)).toBe('2028-06-10');
+    expect(expiryOf('2026-01-22', 183)).toBe('2026-07-24');
+    expect(expiryOf('2026-01-22', 0)).toBeNull();
+    expect(vigenciaOf('2026-10-20', '2026-10-06', 30)).toBe('POR_VENCER');
+    expect(vigenciaOf('2026-10-05', '2026-10-06', 30)).toBe('VENCIDO');
+    expect(vigenciaOf('2027-10-05', '2026-10-06', 30)).toBe('VIGENTE');
+    expect(vigenciaOf(null, '2026-10-06', 30)).toBe('SIN_DATOS');
   });
 
   it('busca sin distinguir tildes ni mayúsculas', () => {

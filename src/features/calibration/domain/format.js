@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { addDays, differenceInCalendarDays, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // Las fechas del plan viajan como YYYY-MM-DD; se interpretan como fecha local
@@ -158,7 +158,35 @@ export const VIGENCIA = {
   VIGENTE: { label: 'Vigente', tone: 'success' },
   POR_VENCER: { label: 'Por vencer', tone: 'warning' },
   VENCIDO: { label: 'Vencido', tone: 'danger' },
-  SIN_DATOS: { label: 'Sin datos', tone: 'muted' },
+  SIN_DATOS: { label: 'Sin certificado', tone: 'muted' },
+};
+
+// Vigencias habituales de los certificados (en días, como cert_periodo).
+export const PERIODOS_CERTIFICADO = [183, 365, 730];
+
+/** Vencimiento de un certificado: emisión + vigencia en días. */
+export const expiryOf = (fecha, dias) => (
+  fecha && Number(dias) > 0 ? toISODate(addDays(parseISODate(fecha), Number(dias))) : null
+);
+
+export const daysBetween = (desde, hasta) => differenceInCalendarDays(parseISODate(hasta), parseISODate(desde));
+
+/** Vigencia de un certificado que vence en `vence`, vista desde `hoy`. */
+export function vigenciaOf(vence, hoy, alertaDias) {
+  if (!vence) return 'SIN_DATOS';
+  const dias = daysBetween(hoy, vence);
+  if (dias < 0) return 'VENCIDO';
+  return dias <= alertaDias ? 'POR_VENCER' : 'VIGENTE';
+}
+
+export const ACCIONES_EQUIPO = {
+  ALTA: 'Alta del equipo',
+  EDICION: 'Datos editados',
+  CERTIFICADO: 'Certificado nuevo',
+  CORRECCION: 'Certificado corregido',
+  ANULACION: 'Certificado anulado',
+  BAJA: 'Dado de baja',
+  REACTIVACION: 'Reactivado',
 };
 
 const isLeapYear = (year) => (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;

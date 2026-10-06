@@ -20,6 +20,15 @@ export const calibrationApi = {
   saveEquipo: (id, body) => write(api.put(`${BASE}/equipos/${id}`, body)),
   saveEquipos: (body) => write(api.put(`${BASE}/equipos`, body)),
 
+  // Gestión de equipos (DATA_EQUIPOS_CAL) y sus certificados.
+  equipoHistorial: (id) => unwrap(api.get(`${BASE}/equipos/${id}/historial`)),
+  createEquipo: (body) => write(api.post(`${BASE}/equipos`, body)).then(response => response.data),
+  updateEquipoDatos: (id, body) => write(api.put(`${BASE}/equipos/${id}/datos`, body)),
+  setEquipoEstado: (id, body) => write(api.put(`${BASE}/equipos/${id}/estado`, body)),
+  registrarCertificado: (id, body) => write(api.post(`${BASE}/equipos/${id}/certificados`, body)),
+  corregirCertificado: (id, body) => write(api.put(`${BASE}/equipos/${id}/certificados/vigente`, body)),
+  anularCertificado: (id, body) => write(api.post(`${BASE}/equipos/${id}/certificados/vigente/anular`, body)),
+
   createActividad: (body) => write(api.post(`${BASE}/actividades`, body)),
   updateActividad: (id, body) => write(api.put(`${BASE}/actividades/${id}`, body)),
   deleteActividad: (id) => write(api.delete(`${BASE}/actividades/${id}`)),
