@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  Archive,
   BellRing,
   CalendarDays,
   CalendarRange,
@@ -15,15 +16,19 @@ import {
   Search,
   Weight,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '../../shared/components/ui/Button';
 import { cn } from '../../shared/utils/cn';
 import { safeStorage } from '../../shared/utils/storage';
+import { calibrationApi } from './api/calibration';
 import { useCalibrationPlan } from './hooks/useCalibrationPlan';
 import { usePersonal } from './hooks/usePersonal';
 import {
   SITUACION_TONE,
   TIPOS,
   TIPO_ORDER,
+  expiryOf,
+  formatDate,
   matchesQuery,
 } from './domain/format';
 import { Glyph, Segmented } from './components/primitives';
@@ -35,7 +40,10 @@ import { AttentionPanel } from './components/AttentionPanel';
 import { EventModal } from './components/EventModal';
 import { BulkEquipmentModal, EquipmentModal } from './components/EquipmentModal';
 import { ActivityModal } from './components/ActivityModal';
-import { EquipmentTable } from './components/EquipmentTable';
+import { EquipmentTable, InactiveEquipmentList } from './components/EquipmentTable';
+import { EditEquipmentModal, NewEquipmentModal } from './components/EquipmentFormModal';
+import { CertificateModal } from './components/CertificateModal';
+import { ReasonModal } from './components/ReasonModal';
 import { ActivitiesList } from './components/ActivitiesList';
 import { AlertSettings } from './components/AlertSettings';
 import './calibration.css';
@@ -89,6 +97,10 @@ export function CalibrationPage() {
   const [ficha, setFicha] = useState(null);
   // Cambia tras configurar varios equipos para vaciar la selección de la tabla.
   const [bulkRound, setBulkRound] = useState(0);
+  // Ficha apilada sobre la principal (certificado, datos, baja, anulación).
+  const [sub, setSub] = useState(null);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const [showBajas, setShowBajas] = useState(false);
 
   const { data, error, loading, reload } = useCalibrationPlan(anio);
   const personal = usePersonal();
@@ -196,11 +208,24 @@ export function CalibrationPage() {
   const openEquipo = useCallback((equipo) => setFicha({ type: 'equipo', id: equipo.id }), []);
   const openActividad = useCallback((actividad) => setFicha({ type: 'actividad', id: actividad?.id ?? null }), []);
   const closeFicha = useCallback(() => setFicha(null), []);
+  const closeSub = useCallback(() => setSub(null), []);
+  const equipmentChanged = useCallback(() => {
+    setHistoryVersion(version => version + 1);
+    reload();
+  }, [reload]);
+  const openSub = useCallback((type, equipo, extra = {}) => setSub({ type, equipoId: equipo.id, ...extra }), []);
 
   const alertCount = data?.alertas?.length || 0;
   const vencidas = (data?.alertas || []).filter(alerta => alerta.situacion === 'VENCIDO').length;
 
   const fichaEquipo = ficha?.type === 'equipo' ? data?.equipos.find(equipo => equipo.id === ficha.id) : null;
+  const subEquipo = sub
+    ? (data?.equipos.find(equipo => equipo.id === sub.equipoId) || data?.bajas?.find(equipo => equipo.id === sub.equipoId))
+    : null;
+  const bajasVisibles = (data?.bajas || []).filter(equipo => (
+    (!planta || equipo.planta === planta)
+    && matchesQuery(query, equipo.codigo, equipo.instrumento, equipo.certificado, equipo.enteCalibrador)
+  ));
   const fichaActividad = ficha?.type === 'actividad' && ficha.id != null
     ? data?.actividades.find(actividad => actividad.id === ficha.id)
     : null;
@@ -272,6 +297,11 @@ export function CalibrationPage() {
         {canEdit && (tab === 'cronograma' || tab === 'actividades') && (
           <Button className="ml-auto" onClick={() => openActividad(null)}>
             <Plus className="h-4 w-4" /> Nueva actividad
+          </Button>
+        )}
+        {canEdit && tab === 'equipos' && (
+          <Button className="ml-auto" onClick={() => setFicha({ type: 'nuevoEquipo' })}>
+            <Plus className="h-4 w-4" /> Nuevo equipo
           </Button>
         )}
       </div>
@@ -419,6 +449,18 @@ export function CalibrationPage() {
           <div className="flex flex-wrap items-center gap-2">
             {searchBox}
             {plantaSelect}
+            {data.bajas.length > 0 && (
+              <button
+                type="button"
+                aria-pressed={showBajas}
+                onClick={() => setShowBajas(value => !value)}
+                className="cal-filter-chip cal-tone-neutral"
+              >
+                <Archive className="h-3.5 w-3.5" aria-hidden="true" />
+                Dados de baja
+                <strong>{data.bajas.length}</strong>
+              </button>
+            )}
             <p className="ml-auto text-xs text-fg-muted">
               {equiposVisibles.length} de {data.equipos.length} equipos activos
             </p>
@@ -430,7 +472,21 @@ export function CalibrationPage() {
             canEdit={canEdit}
             onOpenEquipo={openEquipo}
             onConfigureMany={(selected) => setFicha({ type: 'equipos', ids: selected.map(equipo => equipo.id) })}
+            onRegistrarCertificado={(equipo) => openSub('certificado', equipo, { mode: 'nuevo' })}
           />
+          {showBajas && data.bajas.length > 0 && (
+            <section aria-labelledby="cal-bajas" className="mt-2">
+              <h3 id="cal-bajas" className="mb-2 flex items-baseline gap-2 px-1">
+                <span className="text-[13px] font-semibold text-fg">Dados de baja</span>
+                <span className="text-xs text-fg-muted">Fuera del plan y de las alertas; su historial se conserva.</span>
+              </h3>
+              <InactiveEquipmentList
+                equipos={bajasVisibles}
+                canEdit={canEdit}
+                onReactivar={(equipo) => openSub('reactivar', equipo)}
+              />
+            </section>
+          )}
         </>
       )}
 
@@ -471,6 +527,9 @@ export function CalibrationPage() {
           onSaved={reload}
           onOpenEquipo={eventEquipo ? () => openEquipo(eventEquipo) : undefined}
           onOpenActividad={eventActividad ? () => openActividad(eventActividad) : undefined}
+          onRegistrarCertificado={eventEquipo
+            ? () => openSub('certificado', eventEquipo, { mode: 'nuevo', closeParent: true })
+            : undefined}
         />
       )}
       {fichaEquipo && (
@@ -480,8 +539,23 @@ export function CalibrationPage() {
           ajustes={ajustes}
           personal={personal}
           canEdit={canEdit}
+          historyVersion={historyVersion}
           onClose={closeFicha}
           onSaved={reload}
+          onRegistrarCertificado={() => openSub('certificado', fichaEquipo, { mode: 'nuevo' })}
+          onCorregirCertificado={() => openSub('certificado', fichaEquipo, { mode: 'corregir' })}
+          onAnularCertificado={(anterior) => openSub('anular', fichaEquipo, { anterior })}
+          onEditarDatos={() => openSub('datos', fichaEquipo)}
+          onDarDeBaja={() => openSub('baja', fichaEquipo)}
+        />
+      )}
+      {ficha?.type === 'nuevoEquipo' && (
+        <NewEquipmentModal
+          catalogos={data.catalogos}
+          hoy={hoy}
+          alertaDias={ajustes.alertaDias}
+          onClose={closeFicha}
+          onSaved={equipmentChanged}
         />
       )}
       {ficha?.type === 'equipos' && (
@@ -507,6 +581,84 @@ export function CalibrationPage() {
           hoy={hoy}
           onClose={closeFicha}
           onSaved={reload}
+        />
+      )}
+
+      {sub?.type === 'certificado' && subEquipo && (
+        <CertificateModal
+          key={`${sub.mode}-${subEquipo.id}`}
+          mode={sub.mode}
+          equipo={subEquipo}
+          entes={data.catalogos.entes}
+          hoy={hoy}
+          alertaDias={subEquipo.calibracion?.alertaDias ?? ajustes.alertaDias}
+          onClose={closeSub}
+          onSaved={() => {
+            // Desde la ficha de una fecha, esa fecha deja de existir al recalcularse el plan.
+            if (sub.closeParent) setFicha(null);
+            equipmentChanged();
+          }}
+        />
+      )}
+      {sub?.type === 'datos' && subEquipo && (
+        <EditEquipmentModal
+          equipo={subEquipo}
+          catalogos={data.catalogos}
+          onClose={closeSub}
+          onSaved={equipmentChanged}
+        />
+      )}
+      {sub?.type === 'baja' && subEquipo && (
+        <ReasonModal
+          title={`Dar de baja ${subEquipo.codigo}`}
+          subtitle={`${subEquipo.instrumento} · ${subEquipo.planta}`}
+          heading="Qué pasa al darlo de baja"
+          description="Sale del plan anual, del cronograma y de las alertas. Su historial se conserva y puedes reactivarlo cuando quieras."
+          confirmLabel="Dar de baja"
+          danger
+          reasonPlaceholder="Ej.: pesa dañada, equipo vendido o reemplazado por otro…"
+          onClose={closeSub}
+          onConfirm={async (motivo) => {
+            await calibrationApi.setEquipoEstado(subEquipo.id, { activo: false, motivo });
+            toast.success(`${subEquipo.codigo} dado de baja`);
+            setFicha(null);
+            equipmentChanged();
+          }}
+        />
+      )}
+      {sub?.type === 'reactivar' && subEquipo && (
+        <ReasonModal
+          title={`Reactivar ${subEquipo.codigo}`}
+          subtitle={`${subEquipo.instrumento} · ${subEquipo.planta}`}
+          heading="Vuelve al plan"
+          description="Vuelve al cronograma y a las alertas con su configuración y su último certificado."
+          confirmLabel="Reactivar"
+          requireReason={false}
+          reasonLabel="Nota"
+          reasonPlaceholder="Ej.: reparado y verificado"
+          onClose={closeSub}
+          onConfirm={async (motivo) => {
+            await calibrationApi.setEquipoEstado(subEquipo.id, { activo: true, motivo });
+            toast.success(`${subEquipo.codigo} vuelve al plan`);
+            equipmentChanged();
+          }}
+        />
+      )}
+      {sub?.type === 'anular' && subEquipo && sub.anterior && (
+        <ReasonModal
+          title={`Anular ${subEquipo.certificado || 'el certificado vigente'}`}
+          subtitle={`${subEquipo.codigo} · ${subEquipo.instrumento}`}
+          heading="Vuelve a regir el certificado anterior"
+          description={`${sub.anterior.numero || 'El anterior'} (emitido el ${formatDate(sub.anterior.fecha)}, vence el ${formatDate(sub.anterior.vence || expiryOf(sub.anterior.fecha, sub.anterior.periodoDias))}) pasa a ser el vigente. Úsalo solo si el certificado se registró por error.`}
+          confirmLabel="Anular certificado"
+          danger
+          reasonPlaceholder="Ej.: se registró el certificado de otro equipo"
+          onClose={closeSub}
+          onConfirm={async (motivo) => {
+            await calibrationApi.anularCertificado(subEquipo.id, { motivo });
+            toast.success('Certificado anulado; vuelve a regir el anterior');
+            equipmentChanged();
+          }}
         />
       )}
     </main>

@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from 'react';
+import { FilePlus2, Pencil, PowerOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { calibrationApi } from '../api/calibration';
 import {
@@ -11,9 +12,12 @@ import {
 } from '../domain/format';
 import { Dropdown } from './Dropdown';
 import { AlertFields, DatePreview, ResponsableSelect } from './fields';
+import { EquipmentHistory } from './EquipmentHistory';
+import { useEquipmentHistory } from '../hooks/useEquipmentHistory';
 import {
   BlockTitle,
   CancelButton,
+  DangerButton,
   FieldLabel,
   Glyph,
   Modal,
@@ -103,8 +107,26 @@ function VerificationFields({ value, onChange, disabled, idPrefix }) {
   );
 }
 
-/** Ficha de configuración de un equipo: calibración desde el certificado y verificación interna. */
-export function EquipmentModal({ equipo, ajustes, personal, canEdit, onClose, onSaved }) {
+const secondaryButton = 'inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-line-strong bg-surface px-3.5 text-sm font-semibold text-fg shadow-xs transition-colors hover:border-fg/25 hover:bg-surface-2';
+
+/**
+ * Ficha de un equipo: su plan (calibración y verificación interna), el
+ * certificado vigente con sus acciones y el historial completo.
+ */
+export function EquipmentModal({
+  equipo,
+  ajustes,
+  personal,
+  canEdit,
+  historyVersion,
+  onClose,
+  onSaved,
+  onRegistrarCertificado,
+  onCorregirCertificado,
+  onAnularCertificado,
+  onEditarDatos,
+  onDarDeBaja,
+}) {
   const baseId = useId();
   const [calibracion, setCalibracion] = useState(() => ({
     activo: equipo.enPlan,
@@ -117,6 +139,7 @@ export function EquipmentModal({ equipo, ajustes, personal, canEdit, onClose, on
   const [saving, setSaving] = useState(false);
   const disabled = !canEdit || saving;
   const vigencia = VIGENCIA[equipo.vigencia] || VIGENCIA.SIN_DATOS;
+  const history = useEquipmentHistory(equipo.id, historyVersion);
 
   const save = async (close) => {
     if (verificacion.activo && verificacion.desde === 'FECHA' && !verificacion.fechaInicio) {
@@ -151,17 +174,37 @@ export function EquipmentModal({ equipo, ajustes, personal, canEdit, onClose, on
         </>
       )}
       busy={saving}
+      actions={canEdit && (
+        <button
+          type="button"
+          onClick={onEditarDatos}
+          aria-label="Editar datos del equipo"
+          title="Editar datos del equipo"
+          className="flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
+        >
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Editar datos</span>
+        </button>
+      )}
       footer={(close) => (
-        <div className="ml-auto flex items-center gap-2">
-          {canEdit ? (
-            <>
-              <CancelButton onClick={close} disabled={saving} />
-              <PrimaryButton onClick={() => save(close)} busy={saving}>Guardar cambios</PrimaryButton>
-            </>
-          ) : (
-            <CancelButton onClick={close}>Cerrar</CancelButton>
+        <>
+          {canEdit && (
+            <DangerButton onClick={onDarDeBaja} disabled={saving} label="Dar de baja">
+              <PowerOff className="h-4 w-4" />
+              <span className="hidden sm:inline">Dar de baja</span>
+            </DangerButton>
           )}
-        </div>
+          <div className="ml-auto flex items-center gap-2">
+            {canEdit ? (
+              <>
+                <CancelButton onClick={close} disabled={saving} />
+                <PrimaryButton onClick={() => save(close)} busy={saving}>Guardar plan</PrimaryButton>
+              </>
+            ) : (
+              <CancelButton onClick={close}>Cerrar</CancelButton>
+            )}
+          </div>
+        </>
       )}
     >
       <ModalColumns>
@@ -238,7 +281,7 @@ export function EquipmentModal({ equipo, ajustes, personal, canEdit, onClose, on
           <dl className="cal-facts">
             <div className="col-span-full">
               <dt>Número</dt>
-              <dd>{equipo.certificado || '—'}</dd>
+              <dd>{equipo.certificado || 'Sin certificado registrado'}</dd>
             </div>
             <div>
               <dt>Emitido</dt>
@@ -266,14 +309,52 @@ export function EquipmentModal({ equipo, ajustes, personal, canEdit, onClose, on
               </div>
             )}
           </dl>
+          {canEdit && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" onClick={onRegistrarCertificado} className={secondaryButton}>
+                <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+                {equipo.certFecha ? 'Registrar certificado nuevo' : 'Registrar primer certificado'}
+              </button>
+            </div>
+          )}
           <p className="cal-hint mt-4">
-            El vencimiento se calcula como emisión + vigencia. Al registrar un certificado nuevo, el plan se actualiza solo.
+            El vencimiento se calcula como emisión + vigencia. Al registrar un certificado nuevo, el anterior pasa al historial y el plan se recalcula.
           </p>
           {verificacion.activo && (
             <div className="mt-5">
               <DatePreview title="Próximas verificaciones" request={previewRequest(equipo.id, verificacion)} />
             </div>
           )}
+
+          {(equipo.observaciones || equipo.registradoPor) && (
+            <dl className="cal-facts mt-6 border-t border-line pt-5">
+              {equipo.observaciones && (
+                <div className="col-span-full">
+                  <dt>Observaciones del equipo</dt>
+                  <dd className="whitespace-pre-line font-normal">{equipo.observaciones}</dd>
+                </div>
+              )}
+              {equipo.registradoPor && (
+                <div className="col-span-full">
+                  <dt>Último registro</dt>
+                  <dd className="font-normal">
+                    {equipo.registradoPor}{equipo.registradoEn ? ` · ${formatDate(equipo.registradoEn)}` : ''}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
+
+          <div className="mt-6 border-t border-line pt-5">
+            <EquipmentHistory
+              historial={history.data}
+              loading={history.loading}
+              error={history.error}
+              canEdit={canEdit}
+              onCorregir={onCorregirCertificado}
+              onAnular={onAnularCertificado}
+            />
+          </div>
         </ModalSection>
       </ModalColumns>
     </Modal>

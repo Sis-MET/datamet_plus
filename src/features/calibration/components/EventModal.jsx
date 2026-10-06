@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { ArrowRight, Info, RotateCcw } from 'lucide-react';
+import { ArrowRight, FilePlus2, Info, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
 import { calibrationApi } from '../api/calibration';
@@ -52,7 +52,7 @@ function Fact({ label, children, wide = false, className }) {
 }
 
 /** Ficha de una fecha del plan: su detalle y el seguimiento (realizada, reprogramada…). */
-export function EventModal({ occurrence, equipo, hoy, canEdit, onClose, onSaved, onOpenEquipo, onOpenActividad }) {
+export function EventModal({ occurrence, equipo, hoy, canEdit, onClose, onSaved, onOpenEquipo, onOpenActividad, onRegistrarCertificado }) {
   const baseId = useId();
   const editable = canEdit && occurrence.editable;
   const [estado, setEstado] = useState(occurrence.estado);
@@ -68,6 +68,9 @@ export function EventModal({ occurrence, equipo, hoy, canEdit, onClose, onSaved,
   const isEquipment = occurrence.tipo !== 'ACTIVIDAD';
   const pendiente = estado === 'PROGRAMADO' || estado === 'EN_PROCESO';
   const openConfig = isEquipment ? onOpenEquipo : onOpenActividad;
+  // La calibración se cierra con el certificado: registrarlo recalcula el plan.
+  const puedeRegistrarCertificado = editable && onRegistrarCertificado && occurrence.tipo === 'CALIBRACION'
+    && !occurrence.proyectado && !['REALIZADO', 'CANCELADO'].includes(occurrence.situacion);
 
   const save = async (close) => {
     if (estado === 'REALIZADO' && !fechaRealizada) {
@@ -133,6 +136,7 @@ export function EventModal({ occurrence, equipo, hoy, canEdit, onClose, onSaved,
               onClick={() => reset(close)}
               disabled={saving}
               title="Quitar los cambios guardados de esta fecha"
+              aria-label="Restablecer la fecha"
               className="flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg disabled:opacity-50"
             >
               <RotateCcw className="h-4 w-4" />
@@ -224,6 +228,21 @@ export function EventModal({ occurrence, equipo, hoy, canEdit, onClose, onSaved,
           title="Seguimiento"
           description={editable ? 'Registra qué pasó con esta fecha.' : 'Estado registrado de esta fecha.'}
         >
+          {puedeRegistrarCertificado && (
+            <div className="mb-5 rounded-2xl border border-line bg-surface p-4 shadow-xs">
+              <p className="text-[13px] font-semibold text-fg">¿Ya llegó el certificado?</p>
+              <p className="mt-0.5 text-[12.5px] leading-relaxed text-fg-muted">
+                Regístralo y la calibración queda realizada: el plan se recalcula desde la nueva emisión.
+              </p>
+              <button
+                type="button"
+                onClick={onRegistrarCertificado}
+                className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-3.5 text-sm font-semibold text-brand-fg shadow-xs ring-1 ring-inset ring-black/5 transition-colors hover:bg-brand-hover"
+              >
+                <FilePlus2 className="h-4 w-4" aria-hidden="true" /> Registrar certificado
+              </button>
+            </div>
+          )}
           {editable ? (
             <div className="space-y-5">
               <Segmented label="Estado" value={estado} onChange={setEstado} options={ESTADOS} className="cal-segmented-fill" />
