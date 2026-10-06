@@ -16,9 +16,9 @@ Aplicación interna de Métrica Ltda. que reúne el formulario RIM, el cronogram
 
 ## Calibración
 
-Módulo independiente del cronograma del personal. Lee los equipos activos de
-`DATA_EQUIPOS_CAL` (sin modificarla) y guarda su planificación en tablas
-`CAL_*` (migración `004`, aplicar con `pnpm migrate` en `backend`).
+Módulo independiente del cronograma del personal. Gestiona los equipos de
+`DATA_EQUIPOS_CAL` y guarda su planificación e historial en tablas `CAL_*`
+(migraciones `004` y `005`, aplicar con `pnpm migrate` en `backend`).
 
 - **Calibración:** la fecha sale del certificado: `cert_fecha + cert_periodo`
   (días). No se usa `cert_fechaven` porque en varios registros está vacía o
@@ -35,6 +35,28 @@ Módulo independiente del cronograma del personal. Lee los equipos activos de
 - **Seguimiento:** cada fecha puede marcarse en proceso, realizada (con
   resultado en verificaciones), reprogramada o cancelada.
 - **Permisos:** consultan todos; editan el área Calibración y el nivel 3.
+
+### Equipos y certificados
+
+Desde la pestaña Equipos y la ficha de cada equipo:
+
+- **Alta:** registra el equipo en `DATA_EQUIPOS_CAL` con sus convenciones: el
+  `id` es el siguiente número (la tabla no tiene clave), `reg_usuario` son las
+  iniciales de `DATA_USERS`, el código se guarda en mayúsculas y no se repite.
+  El certificado inicial es opcional.
+- **Certificado nuevo:** la renovación reemplaza el vigente en
+  `DATA_EQUIPOS_CAL` (con `cert_fechaven` calculado) y el anterior queda en
+  `CAL_CERTIFICADOS`. Debe ser posterior al vigente y no futuro. También se
+  registra desde una calibración pendiente del cronograma.
+- **Corregir / anular:** corregir arregla el vigente sin crear otro; anular
+  lo descarta con motivo y vuelve a regir el anterior.
+- **Baja / reactivación:** la baja (`estado = 'DESACTIVADO'`) saca el equipo
+  del plan y de las alertas; su historial se conserva.
+- **Historial:** certificados, verificaciones realizadas y cada cambio
+  (`CAL_EQUIPOS_HISTORIAL`).
+
+Si otro sistema cambia el certificado directamente en `DATA_EQUIPOS_CAL`, el
+módulo lo archiva como `EXTERNO` antes de reemplazarlo.
 
 ### Alertas
 
