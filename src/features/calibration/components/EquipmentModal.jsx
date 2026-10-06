@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { FilePlus2, Pencil, PowerOff } from 'lucide-react';
+import { FilePlus2, Pencil, PowerOff, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { calibrationApi } from '../api/calibration';
 import {
@@ -109,6 +109,40 @@ function VerificationFields({ value, onChange, disabled, idPrefix }) {
 
 const secondaryButton = 'inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-line-strong bg-surface px-3.5 text-sm font-semibold text-fg shadow-xs transition-colors hover:border-fg/25 hover:bg-surface-2';
 
+/** Revisión del certificado vigente por un segundo usuario (NB/ISO/IEC 17025, 7.5.1). */
+function CertificateReview({ revision, canEdit, onRevisar }) {
+  if (!revision) return null;
+  if (revision.estado === 'REVISADO') {
+    return (
+      <p className="mt-4 flex items-start gap-2.5 rounded-xl border border-line bg-surface px-3.5 py-3 text-[13px] leading-snug">
+        <ShieldCheck className="mt-px h-[18px] w-[18px] flex-none text-success" aria-hidden="true" />
+        <span className="min-w-0">
+          <span className="font-semibold text-fg">Revisado por {revision.revisadoPor}</span>
+          <span className="block text-xs text-fg-muted">
+            Comparado con el original{revision.revisadoEn ? ` el ${formatDate(revision.revisadoEn.slice(0, 10))}` : ''}
+            {revision.observaciones ? ` · ${revision.observaciones}` : ''}
+          </span>
+        </span>
+      </p>
+    );
+  }
+  return (
+    <div className="mt-4 rounded-xl border border-warning/35 bg-warning/[0.06] px-3.5 py-3">
+      <p className="text-[13px] font-semibold text-fg">Pendiente de revisión</p>
+      <p className="mt-0.5 text-[12.5px] leading-snug text-fg-muted">
+        Otra persona debe comparar estos datos con el certificado original.
+      </p>
+      {canEdit && (revision.puedeRevisar ? (
+        <button type="button" onClick={onRevisar} className={`${secondaryButton} mt-3`}>
+          <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Revisar certificado
+        </button>
+      ) : (
+        <p className="mt-2 text-xs text-fg-subtle">{revision.motivo}</p>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Ficha de un equipo: su plan (calibración y verificación interna), el
  * certificado vigente con sus acciones y el historial completo.
@@ -123,6 +157,7 @@ export function EquipmentModal({
   onSaved,
   onRegistrarCertificado,
   onCorregirCertificado,
+  onRevisarCertificado,
   onAnularCertificado,
   onEditarDatos,
   onDarDeBaja,
@@ -309,6 +344,9 @@ export function EquipmentModal({
               </div>
             )}
           </dl>
+          {equipo.certFecha && (
+            <CertificateReview revision={history.data?.revision} canEdit={canEdit} onRevisar={onRevisarCertificado} />
+          )}
           {canEdit && (
             <div className="mt-5 flex flex-wrap gap-2">
               <button type="button" onClick={onRegistrarCertificado} className={secondaryButton}>

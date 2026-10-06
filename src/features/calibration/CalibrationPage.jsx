@@ -523,6 +523,7 @@ export function CalibrationPage() {
           equipo={eventEquipo}
           hoy={hoy}
           canEdit={canEdit}
+          usuario={data?.permisos?.usuario}
           onClose={closeFicha}
           onSaved={reload}
           onOpenEquipo={eventEquipo ? () => openEquipo(eventEquipo) : undefined}
@@ -544,6 +545,7 @@ export function CalibrationPage() {
           onSaved={reload}
           onRegistrarCertificado={() => openSub('certificado', fichaEquipo, { mode: 'nuevo' })}
           onCorregirCertificado={() => openSub('certificado', fichaEquipo, { mode: 'corregir' })}
+          onRevisarCertificado={() => openSub('revisar', fichaEquipo)}
           onAnularCertificado={(anterior) => openSub('anular', fichaEquipo, { anterior })}
           onEditarDatos={() => openSub('datos', fichaEquipo)}
           onDarDeBaja={() => openSub('baja', fichaEquipo)}
@@ -643,6 +645,32 @@ export function CalibrationPage() {
             equipmentChanged();
           }}
         />
+      )}
+      {sub?.type === 'revisar' && subEquipo && (
+        <ReasonModal
+          title={`Revisar ${subEquipo.certificado || 'el certificado'}`}
+          subtitle={`${subEquipo.codigo} · ${subEquipo.instrumento}`}
+          heading="Compáralo con el certificado original"
+          description="Confirma que estos datos coinciden con el documento emitido por el ente. Si algo no coincide, cancela y usa «Corregir»."
+          confirmLabel="Confirmar revisión"
+          requireReason={false}
+          reasonLabel="Observación"
+          reasonPlaceholder="Ej.: comparado con el PDF del certificado"
+          onClose={closeSub}
+          onConfirm={async (observaciones) => {
+            await calibrationApi.revisarCertificado(subEquipo.id, { observaciones });
+            toast.success(`Certificado de ${subEquipo.codigo} revisado`);
+            equipmentChanged();
+          }}
+        >
+          <dl className="cal-facts rounded-xl border border-line bg-surface-2/50 px-4 py-3.5">
+            <div className="col-span-full"><dt>Número</dt><dd>{subEquipo.certificado || '—'}</dd></div>
+            <div><dt>Emitido</dt><dd>{formatDate(subEquipo.certFecha)}</dd></div>
+            <div><dt>Vence</dt><dd>{formatDate(expiryOf(subEquipo.certFecha, subEquipo.periodoDias))}</dd></div>
+            <div><dt>Vigencia</dt><dd>{subEquipo.periodoDias ? `${subEquipo.periodoDias} días` : '—'}</dd></div>
+            <div><dt>Ente calibrador</dt><dd>{subEquipo.enteCalibrador || '—'}</dd></div>
+          </dl>
+        </ReasonModal>
       )}
       {sub?.type === 'anular' && subEquipo && sub.anterior && (
         <ReasonModal

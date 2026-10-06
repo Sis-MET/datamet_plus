@@ -144,7 +144,12 @@ export function EquipmentTable({ equipos, ajustes, canEdit, onOpenEquipo, onConf
                   </td>
                   <td>
                     {equipo.certificado ? <span className="inline-block max-w-[220px] truncate align-bottom">{equipo.certificado}</span> : '—'}
-                    <small>{[equipo.enteCalibrador, formatDate(equipo.certFecha)].filter(Boolean).join(' · ')}</small>
+                    <small>
+                      {[equipo.enteCalibrador, formatDate(equipo.certFecha)].filter(Boolean).join(' · ')}
+                      {equipo.certRevision === 'PENDIENTE' && (
+                        <span className="ml-1.5 font-medium text-warning" title="Otra persona aún no lo compara con el certificado original">· por revisar</span>
+                      )}
+                    </small>
                   </td>
                   <td>
                     <ToneBadge tone={vigencia.tone}>{vigencia.label}</ToneBadge>

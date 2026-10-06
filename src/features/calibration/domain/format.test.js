@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activityTitle,
   alertSummary,
   effectiveAlert,
   expiryOf,
@@ -11,6 +12,16 @@ import {
   vigenciaOf,
   yearFraction,
 } from './format';
+
+describe('bitácora de un equipo', () => {
+  it('titula los cambios del equipo, de su plan y de sus fechas', () => {
+    expect(activityTitle({ fuente: 'EQUIPO', accion: 'REVISION' })).toBe('Certificado revisado');
+    expect(activityTitle({ fuente: 'PLAN', tipo: 'VERIFICACION', accion: 'EDICION' })).toBe('Verificación interna: configuración modificada');
+    expect(activityTitle({ fuente: 'PLAN', tipo: 'ACTIVIDAD', accion: 'CREACION' })).toBe('Actividad creada');
+    expect(activityTitle({ fuente: 'FECHA', tipo: 'VERIFICACION', accion: 'MODIFICACION', fechaProgramada: '2026-01-15' }))
+      .toBe('Verificación interna del 15 ene 2026: modificada');
+  });
+});
 
 describe('formato del cronograma de calibración', () => {
   it('expresa el periodo del certificado en meses o años', () => {

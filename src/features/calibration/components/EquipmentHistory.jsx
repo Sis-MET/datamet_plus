@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
-import { ACCIONES_EQUIPO, formatDate } from '../domain/format';
+import { activityTitle, formatDate } from '../domain/format';
+import { HistoryList } from './HistoryList';
 import { ToneBadge } from './primitives';
 
 const dateTime = (iso) => (iso
@@ -17,6 +17,19 @@ function SectionTitle({ children, count }) {
       {count != null && <span className="text-xs font-normal text-fg-muted">{count}</span>}
     </h4>
   );
+}
+
+/** «Revisado por X · fecha» o «Sin revisar»; los anulados no se revisan. */
+function ReviewLine({ revisadoPor, revisadoEn, observaciones }) {
+  if (revisadoPor) {
+    return (
+      <p className="mt-0.5 text-xs text-success">
+        Revisado por {revisadoPor}{revisadoEn ? ` · ${formatDate(revisadoEn.slice(0, 10))}` : ''}
+        {observaciones && <span className="text-fg-muted"> · {observaciones}</span>}
+      </p>
+    );
+  }
+  return <p className="mt-0.5 text-xs text-warning">Sin revisar</p>;
 }
 
 function CertificateItem({ certificado, canEdit, puedeAnular, onCorregir, onAnular }) {
@@ -41,6 +54,14 @@ function CertificateItem({ certificado, canEdit, puedeAnular, onCorregir, onAnul
         {certificado.ente && ` · ${certificado.ente}`}
       </p>
       {registro && <p className="mt-0.5 text-xs text-fg-subtle">{registro}</p>}
+      {certificado.corregidoPor && (
+        <p className="mt-0.5 text-xs text-fg-subtle">
+          Corregido por {certificado.corregidoPor}{certificado.corregidoEn ? ` · ${formatDate(certificado.corregidoEn.slice(0, 10))}` : ''}
+        </p>
+      )}
+      {!anulado && certificado.id != null && (
+        <ReviewLine revisadoPor={certificado.revisadoPor} revisadoEn={certificado.revisadoEn} observaciones={certificado.revisionObs} />
+      )}
       {certificado.observaciones && <p className="mt-1.5 text-xs leading-snug text-fg-muted">{certificado.observaciones}</p>}
       {anulado && (
         <p className="mt-1.5 text-xs leading-snug text-danger">
@@ -62,12 +83,8 @@ function CertificateItem({ certificado, canEdit, puedeAnular, onCorregir, onAnul
   );
 }
 
-const ACTIVITY_VISIBLE = 5;
-
 /** Historial del equipo dentro de su ficha. */
 export function EquipmentHistory({ historial, loading, error, canEdit, onCorregir, onAnular }) {
-  const [showAll, setShowAll] = useState(false);
-
   if (!historial && loading) {
     return (
       <div className="flex items-center gap-2 py-4 text-[13px] text-fg-muted" role="status">
@@ -82,7 +99,6 @@ export function EquipmentHistory({ historial, loading, error, canEdit, onCorregi
 
   const { certificados, verificaciones, actividad, puedeAnular } = historial;
   const anterior = certificados.find(item => !item.vigente && !item.anulado);
-  const actividadVisible = showAll ? actividad : actividad.slice(0, ACTIVITY_VISIBLE);
 
   return (
     <div className="space-y-6">
@@ -111,10 +127,14 @@ export function EquipmentHistory({ historial, loading, error, canEdit, onCorregi
           <SectionTitle count={verificaciones.length}>Verificaciones internas</SectionTitle>
           <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
             {verificaciones.map(item => (
-              <li key={`${item.fechaProgramada}-${item.fechaRealizada}`} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+              <li key={`${item.fechaProgramada}-${item.fechaRealizada}`} className="flex items-start justify-between gap-3 px-3.5 py-2.5">
                 <span className="min-w-0">
                   <span className="block text-[13px] font-medium tabular-nums text-fg">{formatDate(item.fechaRealizada)}</span>
-                  {item.observaciones && <span className="block truncate text-xs text-fg-muted">{item.observaciones}</span>}
+                  <span className="block truncate text-xs text-fg-muted">
+                    {item.registroRef ? `Hoja ${item.registroRef}` : 'Sin hoja de datos'}
+                    {item.registradoPor && ` · ${item.registradoPor}`}
+                  </span>
+                  <ReviewLine revisadoPor={item.revisadoPor} revisadoEn={item.revisadoEn} />
                 </span>
                 {item.resultado
                   ? <ToneBadge tone={item.resultado === 'CONFORME' ? 'success' : 'danger'}>{item.resultado === 'CONFORME' ? 'Conforme' : 'No conforme'}</ToneBadge>
@@ -130,23 +150,7 @@ export function EquipmentHistory({ historial, loading, error, canEdit, onCorregi
         {actividad.length === 0 ? (
           <p className="text-[13px] text-fg-muted">Sin cambios registrados desde el módulo.</p>
         ) : (
-          <>
-            <ol className="relative space-y-3 border-l border-line pl-4">
-              {actividadVisible.map(item => (
-                <li key={item.id} className="relative">
-                  <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-fg/40" aria-hidden="true" />
-                  <p className="text-[13px] font-medium text-fg">{ACCIONES_EQUIPO[item.accion] || item.accion}</p>
-                  {item.detalle && <p className="mt-0.5 break-words text-xs leading-snug text-fg-muted">{item.detalle}</p>}
-                  <p className="mt-0.5 text-xs text-fg-subtle">{[item.usuario, dateTime(item.fecha)].filter(Boolean).join(' · ')}</p>
-                </li>
-              ))}
-            </ol>
-            {actividad.length > ACTIVITY_VISIBLE && (
-              <button type="button" onClick={() => setShowAll(value => !value)} className={cn(linkButton, 'mt-3')}>
-                {showAll ? 'Mostrar menos' : `Ver toda la actividad (${actividad.length})`}
-              </button>
-            )}
-          </>
+          <HistoryList items={actividad.map(item => ({ ...item, title: activityTitle(item) }))} />
         )}
       </section>
     </div>

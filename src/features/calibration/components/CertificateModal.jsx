@@ -13,6 +13,7 @@ import { VIGENCIA, expiryOf, formatDate, periodLabel, vigenciaOf } from '../doma
 import { CertificateFields } from './CertificateFields';
 import {
   CancelButton,
+  FieldLabel,
   Modal,
   ModalColumns,
   ModalSection,
@@ -66,10 +67,12 @@ export function CertificateModal({ mode, equipo, entes, hoy, alertaDias, onClose
   const [form, setForm] = useState(() => (nuevo
     ? emptyCertificate({ ente: equipo.enteCalibrador, periodoDias: equipo.periodoDias })
     : actual));
+  const [motivo, setMotivo] = useState('');
   const [attempted, setAttempted] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const errors = certificateErrors(form, { hoy, posteriorA: nuevo ? equipo.certFecha : null });
+  const motivoError = !nuevo && motivo.trim().length < 3 ? 'Escribe el motivo de la corrección (al menos 3 caracteres).' : null;
   const vence = expiryOf(form.fecha, form.periodoDias);
   const vigencia = VIGENCIA[vigenciaOf(vence, hoy, alertaDias)];
   const cambios = CHANGE_ROWS.filter(([key]) => String(actual[key] ?? '') !== String(form[key] ?? ''));
@@ -80,6 +83,10 @@ export function CertificateModal({ mode, equipo, entes, hoy, alertaDias, onClose
       toast.error('Revisa los datos del certificado.');
       return;
     }
+    if (motivoError) {
+      toast.error(motivoError);
+      return;
+    }
     if (!nuevo && cambios.length === 0 && !form.observaciones.trim()) {
       toast.info('No hay cambios que guardar.');
       return;
@@ -88,7 +95,7 @@ export function CertificateModal({ mode, equipo, entes, hoy, alertaDias, onClose
     try {
       const body = certificatePayload(form);
       if (nuevo) await calibrationApi.registrarCertificado(equipo.id, body);
-      else await calibrationApi.corregirCertificado(equipo.id, body);
+      else await calibrationApi.corregirCertificado(equipo.id, { ...body, motivo: motivo.trim() });
       toast.success(nuevo
         ? `Certificado ${body.numero} registrado: ${equipo.codigo} vence el ${formatDate(vence)}`
         : 'Certificado corregido');
@@ -188,6 +195,22 @@ export function CertificateModal({ mode, equipo, entes, hoy, alertaDias, onClose
                 );
               })}
             </ul>
+            <div className="mt-5">
+              <FieldLabel htmlFor={`${baseId}-motivo`}>Motivo de la corrección</FieldLabel>
+              <textarea
+                id={`${baseId}-motivo`}
+                value={motivo}
+                maxLength={300}
+                onChange={(event) => setMotivo(event.target.value)}
+                disabled={saving}
+                placeholder="Ej.: el número se copió mal del documento"
+                aria-invalid={attempted && motivoError ? true : undefined}
+                className={cn('field min-h-[84px] resize-y py-3 leading-relaxed', attempted && motivoError && 'field-invalid')}
+              />
+              {attempted && motivoError
+                ? <p className="field-error">{motivoError}</p>
+                : <p className="cal-hint mt-1.5">La versión anterior queda completa en el historial con este motivo, y otra persona deberá revisar el certificado de nuevo.</p>}
+            </div>
             <div className="mt-4">
               <Note>Si en realidad llegó un certificado nuevo, regístralo como nuevo: así el anterior se conserva en el historial.</Note>
             </div>

@@ -28,16 +28,18 @@ export const calibrationApi = {
   registrarCertificado: (id, body) => write(api.post(`${BASE}/equipos/${id}/certificados`, body)),
   corregirCertificado: (id, body) => write(api.put(`${BASE}/equipos/${id}/certificados/vigente`, body)),
   anularCertificado: (id, body) => write(api.post(`${BASE}/equipos/${id}/certificados/vigente/anular`, body)),
+  revisarCertificado: (id, body) => write(api.post(`${BASE}/equipos/${id}/certificados/vigente/revision`, body)),
 
   createActividad: (body) => write(api.post(`${BASE}/actividades`, body)),
   updateActividad: (id, body) => write(api.put(`${BASE}/actividades/${id}`, body)),
   deleteActividad: (id) => write(api.delete(`${BASE}/actividades/${id}`)),
+  actividadHistorial: (id) => unwrap(api.get(`${BASE}/actividades/${id}/historial`)),
 
   saveEvento: (body) => write(api.put(`${BASE}/eventos`, body)),
-  resetEvento: ({ serie, fechaProgramada }) => {
-    const query = new URLSearchParams({ serie, fechaProgramada }).toString();
-    return write(api.delete(`${BASE}/eventos?${query}`));
-  },
+  // Volver a la programación original deja la última versión en el historial.
+  resetEvento: ({ serie, fechaProgramada, motivo }) => write(api.post(`${BASE}/eventos/restablecer`, { serie, fechaProgramada, motivo })),
+  revisarEvento: ({ serie, fechaProgramada }) => write(api.post(`${BASE}/eventos/revision`, { serie, fechaProgramada })),
+  eventoHistorial: ({ serie, fechaProgramada }) => unwrap(api.get(`${BASE}/eventos/historial`, { serie, fechaProgramada })),
 
   alertSettings: () => unwrap(api.get(`${BASE}/alertas/ajustes`)),
   saveAjustes: (body) => write(api.put(`${BASE}/alertas/ajustes`, body)),

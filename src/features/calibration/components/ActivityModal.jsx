@@ -2,7 +2,9 @@ import { useId, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { calibrationApi } from '../api/calibration';
-import { FRECUENCIAS_ACTIVIDAD, frequencyLabel } from '../domain/format';
+import { FRECUENCIAS_ACTIVIDAD, activityTitle, frequencyLabel } from '../domain/format';
+import { useActivityHistory } from '../hooks/useActivityHistory';
+import { HistoryList } from './HistoryList';
 import { Dropdown, SuggestInput } from './Dropdown';
 import { AlertFields, DatePreview, ResponsableSelect } from './fields';
 import {
@@ -44,6 +46,7 @@ export function ActivityModal({ actividad, categorias = [], ajustes, personal, c
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [touched, setTouched] = useState(false);
+  const history = useActivityHistory(actividad?.id ?? null);
   const disabled = !canEdit || saving;
   const set = (patch) => setForm(current => ({ ...current, ...patch }));
   const tituloError = touched && !form.titulo.trim();
@@ -235,6 +238,17 @@ export function ActivityModal({ actividad, categorias = [], ajustes, personal, c
             <div className="h-px bg-line" />
             <AlertFields value={form} onChange={set} ajustes={ajustes} disabled={disabled} />
           </div>
+          {history.items?.length > 0 && (
+            <section aria-label="Historial de la actividad" className="mt-6 border-t border-line pt-5">
+              <h4 className="mb-2.5 text-[13px] font-semibold text-fg">Historial</h4>
+              <HistoryList items={history.items.map(item => ({ ...item, title: activityTitle(item) }))} />
+            </section>
+          )}
+          {history.error && (
+            <p className="mt-6 border-t border-line pt-5 text-[13px] text-danger" role="alert">
+              No se pudo cargar el historial: {history.error.message}
+            </p>
+          )}
         </ModalSection>
       </ModalColumns>
     </Modal>

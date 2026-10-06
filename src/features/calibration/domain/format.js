@@ -187,7 +187,38 @@ export const ACCIONES_EQUIPO = {
   ANULACION: 'Certificado anulado',
   BAJA: 'Dado de baja',
   REACTIVACION: 'Reactivado',
+  REVISION: 'Certificado revisado',
 };
+
+// Cada versión de una fecha del plan (CAL_EVENTOS_HISTORIAL).
+export const ACCIONES_FECHA = {
+  INICIAL: 'Estado al iniciar el historial',
+  REGISTRO: 'Registrada',
+  MODIFICACION: 'Modificada',
+  RESTABLECIMIENTO: 'Restablecida',
+  REVISION: 'Revisada',
+};
+
+const PLAN_ACCION = {
+  CREACION: 'incluida en el plan',
+  EDICION: 'configuración modificada',
+  RETIRO: 'retirada del plan',
+  INICIAL: 'configuración inicial',
+};
+
+/** Título de una línea de la bitácora: cambios del equipo, de su plan o de sus fechas. */
+export function activityTitle(item) {
+  const tipo = TIPOS[item.tipo]?.label;
+  if (item.fuente === 'PLAN') {
+    if (item.tipo === 'ACTIVIDAD' && item.accion === 'CREACION') return 'Actividad creada';
+    return `${tipo || 'Plan'}: ${PLAN_ACCION[item.accion] || item.accion.toLowerCase()}`;
+  }
+  if (item.fuente === 'FECHA') {
+    const cuando = item.fechaProgramada ? ` del ${formatDate(item.fechaProgramada)}` : '';
+    return `${tipo || 'Fecha'}${cuando}: ${(ACCIONES_FECHA[item.accion] || item.accion).toLowerCase()}`;
+  }
+  return ACCIONES_EQUIPO[item.accion] || item.accion;
+}
 
 const isLeapYear = (year) => (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 export const daysInYear = (year) => (isLeapYear(year) ? 366 : 365);
