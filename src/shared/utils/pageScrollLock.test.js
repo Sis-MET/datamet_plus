@@ -31,12 +31,12 @@ function fixture({ scrollbar = 15, gutter = 'auto' } = {}) {
 }
 
 describe('bloqueo compartido del scroll de fondo', () => {
-  it('bloquea html y body, restaura sus estilos y no toca el contenido del modal', () => {
+  it('bloquea el desplazamiento de html, restaura sus estilos y no toca el contenido del modal', () => {
     const doc = fixture();
     const release = lockPageScroll(doc);
+    expect(doc.documentElement.style.getPropertyValue('overflow-y')).toBe('hidden');
+    expect(doc.documentElement.style.getPropertyValue('overflow-x')).toBe('hidden');
     for (const element of [doc.documentElement, doc.body]) {
-      expect(element.style.getPropertyValue('overflow-y')).toBe('hidden');
-      expect(element.style.getPropertyValue('overflow-x')).toBe('hidden');
       expect(element.style.getPropertyValue('overscroll-behavior-y')).toBe(
         'none'
       );
@@ -45,6 +45,16 @@ describe('bloqueo compartido del scroll de fondo', () => {
     expect(doc.body.style.snapshot()).toEqual({});
     expect(doc.documentElement.style.snapshot()).toEqual({});
     expect(doc.defaultView.scrollTo).not.toHaveBeenCalled();
+  });
+  it('no convierte body en contenedor de scroll: los sticky siguen pegados a la ventana', () => {
+    // Con html en overflow: hidden, un overflow en body ya no se propaga a la
+    // ventana y body pasa a desplazarse solo: la barra lateral y la superior
+    // (sticky) saltaban hacia arriba tanto como la página estuviera bajada.
+    const doc = fixture();
+    const release = lockPageScroll(doc);
+    expect(doc.body.style.getPropertyValue('overflow-y')).toBe('');
+    expect(doc.body.style.getPropertyValue('overflow-x')).toBe('');
+    release();
   });
   it('reserva el ancho de la barra existente, pero no lo inventa en páginas cortas', () => {
     const long = fixture();
@@ -74,11 +84,12 @@ describe('bloqueo compartido del scroll de fondo', () => {
     const second = lockPageScroll(doc);
     first();
     first();
-    expect(doc.body.style.getPropertyValue('overflow-y')).toBe('hidden');
+    expect(doc.documentElement.style.getPropertyValue('overflow-y')).toBe('hidden');
     const third = lockPageScroll(doc);
     second();
-    expect(doc.body.style.getPropertyValue('overflow-y')).toBe('hidden');
+    expect(doc.documentElement.style.getPropertyValue('overflow-y')).toBe('hidden');
     third();
+    expect(doc.documentElement.style.snapshot()).toEqual({});
     expect(doc.body.style.snapshot()).toEqual({});
   });
   it('recupera valores y prioridades originales sin borrar cambios de otros estilos', () => {
@@ -122,8 +133,9 @@ describe('bloqueo compartido del scroll de fondo', () => {
     const doc = fixture();
     for (let i = 0; i < 3; i++) {
       const release = lockPageScroll(doc);
-      expect(doc.body.style.getPropertyValue('overflow-y')).toBe('hidden');
+      expect(doc.documentElement.style.getPropertyValue('overflow-y')).toBe('hidden');
       release();
+      expect(doc.documentElement.style.snapshot()).toEqual({});
       expect(doc.body.style.snapshot()).toEqual({});
     }
   });

@@ -29,9 +29,14 @@ export function lockPageScroll(doc = document) {
     ) {
       restore.push(overrideStyle(root, 'scrollbar-gutter', 'stable'));
     }
-    for (const element of [root, body]) {
-      for (const axis of ['x', 'y']) {
-        restore.push(overrideStyle(element, `overflow-${axis}`, 'hidden'));
+    // El overflow se bloquea solo en <html>, que es quien desplaza la ventana.
+    // Si <body> también recibe overflow: hidden, deja de propagarlo a la
+    // ventana y se vuelve su propio contenedor de scroll: los elementos sticky
+    // (barra lateral, barra superior) se pegan a él y saltan hacia arriba tanto
+    // como la página estuviera desplazada.
+    for (const axis of ['x', 'y']) {
+      restore.push(overrideStyle(root, `overflow-${axis}`, 'hidden'));
+      for (const element of [root, body]) {
         restore.push(
           overrideStyle(element, `overscroll-behavior-${axis}`, 'none')
         );
