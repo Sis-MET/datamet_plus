@@ -173,7 +173,8 @@ Errores de validación añaden `issues: [{path,message}]`, sin valores sensibles
 | --- | --- |
 | `GET /overview` | Indicadores administrativos, no veredictos privados |
 | `GET /clients?search=&page=&pageSize=` | Directorio paginado |
-| `GET /plans` | Planes comerciales y tarifas históricas |
+| `GET /plans` | Planes comerciales, tarifas históricas y condiciones (`terms`) |
+| `GET /upgrade-requests?state=OPEN&search=&page=` | Solicitudes de plan superior enviadas desde la app |
 | `GET /clients/:clientId` | Plantas y configuración comercial del cliente |
 | `GET /clients/:clientId/equipment` | Balanzas, `plantId`, `status`, `search`, paginación |
 | `GET /clients/:clientId/users` | Usuarios/licencias del cliente, búsqueda y paginación |
@@ -195,7 +196,11 @@ Acciones públicas: `plan.save`, `price.create`, `contract.create`,
 `seat.revoke`, `payment.record`, `invoice.void`, `user.create`, `user.update`,
 `user.reset`, `license.assign`, `license.revoke`, `area.save`, `pattern.save`,
 `certificate.create`, `certificate.annul`, `equipment.configure`, `scope.request`
-y `scope.extend`, además de `scope.retry` (id y motivo). Los campos exactos están en
+y `scope.extend`, además de `scope.retry` (id y motivo),
+`subscription.change-plan` (`clientId`, `id`, `version`, `planId`, `endsOn?`,
+`priceId?`, `reason`) y `upgrade.attend` (`id`, `version`, `state`
+`CONTACTED|CLOSED`, `result` `UPGRADED|DECLINED`, `note`). `plan.save` acepta
+`terms` (`limits`, `features`, `catalog`); sin `terms` conserva los anteriores. Los campos exactos están en
 `backend/src/services/ivmet.validation.js`. Las operaciones internas de reserva
 Auth no tienen ruta pública.
 
@@ -296,3 +301,25 @@ La app normal **nunca** hace fallback a esos datos.
 Rollback: `IVMET_ENABLED=false` y reiniciar el backend RimMET, o restaurar el
 código de la versión anterior. Conservar las migraciones, auditoría y evidencia.
 No hay borrado de tablas ni rollback destructivo.
+
+## Planes, empresas autoregistradas y solicitudes
+
+Desde el 08/10/2026 cualquier empresa crea su cuenta desde la app IvMET y queda
+en el plan de **autoregistro** (Gratuito). El detalle funcional y el despliegue
+están en `IvMET/docs/self-service-plans.md`.
+
+- **Planes y tarifas**: además de cuentas y gracia, cada plan define sus
+  límites (plantas, balanzas habilitadas, verificaciones por mes y pesas patrón;
+  vacío es sin límite), si incluye el informe completo y la periodicidad a
+  medida, si se ofrece en la app con su orden y resumen, y cuál es el plan de
+  autoregistro (uno solo activo). Los límites rigen al instante para todas las
+  empresas del plan.
+- **Solicitudes de plan**: bandeja con las que llegan desde la app. **Atender**
+  la marca como contactada o la cierra con su resultado y una nota interna.
+- **Ficha › Contrato y pagos › Plan y uso**: uso contra cada límite y **Cambiar
+  plan**, que no corta el acceso y cierra las solicitudes abiertas. Al salir del
+  Gratuito, que no vence, pide el fin del período para poder renovar y cobrar
+  después con facturas y pagos. El Gratuito no se renueva ni admite cupos.
+- Las empresas autoregistradas no tienen ID de DataMET ni van al espejo SQL
+  Server, y su jefe de calidad gestiona plantas y usuarios desde la app.
+
