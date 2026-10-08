@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Eye, EyeOff, Loader2, ShieldCheck, X } from 'lucide-react';
 import { ivmetApi } from '../api/ivmet';
+import { buildPayload } from '../actions';
 import { createRequestId } from '../requestId';
 import { useDialogMotion } from '../useDialogMotion';
 import { IvSelect } from './IvSelect';
@@ -22,10 +23,7 @@ export function ActionDialog({ config, onClose, onSaved }) {
     setBusy(true);
     setError(null);
     try {
-      const payload = { ...values };
-      for (const field of config.fields)
-        if (field.type === 'integer')
-          payload[field.name] = Number(payload[field.name]);
+      const payload = buildPayload(config, values);
       await (config.ops ? ivmetApi.operate : ivmetApi.mutate)(config.action, payload, requestId.current);
       onSaved();
       close();

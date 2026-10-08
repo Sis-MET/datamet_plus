@@ -38,9 +38,14 @@ const labels = {
   ANNULLED: 'Anulado',
   MONTHLY: 'Mensual',
   ANNUAL: 'Anual',
+  CONTACTED: 'Contactado',
+  CLOSED: 'Cerrada',
+  UPGRADED: 'Cambió de plan',
+  DECLINED: 'No avanzó',
+  AUTOREGISTRO: 'Desde la app',
 };
 export function Badge({ value, children }) {
-  const tone = ['ACTIVE', 'READY', 'PAID', 'SUCCEEDED', 'PASS', 'RESOLVED', 'PUBLISHED'].includes(value)
+  const tone = ['ACTIVE', 'READY', 'PAID', 'SUCCEEDED', 'PASS', 'RESOLVED', 'PUBLISHED', 'UPGRADED'].includes(value)
     ? 'good'
     : [
           'PENDING',
@@ -52,7 +57,7 @@ export function Badge({ value, children }) {
           'QUEUED',
           'RETRYING',
           'RUNNING',
-          'NEW', 'IN_REVIEW', 'WAITING_CLIENT',
+          'NEW', 'IN_REVIEW', 'WAITING_CLIENT', 'CONTACTED',
         ].includes(value)
       ? 'warn'
       : [

@@ -2444,3 +2444,149 @@
     transition: none !important;
   }
 }
+
+/* Solicitudes de plan abiertas, junto a su entrada en la barra lateral. */
+.iv-rail nav button > .iv-nav-count {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(var(--c-brand) / 0.14);
+  color: rgb(var(--c-brand));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.iv-rail nav button > .iv-nav-count + span {
+  margin-left: 6px;
+}
+/* Filtro en pastillas: modos de una misma vista, no botones de acción. */
+.iv-segmented {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgb(var(--c-fg) / 0.05);
+}
+.iv-segmented button {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--iv-muted);
+}
+.iv-segmented button[aria-pressed='true'] {
+  background: var(--iv-surface);
+  color: var(--iv-text);
+  box-shadow: var(--shadow-xs), inset 0 0 0 1px var(--iv-border);
+}
+.iv-quote {
+  font-style: italic;
+}
+.iv-table small svg {
+  vertical-align: -2px;
+}
+.iv-client-attention span.growth {
+  background: rgb(var(--c-brand) / 0.1);
+  color: rgb(var(--c-brand));
+}
+.iv-self-service {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--iv-muted);
+}
+/* Condiciones de un plan: límites en una línea y funciones en chips. */
+.iv-plan-terms {
+  padding: 0 0 14px;
+}
+.iv-plan-terms p {
+  font-size: 13px;
+  color: var(--iv-text);
+  margin-bottom: 8px;
+}
+.iv-plan-terms div,
+.iv-plan-usage footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.iv-plan-terms span,
+.iv-plan-usage footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.iv-plan-terms span.on,
+.iv-plan-usage footer span.on {
+  background: rgb(var(--c-success) / 0.1);
+  color: rgb(var(--c-success));
+}
+.iv-plan-terms span.off,
+.iv-plan-usage footer span.off {
+  background: rgb(var(--c-fg) / 0.06);
+  color: var(--iv-muted);
+}
+/* Plan y uso del cliente. */
+.iv-plan-usage {
+  border: 1px solid var(--iv-border);
+  border-radius: 18px;
+  background: var(--iv-surface);
+  padding: 20px;
+  margin-bottom: 28px;
+}
+.iv-plan-usage header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.iv-plan-usage h3 {
+  font-size: 20px;
+  font-weight: 650;
+  margin-top: 2px;
+}
+.iv-plan-usage header p {
+  font-size: 13px;
+  color: var(--iv-muted);
+  margin-top: 4px;
+}
+.iv-usage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin: 20px 0 16px;
+}
+.iv-usage-grid > div > span {
+  font-size: 12px;
+  color: var(--iv-muted);
+}
+.iv-usage-grid strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.iv-usage-grid strong small {
+  font-size: 14px;
+  color: var(--iv-subtle);
+  font-weight: 500;
+}
+.iv-usage-grid .iv-seat-bar {
+  margin: 8px 0 0;
+}
+.iv-usage-grid .full strong,
+.iv-usage-grid .full strong small {
+  color: rgb(var(--c-danger));
+}
+.iv-usage-grid .full .iv-seat-bar i {
+  background: rgb(var(--c-danger));
+}
+.iv-plan-usage footer {
+  padding-top: 14px;
+  border-top: 1px solid var(--iv-border);
+}

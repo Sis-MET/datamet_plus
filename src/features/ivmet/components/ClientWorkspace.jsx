@@ -28,10 +28,11 @@ import {
   SearchInput,
   SectionTitle,
 } from './Ui';
-import { dateText, effectiveState, money } from '../format';
+import { dateText, effectiveState, endless, money } from '../format';
 import { IvSelect } from './IvSelect';
 import { useDialogMotion } from '../useDialogMotion';
 import { EnableEquipmentDialog } from './EnableEquipmentDialog';
+import { PlanUsage } from './PlanUsage';
 
 function EquipmentView({ clientId, workspace, revision, open, onSaved }) {
   const [search, setSearch] = useState('');
@@ -433,6 +434,7 @@ function UsersView({ clientId, workspace, revision, open }) {
 function CommercialView({ workspace, open }) {
   return (
     <>
+      <PlanUsage workspace={workspace} open={open} />
       <SectionTitle
         title="Contrato y suscripción"
         description="Historial comercial, períodos contratados, cupos y pagos registrados."
@@ -518,16 +520,24 @@ function CommercialView({ workspace, open }) {
                     />
                   </div>
                   <div className="iv-inline-actions">
+                    {/* El plan gratuito no vence: no se renueva ni se le
+                        venden cupos; se cambia de plan. */}
                     <button
                       className="iv-button secondary small"
-                      disabled={['PENDING', 'CANCELLED'].includes(s.estado)}
+                      disabled={
+                        ['PENDING', 'CANCELLED'].includes(s.estado) ||
+                        endless(s.fin_periodo)
+                      }
                       onClick={() => open('subscription.renew', s)}
                     >
                       Renovar período
                     </button>
                     <button
                       className="iv-button secondary small"
-                      disabled={['PENDING', 'CANCELLED'].includes(s.estado)}
+                      disabled={
+                        ['PENDING', 'CANCELLED'].includes(s.estado) ||
+                        endless(s.fin_periodo)
+                      }
                       onClick={() => open('seats.purchase', s)}
                     >
                       Agregar cupos
@@ -758,8 +768,26 @@ export function ClientWorkspace({
                 <p>
                   {workspace.client.razon_social} · {workspace.plants.length}{' '}
                   planta(s)
+                  {workspace.plan?.name && ` · Plan ${workspace.plan.name}`}
                 </p>
+                {workspace.selfService && (
+                  <p className="iv-self-service">
+                    Registrada desde la app el{' '}
+                    {dateText(workspace.selfService.registeredAt)} por{' '}
+                    {workspace.selfService.owner?.name} ·{' '}
+                    {workspace.selfService.email}
+                    {workspace.selfService.phone &&
+                      ` · ${workspace.selfService.phone}`}
+                    {workspace.selfService.city &&
+                      ` · ${workspace.selfService.city}`}
+                    {workspace.selfService.country &&
+                      `, ${workspace.selfService.country}`}
+                  </p>
+                )}
               </div>
+              {workspace.origin === 'AUTOREGISTRO' && (
+                <Badge value="AUTOREGISTRO" />
+              )}
               <Badge value={workspace.client.activo ? 'ACTIVE' : 'INACTIVE'} />
             </div>
             <nav className="iv-tabs" aria-label="Gestión del cliente">

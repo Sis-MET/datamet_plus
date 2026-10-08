@@ -16,12 +16,14 @@ import {
   Scale,
   ShieldCheck,
   ClipboardCheck,
+  Smartphone,
+  TrendingUp,
   Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useIvmetQuery } from './useIvmetQuery';
 import { actionConfig } from './actions';
-import { dateText, money } from './format';
+import { dateText, money, planLimitsText } from './format';
 import {
   Badge,
   Empty,
@@ -40,6 +42,7 @@ import { WorkerStatus } from './components/WorkerStatus';
 import { OnboardingStatusDialog } from './components/OnboardingStatusDialog';
 import { IvmetAccessGate } from './components/IvmetAccessGate';
 import { OperationsWorkspace } from './components/OperationsWorkspace';
+import { UpgradeRequests } from './components/UpgradeRequests';
 import { onboardingPending, syncDateTime } from './onboarding';
 import './ivmet.css';
 
@@ -119,15 +122,27 @@ function Clients({
                       />
                       <ArrowUpRight size={19} />
                     </div>
-                    <span className="iv-eyebrow">Cliente <span className="code">{c.codigo}</span></span>
+                    <span className="iv-eyebrow">
+                      Cliente <span className="code">{c.codigo}</span>
+                      {commercial && c.plan?.name && ` · ${c.plan.name}`}
+                    </span>
                     <h3>{c.nombre || c.razon_social || `Cliente ${c.codigo}`}</h3>
                     <p>
-                      {!pending
-                        ? c.razon_social || 'Catálogo sincronizado desde DataMET'
-                        : c.onboarding
+                      {pending
+                        ? c.onboarding
                           ? `${c.onboarding.plants.length} plantas · ${c.onboarding.equipmentCount} balanzas autorizadas`
-                          : 'Incorporación en curso'}
+                          : 'Incorporación en curso'
+                        : c.origin === 'AUTOREGISTRO'
+                          ? 'Registrada desde la app IvMET'
+                          : c.razon_social || 'Catálogo sincronizado desde DataMET'}
                     </p>
+                    {commercial && c.openUpgradeRequest && (
+                      <div className="iv-client-attention">
+                        <span className="growth">
+                          <TrendingUp size={13} /> Pidió un plan superior
+                        </span>
+                      </div>
+                    )}
                     {support &&
                       (Number(c.newCases) > 0 ||
                         Number(c.pendingUpdates) > 0) && (
@@ -167,6 +182,10 @@ function Clients({
                       <span>
                         {pending ? (
                           'Incorporación en seguimiento'
+                        ) : c.origin === 'AUTOREGISTRO' ? (
+                          <>
+                            <Smartphone size={14} /> Se gestiona desde la app
+                          </>
                         ) : Number(c.review) > 0 ? (
                           <>
                             <i className="iv-warn-dot" />
@@ -254,6 +273,23 @@ function Plans({ query, open }) {
                     cuentas incluidas
                     <small>{p.dias_gracia} días de gracia</small>
                   </span>
+                </div>
+                <div className="iv-plan-terms">
+                  <p>{planLimitsText(p.terms)}</p>
+                  <div>
+                    {p.terms?.catalog?.selfService && (
+                      <span className="on">Autoregistro</span>
+                    )}
+                    {p.terms?.catalog?.visible && (
+                      <span className="on">Se ofrece en la app</span>
+                    )}
+                    <span className={p.terms?.features?.fullReport === false ? 'off' : 'on'}>
+                      Informe {p.terms?.features?.fullReport === false ? 'resumido' : 'completo'}
+                    </span>
+                    <span className={p.terms?.features?.customSchedules === false ? 'off' : 'on'}>
+                      Periodicidad {p.terms?.features?.customSchedules === false ? 'predefinida' : 'a medida'}
+                    </span>
+                  </div>
                 </div>
                 <div className="iv-prices">
                   {p.prices.length ? (
@@ -446,6 +482,7 @@ function Integration({ revision, onOnboard, onStatus }) {
 const navigation = [
   ['clients', 'Clientes', Building2, ['commercial', 'support']],
   ['plans', 'Planes y tarifas', FileText, 'commercial'],
+  ['requests', 'Solicitudes de plan', TrendingUp, 'commercial'],
   ['readiness', 'Preparación', ClipboardCheck, 'commercial'],
   ['billing', 'Cobros pendientes', FileText, 'commercial'],
   ['integration', 'Sincronización', Cloud, 'integration'],
@@ -512,6 +549,14 @@ function IvmetWorkspace({ onLock, capabilities }) {
             >
               {React.createElement(icon, { size: 18 })}
               {label}
+              {id === 'requests' && Number(overview.data?.upgradeRequests) > 0 && (
+                <b
+                  className="iv-nav-count"
+                  aria-label={`${overview.data.upgradeRequests} abiertas`}
+                >
+                  {overview.data.upgradeRequests}
+                </b>
+              )}
               {section === id && <span />}
             </button>
           ))}
@@ -581,7 +626,10 @@ function IvmetWorkspace({ onLock, capabilities }) {
                     label="Clientes habilitados"
                     value={overview.data?.clients}
                     note={
-                      (overview.data?.plants ?? '—') + ' plantas sincronizadas'
+                      (overview.data?.plants ?? '—') +
+                      ' plantas · ' +
+                      (overview.data?.selfServiceClients ?? '—') +
+                      ' desde la app'
                     }
                     icon={<Building2 size={20} />}
                   />
@@ -623,6 +671,12 @@ function IvmetWorkspace({ onLock, capabilities }) {
                 />
               ) : section === 'plans' ? (
                 <Plans query={plans} open={open} />
+              ) : section === 'requests' ? (
+                <UpgradeRequests
+                  revision={revision}
+                  open={open}
+                  onClient={setClientId}
+                />
               ) : section !== 'integration' ? (
                 <OperationsWorkspace key={section} section={section} revision={revision} onSaved={saved}/>
               ) : (

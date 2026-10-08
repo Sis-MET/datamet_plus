@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
-import { actionConfig } from './actions';
+import { actionConfig, buildPayload } from './actions';
 import { createRequestId } from './requestId';
 import { dateText, effectiveState, money } from './format';
 
@@ -67,6 +67,8 @@ const plans = [
       },
     ],
   },
+  // Otro plan al que cambiar: el actual no se ofrece.
+  { id: id(12), activo: true, nombre: 'Profesional', cuentas_incluidas: 10, prices: [] },
 ];
 const context = { clientId, record, workspace, plans };
 
@@ -109,6 +111,8 @@ describe('formularios IvMET y contrato real del backend', () => {
     'certificate.create',
     'certificate.annul',
     'equipment.configure',
+    'subscription.change-plan',
+    'upgrade.attend',
   ]) {
     it(`${action}: el formulario produce campos aceptados`, () => {
       const config = actionConfig(action, context);
@@ -118,8 +122,7 @@ describe('formularios IvMET y contrato real del backend', () => {
           payload[field.name] = field.options[0]?.value || '';
         else if (field.type === 'multi')
           payload[field.name] = field.options.slice(0, 1).map((o) => o.value);
-        else if (field.type === 'integer')
-          payload[field.name] = Number(payload[field.name]);
+        else if (field.type === 'integer') continue;
         else if (field.type === 'password')
           payload[field.name] = 'local-fixture-only-2026';
         else if (field.type === 'date') payload[field.name] = '2026-08-27';
@@ -128,10 +131,12 @@ describe('formularios IvMET y contrato real del backend', () => {
         else if (!payload[field.name] && field.type !== 'checkbox')
           payload[field.name] = 'Prueba';
       }
+      // Igual que el diálogo: enteros como números y la forma propia del formulario.
+      const sent = buildPayload(config, payload);
       if (['area.save','pattern.save','certificate.create','certificate.annul'].includes(action)) {
-        expect(() => validateAction(action, payload)).toThrow('configuración operativa');
+        expect(() => validateAction(action, sent)).toThrow('configuración operativa');
       } else {
-        expect(() => validateAction(action, payload)).not.toThrow();
+        expect(() => validateAction(action, sent)).not.toThrow();
       }
     });
   }
@@ -158,5 +163,62 @@ describe('formularios IvMET y contrato real del backend', () => {
       effectiveState({ estado: 'ACTIVE', fin_periodo: '2020-01-01' })
     ).toBe('EXPIRED');
     expect(dateText(null)).toBe('—');
+  });
+  it('las condiciones del plan viajan como terms; vacío es sin límite', () => {
+    const plan = actionConfig('plan.save', {
+      record: {
+        ...record,
+        cuentas_incluidas: 2,
+        terms: {
+          limits: { plants: 1, equipment: 5, monthlyVerifications: null, patterns: null },
+          features: { fullReport: false, customSchedules: true },
+          catalog: { visible: true, order: 1, selfService: true, summary: 'Para empezar' },
+        },
+      },
+    });
+    expect(plan.values.limitPlants).toBe(1);
+    expect(plan.values.limitVerifications).toBe('');
+    const sent = buildPayload(plan, { ...plan.values, limitEquipment: '7' });
+    expect(sent.terms).toEqual({
+      limits: { plants: 1, equipment: 7, monthlyVerifications: null, patterns: null },
+      features: { fullReport: false, customSchedules: true },
+      catalog: { visible: true, selfService: true, order: 1, summary: 'Para empezar' },
+    });
+    expect(sent).not.toHaveProperty('limitPlants');
+    expect(validateAction('plan.save', sent).terms.limits.equipment).toBe(7);
+  });
+  it('cambiar de plan desde el gratuito exige el fin del período', () => {
+    const free = { ...record, fin_periodo: 'infinity' };
+    const config = actionConfig('subscription.change-plan', { ...context, record: free });
+    expect(config.fields.find((f) => f.name === 'endsOn').required).toBe(true);
+    expect(
+      config.fields.find((f) => f.name === 'planId').options.map((o) => o.value)
+    ).toEqual([id(12)]);
+    expect(dateText('infinity')).toBe('Sin vencimiento');
+    expect(
+      effectiveState({ estado: 'ACTIVE', inicio_periodo: '2026-01-01', fin_periodo: 'infinity' })
+    ).toBe('ACTIVE');
+  });
+  it('atender una solicitud la marca contactada o la cierra con su resultado', () => {
+    const request = {
+      id: id(11),
+      version: '2',
+      reason: 'EQUIPMENT',
+      client: { name: 'Acme' },
+      requestedPlan: { name: 'Profesional' },
+    };
+    const config = actionConfig('upgrade.attend', { record: request });
+    expect(config.description).toContain('Acme pidió el plan Profesional (Más balanzas)');
+    expect(buildPayload(config, config.values)).toEqual({
+      id: id(11),
+      version: '2',
+      note: '',
+      state: 'CONTACTED',
+      result: '',
+    });
+    expect(buildPayload(config, { ...config.values, outcome: 'DECLINED' })).toMatchObject({
+      state: 'CLOSED',
+      result: 'DECLINED',
+    });
   });
 });

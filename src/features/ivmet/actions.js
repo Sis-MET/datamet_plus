@@ -1,4 +1,10 @@
-import { today, versionOf, effectiveState } from './format';
+import {
+  today,
+  versionOf,
+  effectiveState,
+  endless,
+  upgradeReasons,
+} from './format';
 const input = (name, label, extra = {}) => ({ name, label, ...extra });
 const select = (name, label, options, extra = {}) =>
   input(name, label, { type: 'select', options, ...extra });
@@ -13,6 +19,26 @@ const password = input('password', 'Contraseña temporal', {
   wide: true,
   hint: 'Mínimo 12 caracteres. Entrégala por un canal seguro; será obligatorio cambiarla al ingresar.',
 });
+// Lo que viaja: los enteros como números (un límite vacío es "sin límite")
+// y, si el formulario lo pide, su propia forma (`toPayload`).
+export function buildPayload(config, values) {
+  const payload = { ...values };
+  for (const field of config.fields)
+    if (field.type === 'integer')
+      payload[field.name] =
+        payload[field.name] === '' && field.required === false
+          ? ''
+          : Number(payload[field.name]);
+  return config.toPayload ? config.toPayload(payload) : payload;
+}
+const limitField = (name, label) =>
+  input(name, label, {
+    type: 'integer',
+    min: 1,
+    max: 999999,
+    required: false,
+    hint: 'Vacío: sin límite',
+  });
 export function actionConfig(
   action,
   { clientId, record = {}, workspace, plans = [] } = {}
@@ -29,41 +55,179 @@ export function actionConfig(
     ['cliente_jefe_calidad', 'Jefe de calidad'],
   ]);
   const configs = {
-    'plan.save': () => ({
-      title: record.id ? 'Editar plan comercial' : 'Nuevo plan comercial',
+    'plan.save': () => {
+      const terms = record.terms || {};
+      const limit = (key) => terms.limits?.[key] ?? '';
+      return {
+        title: record.id ? 'Editar plan comercial' : 'Nuevo plan comercial',
+        description:
+          'Los límites y las funciones rigen de inmediato para todas las empresas con este plan. Las cuentas incluidas se aplican a contratos nuevos y al cambiar de plan; los cupos ya contratados se conservan.',
+        codeInfo: record.codigo || 'Se genera automáticamente al guardar',
+        values: {
+          ...(record.id ? { id: record.id, version: versionOf(record) } : {}),
+          name: record.nombre || '',
+          description: record.descripcion || '',
+          seats: record.cuentas_incluidas || 5,
+          graceDays: record.dias_gracia || 0,
+          active: record.activo ?? true,
+          limitPlants: limit('plants'),
+          limitEquipment: limit('equipment'),
+          limitVerifications: limit('monthlyVerifications'),
+          limitPatterns: limit('patterns'),
+          fullReport: terms.features?.fullReport ?? true,
+          customSchedules: terms.features?.customSchedules ?? true,
+          visible: terms.catalog?.visible ?? false,
+          selfService: terms.catalog?.selfService ?? false,
+          order: terms.catalog?.order ?? 10,
+          summary: terms.catalog?.summary ?? '',
+        },
+        fields: [
+          input('name', 'Nombre del plan', { wide: true }),
+          input('seats', 'Cuentas incluidas', {
+            type: 'integer',
+            min: 1,
+            max: 10000,
+            hint: 'Es el límite de usuarios del plan.',
+          }),
+          input('graceDays', 'Días de gracia', {
+            type: 'integer',
+            min: 0,
+            max: 90,
+          }),
+          limitField('limitPlants', 'Plantas'),
+          limitField('limitEquipment', 'Balanzas habilitadas'),
+          limitField('limitVerifications', 'Verificaciones por mes'),
+          limitField('limitPatterns', 'Pesas patrón activas'),
+          input('fullReport', 'Informe PDF', {
+            type: 'checkbox',
+            hint: 'Completo: lecturas, croquis y trazabilidad',
+          }),
+          input('customSchedules', 'Periodicidad', {
+            type: 'checkbox',
+            hint: 'A medida (si no, solo las predefinidas)',
+          }),
+          input('visible', 'App IvMET', {
+            type: 'checkbox',
+            hint: 'Ofrecerlo en «Mi plan»',
+          }),
+          input('selfService', 'Autoregistro', {
+            type: 'checkbox',
+            hint: 'Plan de las empresas que se registran en la app',
+          }),
+          input('order', 'Orden en la app', {
+            type: 'integer',
+            min: 0,
+            max: 999,
+          }),
+          input('summary', 'Resumen para la app', {
+            type: 'textarea',
+            wide: true,
+            required: false,
+            maxLength: 300,
+            hint: 'Una línea: para quién es y qué incluye. La app no muestra precios.',
+          }),
+          input('description', 'Descripción interna', {
+            type: 'textarea',
+            wide: true,
+            required: false,
+          }),
+          input('active', 'Disponible para contratar', {
+            type: 'checkbox',
+            hint: 'Plan activo',
+          }),
+        ],
+        toPayload: ({
+          limitPlants,
+          limitEquipment,
+          limitVerifications,
+          limitPatterns,
+          fullReport,
+          customSchedules,
+          visible,
+          selfService,
+          order,
+          summary,
+          ...plan
+        }) => {
+          const value = (v) => (v === '' ? null : v);
+          return {
+            ...plan,
+            terms: {
+              limits: {
+                plants: value(limitPlants),
+                equipment: value(limitEquipment),
+                monthlyVerifications: value(limitVerifications),
+                patterns: value(limitPatterns),
+              },
+              features: { fullReport, customSchedules },
+              catalog: { visible, selfService, order, summary: summary.trim() },
+            },
+          };
+        },
+      };
+    },
+    'subscription.change-plan': () => ({
+      title: 'Cambiar plan',
+      submit: 'Cambiar plan',
       description:
-        'Los cupos ya contratados se conservan. Esta configuración aplica a nuevos contratos.',
-      codeInfo: record.codigo || 'Se genera automáticamente al guardar',
+        'Cambia los límites, las funciones y las cuentas base sin cortar el acceso. El cobro sigue con contrato, facturas y pagos. Las solicitudes abiertas del cliente se cierran como atendidas.',
+      values: { ...target, planId: '', endsOn: '', reason: '' },
+      fields: [
+        select(
+          'planId',
+          'Plan nuevo',
+          plans
+            .filter((p) => p.activo && p.id !== record.plan_id)
+            .map((p) => ({
+              value: p.id,
+              label: `${p.nombre} · ${p.cuentas_incluidas} cuentas`,
+            })),
+          { wide: true }
+        ),
+        input('endsOn', 'Fin del período', {
+          type: 'date',
+          required: endless(record.fin_periodo),
+          hint: endless(record.fin_periodo)
+            ? 'El plan actual no vence: indica hasta cuándo rige el nuevo para poder renovarlo.'
+            : 'Opcional. Sin fecha se conserva el período actual.',
+        }),
+        reason,
+      ],
+    }),
+    'upgrade.attend': () => ({
+      title: 'Atender solicitud de plan',
+      submit: 'Guardar',
+      description: `${record.client?.name || 'El cliente'} pidió ${record.requestedPlan?.name ? `el plan ${record.requestedPlan.name}` : 'asesoría'} (${upgradeReasons[record.reason] || 'sin motivo'}). Para cambiarle el plan usa «Cambiar plan» en su ficha: la solicitud se cierra sola.`,
       values: {
-        ...(record.id ? { id: record.id, version: versionOf(record) } : {}),
-        name: record.nombre || '',
-        description: record.descripcion || '',
-        seats: record.cuentas_incluidas || 5,
-        graceDays: record.dias_gracia || 0,
-        active: record.activo ?? true,
+        id: record.id,
+        version: String(record.version ?? '0'),
+        outcome: 'CONTACTED',
+        note: record.note || '',
       },
       fields: [
-        input('name', 'Nombre del plan', { wide: true }),
-        input('seats', 'Cuentas incluidas', {
-          type: 'integer',
-          min: 1,
-          max: 10000,
-        }),
-        input('graceDays', 'Días de gracia', {
-          type: 'integer',
-          min: 0,
-          max: 90,
-        }),
-        input('description', 'Descripción', {
+        select(
+          'outcome',
+          'Estado',
+          options([
+            ['CONTACTED', 'Contactado'],
+            ['UPGRADED', 'Cerrar: cambió de plan'],
+            ['DECLINED', 'Cerrar: no avanzó'],
+          ]),
+          { wide: true }
+        ),
+        input('note', 'Nota interna', {
           type: 'textarea',
           wide: true,
           required: false,
-        }),
-        input('active', 'Disponible para contratar', {
-          type: 'checkbox',
-          hint: 'Plan activo',
+          maxLength: 2000,
+          hint: 'Solo la ve Métrica.',
         }),
       ],
+      toPayload: ({ outcome, ...rest }) => ({
+        ...rest,
+        state: outcome === 'CONTACTED' ? 'CONTACTED' : 'CLOSED',
+        result: outcome === 'CONTACTED' ? '' : outcome,
+      }),
     }),
     'price.create': () => ({
       title: 'Nueva tarifa',
