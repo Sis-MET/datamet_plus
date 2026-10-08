@@ -364,3 +364,48 @@ test('habilitar balanzas en lote exige una selección válida', () => {
     })
   );
 });
+
+test('las condiciones del plan se validan sin aceptar claves ni topes ajenos', () => {
+  const plan = { name: 'Gratuito', seats: 2, graceDays: 0 };
+  const terms = {
+    limits: { plants: 1, equipment: 5, monthlyVerifications: null },
+    features: { fullReport: false, customSchedules: false },
+    catalog: { visible: true, order: 1, selfService: true, summary: ' Para empezar ' },
+  };
+  const parsed = validateAction('plan.save', { ...plan, terms });
+  assert.deepEqual(parsed.terms.limits, terms.limits);
+  assert.equal(parsed.terms.catalog.summary, 'Para empezar');
+  assert.equal(validateAction('plan.save', plan).terms, undefined, 'sin terms se conservan las anteriores');
+  assert.throws(() => validateAction('plan.save', { ...plan, terms: { limits: { plants: 0 } } }));
+  assert.throws(() => validateAction('plan.save', { ...plan, terms: { limits: { trucks: 3 } } }));
+  assert.throws(() => validateAction('plan.save', { ...plan, terms: { features: { fullReport: 'si' } } }));
+  assert.throws(() => validateAction('plan.save', { ...plan, terms: { price: '10.00' } }));
+});
+
+test('cambiar de plan exige motivo y admite fijar el fin del período', () => {
+  const body = { clientId: id, id, version: '3', planId: requestId, reason: 'Contrato firmado' };
+  assert.equal(validateAction('subscription.change-plan', body).planId, requestId);
+  assert.equal(validateAction('subscription.change-plan', { ...body, endsOn: '2026-12-31', priceId: '' }).endsOn, '2026-12-31');
+  assert.throws(() => validateAction('subscription.change-plan', { ...body, reason: '' }));
+  assert.throws(() => validateAction('subscription.change-plan', { ...body, endsOn: '31/12/2026' }));
+  assert.throws(() => validateAction('subscription.change-plan', { ...body, seats: 99 }));
+});
+
+test('atender una solicitud solo la marca contactada o la cierra con resultado', () => {
+  const body = { id, version: '1', state: 'CONTACTED', note: 'Llamada hecha' };
+  assert.equal(validateAction('upgrade.attend', body).result, '');
+  assert.equal(validateAction('upgrade.attend', { ...body, state: 'CLOSED', result: 'DECLINED' }).result, 'DECLINED');
+  assert.throws(() => validateAction('upgrade.attend', { ...body, state: 'CANCELLED' }));
+  assert.throws(() => validateAction('upgrade.attend', { ...body, clientId: id }));
+  assert.equal(querySchema.parse({ state: 'OPEN' }).state, 'OPEN');
+  assert.throws(() => querySchema.parse({ state: 'ALL' }));
+});
+
+test('los errores de planes llegan con su explicación', () => {
+  for (const code of ['PERIOD_END_REQUIRED', 'SELF_SERVICE_PLAN_EXISTS', 'UPGRADE_REQUEST_NOT_OPEN']) {
+    assert.throws(
+      () => unwrap({ data: null, error: { code: 'P0001', message: code } }),
+      (error) => error.code === code && error.statusCode === 409 && !error.message.includes(code)
+    );
+  }
+});

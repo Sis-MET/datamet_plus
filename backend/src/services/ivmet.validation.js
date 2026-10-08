@@ -26,6 +26,36 @@ const edit = { id: uuid.optional(), version: version.optional() };
 const scope = { clientId: uuid };
 const target = { ...scope, id: uuid };
 const role = z.enum(['cliente_operador', 'cliente_jefe_calidad']);
+// Condiciones del plan. Un límite nulo o ausente es "sin límite" y una
+// función ausente queda incluida: así se leen los planes anteriores.
+const limit = z.number().int().min(1).max(999999).nullable();
+const terms = z
+  .object({
+    limits: z
+      .object({
+        plants: limit,
+        equipment: limit,
+        monthlyVerifications: limit,
+        patterns: limit,
+      })
+      .partial()
+      .strict(),
+    features: z
+      .object({ fullReport: z.boolean(), customSchedules: z.boolean() })
+      .partial()
+      .strict(),
+    catalog: z
+      .object({
+        visible: z.boolean(),
+        order: z.number().int().min(0).max(999),
+        selfService: z.boolean(),
+        summary: z.string().trim().max(300),
+      })
+      .partial()
+      .strict(),
+  })
+  .partial()
+  .strict();
 const user = {
   ...scope,
   username: text(100).regex(/^[a-zA-Z0-9._-]{3,100}$/),
@@ -43,6 +73,22 @@ const schemas = {
     seats: z.number().int().min(1).max(10000),
     graceDays: z.number().int().min(0).max(90),
     active: z.boolean().default(true),
+    terms: terms.optional(),
+  }),
+  'subscription.change-plan': z.object({
+    ...target,
+    version,
+    planId: uuid,
+    priceId: z.union([uuid, z.literal('')]).optional(),
+    endsOn: z.union([date, z.literal('')]).optional(),
+    reason,
+  }),
+  'upgrade.attend': z.object({
+    id: uuid,
+    version,
+    state: z.enum(['CONTACTED', 'CLOSED']),
+    result: z.enum(['UPGRADED', 'DECLINED', '']).default(''),
+    note: optional(2000),
   }),
   'price.create': z.object({
     planId: uuid,
@@ -204,6 +250,9 @@ const querySchema = z
     status: z.enum(['READY', 'REQUIRES_REVIEW', 'QUARANTINED']).optional(),
     legacyClientId: z.coerce.number().int().positive().optional(),
     scopeId: uuid.optional(),
+    state: z
+      .enum(['OPEN', 'PENDING', 'CONTACTED', 'CLOSED', 'CANCELLED'])
+      .optional(),
   })
   .strict();
 module.exports = { validateAction, querySchema, uuid };

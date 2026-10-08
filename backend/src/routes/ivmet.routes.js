@@ -24,6 +24,7 @@ router.post('/ops/actions/:action', controller.mutateOperations);
 router.get('/overview', controller.getOverview);
 router.get('/clients', controller.getClients);
 router.get('/plans', controller.getPlans);
+router.get('/upgrade-requests', controller.getUpgradeRequests);
 router.get('/integration', controller.getIntegration);
 router.get('/onboarding', controller.getOnboarding);
 router.get('/clients/:clientId', controller.getClient);

@@ -67,6 +67,7 @@ module.exports = {
   getOverview: read('overview'),
   getClients: read('clients'),
   getPlans: read('plans'),
+  getUpgradeRequests: read('upgrade-requests'),
   getIntegration: read('integration'),
   getOnboarding: read('onboarding'),
   getClient: read('client', true),

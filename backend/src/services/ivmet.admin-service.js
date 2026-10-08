@@ -60,6 +60,22 @@ const messages = {
     'La solicitud ya está en cola o en curso. Actualiza para consultar su estado.',
   SCOPE_NOT_EDITABLE:
     'El alcance está suspendido o cambió. Actualiza la vista antes de ampliarlo.',
+  INVALID_PLAN: 'Revisa el nombre, las cuentas y los días de gracia del plan.',
+  INVALID_PLAN_TERMS:
+    'Revisa los límites (enteros mayores que cero o sin límite) y las funciones del plan.',
+  SELF_SERVICE_PLAN_EXISTS:
+    'Ya hay un plan activo para las empresas que se registran desde la app. Desmárcalo antes de elegir otro.',
+  PLAN_NOT_FOUND: 'El plan no existe o está inactivo. Actualiza la vista.',
+  PLAN_UNCHANGED: 'El cliente ya tiene ese plan.',
+  PERIOD_END_REQUIRED:
+    'El plan gratuito no vence: indica hasta cuándo rige el plan nuevo para poder renovarlo y cobrarlo.',
+  SUBSCRIPTION_NOT_FOUND:
+    'La suscripción ya no está disponible. Actualiza la vista.',
+  UPGRADE_REQUEST_NOT_FOUND:
+    'La solicitud ya no está disponible. Actualiza la vista.',
+  UPGRADE_REQUEST_NOT_OPEN: 'La solicitud ya fue cerrada o cancelada.',
+  INVALID_UPGRADE_STATE:
+    'Al cerrar una solicitud indica si el cliente cambió de plan o no avanzó.',
 };
 function unwrap({ data, error }) {
   if (!error) return data;
