@@ -12,8 +12,8 @@ import { decodeJwtPayload, isJwtExpired } from './shared/utils/jwt';
 import { useCalibrationAlertCount } from './features/calibration/hooks/useCalibrationAlertCount';
 import { useFailureSummary } from './features/system/hooks/useFailureSummary';
 
-const RimFormPage = lazy(() => import('./features/rim/RimFormPage')
-  .then(module => ({ default: module.RimFormPage })));
+const RimPage = lazy(() => import('./features/rim/RimPage')
+  .then(module => ({ default: module.RimPage })));
 const CalendarPage = lazy(() => import('./features/calendar/CalendarPage')
   .then(module => ({ default: module.CalendarPage })));
 const DeparturesPage = lazy(() => import('./features/departures/DeparturesPage')
@@ -201,7 +201,7 @@ function App() {
       case 'ivmet':
         return canManageIvmet(currentUser)
           ? <IvmetManagementPage onExit={() => setActiveView('calendar')} />
-          : <RimFormPage currentUser={currentUser} />;
+          : <RimPage currentUser={currentUser} />;
       case 'calendar':
         return <CalendarPage />;
       case 'calibration':
@@ -209,12 +209,12 @@ function App() {
       case 'departures':
         return <DeparturesPage />;
       case 'changes':
-        return isSystemAdmin(currentUser) ? <ChangeControlPage /> : <RimFormPage currentUser={currentUser} />;
+        return isSystemAdmin(currentUser) ? <ChangeControlPage /> : <RimPage currentUser={currentUser} />;
       case 'failures':
-        return isSystemAdmin(currentUser) ? <FailureLogPage /> : <RimFormPage currentUser={currentUser} />;
+        return isSystemAdmin(currentUser) ? <FailureLogPage /> : <RimPage currentUser={currentUser} />;
       case 'rim':
       default:
-        return <RimFormPage currentUser={currentUser} />;
+        return <RimPage currentUser={currentUser} />;
     }
   };
 

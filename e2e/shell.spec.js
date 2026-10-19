@@ -24,7 +24,7 @@ test('Ctrl+B oculta y muestra la barra lateral y recuerda la preferencia', async
 
   const sidebar = page.locator('#app-sidebar');
   const nav = page.getByRole('navigation', { name: 'Módulos' });
-  await expect(nav.getByRole('button', { name: 'Formulario RIM' })).toBeVisible();
+  await expect(nav.getByRole('button', { name: 'RIM', exact: true })).toBeVisible();
 
   await page.keyboard.press('Control+b');
   await expect.poll(async () => (await sidebar.boundingBox())?.width ?? 0).toBeLessThan(2);

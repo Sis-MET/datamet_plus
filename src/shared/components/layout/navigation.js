@@ -5,8 +5,9 @@ import { CalendarRange, ClipboardCheck, Gauge, History, MapPinned, ServerCrash, 
 export const APP_VIEWS = {
   rim: {
     id: 'rim',
-    label: 'Formulario RIM',
-    description: 'Recepción de instrumentos de pesaje',
+    label: 'RIM',
+    title: 'Recepción de instrumentos (RIM)',
+    description: 'Registros, numeración y formulario de recepción de instrumentos',
     icon: ClipboardCheck,
     inNav: true,
   },
@@ -68,7 +69,7 @@ export const canManageIvmet = (user) => String(user?.acceso_cron) === '3';
 // Control de cambios y registro de fallas: administración del sistema (nivel 3).
 export const isSystemAdmin = canManageIvmet;
 
-/** La vista solo se abre si el usuario tiene acceso; si no, el Formulario RIM. */
+/** La vista solo se abre si el usuario tiene acceso; si no, el apartado RIM. */
 export const allowedView = (view, user) => {
   const config = APP_VIEWS[view];
   if (!config) return 'rim';

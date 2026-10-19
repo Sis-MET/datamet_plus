@@ -22,7 +22,7 @@ function getAuthHeaders() {
 
 const REQUEST_TIMEOUT_MS = 15000;
 
-async function request(endpoint, { method = 'GET', body, params, headers = {}, retry = method === 'GET' ? 1 : 0 } = {}) {
+async function request(endpoint, { method = 'GET', body, params, headers = {}, retry = method === 'GET' ? 1 : 0, timeout = REQUEST_TIMEOUT_MS } = {}) {
   let url = `${API_BASE}${endpoint}`;
 
   if (params) {
@@ -39,7 +39,7 @@ async function request(endpoint, { method = 'GET', body, params, headers = {}, r
   const isFormData = body instanceof FormData;
 
   const controller = new AbortController();
-  const timeoutId = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeout);
   let res;
 
   try {
@@ -55,7 +55,7 @@ async function request(endpoint, { method = 'GET', body, params, headers = {}, r
     });
   } catch (error) {
     if (retry > 0 && method === 'GET') {
-      return request(endpoint, { method, body, params, headers, retry: retry - 1 });
+      return request(endpoint, { method, body, params, headers, retry: retry - 1, timeout });
     }
     const isTimeout = error?.name === 'AbortError';
     throw new ApiError(
