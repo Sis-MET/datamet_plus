@@ -78,8 +78,10 @@ queda en el historial de la ficha.
   vigente), **concluido** (fecha de conclusión), **en ejecución** (algún dato)
   o **recibido**.
 
-Los datos viven en la base `servicios_extras` de ServiceMET, en la misma
-instancia (variable `RIM_DB_NAME`, por defecto `servicios_extras`). Rutas:
+Los datos viven en DataMET, la misma base de DataMET+ (`DB_DATABASE`;
+`DataMET_prueba` en pruebas), en las tablas que crean los scripts 012, 014 y
+016 de ServiceMET. No se usa ninguna otra base; la variable `RIM_DB_NAME` ya
+no existe y, si quedó en el `.env`, se ignora con un aviso. Rutas:
 
 - `GET /api/rim/registros` (filtros `q`, `cliente`, `planta`, `desde`,
   `hasta`, `area`, `origen`, `estado`, `etapa`, `page`, `pageSize`),
@@ -93,18 +95,20 @@ instancia (variable `RIM_DB_NAME`, por defecto `servicios_extras`). Rutas:
 
 Orden de despliegue (junto con ServiceMET):
 
-1. En el servidor SQL, el script `backend/sql/014_rim_numeracion_y_gestion.sql`
-   de ServiceMET, con `@loginDataMetPlus` igual al `DB_USER` de DataMET+
-   (le da `SELECT`/`INSERT` en esas tablas y `EXECUTE` en
-   `rim_reservar_talonario`; nunca `UPDATE` ni `DELETE`).
-2. El script `backend/sql/016_rim_ejecucion_y_entrega.sql` de ServiceMET,
-   también con `@loginDataMetPlus` (crea `form_rim_ejecucion` y
-   `form_rim_entregas` y da solo `SELECT`/`INSERT`).
-3. El backend de ServiceMET.
-4. DataMET+: backend y frontend (`pnpm build`).
-5. La versión de la app ServiceMET que numera el RIM.
+1. En DataMET, los scripts de ServiceMET
+   `backend/sql/012_create_form_rim_y_form_bitrix.sql`,
+   `014_rim_numeracion_y_gestion.sql` y `016_rim_ejecucion_y_entrega.sql`, en
+   ese orden, con `@loginDataMetPlus` igual al `DB_USER` de DataMET+ en el 014
+   y el 016. Dan `SELECT`/`INSERT` (y `EXECUTE` en `rim_reservar_talonario`) y
+   deniegan `UPDATE` y `DELETE` en todas las tablas del RIM; al final muestran
+   los permisos efectivos y avisan si algún usuario todavía puede modificar
+   (por ejemplo, por ser `db_owner`).
+2. El backend de ServiceMET.
+3. DataMET+: backend y frontend (`pnpm build`).
+4. La versión de la app ServiceMET que numera el RIM.
 
-Sin el script 014, el apartado responde que la base de los RIM no está lista.
+Sin los scripts 012 y 014, el apartado responde que las tablas de los RIM no
+están listas.
 Sin el 016, el historial y la ficha se ven igual, pero sin etapa, y la ficha
 avisa que falta el script en lugar de mostrar la ejecución y la entrega.
 
