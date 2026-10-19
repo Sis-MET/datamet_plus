@@ -15,7 +15,7 @@
  */
 const env = require('../config/env');
 const { getPool, sql } = require('../config/db');
-const { rimCodigo, leerCodigo } = require('./rim.validation');
+const { ETAPAS, rimCodigo, leerCodigo } = require('./rim.validation');
 const seguimiento = require('./rim.seguimiento');
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
@@ -55,8 +55,8 @@ const horaServidor = (value) => (value ? `${value}${LA_PAZ_OFFSET}` : null);
 
 /**
  * WHERE del historial a partir de los filtros validados. Con
- * `conEstado: false` omite el filtro de estado (para contar vigentes y
- * anulados del mismo conjunto).
+ * `conEstado: false` omite los filtros de estado y de etapa (para contar
+ * cada situación del mismo conjunto).
  */
 const buildWhere = (filtros, { conEstado = true } = {}) => {
   const where = [];
@@ -97,7 +97,7 @@ const buildWhere = (filtros, { conEstado = true } = {}) => {
   }
   if (conEstado && filtros.estado === 'vigente') where.push('a.id IS NULL');
   if (conEstado && filtros.estado === 'anulado') where.push('a.id IS NOT NULL');
-  if (filtros.etapa) {
+  if (conEstado && filtros.etapa) {
     add('etapa', sql.NVarChar(20), filtros.etapa);
     where.push('s.etapa = @etapa');
   }
@@ -151,11 +151,14 @@ const buildListQuery = (filtros, tables = tablesFor(), { seguimiento: conSeguimi
         OFFSET ${offset} ROWS FETCH NEXT ${filtros.pageSize} ROWS ONLY;`,
       params,
     },
+    // Cuántos hay en cada situación (las etapas, solo de los vigentes), con
+    // los demás filtros: son los números de los chips del historial.
     counts: {
       text: `
         SELECT COUNT(*) AS total,
           SUM(CASE WHEN a.id IS NULL THEN 1 ELSE 0 END) AS vigentes,
-          SUM(CASE WHEN a.id IS NULL THEN 0 ELSE 1 END) AS anulados
+          SUM(CASE WHEN a.id IS NULL THEN 0 ELSE 1 END) AS anulados${conSeguimiento ? `,
+          ${ETAPAS.map(etapa => `SUM(CASE WHEN a.id IS NULL AND s.etapa = N'${etapa}' THEN 1 ELSE 0 END) AS etapa_${etapa}`).join(',\n          ')}` : ''}
         ${from}
         ${conteo.where};`,
       params: conteo.params,
@@ -435,6 +438,20 @@ const consultarHistorial = (queries) => Promise.all([
 ]);
 
 /**
+ * Conteos del historial con los filtros, sin el de situación: vigentes,
+ * anulados y, si está el script 016, los vigentes de cada etapa (si no,
+ * `etapas` es null).
+ */
+const mapResumen = (conteo = {}) => ({
+  total: conteo.total ?? 0,
+  vigentes: conteo.vigentes ?? 0,
+  anulados: conteo.anulados ?? 0,
+  etapas: `etapa_${ETAPAS[0]}` in conteo
+    ? Object.fromEntries(ETAPAS.map(etapa => [etapa, conteo[`etapa_${etapa}`] ?? 0]))
+    : null,
+});
+
+/**
  * Historial paginado con sus conteos y la etapa de cada RIM. Sin el script
  * 016 se lista igual, sin etapa (salvo que se filtre por ella).
  */
@@ -447,17 +464,12 @@ const listRims = async (filtros) => {
     if (!error?.faltaSeguimiento || filtros.etapa) throw error;
     [rows, counts] = await consultarHistorial(buildListQuery(filtros, tablesFor(), { seguimiento: false }));
   }
-  const conteo = counts[0] || {};
   return {
     items: rows.map(mapFila),
     total: rows[0]?.total ?? 0,
     page: filtros.page,
     pageSize: filtros.pageSize,
-    resumen: {
-      total: conteo.total ?? 0,
-      vigentes: conteo.vigentes ?? 0,
-      anulados: conteo.anulados ?? 0,
-    },
+    resumen: mapResumen(counts[0]),
   };
 };
 
@@ -961,6 +973,7 @@ module.exports = {
   listTalonarios,
   mapDetalle,
   mapFila,
+  mapResumen,
   mapTalonario,
   notReady,
   puedeGestionar,

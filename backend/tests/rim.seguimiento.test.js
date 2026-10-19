@@ -17,6 +17,7 @@ const {
   buildListQuery,
   mapDetalle,
   mapFila,
+  mapResumen,
   notReady,
   tablesFor,
 } = require('../src/services/rim.registros');
@@ -335,14 +336,34 @@ test('el historial calcula la etapa y filtra por ella', () => {
   assert.match(query.rows.text, /FROM \[DataMET\]\.\[dbo\]\.\[form_rim_entregas\] en/);
   assert.match(query.rows.text, /s\.etapa,/);
   assert.match(query.rows.text, /WHERE s\.etapa = @etapa/);
-  assert.match(query.counts.text, /WHERE s\.etapa = @etapa/);
   assert.equal(params(query.rows).etapa, 'concluido');
+
+  // Los conteos de los chips ignoran la situación elegida (estado y etapa)
+  // y cuentan los vigentes de cada etapa.
+  const conCliente = buildListQuery(parse('filtros', { etapa: 'concluido', estado: 'vigente', cliente: '0103' }), tables);
+  assert.doesNotMatch(conCliente.counts.text, /s\.etapa = @etapa|a\.id IS NULL\s*;/);
+  assert.match(conCliente.counts.text, /WHERE r\.cod_cliente = @cliente/);
+  assert.match(conCliente.counts.text, /SUM\(CASE WHEN a\.id IS NULL AND s\.etapa = N'en_ejecucion' THEN 1 ELSE 0 END\) AS etapa_en_ejecucion/);
+  assert.deepEqual(Object.keys(params(conCliente.counts)), ['cliente']);
 
   // Sin el script 016 se lista sin etapa.
   const sinSeguimiento = buildListQuery(parse('filtros', {}), tables, { seguimiento: false });
   assert.doesNotMatch(sinSeguimiento.rows.text, /form_rim_ejecucion|s\.etapa/);
+  assert.doesNotMatch(sinSeguimiento.counts.text, /etapa_/);
   assert.throws(() => buildListQuery(parse('filtros', { etapa: 'entregado' }), tables, { seguimiento: false }));
   falla(() => parse('filtros', { etapa: 'perdido' }), 400);
+});
+
+test('el resumen trae los vigentes de cada etapa, o null sin el script 016', () => {
+  assert.deepEqual(mapResumen({
+    total: 9, vigentes: 8, anulados: 1,
+    etapa_recibido: 3, etapa_en_ejecucion: 2, etapa_concluido: 1, etapa_entregado: 2,
+  }), {
+    total: 9, vigentes: 8, anulados: 1,
+    etapas: { recibido: 3, en_ejecucion: 2, concluido: 1, entregado: 2 },
+  });
+  assert.deepEqual(mapResumen({ total: 2, vigentes: 2, anulados: 0 }).etapas, null);
+  assert.deepEqual(mapResumen(), { total: 0, vigentes: 0, anulados: 0, etapas: null });
 });
 
 test('la ejecución solo se agrega: INSERT con el usuario de la sesión, nunca UPDATE ni DELETE', () => {
