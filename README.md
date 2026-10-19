@@ -21,11 +21,14 @@ El apartado RIM tiene tres pestañas:
 
 - **Registros:** historial de los RIM de ServiceMET (calibración, soporte y
   registro directo) y del formulario web, con filtros por texto, cliente,
-  planta, fechas de emisión, área y estado (vigente o anulado). La ficha de
-  cada RIM es de solo lectura: datos del cliente y del instrumento, motivo,
-  inventario, estado físico, fotos, **las dos firmas** (cliente y
-  representante de Métrica) y su trazabilidad (quién lo emitió, cuándo llegó
-  al servidor, versión, talonario e instalación). Se puede imprimir.
+  planta, fechas de emisión, área, estado (vigente o anulado) y etapa
+  (recibido, en ejecución, concluido o entregado). La ficha de cada RIM es de
+  solo lectura: datos del cliente y del instrumento, motivo, inventario,
+  estado físico, fotos, **las dos firmas** (cliente y representante de
+  Métrica), su **ejecución** y su **entrega** (ver abajo) y su trazabilidad
+  (quién lo emitió, cuándo llegó al servidor, versión, talonario e
+  instalación). Se puede imprimir o guardar como PDF: salen la ejecución, la
+  entrega con sus firmas y el historial de correcciones, sin los botones.
 - **Numeración:** los talonarios de cada gestión y qué pasó con cada número:
   con RIM registrado, emitido y por subir, disponible en el teléfono o no
   utilizado.
@@ -45,13 +48,47 @@ fila en `form_rim_anulaciones`. Consultan todos los usuarios; anulan un RIM y
 cierran el talonario de un teléfono perdido o reinstalado los jefes de área y
 los niveles 2 y 3.
 
+### Ejecución y entrega
+
+Lo que pasa después de la recepción se registra desde la ficha, **sin
+modificar el RIM**. Cada guardado agrega una fila con el usuario de la sesión
+y la hora del servidor, que apunta a la versión que reemplaza; la anterior
+queda en el historial de la ficha.
+
+- **Ejecución** (6.2, `form_rim_ejecucion`): quién recibió en Soporte
+  Técnico, fecha de ingreso, técnico asignado, fechas de inicio, informe y
+  conclusión, y N.º de cotización, informe y factura. Se llena por partes:
+  completar campos vacíos lo puede cualquier usuario con sesión; cambiar o
+  borrar un dato ya registrado es una **corrección**, con motivo, y solo la
+  hacen los jefes de área y los niveles 2 y 3. El servidor decide cuál es
+  comparando con la versión vigente.
+- **Entrega** (6.3, `form_rim_entregas`): quién recibe por el cliente, quién
+  entrega por Métrica, fecha, lugar, observaciones y **las dos firmas en
+  pantalla** (obligatorias). La registra cualquier usuario con sesión; la
+  corrigen (las firmas se conservan) o la anulan con motivo los jefes de área
+  y los niveles 2 y 3. Anulada, puede registrarse la entrega correcta.
+- Las fechas no pueden ser futuras ni anteriores a la emisión del RIM; el
+  inicio no va antes del ingreso, ni el informe o la conclusión antes del
+  inicio. La entrega no exige la ejecución concluida, y la ejecución puede
+  completarse después de entregar (la factura suele llegar después).
+- En un RIM anulado ya no se registra nada; lo registrado sigue visible.
+- Si dos personas guardan a la vez sobre la misma versión, la segunda recibe
+  un aviso y la ficha se recarga (índices únicos en la base).
+- La etapa del historial sale de la última versión: **entregado** (entrega
+  vigente), **concluido** (fecha de conclusión), **en ejecución** (algún dato)
+  o **recibido**.
+
 Los datos viven en la base `servicios_extras` de ServiceMET, en la misma
 instancia (variable `RIM_DB_NAME`, por defecto `servicios_extras`). Rutas:
 
 - `GET /api/rim/registros` (filtros `q`, `cliente`, `planta`, `desde`,
-  `hasta`, `area`, `origen`, `estado`, `page`, `pageSize`),
+  `hasta`, `area`, `origen`, `estado`, `etapa`, `page`, `pageSize`),
   `GET /api/rim/registros/filtros`, `GET /api/rim/registros/:n`
 - `POST /api/rim/registros/:n/anulacion`, `POST /api/rim/registros`
+- `POST /api/rim/registros/:n/ejecucion` (`anteriorId`, los nueve campos y,
+  si corrige, `motivo`) y `POST /api/rim/registros/:n/entrega` (`accion`:
+  `registro` con `firmaCliente` y `firmaRepresentante`, `correccion` o
+  `anulacion` con `motivo`); ambas responden la ficha actualizada.
 - `GET /api/rim/talonarios?gestion=`, `POST /api/rim/talonarios/:id/cierre`
 
 Orden de despliegue (junto con ServiceMET):
@@ -60,11 +97,16 @@ Orden de despliegue (junto con ServiceMET):
    de ServiceMET, con `@loginDataMetPlus` igual al `DB_USER` de DataMET+
    (le da `SELECT`/`INSERT` en esas tablas y `EXECUTE` en
    `rim_reservar_talonario`; nunca `UPDATE` ni `DELETE`).
-2. El backend de ServiceMET.
-3. DataMET+: backend y frontend (`pnpm build`).
-4. La versión de la app ServiceMET que numera el RIM.
+2. El script `backend/sql/016_rim_ejecucion_y_entrega.sql` de ServiceMET,
+   también con `@loginDataMetPlus` (crea `form_rim_ejecucion` y
+   `form_rim_entregas` y da solo `SELECT`/`INSERT`).
+3. El backend de ServiceMET.
+4. DataMET+: backend y frontend (`pnpm build`).
+5. La versión de la app ServiceMET que numera el RIM.
 
-Sin el script, el apartado responde que la base de los RIM no está lista.
+Sin el script 014, el apartado responde que la base de los RIM no está lista.
+Sin el 016, el historial y la ficha se ven igual, pero sin etapa, y la ficha
+avisa que falta el script en lugar de mostrar la ejecución y la entrega.
 
 ## Calibración
 
