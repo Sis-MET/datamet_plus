@@ -497,6 +497,10 @@ const RIMDocument = ({ formData, rimCode }) => {
         {/* SECCIÓN 4: SÍNTOMAS Y RECEPCIÓN */}
         <Text style={styles.sectionTitle}>4. Recepción, Síntomas y Test</Text>
 
+        {formData.receptionReason && (
+          <Text style={{ fontSize: 7, marginBottom: 6 }}><Text style={styles.label}>Motivo de la recepción:</Text> {formData.receptionReason}</Text>
+        )}
+
         <Text style={styles.subSectionTitle}>4.1 Síntomas y Evidencias</Text>
         <Text style={{ fontSize: 7, marginBottom: 3 }}><Text style={styles.label}>¿Se realizaron pruebas de funcionamiento?:</Text> {formData.functionalityTestPerformed === 'yes' ? 'Sí' : 'No'}</Text>
         {formData.functionalityTestPerformed === 'yes' && formData.functionalityTestDescription && (
@@ -532,7 +536,8 @@ const RIMDocument = ({ formData, rimCode }) => {
           <Field label="Técnico Asignado" value={formData.executionAssignedTechnician} colStyle={styles.fieldCol2} />
         </View>
         
-        {/* FIRMAS 4.2 */}
+        {/* FIRMAS 4.2: recuadros en blanco solo si el RIM no trae las firmas digitales. */}
+        {!(formData.receptionClientSignature || formData.receptionReceiverSignature) && (
         <View style={styles.signatureContainer}>
            <View style={styles.signatureBox}>
               <Text style={styles.signatureLineText}>Firma del Cliente / Solicitante</Text>
@@ -543,6 +548,7 @@ const RIMDocument = ({ formData, rimCode }) => {
               <View style={[styles.signatureImage, { borderStyle: 'dashed' }]}></View>
            </View>
         </View>
+        )}
 
         {/* FIRMAS DE RECEPCIÓN */}
         {(formData.receptionClientSignature || formData.receptionReceiverSignature) && (

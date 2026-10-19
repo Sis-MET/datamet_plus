@@ -1,13 +1,17 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useId } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { Button } from '../../../shared/components/ui/Button';
 import { Eraser } from 'lucide-react';
-import { useTheme } from '../../../shared/context/ThemeContext';
+import { cn } from '../../../shared/utils/cn';
 
+/**
+ * Firma en pantalla (táctil o con mouse). Devuelve la firma como PNG en data
+ * URL con `onEnd`, o null al limpiarla. El recuadro es blanco en ambos temas:
+ * la firma es trazo negro y así se ve igual en el PDF.
+ */
 export function SignatureField({ label, onEnd, error }) {
-  const { isDarkGantt } = useTheme();
   const sigPad = useRef(null);
   const containerRef = useRef(null);
+  const labelId = useId();
 
   const clear = () => {
     sigPad.current?.clear();
@@ -16,7 +20,7 @@ export function SignatureField({ label, onEnd, error }) {
 
   const handleEnd = () => {
     if (sigPad.current && !sigPad.current.isEmpty()) {
-      onEnd?.(sigPad.current.toDataURL());
+      onEnd?.(sigPad.current.toDataURL('image/png'));
     } else {
       onEnd?.(null);
     }
@@ -31,39 +35,45 @@ export function SignatureField({ label, onEnd, error }) {
         if (canvas.width !== width * ratio) {
           canvas.width = width * ratio;
           canvas.height = 200 * ratio;
-          canvas.getContext("2d").scale(ratio, ratio);
+          canvas.getContext('2d').scale(ratio, ratio);
         }
       }
     };
-    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
-    return () => window.removeEventListener("resize", resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
   }, []);
 
   return (
-    <div className="w-full mb-4">
-      <label className={`block text-sm font-medium mb-2 ${isDarkGantt ? 'text-gray-300' : 'text-gray-700'}`}>
-        {label} <span className="text-red-500">*</span>
-      </label>
+    <div className="mb-4 w-full">
+      <p id={labelId} className="field-label">
+        {label} <span className="ml-0.5 text-danger" aria-hidden="true">*</span>
+      </p>
       <div
         ref={containerRef}
-        className={`border-2 rounded-lg bg-white overflow-hidden relative ${error ? 'border-red-500 bg-red-50' : (isDarkGantt ? 'border-gray-600 border-dashed' : 'border-gray-300 border-dashed')}`}
-        style={{ height: '200px' }}
+        role="group"
+        aria-labelledby={labelId}
+        className={cn(
+          'relative h-[200px] overflow-hidden rounded-2xl border-2 border-dashed bg-white',
+          error ? 'border-danger' : 'border-line-strong'
+        )}
       >
         <SignatureCanvas
           ref={sigPad}
           penColor="black"
-          canvasProps={{ className: 'w-full h-full block' }}
+          canvasProps={{ className: 'block h-full w-full', 'aria-label': label }}
           onEnd={handleEnd}
         />
-        <div className="absolute top-2 right-2">
-          <Button type="button" variant="secondary" size="sm" onClick={clear} title="Limpiar firma">
-            <Eraser className="h-4 w-4" />
-          </Button>
-        </div>
-        {!error && <div className="absolute bottom-2 left-2 text-xs text-gray-400 pointer-events-none">Firmar aquí</div>}
+        <button
+          type="button"
+          onClick={clear}
+          className="absolute right-2 top-2 flex h-8 items-center gap-1.5 rounded-lg border border-black/10 bg-white px-2.5 text-xs font-semibold text-neutral-700 shadow-xs hover:bg-neutral-100"
+        >
+          <Eraser className="h-3.5 w-3.5" aria-hidden="true" /> Limpiar
+        </button>
+        {!error && <p className="pointer-events-none absolute bottom-2 left-3 text-xs text-neutral-400">Firme aquí</p>}
       </div>
-      {error && <p className="mt-1 text-sm text-red-500">{error.message}</p>}
+      {error && <p className="field-error">{error.message}</p>}
     </div>
   );
 }

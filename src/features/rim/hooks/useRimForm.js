@@ -1,20 +1,24 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { generateRIMCode } from '../utils/rimCode';
-import { fileToBase64 } from '../../../utils/files';
 import { formSchema } from '../../../utils/validations';
+import { APP_VERSION } from '../../../shared/utils/appVersion';
 import { rimApi } from '../api/rim';
+import { nuevoUuid, registroWebDesdeFormulario } from '../domain/rim';
+import { fotoParaRegistro } from '../utils/fotos';
 
 export function useRimForm(currentUser) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [clienteId, setClienteId] = useState(null);
   const [showPlanta, setShowPlanta] = useState(false);
   const [selectedPlanta, setSelectedPlanta] = useState('');
   const [plantas, setPlantas] = useState([]);
   const [plantasLoading, setPlantasLoading] = useState(false);
+  // Identifica el RIM antes de registrarlo: reintentar no consume otro número.
+  const [uuid, setUuid] = useState(nuevoUuid);
+  const [registrado, setRegistrado] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
 
   const technicianInfo = useMemo(() => ({ timestamp: new Date() }), []);
 
@@ -52,33 +56,45 @@ export function useRimForm(currentUser) {
     name: 'inventory.otherItems',
   });
 
-  const currentPlantaCode = form.watch('planta');
-  const rimCode = generateRIMCode(clienteId, currentPlantaCode, technicianInfo.timestamp.getFullYear());
-
+  /**
+   * Registra el RIM en el servidor, que le asigna su número RIM-AA-NNNN, y
+   * recién entonces genera el PDF con ese código.
+   */
   const onSubmit = async (data) => {
     setIsLoading(true);
+    setSubmitError(null);
     try {
-      const processedPhotos = await Promise.all(
-        data.photos.map(async (file) => {
-          const base64 = await fileToBase64(file);
-          return { name: file.name, size: file.size, type: file.type, content: base64 };
-        })
-      );
+      const fotos = await Promise.all((data.photos || []).map(file => fotoParaRegistro(file)));
+      const plantaInfo = plantas.find(planta => planta.codigo_planta === data.planta);
+      const registro = await rimApi.registrar(registroWebDesdeFormulario(data, {
+        uuid,
+        clienteId,
+        plantaCodigo: data.planta || null,
+        plantaNombre: data.plantaDireccion || plantaInfo?.dir || null,
+        fotos,
+        appVersion: `DataMET+ ${APP_VERSION}`,
+      }));
 
-      const { generatePDF } = await import('../../../utils/pdfGenerator.jsx');
-      const pdfResult = await generatePDF({ ...data, photos: processedPhotos }, rimCode);
-      if (!pdfResult.success) {
-        alert('El formulario se procesó correctamente, pero hubo un error al generar el PDF.');
+      let pdf = false;
+      try {
+        const { generatePDF } = await import('../../../utils/pdfGenerator.jsx');
+        const pdfResult = await generatePDF({
+          ...data,
+          photos: fotos.map(foto => ({ name: foto.nombre, content: foto.contenido })),
+        }, registro.codigo);
+        pdf = Boolean(pdfResult?.success);
+      } catch (error) {
+        console.error('Error al generar el PDF del RIM:', error);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setSuccess(true);
+      setRegistrado({ ...registro, pdf });
       form.reset();
+      setUuid(nuevoUuid());
       setCurrentStep(1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      setTimeout(() => setSuccess(false), 5000);
-    } catch {
-      alert('Error al procesar el formulario');
+    } catch (error) {
+      // El formulario conserva lo llenado: reintentar usa el mismo RIM.
+      setSubmitError(error?.message || 'No se pudo registrar el RIM.');
     } finally {
       setIsLoading(false);
     }
@@ -93,6 +109,7 @@ export function useRimForm(currentUser) {
     const fieldsToValidate = stepFields[currentStep] || [];
     const isStepValid = await form.trigger(fieldsToValidate);
     if (isStepValid) {
+      setRegistrado(null);
       setCurrentStep((prev) => Math.min(prev + 1, 4));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -106,7 +123,8 @@ export function useRimForm(currentUser) {
   return {
     currentStep,
     isLoading,
-    success,
+    registrado,
+    submitError,
     clienteId,
     showPlanta,
     selectedPlanta,
@@ -118,7 +136,7 @@ export function useRimForm(currentUser) {
     fetchPlantas,
     userFullName,
     userRole,
-    rimCode,
+    gestion: technicianInfo.timestamp.getFullYear(),
     form,
     otherFields,
     appendOther,

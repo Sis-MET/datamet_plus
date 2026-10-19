@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, X } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 
+/** Fotos del instrumento (hasta [maxFiles]); se guardan con el RIM. */
 export function ImageUpload({ maxFiles = 5, onFilesChange, files = [], error }) {
   const onDrop = useCallback((acceptedFiles) => {
     const currentFiles = files || [];
@@ -27,47 +28,46 @@ export function ImageUpload({ maxFiles = 5, onFilesChange, files = [], error }) 
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': [] },
+    accept: { 'image/jpeg': [], 'image/png': [], 'image/webp': [] },
     maxFiles: maxFiles - (files?.length || 0),
-    disabled: (files?.length || 0) >= maxFiles
+    disabled: (files?.length || 0) >= maxFiles,
   });
 
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-gray-300 mb-2">
-        Evidencias Fotográficas (Máx {maxFiles})
-      </label>
+      <p className="field-label">Fotos del instrumento <span className="font-normal text-fg-subtle">(hasta {maxFiles}, opcional)</span></p>
       {(files?.length || 0) < maxFiles && (
         <div
           {...getRootProps()}
           className={cn(
-            "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
-            isDragActive ? "border-primary-500 bg-primary-900/20" : "border-gray-600 hover:border-primary-500 hover:bg-[#1e1e1e]",
-            error && "border-red-500 bg-red-900/20"
+            'cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition-colors',
+            isDragActive ? 'border-fg/40 bg-surface-2' : 'border-line-strong hover:border-fg/30 hover:bg-surface-2/60',
+            error && 'border-danger'
           )}
         >
           <input {...getInputProps()} />
-          <div className="flex flex-col items-center justify-center space-y-2">
-            <Upload className="h-8 w-8 text-gray-500" />
-            <p className="text-sm text-gray-300">
-              <span className="font-semibold text-primary-400">Click para subir</span> o arrastra imágenes aquí
+          <div className="flex flex-col items-center justify-center gap-1.5">
+            <Upload className="h-7 w-7 text-fg-subtle" aria-hidden="true" />
+            <p className="text-sm text-fg-muted">
+              <span className="font-semibold text-fg">Elija las fotos</span> o arrástrelas aquí
             </p>
-            <p className="text-xs text-gray-500">PNG, JPG hasta 5MB</p>
+            <p className="text-xs text-fg-subtle">JPG, PNG o WEBP; se reducen antes de registrarse.</p>
           </div>
         </div>
       )}
-      {error && <p className="mt-1 text-sm text-red-500">{error.message}</p>}
+      {error && <p className="field-error">{error.message}</p>}
       {files && files.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
           {files.map((file, index) => (
-            <div key={file.name + index} className="relative group aspect-square rounded-lg overflow-hidden bg-[#2a2a2a] border border-gray-700">
-              <img src={file.preview} alt={file.name} className="w-full h-full object-cover" />
+            <div key={file.name + index} className="group relative aspect-square overflow-hidden rounded-xl border border-line bg-surface-2">
+              <img src={file.preview} alt={file.name} className="h-full w-full object-cover" />
               <button
                 type="button"
                 onClick={() => removeFile(index)}
-                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label={`Quitar ${file.name}`}
+                className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-surface/90 text-fg shadow-xs transition-colors hover:bg-danger hover:text-surface"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           ))}

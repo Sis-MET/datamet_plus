@@ -1,13 +1,15 @@
 import React from 'react';
 import { Controller } from 'react-hook-form';
 import {
-  Check, CheckCircle2, Save, Building2, Loader2, Search,
+  AlertCircle, Check, CheckCircle2, Save, Building2, Loader2, Search,
   ChevronRight, ChevronLeft, ClipboardList, CheckSquare,
   Plus, Trash2
 } from 'lucide-react';
 
 import { InventoryItem } from './components/InventoryItem';
 import { EquipoSearch } from './components/EquipoSearch';
+import { ImageUpload } from './components/ImageUpload';
+import { SignatureField } from './components/SignatureField';
 import { Input } from '../../shared/components/ui/Input';
 import { Select } from '../../shared/components/ui/Select';
 import { Button } from '../../shared/components/ui/Button';
@@ -55,11 +57,11 @@ function Section({ title, description, action, children, className }) {
 
 export function RimFormPage({ currentUser }) {
   const {
-    currentStep, isLoading, success,
+    currentStep, isLoading, registrado, submitError,
     clienteId, showPlanta, selectedPlanta, plantas, plantasLoading,
     setClienteId, setShowPlanta, setSelectedPlanta,
     fetchPlantas,
-    userFullName, userRole, rimCode,
+    userFullName, userRole, gestion,
     form, otherFields, appendOther, removeOther,
     onSubmit, nextStep, prevStep,
   } = useRimForm(currentUser);
@@ -237,6 +239,7 @@ export function RimFormPage({ currentUser }) {
           planta={selectedPlanta}
           clienteId={clienteId}
           onSelect={(equipo) => {
+            setValue('codMetrica', equipo.cod_metrica || '');
             setValue('instrument', equipo.instrumento || '');
             setValue('brand', equipo.marca || '');
             setValue('model', equipo.modelo || '');
@@ -494,14 +497,55 @@ export function RimFormPage({ currentUser }) {
             <TextArea label="Descripción de pruebas" {...register('functionalityTestDescription')} rows={3} />
           </div>
         )}
+        <div className="mt-6">
+          <Controller
+            control={control}
+            name="photos"
+            render={({ field }) => (
+              <ImageUpload files={field.value} onFilesChange={field.onChange} error={errors.photos} />
+            )}
+          />
+        </div>
       </Section>
 
       <Section title="Recepción y Ejecución">
+        <div className="mb-5">
+          <TextArea
+            label="Motivo de la recepción"
+            {...register('receptionReason')}
+            error={errors.receptionReason}
+            rows={3}
+            placeholder="Por qué se recibe el instrumento o no pudo concluirse el servicio"
+            required
+          />
+        </div>
         <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
           <Input label="Nombre del Cliente" {...register('receptionClientName')} error={errors.receptionClientName} required />
           <Input label="Representante Métrica" {...register('receptionMetricaRepresentative')} error={errors.receptionMetricaRepresentative} required />
           <Input label="Lugar de Recepción" {...register('receptionLocation')} error={errors.receptionLocation} required />
           <Input label="Técnico Asignado" {...register('executionAssignedTechnician')} error={errors.executionAssignedTechnician} />
+        </div>
+      </Section>
+
+      <Section
+        title="Firmas"
+        description="Firman quien entrega el instrumento y el representante de Métrica. Las dos son obligatorias para registrar el RIM."
+      >
+        <div className="grid grid-cols-1 gap-x-4 gap-y-2 md:grid-cols-2">
+          <Controller
+            control={control}
+            name="receptionClientSignature"
+            render={({ field }) => (
+              <SignatureField label="Firma del cliente" onEnd={(value) => field.onChange(value || '')} error={errors.receptionClientSignature} />
+            )}
+          />
+          <Controller
+            control={control}
+            name="receptionReceiverSignature"
+            render={({ field }) => (
+              <SignatureField label="Firma del representante de Métrica" onEnd={(value) => field.onChange(value || '')} error={errors.receptionReceiverSignature} />
+            )}
+          />
         </div>
       </Section>
     </div>
@@ -511,13 +555,35 @@ export function RimFormPage({ currentUser }) {
 
   return (
     <main className="mx-auto w-full max-w-[1320px] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-      {success && (
+      {registrado && (
         <div
-          className="mx-auto mb-6 flex w-full max-w-2xl items-center justify-center gap-2.5 rounded-2xl border border-success/25 bg-success/10 px-4 py-3 text-success animate-fade-in-up"
+          className="mx-auto mb-6 flex w-full max-w-2xl items-start gap-2.5 rounded-2xl border border-success/25 bg-success/10 px-4 py-3 animate-fade-in-up"
           role="status"
         >
-          <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-          <h4 className="font-semibold">Registro Exitoso</h4>
+          <CheckCircle2 className="mt-0.5 h-5 w-5 flex-none text-success" aria-hidden="true" />
+          <div className="text-sm text-fg">
+            <p className="font-semibold">
+              {registrado.duplicate ? 'El RIM ya estaba registrado' : 'RIM registrado'}:{' '}
+              <span className="font-mono">{registrado.codigo}</span>
+            </p>
+            <p className="text-fg-muted">
+              {registrado.pdf
+                ? 'El PDF se descargó con este código. Puede consultarlo en la pestaña Registros.'
+                : 'No se pudo generar el PDF; el RIM quedó registrado y puede consultarlo en la pestaña Registros.'}
+            </p>
+          </div>
+        </div>
+      )}
+      {submitError && (
+        <div
+          className="mx-auto mb-6 flex w-full max-w-2xl items-start gap-2.5 rounded-2xl border border-danger/30 bg-danger/5 px-4 py-3"
+          role="alert"
+        >
+          <AlertCircle className="mt-0.5 h-5 w-5 flex-none text-danger" aria-hidden="true" />
+          <div className="text-sm text-fg">
+            <p className="font-semibold">No se pudo registrar el RIM.</p>
+            <p className="text-fg-muted">{submitError} Lo llenado se conserva: puede volver a intentarlo sin duplicar el RIM.</p>
+          </div>
         </div>
       )}
 
@@ -536,9 +602,12 @@ export function RimFormPage({ currentUser }) {
               </div>
             </div>
             <div className="mt-5 border-t border-line pt-5">
-              <p className="text-xs font-medium text-fg-muted">Código RIM Generado</p>
+              <p className="text-xs font-medium text-fg-muted">Código del RIM</p>
               <p className="mt-2 break-all rounded-xl bg-surface-2 px-3 py-2.5 font-mono text-[17px] font-semibold tracking-wide text-fg">
-                {rimCode}
+                {`RIM-${String(gestion % 100).padStart(2, '0')}-····`}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-fg-muted">
+                El número se asigna al registrar: es único para todos los RIM, de ServiceMET y de la web.
               </p>
             </div>
           </div>
@@ -639,7 +708,7 @@ export function RimFormPage({ currentUser }) {
               </Button>
             ) : (
               <Button type="submit" isLoading={isLoading} className="min-w-[150px]">
-                {!isLoading && <Save className="h-4 w-4" aria-hidden="true" />} Exportar RIM
+                {!isLoading && <Save className="h-4 w-4" aria-hidden="true" />} Registrar RIM
               </Button>
             )}
           </div>

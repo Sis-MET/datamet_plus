@@ -10,6 +10,8 @@ export const formSchema = z.object({
   resolution: z.string().min(1, 'Resolución requerida'),
   workArea: z.string().min(1, 'Área de trabajo requerida'),
   notes: z.string().optional(),
+  // Código métrica del equipo elegido en la búsqueda (vacío si se escribió a mano).
+  codMetrica: z.string().optional(),
 
   // Cliente
   clientName: z.string().min(3, 'Nombre completo requerido'),
@@ -74,8 +76,10 @@ export const formSchema = z.object({
   functionalityTestDescription: z.string().optional(),
 
   // 6.1 Recepción
-  receptionClientSignature: z.string().optional(),
-  receptionReceiverSignature: z.string().optional(),
+  // El RIM se registra con el motivo y las dos firmas, como en ServiceMET.
+  receptionReason: z.string().trim().min(5, 'Describa por qué se recibe el instrumento'),
+  receptionClientSignature: z.string({ error: 'Falta la firma del cliente' }).min(1, 'Falta la firma del cliente'),
+  receptionReceiverSignature: z.string({ error: 'Falta la firma del representante de Métrica' }).min(1, 'Falta la firma del representante de Métrica'),
   receptionClientName: z.string({ required_error: 'Nombre del cliente requerido' }).min(1),
   receptionMetricaRepresentative: z.string({ required_error: 'Representante de Métrica requerido' }).min(1),
   receptionDate: z.string().optional(), // Se obtiene del sistema
