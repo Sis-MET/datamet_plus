@@ -32,9 +32,81 @@ const fila = (overrides = {}) => ({
   subidoPor: 'Ana Quispe',
   emitidoEn: '2026-10-01T18:30:00.000Z',
   estado: 'vigente',
+  etapa: 'recibido',
   anulacion: null,
   ...overrides,
 });
+
+const CAMPOS_EJECUCION = ['recepcionSt', 'fechaIngreso', 'tecnicoAsignado', 'fechaInicio', 'fechaInforme', 'fechaConclusion', 'nroCotizacion', 'nroInforme', 'nroFactura'];
+const CAMPOS_ENTREGA = ['recibeNombre', 'entregaPor', 'fechaEntrega', 'lugarEntrega', 'observaciones'];
+const TIPOS = { registro: 'Registro', avance: 'Avance', correccion: 'Corrección', anulacion: 'Anulación' };
+
+/**
+ * Ejecución y entrega simuladas: cada envío agrega una versión, como el
+ * servidor (las anteriores no cambian).
+ */
+function seguimientoSimulado({ puedeCorregir = true } = {}) {
+  const ejecucion = [];
+  const entregas = [];
+  const version = (tipo, body, campos, anterior) => ({
+    id: ejecucion.length + entregas.length + 1,
+    tipo,
+    tipoLabel: TIPOS[tipo],
+    motivo: body.motivo || null,
+    usuario: 'qa',
+    usuarioNombre: 'Usuario QA',
+    registradoEn: '2026-10-19T10:00:00-04:00',
+    datos: tipo === 'anulacion' ? null : Object.fromEntries(campos.map(campo => [campo, body[campo] ?? null])),
+    cambios: campos
+      // Como el servidor: la entrega solo detalla los cambios de una corrección.
+      .filter(campo => (campos === CAMPOS_EJECUCION || tipo === 'correccion') && (anterior?.datos?.[campo] ?? null) !== (body[campo] ?? null))
+      .map(campo => ({ campo, antes: anterior?.datos?.[campo] ?? null, despues: body[campo] ?? null })),
+  });
+  return {
+    registrarEjecucion(body) {
+      const anterior = ejecucion.at(-1);
+      let tipo = 'registro';
+      if (anterior) tipo = body.motivo ? 'correccion' : 'avance';
+      ejecucion.push(version(tipo, body, CAMPOS_EJECUCION, anterior));
+    },
+    registrarEntrega(body) {
+      const anterior = entregas.at(-1);
+      entregas.push({
+        ...version(body.accion, body, CAMPOS_ENTREGA, anterior),
+        firmas: body.accion === 'registro'
+          ? { cliente: body.firmaCliente, representante: body.firmaRepresentante }
+          : anterior?.firmas,
+      });
+    },
+    get etapa() {
+      const entrega = entregas.at(-1);
+      if (entrega && entrega.tipo !== 'anulacion') return 'entregado';
+      const vigente = ejecucion.at(-1);
+      if (vigente?.datos.fechaConclusion) return 'concluido';
+      return vigente ? 'en_ejecucion' : 'recibido';
+    },
+    get detalle() {
+      const vigente = ejecucion.at(-1) || null;
+      const ultima = entregas.at(-1) || null;
+      const entregaVigente = ultima && ultima.tipo !== 'anulacion' ? ultima : null;
+      return {
+        disponible: true,
+        mensaje: null,
+        etapa: this.etapa,
+        ejecucion: { vigente, historial: [...ejecucion].reverse() },
+        entrega: { vigente: entregaVigente, ultimaId: ultima?.id ?? null, historial: [...entregas].reverse() },
+        acciones: {
+          registrarEjecucion: !vigente,
+          completarEjecucion: Boolean(vigente),
+          corregirEjecucion: Boolean(vigente) && puedeCorregir,
+          registrarEntrega: !entregaVigente,
+          corregirEntrega: Boolean(entregaVigente) && puedeCorregir,
+          anularEntrega: Boolean(entregaVigente) && puedeCorregir,
+        },
+      };
+    },
+  };
+}
 
 const detalle = (overrides = {}) => ({
   ...fila(),
@@ -86,10 +158,18 @@ const talonarios = {
 };
 
 /** API simulada del apartado RIM; guarda las peticiones para revisarlas. */
-async function mockRimApi(page) {
+async function mockRimApi(page, { puedeCorregir = true } = {}) {
   const requests = [];
   let anulado = false;
-  await page.route('**/api/rim/**', async (route) => {
+  const seguimiento = seguimientoSimulado({ puedeCorregir });
+  const ficha = () => detalle({
+    etapa: seguimiento.etapa,
+    seguimiento: seguimiento.detalle,
+    ...(anulado ? { estado: 'anulado', anulacion, acciones: { anular: false } } : {}),
+  });
+  // Solo la API: los módulos de Vite (…/rim/api/rim.js) pasan sin tocar.
+  const esApi = (url) => url.pathname.startsWith('/api/rim/') || url.pathname === '/api/calendar/tecnicos';
+  await page.route(esApi, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     requests.push({ method: request.method(), path: url.pathname, params: Object.fromEntries(url.searchParams), body: request.postDataJSON?.() ?? null });
@@ -100,22 +180,31 @@ async function mockRimApi(page) {
     }
     if (url.pathname.endsWith('/rim/registros/15/anulacion') && request.method() === 'POST') {
       anulado = true;
-      return json(detalle({ estado: 'anulado', anulacion, acciones: { anular: false } }));
+      return json(ficha());
     }
-    if (url.pathname.endsWith('/rim/registros/15')) {
-      return json(anulado ? detalle({ estado: 'anulado', anulacion, acciones: { anular: false } }) : detalle());
+    if (url.pathname.endsWith('/rim/registros/15/ejecucion') && request.method() === 'POST') {
+      seguimiento.registrarEjecucion(request.postDataJSON());
+      return json(ficha());
     }
+    if (url.pathname.endsWith('/rim/registros/15/entrega') && request.method() === 'POST') {
+      seguimiento.registrarEntrega(request.postDataJSON());
+      return json(ficha());
+    }
+    if (url.pathname.endsWith('/rim/registros/15')) return json(ficha());
     if (url.pathname.endsWith('/rim/registros')) {
       const items = [
-        fila(anulado ? { estado: 'anulado', anulacion } : {}),
-        fila({ n: 3, codigo: 'RIM-0103-11-26', formatoAnterior: true, gestion: null, numero: null, area: 'calibracion', areaLabel: 'Calibración' }),
-      ].filter(item => !url.searchParams.get('estado') || item.estado === url.searchParams.get('estado'));
+        fila({ etapa: seguimiento.etapa, ...(anulado ? { estado: 'anulado', anulacion } : {}) }),
+        fila({ n: 3, codigo: 'RIM-0103-11-26', formatoAnterior: true, gestion: null, numero: null, area: 'calibracion', areaLabel: 'Calibración', etapa: 'concluido' }),
+      ]
+        .filter(item => !url.searchParams.get('estado') || item.estado === url.searchParams.get('estado'))
+        .filter(item => !url.searchParams.get('etapa') || item.etapa === url.searchParams.get('etapa'));
       return json({
         items, total: items.length, page: 1, pageSize: 25,
         resumen: { total: 2, vigentes: anulado ? 1 : 2, anulados: anulado ? 1 : 0 },
       });
     }
     if (url.pathname.endsWith('/rim/talonarios')) return json(talonarios);
+    if (url.pathname.endsWith('/calendar/tecnicos')) return json([]);
     return route.fulfill({ status: 404, json: { success: false, message: 'Sin simular' } });
   });
   return requests;
@@ -201,4 +290,184 @@ test('en el teléfono el historial se ve como lista sin desbordar', async ({ pag
   await expect(page.getByRole('button', { name: /RIM-26-0042/ })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBe(0);
+});
+
+/** Traza una firma en el recuadro indicado. */
+async function firmar(page, dialogo, nombre) {
+  const canvas = dialogo.getByRole('group', { name: nombre }).locator('canvas');
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + 30, box.y + 60);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 140, box.y + 110, { steps: 8 });
+  await page.mouse.move(box.x + 220, box.y + 70, { steps: 8 });
+  await page.mouse.up();
+}
+
+test('la ficha registra la ejecución y la corrige con motivo, sin tocar el RIM', async ({ page }) => {
+  const requests = await mockRimApi(page);
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('/');
+
+  await page.getByRole('table', { name: /RIM registrados/ }).getByText('RIM-26-0042').click();
+  const ficha = page.getByRole('dialog', { name: 'RIM-26-0042' });
+  const ejecucion = ficha.getByRole('region', { name: 'Ejecución' });
+  await expect(ficha.getByText('Recibido', { exact: true })).toBeVisible();
+  await expect(ejecucion.getByText('Todavía no se registró la ejecución.')).toBeVisible();
+
+  await ejecucion.getByRole('button', { name: 'Registrar' }).click();
+  const registrar = page.getByRole('dialog', { name: 'Registrar ejecución de RIM-26-0042' });
+  await registrar.getByRole('button', { name: 'Guardar' }).click();
+  await expect(registrar.getByRole('alert')).toContainText('al menos un dato');
+  await registrar.getByLabel('Recibió en S.T.').fill('Rosa Mamani');
+  await registrar.getByLabel('Fecha de ingreso a S.T.').fill('2026-10-02');
+  await registrar.getByLabel('Técnico asignado').fill('Luis Choque');
+  await registrar.getByLabel('N.º de cotización').fill('COT-26-118');
+  // Completar la primera vez no pide motivo.
+  await expect(registrar.getByLabel('Motivo de la corrección')).toHaveCount(0);
+  await registrar.getByRole('button', { name: 'Guardar' }).click();
+  await expect(registrar).toBeHidden();
+
+  const primera = requests.find(request => request.path.endsWith('/rim/registros/15/ejecucion'));
+  expect(primera.body).toEqual({
+    anteriorId: null, recepcionSt: 'Rosa Mamani', fechaIngreso: '2026-10-02', tecnicoAsignado: 'Luis Choque',
+    fechaInicio: null, fechaInforme: null, fechaConclusion: null, nroCotizacion: 'COT-26-118', nroInforme: null,
+    nroFactura: null, motivo: null,
+  });
+  await expect(ficha.getByText('En ejecución', { exact: true })).toBeVisible();
+  await expect(ejecucion.getByText('02/10/2026')).toBeVisible();
+  await expect(ejecucion.getByText(/Registrado por Usuario QA \(qa\)/)).toBeVisible();
+
+  // Cambiar un dato ya registrado es una corrección: pide motivo.
+  await ejecucion.getByRole('button', { name: 'Completar o corregir' }).click();
+  const corregir = page.getByRole('dialog', { name: 'Ejecución de RIM-26-0042' });
+  await expect(corregir.getByLabel('Técnico asignado')).toHaveValue('Luis Choque');
+  await corregir.getByLabel('Técnico asignado').fill('Mario Flores');
+  await corregir.getByLabel('Fecha de inicio').fill('2026-10-03');
+  await expect(corregir.getByText(/Estás cambiando datos ya registrados \(Técnico asignado\)/)).toBeVisible();
+  await corregir.getByRole('button', { name: 'Guardar' }).click();
+  await expect(corregir.getByRole('alert')).toContainText('motivo de la corrección');
+  await corregir.getByLabel('Motivo de la corrección').fill('Se reasignó por vacaciones del técnico');
+  await corregir.getByRole('button', { name: 'Guardar' }).click();
+  await expect(corregir).toBeHidden();
+
+  const segunda = requests.filter(request => request.path.endsWith('/rim/registros/15/ejecucion'))[1];
+  expect(segunda.body).toMatchObject({
+    anteriorId: 1, tecnicoAsignado: 'Mario Flores', fechaInicio: '2026-10-03', motivo: 'Se reasignó por vacaciones del técnico',
+  });
+
+  // La versión anterior sigue en el historial, con el motivo.
+  await ejecucion.getByRole('button', { name: /Historial \(2\)/ }).click();
+  const historial = ejecucion.getByRole('list', { name: 'Historial de la ejecución' });
+  await expect(historial.getByText('Corrección')).toBeVisible();
+  await expect(historial.getByText('Motivo: Se reasignó por vacaciones del técnico')).toBeVisible();
+  await expect(historial.locator('del', { hasText: 'Luis Choque' })).toBeVisible();
+
+  // El RIM no se modificó: solo se agregaron versiones de la ejecución.
+  expect(requests.filter(request => request.method !== 'GET').map(request => request.path))
+    .toEqual(['/api/rim/registros/15/ejecucion', '/api/rim/registros/15/ejecucion']);
+  await expect(ficha.getByRole('textbox')).toHaveCount(0);
+});
+
+test('la entrega exige las dos firmas en pantalla y se imprime con la ficha', async ({ page }) => {
+  const requests = await mockRimApi(page);
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('/');
+
+  await page.getByRole('table', { name: /RIM registrados/ }).getByText('RIM-26-0042').click();
+  const ficha = page.getByRole('dialog', { name: 'RIM-26-0042' });
+  const entrega = ficha.getByRole('region', { name: 'Entrega' });
+  await expect(entrega.getByText('El instrumento todavía no se entregó.')).toBeVisible();
+
+  await entrega.getByRole('button', { name: 'Registrar entrega' }).click();
+  const registrar = page.getByRole('dialog', { name: 'Registrar entrega de RIM-26-0042' });
+  // Propone a quien entregó en la recepción y el mismo lugar.
+  await expect(registrar.getByLabel('Recibió (cliente)')).toHaveValue('Juan Pérez');
+  await expect(registrar.getByLabel('Lugar de entrega')).toHaveValue('Planta Río Seco');
+  await registrar.getByLabel('Entregó (Métrica)').fill('Ing. Ana Quispe');
+  await registrar.getByLabel('Fecha de entrega').fill('2026-10-15');
+  await registrar.getByRole('button', { name: 'Registrar entrega' }).click();
+  await expect(registrar.getByRole('alert')).toContainText('Faltan las firmas');
+  await expect(registrar.getByText('Falta la firma de quien recibe.')).toBeVisible();
+
+  await firmar(page, registrar, 'Firma de quien recibe (cliente)');
+  await firmar(page, registrar, 'Firma de quien entrega (Métrica)');
+  await registrar.getByRole('button', { name: 'Registrar entrega' }).click();
+  await expect(registrar).toBeHidden();
+
+  const post = requests.find(request => request.path.endsWith('/rim/registros/15/entrega'));
+  expect(post.body).toMatchObject({
+    accion: 'registro', anteriorId: null, recibeNombre: 'Juan Pérez', entregaPor: 'Ing. Ana Quispe',
+    fechaEntrega: '2026-10-15', lugarEntrega: 'Planta Río Seco', observaciones: null,
+  });
+  expect(post.body.firmaCliente).toMatch(/^data:image\/png;base64,/);
+  expect(post.body.firmaRepresentante).toMatch(/^data:image\/png;base64,/);
+
+  await expect(ficha.getByText('Entregado', { exact: true })).toBeVisible();
+  await expect(entrega.getByAltText('Firma de quien recibe de Juan Pérez')).toBeVisible();
+  await expect(entrega.getByAltText('Firma de quien entrega por Métrica de Ing. Ana Quispe')).toBeVisible();
+
+  // Corregir la entrega conserva las firmas y pide el motivo.
+  await entrega.getByRole('button', { name: 'Corregir' }).click();
+  const corregir = page.getByRole('dialog', { name: 'Corregir entrega de RIM-26-0042' });
+  await expect(corregir.locator('canvas')).toHaveCount(0);
+  await corregir.getByLabel('Lugar de entrega').fill('Laboratorio Métrica');
+  await corregir.getByLabel('Motivo de la corrección').fill('Se entregó en el laboratorio, no en planta');
+  await corregir.getByRole('button', { name: 'Guardar corrección' }).click();
+  await expect(corregir).toBeHidden();
+  const correccion = requests.filter(request => request.path.endsWith('/rim/registros/15/entrega'))[1];
+  expect(correccion.body).toEqual({
+    accion: 'correccion', anteriorId: 1, recibeNombre: 'Juan Pérez', entregaPor: 'Ing. Ana Quispe',
+    fechaEntrega: '2026-10-15', lugarEntrega: 'Laboratorio Métrica', observaciones: null,
+    motivo: 'Se entregó en el laboratorio, no en planta',
+  });
+  await expect(entrega.getByAltText('Firma de quien recibe de Juan Pérez')).toBeVisible();
+
+  // Al imprimir salen los datos, las firmas y el historial, sin botones.
+  await page.evaluate(() => document.body.classList.add('rim-imprimiendo'));
+  await page.emulateMedia({ media: 'print' });
+  await expect(entrega.getByRole('list', { name: 'Historial de la entrega' })).toBeVisible();
+  await expect(entrega.getByText('Motivo: Se entregó en el laboratorio, no en planta')).toBeVisible();
+  await expect(entrega.getByRole('button', { name: 'Corregir' })).toBeHidden();
+  await expect(entrega.getByRole('button', { name: /Historial/ })).toBeHidden();
+});
+
+test('un técnico completa los datos vacíos, pero no corrige ni anula', async ({ page }) => {
+  await mockRimApi(page, { puedeCorregir: false });
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('/');
+
+  await page.getByRole('table', { name: /RIM registrados/ }).getByText('RIM-26-0042').click();
+  const ficha = page.getByRole('dialog', { name: 'RIM-26-0042' });
+  const ejecucion = ficha.getByRole('region', { name: 'Ejecución' });
+  await ejecucion.getByRole('button', { name: 'Registrar' }).click();
+  const registrar = page.getByRole('dialog', { name: 'Registrar ejecución de RIM-26-0042' });
+  await registrar.getByLabel('Recibió en S.T.').fill('Rosa Mamani');
+  await registrar.getByRole('button', { name: 'Guardar' }).click();
+  await expect(registrar).toBeHidden();
+
+  await ejecucion.getByRole('button', { name: 'Completar', exact: true }).click();
+  const completar = page.getByRole('dialog', { name: 'Ejecución de RIM-26-0042' });
+  await expect(completar.getByLabel('Recibió en S.T.')).toBeDisabled();
+  await expect(completar.getByLabel('Fecha de inicio')).toBeEnabled();
+  await expect(completar.getByText(/solo los corrige un jefe de área/)).toBeVisible();
+  await completar.getByRole('button', { name: 'Cancelar' }).click();
+
+  const entrega = ficha.getByRole('region', { name: 'Entrega' });
+  await expect(entrega.getByRole('button', { name: 'Registrar entrega' })).toBeVisible();
+  await expect(entrega.getByRole('button', { name: 'Anular' })).toHaveCount(0);
+});
+
+test('el historial muestra la etapa de cada RIM y filtra por ella', async ({ page }) => {
+  const requests = await mockRimApi(page);
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('/');
+
+  const tabla = page.getByRole('table', { name: /RIM registrados/ });
+  await expect(tabla.getByRole('row', { name: /RIM-0103-11-26/ }).getByText('Concluido')).toBeVisible();
+  await expect(tabla.getByRole('row', { name: /RIM-26-0042/ }).getByText('Recibido')).toBeVisible();
+
+  await page.getByLabel('Etapa').selectOption('concluido');
+  await expect.poll(() => requests.some(request => request.path.endsWith('/rim/registros') && request.params.etapa === 'concluido')).toBe(true);
+  await expect(tabla.getByText('RIM-26-0042')).toHaveCount(0);
+  await expect(tabla.getByText('RIM-0103-11-26')).toBeVisible();
 });

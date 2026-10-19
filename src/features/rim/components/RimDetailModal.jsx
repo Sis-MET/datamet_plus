@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import { TextArea } from '../../../shared/components/ui/TextArea';
 import { Input } from '../../../shared/components/ui/Input';
 import { Select } from '../../../shared/components/ui/Select';
-import { cn } from '../../../shared/utils/cn';
 import {
   BlockTitle,
   CancelButton,
@@ -27,33 +26,9 @@ import {
   filasDanos,
   filasInventario,
 } from '../domain/rim';
-
-/** Par etiqueta-valor; no se muestra si no hay valor. */
-function Dato({ label, children, mono = false }) {
-  if (children === null || children === undefined || children === '') return null;
-  return (
-    <div className="grid grid-cols-[minmax(110px,0.4fr)_minmax(0,1fr)] gap-3 py-1.5 text-[13px]">
-      <dt className="text-fg-muted">{label}</dt>
-      <dd className={cn('min-w-0 break-words text-fg', mono && 'font-mono text-[12.5px]')}>{children}</dd>
-    </div>
-  );
-}
-
-function Firma({ titulo, nombre, src }) {
-  return (
-    <figure>
-      <figcaption className="mb-1.5 text-[12.5px] text-fg-muted">
-        {titulo}
-        {nombre && <span className="block font-medium text-fg">{nombre}</span>}
-      </figcaption>
-      <div className="rim-firma">
-        {src
-          ? <img src={src} alt={`${titulo}${nombre ? ` de ${nombre}` : ''}`} />
-          : <span className="px-4 text-center text-xs text-fg-subtle">Sin firma (RIM de prueba anterior a la segunda firma)</span>}
-      </div>
-    </figure>
-  );
-}
+import { ETAPAS_RIM } from '../domain/seguimiento';
+import { Dato, Firma } from './ficha';
+import { EjecucionModal, EntregaModal, RimSeguimiento } from './RimSeguimiento';
 
 function Anulacion({ anulacion }) {
   return (
@@ -172,19 +147,40 @@ function imprimir() {
   window.print();
 }
 
+/** Insignia del encabezado: anulado o, si está vigente, la etapa alcanzada. */
+const insigniaDe = (rim) => {
+  if (rim.estado === 'anulado' || !ETAPAS_RIM[rim.etapa]) return ESTADOS_RIM[rim.estado];
+  return ETAPAS_RIM[rim.etapa];
+};
+
 /**
- * Ficha de un RIM en solo lectura: lo que se recibió, las dos firmas y su
- * trazabilidad. Desde aquí solo se anula (jefes de área y niveles 2 y 3).
+ * Ficha de un RIM en solo lectura: lo que se recibió, las dos firmas, su
+ * ejecución, su entrega y su trazabilidad. El RIM no se edita: se anula
+ * (jefes de área y niveles 2 y 3), y la ejecución y la entrega se registran
+ * aparte, cada una con su historial.
  */
 export function RimDetailModal({ n, onClose, onChanged }) {
   const load = useCallback(() => rimApi.registro(n), [n]);
   const { data: cargado, error, reload } = useResource(load);
-  // Tras anular se muestra la respuesta del servidor sin volver a cargar.
+  // Tras anular o registrar se muestra la respuesta del servidor sin volver a cargar.
   const [actualizado, setActualizado] = useState(null);
   const [anulando, setAnulando] = useState(false);
+  // null | { etapa: 'ejecucion' } | { etapa: 'entrega', accion }
+  const [registrando, setRegistrando] = useState(null);
   const rim = actualizado || cargado;
 
-  const estado = rim ? ESTADOS_RIM[rim.estado] : null;
+  const estado = rim ? insigniaDe(rim) : null;
+
+  const guardado = (detalle) => {
+    setActualizado(detalle);
+    onChanged();
+  };
+  // Otro usuario guardó antes: se vuelve a cargar la ficha del servidor.
+  const conflicto = () => {
+    setActualizado(null);
+    reload();
+    onChanged();
+  };
   const inventario = rim ? filasInventario(rim.inventario) : [];
   const danos = rim ? filasDanos(rim.danos) : [];
 
@@ -333,6 +329,12 @@ export function RimDetailModal({ n, onClose, onChanged }) {
                 </div>
               </ModalSection>
 
+              <RimSeguimiento
+                rim={rim}
+                onEditarEjecucion={() => setRegistrando({ etapa: 'ejecucion' })}
+                onAccionEntrega={(accion) => setRegistrando({ etapa: 'entrega', accion })}
+              />
+
               <ModalSection title="Trazabilidad" description="Quién lo emitió y cuándo llegó al servidor.">
                 <dl>
                   <Dato label="Emitido">{fechaHora(rim.trazabilidad.emitidoEn)}</Dato>
@@ -354,14 +356,24 @@ export function RimDetailModal({ n, onClose, onChanged }) {
         )}
       </Modal>
 
+      {registrando?.etapa === 'ejecucion' && rim && (
+        <EjecucionModal rim={rim} onClose={() => setRegistrando(null)} onGuardado={guardado} onConflicto={conflicto} />
+      )}
+      {registrando?.etapa === 'entrega' && rim && (
+        <EntregaModal
+          rim={rim}
+          accion={registrando.accion}
+          onClose={() => setRegistrando(null)}
+          onGuardado={guardado}
+          onConflicto={conflicto}
+        />
+      )}
+
       {anulando && rim && (
         <AnularRimModal
           rim={rim}
           onClose={() => setAnulando(false)}
-          onAnulado={(actualizado) => {
-            setActualizado(actualizado);
-            onChanged();
-          }}
+          onAnulado={guardado}
         />
       )}
     </>

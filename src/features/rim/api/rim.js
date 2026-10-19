@@ -10,6 +10,11 @@ export const rimApi = {
   filtros: () => unwrap(api.get('/rim/registros/filtros')),
   registro: (n) => unwrap(api.get(`/rim/registros/${n}`)),
   anular: (n, body) => unwrap(api.post(`/rim/registros/${n}/anulacion`, body)),
+  // Ejecución y entrega: cada envío agrega una versión; responden la ficha.
+  ejecucion: (n, body) => unwrap(api.post(`/rim/registros/${n}/ejecucion`, body)),
+  entrega: (n, body) => unwrap(api.post(`/rim/registros/${n}/entrega`, body, { timeout: 60000 })),
+  // Personal activo, para sugerir nombres (el mismo del Cronograma).
+  personal: () => unwrap(api.get('/calendar/tecnicos')),
   // Firmas y fotos: la subida puede tardar más que una consulta.
   registrar: (body) => unwrap(api.post('/rim/registros', body, { timeout: 60000 })),
 

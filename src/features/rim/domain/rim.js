@@ -103,6 +103,7 @@ export const filtrosVacios = () => ({
   hasta: '',
   area: '',
   estado: '',
+  etapa: '',
 });
 
 /** Parámetros de la consulta del historial: sin los filtros vacíos. */

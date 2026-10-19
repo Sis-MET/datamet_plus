@@ -19,6 +19,7 @@ import {
   filtrosVacios,
   hayFiltros,
 } from './domain/rim';
+import { ETAPAS_RIM, OPCIONES_ETAPA } from './domain/seguimiento';
 import '../calibration/calibration.css';
 import './rim.css';
 
@@ -33,8 +34,9 @@ function Codigo({ rim }) {
   );
 }
 
+/** Anulado o, si está vigente, la etapa alcanzada (recibido … entregado). */
 function Estado({ rim }) {
-  const estado = ESTADOS_RIM[rim.estado];
+  const estado = rim.estado === 'vigente' && ETAPAS_RIM[rim.etapa] ? ETAPAS_RIM[rim.etapa] : ESTADOS_RIM[rim.estado];
   return <ToneBadge tone={estado.tone}>{estado.label}</ToneBadge>;
 }
 
@@ -148,7 +150,7 @@ function Filtros({ filtros, opciones, onChange, onClear }) {
           options={AREAS}
         />
       </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
         <Input label="Emitido desde" type="date" value={filtros.desde} max={filtros.hasta || undefined}
           onChange={(event) => onChange({ desde: event.target.value })} />
         <Input label="Emitido hasta" type="date" value={filtros.hasta} min={filtros.desde || undefined}
@@ -160,7 +162,14 @@ function Filtros({ filtros, opciones, onChange, onClear }) {
           placeholder="Vigentes y anulados"
           options={[{ value: 'vigente', label: 'Vigentes' }, { value: 'anulado', label: 'Anulados' }]}
         />
-        <div className="flex items-end">
+        <Select
+          label="Etapa"
+          value={filtros.etapa}
+          onChange={(event) => onChange({ etapa: event.target.value })}
+          placeholder="Todas"
+          options={OPCIONES_ETAPA}
+        />
+        <div className="flex items-end sm:col-span-2 lg:col-span-1">
           <Button
             type="button"
             variant="ghost"
@@ -212,6 +221,7 @@ export function RimRegistrosPage() {
             <p className="mt-0.5 max-w-[78ch] text-[13px] leading-relaxed text-fg-muted">
               Recepciones de instrumentos registradas desde ServiceMET (calibración, soporte y registro directo) y desde el formulario web.
               Un RIM no se edita ni se borra: si tiene un error, se anula con su motivo y queda en el historial.
+              Su ejecución y su entrega se registran en la ficha, cada una con su historial.
             </p>
           </div>
           {data && (
