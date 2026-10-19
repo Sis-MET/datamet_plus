@@ -1,10 +1,9 @@
 import { useEffect, useId, useState } from 'react';
 import { AlertCircle, Ban, ChevronDown, History, PencilLine, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { Input } from '../../../shared/components/ui/Input';
-import { TextArea } from '../../../shared/components/ui/TextArea';
 import { cn } from '../../../shared/utils/cn';
-import { CancelButton, Modal, ModalSection, PrimaryButton, ToneBadge } from '../../calibration/components/primitives';
+import { SuggestInput } from '../../calibration/components/Dropdown';
+import { CancelButton, FieldLabel, Modal, ModalSection, PrimaryButton, ToneBadge } from '../../calibration/components/primitives';
 import { rimApi } from '../api/rim';
 import { fechaHora } from '../domain/rim';
 import {
@@ -254,11 +253,71 @@ function usePersonal() {
   return nombres;
 }
 
-function ListaPersonal({ id, nombres }) {
+/**
+ * Campo de los formularios de ejecución y entrega, con los mismos controles
+ * que las fichas de Calibración: los nombres sugieren al personal en un menú
+ * de vidrio.
+ */
+function Campo({ def, value, onChange, personal, min, max, disabled, hint }) {
+  const id = useId();
+  let control;
+  if (def.largo) {
+    control = (
+      <textarea
+        id={id}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value)}
+        rows={2}
+        maxLength={def.max}
+        disabled={disabled}
+        className="field resize-y py-3 leading-relaxed"
+      />
+    );
+  } else if (def.personal) {
+    control = (
+      <SuggestInput id={id} value={value ?? ''} onChange={onChange} suggestions={personal} maxLength={def.max} disabled={disabled} />
+    );
+  } else {
+    control = (
+      <input
+        id={id}
+        type={def.fecha ? 'date' : 'text'}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value)}
+        maxLength={def.max}
+        min={min}
+        max={max}
+        disabled={disabled}
+        autoComplete="off"
+        className={cn('field h-11 font-medium', def.fecha && 'tabular-nums')}
+      />
+    );
+  }
   return (
-    <datalist id={id}>
-      {nombres.map(nombre => <option key={nombre} value={nombre} />)}
-    </datalist>
+    <div className={def.largo ? 'sm:col-span-2' : 'min-w-0'}>
+      <FieldLabel htmlFor={id} hint={hint}>{def.label}</FieldLabel>
+      {control}
+    </div>
+  );
+}
+
+/** Motivo de una corrección o anulación. */
+function Motivo({ label, value, onChange, disabled, autoFocus = false }) {
+  const id = useId();
+  return (
+    <div>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={3}
+        maxLength={1000}
+        disabled={disabled}
+        data-autofocus={autoFocus || undefined}
+        className="field resize-y py-3 leading-relaxed"
+      />
+    </div>
   );
 }
 
@@ -305,7 +364,6 @@ export function EjecucionModal({ rim, onClose, onGuardado, onConflicto }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const personal = usePersonal();
-  const listaId = useId();
 
   const { tipo, cambios } = cambiosEjecucion(vigente?.datos, valores);
   const corrige = tipo === 'correccion';
@@ -351,36 +409,25 @@ export function EjecucionModal({ rim, onClose, onGuardado, onConflicto }) {
         </p>
         <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
           {CAMPOS_EJECUCION.map(def => (
-            <Input
+            <Campo
               key={def.campo}
-              label={def.label}
-              type={def.fecha ? 'date' : 'text'}
-              value={valores[def.campo] ?? ''}
-              onChange={(event) => setValores(current => ({ ...current, [def.campo]: event.target.value }))}
-              maxLength={def.max}
+              def={def}
+              value={valores[def.campo]}
+              onChange={(value) => setValores(current => ({ ...current, [def.campo]: value }))}
+              personal={personal}
               min={def.fecha ? desde : undefined}
               max={def.fecha ? hoy : undefined}
-              list={def.personal ? listaId : undefined}
-              autoComplete="off"
-              disabled={!puedeCorregir && Boolean(vigente?.datos?.[def.campo])}
+              disabled={busy || (!puedeCorregir && Boolean(vigente?.datos?.[def.campo]))}
             />
           ))}
         </div>
-        <ListaPersonal id={listaId} nombres={personal} />
         {corrige && (
           <div className="rounded-2xl border border-warning/30 bg-warning/5 px-4 py-3">
             <p className="mb-3 text-[13px] text-fg">
               Estás cambiando datos ya registrados ({cambios.filter(cambio => cambio.antes !== null).map(cambio => etiquetaCampo(cambio.campo)).join(', ')}).
               Es una corrección: indica el motivo.
             </p>
-            <TextArea
-              label="Motivo de la corrección"
-              value={motivo}
-              onChange={(event) => setMotivo(event.target.value)}
-              rows={2}
-              maxLength={1000}
-              required
-            />
+            <Motivo label="Motivo de la corrección" value={motivo} onChange={setMotivo} disabled={busy} />
           </div>
         )}
         {error && <p className="field-error" role="alert">{error}</p>}
@@ -414,7 +461,6 @@ export function EntregaModal({ rim, accion, onClose, onGuardado, onConflicto }) 
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const personal = usePersonal();
-  const listaId = useId();
   const desde = fechaLaPaz(rim.emitidoEn);
   const hoy = fechaLaPaz();
 
@@ -443,31 +489,17 @@ export function EntregaModal({ rim, accion, onClose, onGuardado, onConflicto }) 
   };
 
   const campo = (def) => (
-    def.largo ? (
-      <div key={def.campo} className="sm:col-span-2">
-        <TextArea
-          label={`${def.label} (opcional)`}
-          value={valores[def.campo] ?? ''}
-          onChange={(event) => setValores(current => ({ ...current, [def.campo]: event.target.value }))}
-          rows={2}
-          maxLength={def.max}
-        />
-      </div>
-    ) : (
-      <Input
-        key={def.campo}
-        label={def.label}
-        type={def.fecha ? 'date' : 'text'}
-        value={valores[def.campo] ?? ''}
-        onChange={(event) => setValores(current => ({ ...current, [def.campo]: event.target.value }))}
-        maxLength={def.max}
-        min={def.fecha ? desde : undefined}
-        max={def.fecha ? hoy : undefined}
-        list={def.personal ? listaId : undefined}
-        autoComplete="off"
-        required
-      />
-    )
+    <Campo
+      key={def.campo}
+      def={def}
+      value={valores[def.campo]}
+      onChange={(value) => setValores(current => ({ ...current, [def.campo]: value }))}
+      personal={personal}
+      min={def.fecha ? desde : undefined}
+      max={def.fecha ? hoy : undefined}
+      disabled={busy}
+      hint={def.largo ? '(opcional)' : undefined}
+    />
   );
 
   return (
@@ -510,7 +542,6 @@ export function EntregaModal({ rim, accion, onClose, onGuardado, onConflicto }) 
             {CAMPOS_ENTREGA.map(campo)}
           </div>
         )}
-        <ListaPersonal id={listaId} nombres={personal} />
         {accion === 'registro' && (
           <div className="grid gap-x-4 sm:grid-cols-2">
             <SignatureField
@@ -526,14 +557,12 @@ export function EntregaModal({ rim, accion, onClose, onGuardado, onConflicto }) 
           </div>
         )}
         {accion !== 'registro' && (
-          <TextArea
+          <Motivo
             label={accion === 'anulacion' ? 'Motivo de la anulación' : 'Motivo de la corrección'}
             value={motivo}
-            onChange={(event) => setMotivo(event.target.value)}
-            rows={3}
-            maxLength={1000}
-            required
-            data-autofocus={accion === 'anulacion' ? true : undefined}
+            onChange={setMotivo}
+            disabled={busy}
+            autoFocus={accion === 'anulacion'}
           />
         )}
         {error && <p className="field-error" role="alert">{error}</p>}

@@ -176,7 +176,10 @@ async function mockRimApi(page, { puedeCorregir = true } = {}) {
     const json = (data) => route.fulfill({ json: { success: true, data } });
 
     if (url.pathname.endsWith('/rim/registros/filtros')) {
-      return json({ clientes: [{ codigo: '0103', nombre: 'EMBOL' }], plantas: [{ codigo: '0103-11', nombre: 'Planta Río Seco', cliente: '0103' }] });
+      return json({
+        clientes: [{ codigo: '0103', nombre: 'EMBOL' }, { codigo: '0205', nombre: 'SOBOCE' }],
+        plantas: [{ codigo: '0103-11', nombre: 'Planta Río Seco', cliente: '0103' }],
+      });
     }
     if (url.pathname.endsWith('/rim/registros/15/anulacion') && request.method() === 'POST') {
       anulado = true;
@@ -192,15 +195,28 @@ async function mockRimApi(page, { puedeCorregir = true } = {}) {
     }
     if (url.pathname.endsWith('/rim/registros/15')) return json(ficha());
     if (url.pathname.endsWith('/rim/registros')) {
-      const items = [
+      const params = url.searchParams;
+      const todos = [
         fila({ etapa: seguimiento.etapa, ...(anulado ? { estado: 'anulado', anulacion } : {}) }),
-        fila({ n: 3, codigo: 'RIM-0103-11-26', formatoAnterior: true, gestion: null, numero: null, area: 'calibracion', areaLabel: 'Calibración', etapa: 'concluido' }),
-      ]
-        .filter(item => !url.searchParams.get('estado') || item.estado === url.searchParams.get('estado'))
-        .filter(item => !url.searchParams.get('etapa') || item.etapa === url.searchParams.get('etapa'));
+        fila({
+          n: 3, codigo: 'RIM-0103-11-26', formatoAnterior: true, gestion: null, numero: null, area: 'calibracion',
+          areaLabel: 'Calibración', etapa: 'concluido', cliente: { codigo: '0205', nombre: 'SOBOCE' },
+        }),
+      ].filter(item => !params.get('cliente') || item.cliente.codigo === params.get('cliente'));
+      const items = todos
+        .filter(item => !params.get('estado') || item.estado === params.get('estado'))
+        .filter(item => !params.get('etapa') || item.etapa === params.get('etapa'));
+      // Como el servidor: los conteos de los chips ignoran la situación elegida.
+      const vigentes = todos.filter(item => item.estado === 'vigente');
       return json({
         items, total: items.length, page: 1, pageSize: 25,
-        resumen: { total: 2, vigentes: anulado ? 1 : 2, anulados: anulado ? 1 : 0 },
+        resumen: {
+          total: todos.length,
+          vigentes: vigentes.length,
+          anulados: todos.length - vigentes.length,
+          etapas: Object.fromEntries(['recibido', 'en_ejecucion', 'concluido', 'entregado']
+            .map(etapa => [etapa, vigentes.filter(item => item.etapa === etapa).length])),
+        },
       });
     }
     if (url.pathname.endsWith('/rim/talonarios')) return json(talonarios);
@@ -222,7 +238,7 @@ test.beforeEach(async ({ page }) => {
   }, { token: `header.${tokenPayload}.signature` });
 });
 
-test('el historial lista los RIM y filtra por estado', async ({ page }) => {
+test('el historial lista los RIM y los filtros quedan en un panel aparte', async ({ page }) => {
   const requests = await mockRimApi(page);
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/');
@@ -232,9 +248,25 @@ test('el historial lista los RIM y filtra por estado', async ({ page }) => {
   await expect(tabla.getByText('RIM-0103-11-26')).toBeVisible();
   await expect(tabla.getByText('N.º 3 · formato anterior')).toBeVisible();
 
-  await page.getByLabel('Estado').selectOption('anulado');
-  await expect.poll(() => requests.some(request => request.path.endsWith('/rim/registros') && request.params.estado === 'anulado')).toBe(true);
-  await expect(page.getByText('Ningún RIM coincide con los filtros')).toBeVisible();
+  // Cliente, planta, área y fechas no están a la vista hasta abrir «Filtros».
+  await expect(page.getByRole('combobox', { name: 'Cliente' })).toHaveCount(0);
+  await page.getByRole('button', { name: /^Filtros/ }).click();
+  await page.getByRole('combobox', { name: 'Cliente' }).click();
+  await page.getByRole('option', { name: 'SOBOCE' }).click();
+  await expect.poll(() => requests.some(request => request.path.endsWith('/rim/registros') && request.params.cliente === '0205')).toBe(true);
+  await expect(tabla.getByText('RIM-26-0042')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Filtros/ })).toContainText('1');
+
+  // Con el panel cerrado, el filtro aplicado se ve y se quita con un clic.
+  await page.getByRole('button', { name: /^Filtros/ }).click();
+  await page.getByRole('button', { name: 'Quitar el filtro SOBOCE' }).click();
+  await expect(tabla.getByText('RIM-26-0042')).toBeVisible();
+
+  // La búsqueda libre viaja al dejar de escribir.
+  await page.getByRole('searchbox', { name: 'Buscar RIM' }).fill('B123');
+  await expect.poll(() => requests.some(request => request.path.endsWith('/rim/registros') && request.params.q === 'B123')).toBe(true);
+  await page.getByRole('button', { name: 'Quitar filtros' }).click();
+  await expect(page.getByRole('searchbox', { name: 'Buscar RIM' })).toHaveValue('');
 });
 
 test('la ficha es de solo lectura, muestra las dos firmas y anula con motivo', async ({ page }) => {
@@ -255,8 +287,9 @@ test('la ficha es de solo lectura, muestra las dos firmas y anula con motivo', a
   await anular.getByRole('button', { name: 'Anular RIM' }).click();
   await expect(anular.getByRole('alert')).toContainText('Elige un motivo');
 
-  await anular.getByLabel('Motivo', { exact: true }).selectOption('Se registró el instrumento equivocado');
-  await anular.getByLabel('Detalle (opcional)').fill('Era la balanza de despacho 2');
+  await anular.getByRole('combobox', { name: 'Motivo' }).click();
+  await page.getByRole('option', { name: 'Se registró el instrumento equivocado' }).click();
+  await anular.getByLabel(/^Detalle/).fill('Era la balanza de despacho 2');
   await anular.getByRole('button', { name: 'Anular RIM' }).click();
 
   await expect(anular).toBeHidden();
@@ -457,7 +490,7 @@ test('un técnico completa los datos vacíos, pero no corrige ni anula', async (
   await expect(entrega.getByRole('button', { name: 'Anular' })).toHaveCount(0);
 });
 
-test('el historial muestra la etapa de cada RIM y filtra por ella', async ({ page }) => {
+test('el historial muestra la etapa de cada RIM y la filtra con los chips', async ({ page }) => {
   const requests = await mockRimApi(page);
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/');
@@ -466,8 +499,17 @@ test('el historial muestra la etapa de cada RIM y filtra por ella', async ({ pag
   await expect(tabla.getByRole('row', { name: /RIM-0103-11-26/ }).getByText('Concluido')).toBeVisible();
   await expect(tabla.getByRole('row', { name: /RIM-26-0042/ }).getByText('Recibido')).toBeVisible();
 
-  await page.getByLabel('Etapa').selectOption('concluido');
-  await expect.poll(() => requests.some(request => request.path.endsWith('/rim/registros') && request.params.etapa === 'concluido')).toBe(true);
+  const situaciones = page.getByRole('group', { name: 'Filtrar por situación' });
+  // Cada chip muestra cuántos hay; los vacíos no se pueden elegir.
+  await expect(situaciones.getByRole('button', { name: /Concluidos/ })).toContainText('1');
+  await expect(situaciones.getByRole('button', { name: /Anulados/ })).toBeDisabled();
+
+  await situaciones.getByRole('button', { name: /Concluidos/ }).click();
+  await expect.poll(() => requests.some(request => request.path.endsWith('/rim/registros')
+    && request.params.etapa === 'concluido' && request.params.estado === 'vigente')).toBe(true);
   await expect(tabla.getByText('RIM-26-0042')).toHaveCount(0);
   await expect(tabla.getByText('RIM-0103-11-26')).toBeVisible();
+  // El chip elegido conserva su conteo y se vuelve a tocar para quitarlo.
+  await situaciones.getByRole('button', { name: /Concluidos/ }).click();
+  await expect(tabla.getByText('RIM-26-0042')).toBeVisible();
 });

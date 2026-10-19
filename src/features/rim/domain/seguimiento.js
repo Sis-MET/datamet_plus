@@ -11,14 +11,6 @@ export const ETAPAS_RIM = {
   entregado: { label: 'Entregado', tone: 'success' },
 };
 
-/** Opciones del filtro «Etapa» del historial. */
-export const OPCIONES_ETAPA = [
-  { value: 'recibido', label: 'Recibidos (sin ejecución)' },
-  { value: 'en_ejecucion', label: 'En ejecución' },
-  { value: 'concluido', label: 'Concluidos, por entregar' },
-  { value: 'entregado', label: 'Entregados' },
-];
-
 /** Campos de la ejecución en el orden del formulario 6.2. */
 export const CAMPOS_EJECUCION = [
   { campo: 'recepcionSt', label: 'Recibió en S.T.', max: 150, personal: true },

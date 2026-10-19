@@ -20,9 +20,11 @@ Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, num
 El apartado RIM tiene tres pestañas:
 
 - **Registros:** historial de los RIM de ServiceMET (calibración, soporte y
-  registro directo) y del formulario web, con filtros por texto, cliente,
-  planta, fechas de emisión, área, estado (vigente o anulado) y etapa
-  (recibido, en ejecución, concluido o entregado). La ficha de cada RIM es de
+  registro directo) y del formulario web. Como en Calibración, arriba van la
+  búsqueda, el botón **Filtros** (cliente, planta, área, origen y fechas de
+  emisión, en un panel que se abre a pedido; los aplicados quedan como
+  etiquetas que se quitan con un clic) y los chips de situación con su conteo
+  (recibidos, en ejecución, concluidos, entregados y anulados). La ficha de cada RIM es de
   solo lectura: datos del cliente y del instrumento, motivo, inventario,
   estado físico, fotos, **las dos firmas** (cliente y representante de
   Métrica), su **ejecución** y su **entrega** (ver abajo) y su trazabilidad

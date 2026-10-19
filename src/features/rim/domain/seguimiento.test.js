@@ -130,7 +130,11 @@ describe('valores legibles', () => {
     expect(quien({ usuario: 'aquispe', usuarioNombre: null })).toBe('aquispe');
   });
 
-  it('el filtro por etapa viaja con el historial', () => {
-    expect(filtrosAParams({ ...filtrosVacios(), etapa: 'concluido' })).toEqual({ page: 1, pageSize: 25, etapa: 'concluido' });
+  it('la situación elegida viaja como estado y etapa', () => {
+    expect(filtrosAParams({ ...filtrosVacios(), situacion: 'concluido' })).toEqual({
+      page: 1, pageSize: 25, estado: 'vigente', etapa: 'concluido',
+    });
+    expect(filtrosAParams({ ...filtrosVacios(), situacion: 'anulado' })).toEqual({ page: 1, pageSize: 25, estado: 'anulado' });
+    expect(filtrosAParams({ ...filtrosVacios(), situacion: 'vigente' })).toEqual({ page: 1, pageSize: 25, estado: 'vigente' });
   });
 });

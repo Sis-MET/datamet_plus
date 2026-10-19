@@ -17,7 +17,7 @@ describe('historial de RIM', () => {
       page: 3, pageSize: 25, q: '0103', area: 'soporte',
     });
     expect(hayFiltros(filtrosVacios())).toBe(false);
-    expect(hayFiltros({ ...filtrosVacios(), estado: 'anulado' })).toBe(true);
+    expect(hayFiltros({ ...filtrosVacios(), situacion: 'anulado' })).toBe(true);
   });
 
   it('muestra la fecha en hora de Bolivia', () => {

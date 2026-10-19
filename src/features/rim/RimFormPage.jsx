@@ -11,7 +11,8 @@ import { EquipoSearch } from './components/EquipoSearch';
 import { ImageUpload } from './components/ImageUpload';
 import { SignatureField } from './components/SignatureField';
 import { Input } from '../../shared/components/ui/Input';
-import { Select } from '../../shared/components/ui/Select';
+import { Dropdown } from '../calibration/components/Dropdown';
+import { FieldLabel } from '../calibration/components/primitives';
 import { Button } from '../../shared/components/ui/Button';
 import { RadioGroup } from '../../shared/components/ui/RadioGroup';
 import { CheckboxWithLocation } from '../../shared/components/ui/CheckboxWithLocation';
@@ -178,37 +179,41 @@ export function RimFormPage({ currentUser }) {
                   control={control}
                   name="planta"
                   render={({ field }) => (
-                    <Select
-                      label="Seleccionar Planta"
-                      value={field.value}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        field.onChange(val);
-                        setSelectedPlanta(val);
-                        const plantaInfo = plantas.find(p => p.codigo_planta === val);
-                        if (plantaInfo) {
-                          let rawDir = plantaInfo.dir || '';
-                          let dirPart = rawDir;
-                          let deptPart = plantaInfo.localidad || '';
-                          if (rawDir.includes('-')) {
-                            const parts = rawDir.split('-');
-                            deptPart = parts.pop().trim();
-                            dirPart = parts.join('-').trim();
+                    <div>
+                      <FieldLabel htmlFor="rim-form-planta">Seleccionar Planta</FieldLabel>
+                      <Dropdown
+                        id="rim-form-planta"
+                        ariaLabel="Planta"
+                        value={field.value}
+                        onChange={(val) => {
+                          field.onChange(val);
+                          setSelectedPlanta(val);
+                          const plantaInfo = plantas.find(p => p.codigo_planta === val);
+                          if (plantaInfo) {
+                            let rawDir = plantaInfo.dir || '';
+                            let dirPart = rawDir;
+                            let deptPart = plantaInfo.localidad || '';
+                            if (rawDir.includes('-')) {
+                              const parts = rawDir.split('-');
+                              deptPart = parts.pop().trim();
+                              dirPart = parts.join('-').trim();
+                            }
+                            setValue('plantaDireccion', dirPart);
+                            setValue('plantaDepartamento', deptPart);
+                          } else {
+                            setValue('plantaDireccion', '');
+                            setValue('plantaDepartamento', '');
                           }
-                          setValue('plantaDireccion', dirPart);
-                          setValue('plantaDepartamento', deptPart);
-                        } else {
-                          setValue('plantaDireccion', '');
-                          setValue('plantaDepartamento', '');
-                        }
-                      }}
-                      error={errors.planta}
-                      placeholder="Seleccione una planta..."
-                      options={plantas.map(p => ({
-                        value: p.codigo_planta,
-                        label: `${p.codigo_planta}${p.dir ? ` - ${p.dir}` : ''}`
-                      }))}
-                    />
+                        }}
+                        placeholder="Seleccione una planta…"
+                        options={plantas.map(p => ({
+                          value: p.codigo_planta,
+                          label: p.dir || p.codigo_planta,
+                          hint: p.dir ? p.codigo_planta : undefined,
+                        }))}
+                      />
+                      {errors.planta && <p className="field-error">{errors.planta.message}</p>}
+                    </div>
                   )}
                 />
                 {selectedPlanta && (

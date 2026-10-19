@@ -67,6 +67,37 @@ export const AREAS = [
   { value: 'directo', label: 'Registro directo' },
 ];
 
+export const ORIGENES = [
+  { value: 'servicemet', label: 'ServiceMET' },
+  { value: 'datametplus', label: 'DataMET+ (web)' },
+];
+
+/**
+ * Situación de un RIM en el historial: la etapa de los vigentes o anulado.
+ * Son los chips del historial; cada uno muestra cuántos RIM hay.
+ */
+export const SITUACIONES = [
+  { value: 'recibido', label: 'Recibidos', tone: 'neutral' },
+  { value: 'en_ejecucion', label: 'En ejecución', tone: 'info' },
+  { value: 'concluido', label: 'Concluidos', tone: 'warning' },
+  { value: 'entregado', label: 'Entregados', tone: 'success' },
+  { value: 'anulado', label: 'Anulados', tone: 'danger' },
+];
+
+/** Sin el script 016 no hay etapas: solo vigentes y anulados. */
+export const SITUACIONES_SIN_ETAPA = [
+  { value: 'vigente', label: 'Vigentes', tone: 'success' },
+  { value: 'anulado', label: 'Anulados', tone: 'danger' },
+];
+
+/** Cuántos RIM hay en una situación según el resumen del historial. */
+export function conteoSituacion(resumen, situacion) {
+  if (!resumen) return null;
+  if (situacion === 'anulado') return resumen.anulados ?? 0;
+  if (situacion === 'vigente') return resumen.vigentes ?? 0;
+  return resumen.etapas?.[situacion] ?? 0;
+}
+
 export const ESTADOS_RIM = {
   vigente: { label: 'Vigente', tone: 'success' },
   anulado: { label: 'Anulado', tone: 'danger' },
@@ -97,26 +128,66 @@ export const PAGE_SIZE = 25;
 
 export const filtrosVacios = () => ({
   q: '',
+  situacion: '',
   cliente: '',
   planta: '',
+  area: '',
+  origen: '',
   desde: '',
   hasta: '',
-  area: '',
-  estado: '',
-  etapa: '',
 });
 
-/** Parámetros de la consulta del historial: sin los filtros vacíos. */
+/** Filtros que van en el panel «Filtros» (no a la vista). */
+export const FILTROS_AVANZADOS = ['cliente', 'planta', 'area', 'origen', 'desde', 'hasta'];
+
+const conValor = (value) => String(value ?? '').trim();
+
+/**
+ * Parámetros de la consulta del historial, sin los filtros vacíos. La
+ * situación se traduce a estado (vigente o anulado) y etapa.
+ */
 export function filtrosAParams(filtros, page = 1, pageSize = PAGE_SIZE) {
   const params = { page, pageSize };
   for (const [key, value] of Object.entries(filtros)) {
-    const text = String(value ?? '').trim();
+    if (key === 'situacion') continue;
+    const text = conValor(value);
     if (text) params[key] = text;
+  }
+  const situacion = conValor(filtros.situacion);
+  if (situacion === 'anulado' || situacion === 'vigente') {
+    params.estado = situacion;
+  } else if (situacion) {
+    params.estado = 'vigente';
+    params.etapa = situacion;
   }
   return params;
 }
 
-export const hayFiltros = (filtros) => Object.values(filtros).some(value => String(value ?? '').trim());
+export const hayFiltros = (filtros) => Object.values(filtros).some(value => conValor(value));
+
+export const contarAvanzados = (filtros) => FILTROS_AVANZADOS.filter(key => conValor(filtros[key])).length;
+
+const fechaCorta = (fecha) => fecha.split('-').reverse().join('/');
+
+/**
+ * Filtros del panel que están aplicados, legibles, para mostrarlos (y
+ * quitarlos) con el panel cerrado: [{ key, label }].
+ */
+export function etiquetasFiltros(filtros, opciones = {}) {
+  const nombre = (lista, codigo) => lista?.find(item => item.codigo === codigo)?.nombre || codigo;
+  const etiquetas = [];
+  if (conValor(filtros.cliente)) etiquetas.push({ key: 'cliente', label: nombre(opciones.clientes, filtros.cliente) });
+  if (conValor(filtros.planta)) etiquetas.push({ key: 'planta', label: nombre(opciones.plantas, filtros.planta) });
+  if (conValor(filtros.area)) {
+    etiquetas.push({ key: 'area', label: AREAS.find(area => area.value === filtros.area)?.label || filtros.area });
+  }
+  if (conValor(filtros.origen)) {
+    etiquetas.push({ key: 'origen', label: ORIGENES.find(origen => origen.value === filtros.origen)?.label || filtros.origen });
+  }
+  if (conValor(filtros.desde)) etiquetas.push({ key: 'desde', label: `Desde ${fechaCorta(filtros.desde)}` });
+  if (conValor(filtros.hasta)) etiquetas.push({ key: 'hasta', label: `Hasta ${fechaCorta(filtros.hasta)}` });
+  return etiquetas;
+}
 
 /** Fecha y hora en Bolivia, legible ("1 oct 2026, 14:30"). */
 export function fechaHora(iso) {

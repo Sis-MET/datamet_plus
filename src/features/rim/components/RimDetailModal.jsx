@@ -1,13 +1,12 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { AlertCircle, Ban, Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
-import { TextArea } from '../../../shared/components/ui/TextArea';
-import { Input } from '../../../shared/components/ui/Input';
-import { Select } from '../../../shared/components/ui/Select';
+import { Dropdown } from '../../calibration/components/Dropdown';
 import {
   BlockTitle,
   CancelButton,
   DangerButton,
+  FieldLabel,
   Modal,
   ModalColumns,
   ModalSection,
@@ -53,15 +52,20 @@ function Anulacion({ anulacion }) {
   );
 }
 
+/** «Otro motivo» del desplegable: el motivo se escribe completo. */
+const OTRO_MOTIVO = 'otro';
+
 /** Pide el motivo de la anulación y, si lo hay, el RIM que lo reemplaza. */
 function AnularRimModal({ rim, onClose, onAnulado }) {
+  const baseId = useId();
   const [frecuente, setFrecuente] = useState('');
   const [motivo, setMotivo] = useState('');
   const [reemplazo, setReemplazo] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const texto = [frecuente, motivo.trim()].filter(Boolean).join('. ');
+  const elegido = frecuente && frecuente !== OTRO_MOTIVO ? frecuente : '';
+  const texto = [elegido, motivo.trim()].filter(Boolean).join('. ');
 
   const anular = async (close) => {
     if (texto.length < 10) {
@@ -108,28 +112,48 @@ function AnularRimModal({ rim, onClose, onAnulado }) {
           El RIM no se modifica ni se borra: queda anulado, con el motivo, quién lo anuló y cuándo, y sigue visible en el historial.
           Si corresponde, emita un RIM nuevo e indique aquí su código.
         </p>
-        <Select
-          label="Motivo"
-          value={frecuente}
-          onChange={(event) => setFrecuente(event.target.value)}
-          placeholder="Elegir un motivo frecuente…"
-          options={MOTIVOS_ANULACION.map(value => ({ value, label: value }))}
-        />
-        <TextArea
-          label={frecuente ? 'Detalle (opcional)' : 'Motivo de la anulación'}
-          value={motivo}
-          onChange={(event) => setMotivo(event.target.value)}
-          rows={3}
-          maxLength={900}
-          data-autofocus
-        />
-        <Input
-          label="RIM que lo reemplaza (opcional)"
-          value={reemplazo}
-          onChange={(event) => setReemplazo(event.target.value.toUpperCase())}
-          placeholder="RIM-26-0042"
-          maxLength={20}
-        />
+        <div>
+          <FieldLabel htmlFor={`${baseId}-frecuente`}>Motivo</FieldLabel>
+          <Dropdown
+            id={`${baseId}-frecuente`}
+            ariaLabel="Motivo"
+            value={frecuente}
+            onChange={setFrecuente}
+            placeholder="Elegir un motivo frecuente…"
+            options={[
+              ...MOTIVOS_ANULACION.map(value => ({ value, label: value })),
+              { value: OTRO_MOTIVO, label: 'Otro motivo (escribirlo abajo)' },
+            ]}
+            disabled={busy}
+          />
+        </div>
+        <div>
+          <FieldLabel htmlFor={`${baseId}-detalle`} hint={elegido ? '(opcional)' : undefined}>
+            {elegido ? 'Detalle' : 'Motivo de la anulación'}
+          </FieldLabel>
+          <textarea
+            id={`${baseId}-detalle`}
+            value={motivo}
+            onChange={(event) => setMotivo(event.target.value)}
+            rows={3}
+            maxLength={900}
+            disabled={busy}
+            className="field resize-y py-3 leading-relaxed"
+          />
+        </div>
+        <div>
+          <FieldLabel htmlFor={`${baseId}-reemplazo`} hint="(opcional)">RIM que lo reemplaza</FieldLabel>
+          <input
+            id={`${baseId}-reemplazo`}
+            value={reemplazo}
+            onChange={(event) => setReemplazo(event.target.value.toUpperCase())}
+            placeholder="RIM-26-0042"
+            maxLength={20}
+            disabled={busy}
+            autoComplete="off"
+            className="field h-11 font-mono font-medium tracking-wide"
+          />
+        </div>
         {error && <p className="field-error" role="alert">{error}</p>}
       </div>
     </Modal>

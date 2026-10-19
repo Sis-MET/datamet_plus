@@ -1,25 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ChevronLeft, ChevronRight, ClipboardList, Search, X } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { AlertCircle, ChevronLeft, ChevronRight, ClipboardList, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '../../shared/components/ui/Button';
-import { Input } from '../../shared/components/ui/Input';
-import { Select } from '../../shared/components/ui/Select';
 import { cn } from '../../shared/utils/cn';
-import { EmptyState, ToneBadge } from '../calibration/components/primitives';
+import { Dropdown } from '../calibration/components/Dropdown';
+import { EmptyState, FieldLabel, ToneBadge } from '../calibration/components/primitives';
 import { useResource } from '../system/hooks/useResource';
 import { rimApi } from './api/rim';
 import { RimDetailModal } from './components/RimDetailModal';
 import {
   AREAS,
   ESTADOS_RIM,
+  ORIGENES,
   PAGE_SIZE,
+  SITUACIONES,
+  SITUACIONES_SIN_ETAPA,
   clientePlanta,
+  contarAvanzados,
+  conteoSituacion,
   descripcionInstrumento,
+  etiquetasFiltros,
   fechaHora,
   filtrosAParams,
   filtrosVacios,
   hayFiltros,
 } from './domain/rim';
-import { ETAPAS_RIM, OPCIONES_ETAPA } from './domain/seguimiento';
+import { ETAPAS_RIM } from './domain/seguimiento';
 import '../calibration/calibration.css';
 import './rim.css';
 
@@ -98,99 +103,216 @@ function RimCard({ rim, onOpen }) {
   );
 }
 
-function Filtros({ filtros, opciones, onChange, onClear }) {
-  const [texto, setTexto] = useState(filtros.q);
+/** Controles de la barra, como en Calibración y Control de cambios. */
+const CONTROL = 'flex h-9 items-center rounded-xl border border-line bg-surface text-fg shadow-xs transition-colors';
 
-  // La búsqueda libre se aplica al dejar de escribir.
+/** Búsqueda libre; se aplica al dejar de escribir. Al quitar los filtros se
+ * vuelve a montar vacía (key). */
+function Busqueda({ value, onChange }) {
+  const [texto, setTexto] = useState(value);
+
   useEffect(() => {
-    if (texto === filtros.q) return undefined;
-    const timer = setTimeout(() => onChange({ q: texto }), 350);
+    if (texto === value) return undefined;
+    const timer = setTimeout(() => onChange(texto), 350);
     return () => clearTimeout(timer);
-  }, [texto, filtros.q, onChange]);
+  }, [texto, value, onChange]);
 
+  return (
+    <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-fg shadow-xs transition-colors focus-within:border-focus focus-within:ring-4 focus-within:ring-focus/15 sm:max-w-[340px]">
+      <Search className="h-4 w-4 flex-none text-fg-subtle" aria-hidden="true" />
+      <input
+        type="search"
+        value={texto}
+        onChange={(event) => setTexto(event.target.value)}
+        placeholder="Buscar código, cliente, serie, SECA…"
+        aria-label="Buscar RIM"
+        className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-fg-subtle"
+      />
+    </label>
+  );
+}
+
+/** Chips de situación (etapa o anulado), con cuántos RIM hay en cada una. */
+function Situaciones({ value, resumen, onChange }) {
+  const opciones = resumen?.etapas ? SITUACIONES : SITUACIONES_SIN_ETAPA;
+  return (
+    <div role="group" aria-label="Filtrar por situación" className="flex flex-wrap gap-1.5">
+      {opciones.map(opcion => {
+        const conteo = conteoSituacion(resumen, opcion.value);
+        return (
+          <button
+            key={opcion.value}
+            type="button"
+            aria-pressed={value === opcion.value}
+            onClick={() => onChange(value === opcion.value ? '' : opcion.value)}
+            disabled={!conteo && value !== opcion.value}
+            className={cn('cal-filter-chip', `cal-tone-${opcion.tone}`)}
+          >
+            <span className="cal-dot" aria-hidden="true" />
+            {opcion.label}
+            <strong>{conteo ?? 0}</strong>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Panel «Filtros»: cliente, planta, área, origen y fechas de emisión. */
+function PanelFiltros({ id, filtros, opciones, onChange }) {
+  const baseId = useId();
   const plantas = useMemo(
     () => (opciones?.plantas || []).filter(planta => !filtros.cliente || planta.cliente === filtros.cliente),
     [opciones, filtros.cliente],
   );
+  const campo = (key, label, control) => (
+    <div className="min-w-0">
+      <FieldLabel htmlFor={`${baseId}-${key}`}>{label}</FieldLabel>
+      {control}
+    </div>
+  );
 
   return (
-    <section aria-label="Filtros del historial" className="card p-4 shadow-card">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
-        <div className="relative sm:col-span-2 lg:col-span-1">
-          <label htmlFor="rim-buscar" className="field-label">Buscar</label>
-          <Search className="pointer-events-none absolute bottom-3 left-3.5 h-4 w-4 text-fg-subtle" aria-hidden="true" />
-          <input
-            id="rim-buscar"
-            type="search"
-            value={texto}
-            onChange={(event) => setTexto(event.target.value)}
-            placeholder="Código, código métrica, serie, contacto, SECA u OTST"
-            className="field h-10 pl-10"
-          />
-        </div>
-        <Select
-          label="Cliente"
+    <section id={id} aria-label="Filtros del historial" className="card grid gap-x-4 gap-y-3 p-4 shadow-card sm:grid-cols-2 lg:grid-cols-3">
+      {campo('cliente', 'Cliente', (
+        <Dropdown
+          id={`${baseId}-cliente`}
+          ariaLabel="Cliente"
           value={filtros.cliente}
-          onChange={(event) => onChange({ cliente: event.target.value, planta: '' })}
-          placeholder="Todos"
-          options={(opciones?.clientes || []).map(cliente => ({ value: cliente.codigo, label: cliente.nombre }))}
+          onChange={(cliente) => onChange({ cliente, planta: '' })}
+          options={[
+            { value: '', label: 'Todos los clientes' },
+            ...(opciones?.clientes || []).map(cliente => ({ value: cliente.codigo, label: cliente.nombre })),
+          ]}
         />
-        <Select
-          label="Planta"
+      ))}
+      {campo('planta', 'Planta', (
+        <Dropdown
+          id={`${baseId}-planta`}
+          ariaLabel="Planta"
           value={filtros.planta}
-          onChange={(event) => onChange({ planta: event.target.value })}
-          placeholder="Todas"
-          options={plantas.map(planta => ({ value: planta.codigo, label: `${planta.codigo} · ${planta.nombre}` }))}
+          onChange={(planta) => onChange({ planta })}
+          options={[
+            { value: '', label: 'Todas las plantas' },
+            ...plantas.map(planta => ({ value: planta.codigo, label: planta.nombre, hint: planta.codigo })),
+          ]}
         />
-        <Select
-          label="Área"
+      ))}
+      {campo('area', 'Área', (
+        <Dropdown
+          id={`${baseId}-area`}
+          ariaLabel="Área"
           value={filtros.area}
-          onChange={(event) => onChange({ area: event.target.value })}
-          placeholder="Todas"
-          options={AREAS}
+          onChange={(area) => onChange({ area })}
+          options={[{ value: '', label: 'Todas las áreas' }, ...AREAS]}
         />
-      </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
-        <Input label="Emitido desde" type="date" value={filtros.desde} max={filtros.hasta || undefined}
-          onChange={(event) => onChange({ desde: event.target.value })} />
-        <Input label="Emitido hasta" type="date" value={filtros.hasta} min={filtros.desde || undefined}
-          onChange={(event) => onChange({ hasta: event.target.value })} />
-        <Select
-          label="Estado"
-          value={filtros.estado}
-          onChange={(event) => onChange({ estado: event.target.value })}
-          placeholder="Vigentes y anulados"
-          options={[{ value: 'vigente', label: 'Vigentes' }, { value: 'anulado', label: 'Anulados' }]}
+      ))}
+      {campo('origen', 'Origen', (
+        <Dropdown
+          id={`${baseId}-origen`}
+          ariaLabel="Origen"
+          value={filtros.origen}
+          onChange={(origen) => onChange({ origen })}
+          options={[{ value: '', label: 'ServiceMET y web' }, ...ORIGENES]}
         />
-        <Select
-          label="Etapa"
-          value={filtros.etapa}
-          onChange={(event) => onChange({ etapa: event.target.value })}
-          placeholder="Todas"
-          options={OPCIONES_ETAPA}
+      ))}
+      {campo('desde', 'Emitido desde', (
+        <input
+          id={`${baseId}-desde`}
+          type="date"
+          value={filtros.desde}
+          max={filtros.hasta || undefined}
+          onChange={(event) => onChange({ desde: event.target.value })}
+          className="field h-11 font-medium tabular-nums"
         />
-        <div className="flex items-end sm:col-span-2 lg:col-span-1">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setTexto('');
-              onClear();
-            }}
-            disabled={!hayFiltros(filtros)}
-            className="w-full lg:w-auto"
-          >
-            <X className="h-4 w-4" aria-hidden="true" /> Limpiar filtros
-          </Button>
-        </div>
-      </div>
+      ))}
+      {campo('hasta', 'Emitido hasta', (
+        <input
+          id={`${baseId}-hasta`}
+          type="date"
+          value={filtros.hasta}
+          min={filtros.desde || undefined}
+          onChange={(event) => onChange({ hasta: event.target.value })}
+          className="field h-11 font-medium tabular-nums"
+        />
+      ))}
     </section>
   );
 }
 
 /**
+ * Barra del historial: búsqueda, botón «Filtros» (el panel se abre a
+ * pedido), los filtros del panel aplicados como etiquetas que se quitan con
+ * un clic, y los chips de situación con sus conteos.
+ */
+function Filtros({ filtros, opciones, resumen, total, onChange, onClear }) {
+  const [abierto, setAbierto] = useState(false);
+  const [reinicio, setReinicio] = useState(0);
+  const panelId = useId();
+  const avanzados = contarAvanzados(filtros);
+  const etiquetas = etiquetasFiltros(filtros, opciones);
+  const buscar = useCallback((q) => onChange({ q }), [onChange]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Busqueda key={reinicio} value={filtros.q} onChange={buscar} />
+        <button
+          type="button"
+          onClick={() => setAbierto(value => !value)}
+          aria-expanded={abierto}
+          aria-controls={panelId}
+          className={cn(CONTROL, 'gap-2 px-3 text-[13px] font-semibold hover:bg-surface-2', abierto && 'bg-surface-2')}
+        >
+          <SlidersHorizontal className="h-4 w-4 text-fg-muted" aria-hidden="true" />
+          Filtros
+          {avanzados > 0 && <span className="cal-count">{avanzados}</span>}
+        </button>
+        {!abierto && etiquetas.map(etiqueta => (
+          <button
+            key={etiqueta.key}
+            type="button"
+            onClick={() => onChange({ [etiqueta.key]: '', ...(etiqueta.key === 'cliente' ? { planta: '' } : {}) })}
+            aria-label={`Quitar el filtro ${etiqueta.label}`}
+            className="cal-filter-chip cal-tone-neutral max-w-[240px]"
+          >
+            <span className="truncate text-fg">{etiqueta.label}</span>
+            <X className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+
+      {abierto && <PanelFiltros id={panelId} filtros={filtros} opciones={opciones} onChange={onChange} />}
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Situaciones value={filtros.situacion} resumen={resumen} onChange={(situacion) => onChange({ situacion })} />
+        {hayFiltros(filtros) && (
+          <button
+            type="button"
+            onClick={() => {
+              setReinicio(value => value + 1);
+              onClear();
+            }}
+            className="ml-1 text-[13px] font-medium text-fg-muted underline decoration-fg/30 underline-offset-4 hover:text-fg"
+          >
+            Quitar filtros
+          </button>
+        )}
+        {total != null && (
+          <span className="ml-auto hidden text-xs text-fg-muted md:block">
+            {total} RIM
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Historial de RIM de ServiceMET y de DataMET+, con filtros y la ficha de
- * cada uno en solo lectura. Un RIM no se edita: se anula con su motivo.
+ * cada uno en solo lectura. Un RIM no se edita: se anula con su motivo. Como
+ * en Calibración, la lista va directo bajo la barra: los conteos están en
+ * los chips de situación.
  */
 export function RimRegistrosPage() {
   const [filtros, setFiltros] = useState(filtrosVacios);
@@ -211,37 +333,13 @@ export function RimRegistrosPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section aria-labelledby="rim-registros-titulo" className="card p-5 shadow-card">
-        <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-brand/20 text-fg">
-            <ClipboardList className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2 id="rim-registros-titulo" className="text-[15px] font-semibold text-fg">Historial de RIM</h2>
-            <p className="mt-0.5 max-w-[78ch] text-[13px] leading-relaxed text-fg-muted">
-              Recepciones de instrumentos registradas desde ServiceMET (calibración, soporte y registro directo) y desde el formulario web.
-              Un RIM no se edita ni se borra: si tiene un error, se anula con su motivo y queda en el historial.
-              Su ejecución y su entrega se registran en la ficha, cada una con su historial.
-            </p>
-          </div>
-          {data && (
-            <dl className="flex w-full gap-6 border-t border-line pt-3 sm:w-auto sm:border-0 sm:pt-0 sm:text-right">
-              <div>
-                <dt className="text-xs text-fg-muted">Vigentes</dt>
-                <dd className="text-lg font-semibold tabular-nums text-fg">{data.resumen.vigentes}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-fg-muted">Anulados</dt>
-                <dd className="text-lg font-semibold tabular-nums text-fg">{data.resumen.anulados}</dd>
-              </div>
-            </dl>
-          )}
-        </div>
-      </section>
+      <h2 className="sr-only">Historial de RIM</h2>
 
       <Filtros
         filtros={filtros}
         opciones={opciones}
+        resumen={data?.resumen}
+        total={data?.total}
         onChange={cambiarFiltros}
         onClear={() => cambiarFiltros(filtrosVacios())}
       />

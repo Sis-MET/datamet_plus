@@ -1,11 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import { AlertCircle, Hash, Loader2, Lock, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../shared/components/ui/Button';
-import { Input } from '../../shared/components/ui/Input';
-import { Select } from '../../shared/components/ui/Select';
-import { TextArea } from '../../shared/components/ui/TextArea';
-import { CancelButton, EmptyState, Modal, Segmented, ToneBadge } from '../calibration/components/primitives';
+import { Dropdown } from '../calibration/components/Dropdown';
+import { CancelButton, EmptyState, FieldLabel, Modal, Segmented, ToneBadge } from '../calibration/components/primitives';
 import { useResource } from '../system/hooks/useResource';
 import { rimApi } from './api/rim';
 import { ESTADOS_TALONARIO, MOTIVOS_CIERRE, fechaHora, rangos } from './domain/rim';
@@ -82,6 +80,7 @@ function Talonario({ talonario, onCerrar }) {
 
 /** Cierra el talonario de un teléfono perdido o reinstalado. */
 function CerrarTalonarioModal({ talonario, onClose, onCerrado }) {
+  const baseId = useId();
   const [motivo, setMotivo] = useState('');
   const [detalle, setDetalle] = useState('');
   const [ultimoUsado, setUltimoUsado] = useState('');
@@ -134,32 +133,45 @@ function CerrarTalonarioModal({ talonario, onClose, onCerrado }) {
           Los números sin RIM quedarán como «no utilizados». Si el teléfono todavía tiene RIM sin subir, súbalos antes.
           El cierre no se puede deshacer.
         </p>
-        <Select
-          label="Motivo"
-          required
-          value={motivo}
-          onChange={(event) => setMotivo(event.target.value)}
-          placeholder="Elegir…"
-          options={['telefono_perdido', 'reinstalacion', 'otro'].map(value => ({ value, label: MOTIVOS_CIERRE[value] }))}
-        />
-        <Input
-          label="Último número usado (si se conoce)"
-          type="number"
-          inputMode="numeric"
-          min={talonario.desde}
-          max={talonario.hasta}
-          value={ultimoUsado}
-          onChange={(event) => setUltimoUsado(event.target.value)}
-          placeholder={`${talonario.desde} a ${talonario.hasta}`}
-        />
-        <TextArea
-          label={motivo === 'otro' ? 'Detalle' : 'Detalle (opcional)'}
-          required={motivo === 'otro'}
-          value={detalle}
-          onChange={(event) => setDetalle(event.target.value)}
-          rows={2}
-          maxLength={500}
-        />
+        <div>
+          <FieldLabel htmlFor={`${baseId}-motivo`}>Motivo</FieldLabel>
+          <Dropdown
+            id={`${baseId}-motivo`}
+            ariaLabel="Motivo"
+            value={motivo}
+            onChange={setMotivo}
+            placeholder="Elegir el motivo…"
+            options={['telefono_perdido', 'reinstalacion', 'otro'].map(value => ({ value, label: MOTIVOS_CIERRE[value] }))}
+            disabled={busy}
+          />
+        </div>
+        <div>
+          <FieldLabel htmlFor={`${baseId}-ultimo`} hint="(si se conoce)">Último número usado</FieldLabel>
+          <input
+            id={`${baseId}-ultimo`}
+            type="number"
+            inputMode="numeric"
+            min={talonario.desde}
+            max={talonario.hasta}
+            value={ultimoUsado}
+            onChange={(event) => setUltimoUsado(event.target.value)}
+            placeholder={`${talonario.desde} a ${talonario.hasta}`}
+            disabled={busy}
+            className="field h-11 font-medium tabular-nums"
+          />
+        </div>
+        <div>
+          <FieldLabel htmlFor={`${baseId}-detalle`} hint={motivo === 'otro' ? undefined : '(opcional)'}>Detalle</FieldLabel>
+          <textarea
+            id={`${baseId}-detalle`}
+            value={detalle}
+            onChange={(event) => setDetalle(event.target.value)}
+            rows={2}
+            maxLength={500}
+            disabled={busy}
+            className="field resize-y py-3 leading-relaxed"
+          />
+        </div>
         {error && <p className="field-error" role="alert">{error}</p>}
       </div>
     </Modal>
