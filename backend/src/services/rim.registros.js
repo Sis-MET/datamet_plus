@@ -8,11 +8,15 @@
  *
  * Un RIM emitido no se edita ni se borra (NB/ISO/IEC 17025, 7.5.2): se anula
  * agregando una fila en `form_rim_anulaciones`, con motivo, quién y cuándo.
- * El usuario de DataMET+ solo tiene SELECT e INSERT en esas tablas.
+ * Su ejecución (6.2) y su entrega (6.3) se registran en `form_rim_ejecucion`
+ * y `form_rim_entregas` (script 016): cada cambio es una fila nueva que
+ * apunta a la vigente. El usuario de DataMET+ solo tiene SELECT e INSERT en
+ * esas tablas.
  */
 const env = require('../config/env');
 const { getPool, sql } = require('../config/db');
 const { rimCodigo, leerCodigo } = require('./rim.validation');
+const seguimiento = require('./rim.seguimiento');
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
@@ -29,6 +33,8 @@ const tablesFor = (database = env.rim.database) => {
     talonarios: t('rim_talonarios'),
     cierres: t('rim_talonarios_cierres'),
     reservar: t('rim_reservar_talonario'),
+    ejecucion: t('form_rim_ejecucion'),
+    entregas: t('form_rim_entregas'),
   };
 };
 
@@ -91,16 +97,44 @@ const buildWhere = (filtros, { conEstado = true } = {}) => {
   }
   if (conEstado && filtros.estado === 'vigente') where.push('a.id IS NULL');
   if (conEstado && filtros.estado === 'anulado') where.push('a.id IS NOT NULL');
+  if (filtros.etapa) {
+    add('etapa', sql.NVarChar(20), filtros.etapa);
+    where.push('s.etapa = @etapa');
+  }
 
   return { where: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
 };
 
-/** Consultas del historial: página de filas y conteos del conjunto. */
-const buildListQuery = (filtros, tables = tablesFor()) => {
+/**
+ * Etapa de cada RIM según la última fila de su ejecución y de su entrega
+ * (la cadena es lineal: la última es la de mayor id).
+ */
+const etapaJoins = (tables) => {
+  const conDatos = seguimiento.CAMPOS_EJECUCION.map(({ columna }) => `e.${columna} IS NOT NULL`).join(' OR ');
+  return `
+    OUTER APPLY (
+      SELECT TOP (1) e.fecha_conclusion, CASE WHEN ${conDatos} THEN 1 ELSE 0 END AS con_datos
+      FROM ${tables.ejecucion} e WHERE e.rim_uuid = r.uuid ORDER BY e.id DESC) ej
+    OUTER APPLY (
+      SELECT TOP (1) en.tipo FROM ${tables.entregas} en
+      WHERE en.rim_uuid = r.uuid ORDER BY en.id DESC) et
+    CROSS APPLY (SELECT CASE
+      WHEN et.tipo IN (N'registro', N'correccion') THEN N'entregado'
+      WHEN ej.fecha_conclusion IS NOT NULL THEN N'concluido'
+      WHEN ej.con_datos = 1 THEN N'en_ejecucion'
+      ELSE N'recibido' END AS etapa) s`;
+};
+
+/**
+ * Consultas del historial: página de filas y conteos del conjunto. Con
+ * `seguimiento: false` (falta el script 016) omite la etapa.
+ */
+const buildListQuery = (filtros, tables = tablesFor(), { seguimiento: conSeguimiento = true } = {}) => {
+  if (!conSeguimiento && filtros.etapa) throw new Error('El filtro por etapa necesita el seguimiento.');
   const { where, params } = buildWhere(filtros);
   const conteo = buildWhere(filtros, { conEstado: false });
   const offset = (filtros.page - 1) * filtros.pageSize;
-  const from = `FROM ${tables.rim} r LEFT JOIN ${tables.anulaciones} a ON a.rim_uuid = r.uuid`;
+  const from = `FROM ${tables.rim} r LEFT JOIN ${tables.anulaciones} a ON a.rim_uuid = r.uuid${conSeguimiento ? etapaJoins(tables) : ''}`;
   return {
     rows: {
       text: `
@@ -109,7 +143,7 @@ const buildListQuery = (filtros, tables = tablesFor()) => {
           r.cod_metrica, r.instrumento, r.marca, r.modelo, r.serie,
           r.contacto_nombre, r.representante_metrica, r.reg_usuario, r.reg_por, r.emitido_en,
           a.id AS anulacion_id, a.motivo AS anulacion_motivo, a.anulado_en,
-          a.anulado_por, a.anulado_por_nombre, a.origen AS anulacion_origen,
+          a.anulado_por, a.anulado_por_nombre, a.origen AS anulacion_origen,${conSeguimiento ? '\n          s.etapa,' : ''}
           COUNT(*) OVER () AS total
         ${from}
         ${where}
@@ -168,6 +202,8 @@ const mapFila = (row) => ({
   subidoPor: row.reg_por || row.reg_usuario,
   emitidoEn: iso(row.emitido_en),
   estado: row.anulacion_id ? 'anulado' : 'vigente',
+  // Etapa alcanzada (ejecución y entrega); null si falta el script 016.
+  etapa: row.etapa || null,
   anulacion: anulacionDe(row),
 });
 
@@ -188,8 +224,11 @@ const puedeGestionar = (user) => {
   return cargo === 'jefe de area' || ['2', '3'].includes(String(user?.acceso_cron));
 };
 
-/** RIM completo, de solo lectura: datos, firmas, fotos y trazabilidad. */
-const mapDetalle = (row, { fotos = [], user } = {}) => {
+/**
+ * RIM completo, de solo lectura: datos, firmas, fotos, trazabilidad y su
+ * seguimiento (ejecución y entrega, ver rim.seguimiento.js).
+ */
+const mapDetalle = (row, { fotos = [], user, seguimiento: seguimientoRim = null } = {}) => {
   const inventario = parseJson(row.inventario, {});
   const fila = mapFila(row);
   return {
@@ -264,6 +303,8 @@ const mapDetalle = (row, { fotos = [], user } = {}) => {
       talonarioId: row.talonario_id ?? null,
       instalacion: row.instalacion ? String(row.instalacion).toLowerCase() : null,
     },
+    etapa: seguimientoRim?.etapa ?? null,
+    seguimiento: seguimientoRim,
     acciones: { anular: !row.anulacion_id && puedeGestionar(user) },
   };
 };
@@ -329,8 +370,28 @@ const mapTalonario = (row, registrados, user) => {
   };
 };
 
-/** Traduce los errores de SQL Server que indican que falta preparar la base. */
+const TABLAS_SEGUIMIENTO = /form_rim_(ejecucion|entregas)/i;
+
+/**
+ * Traduce los errores de SQL Server que indican que falta preparar la base.
+ * Los de la ejecución y la entrega (script 016) quedan marcados con
+ * `faltaSeguimiento`: la ficha y el historial se muestran igual sin ellas.
+ */
 const notReady = (error) => {
+  if (TABLAS_SEGUIMIENTO.test(error?.message || '')) {
+    if ([208].includes(error?.number) || /Invalid object name/i.test(error?.message || '')) {
+      return Object.assign(
+        httpError(503, 'Falta ejecutar el script 016 de ServiceMET en servicios_extras: la ejecución y la entrega del RIM todavía no pueden registrarse.'),
+        { faltaSeguimiento: true },
+      );
+    }
+    if ([229, 230].includes(error?.number)) {
+      return Object.assign(
+        httpError(503, 'El usuario de DataMET+ no tiene permiso sobre la ejecución y la entrega del RIM: complete @loginDataMetPlus en el script 016 de ServiceMET y ejecútelo.'),
+        { faltaSeguimiento: true },
+      );
+    }
+  }
   if ([208, 2812].includes(error?.number) || /Invalid (object|column) name/i.test(error?.message || '')) {
     return httpError(503, 'La base de los RIM no está lista: falta ejecutar el script 014 de ServiceMET en servicios_extras.');
   }
@@ -368,13 +429,24 @@ const nombreDe = async (usuario, request) => {
 
 const usuarioDe = (user) => String(user?.usuario || '').slice(0, 100);
 
-/** Historial paginado con sus conteos. */
+const consultarHistorial = (queries) => Promise.all([
+  run(queries.rows.text, queries.rows.params),
+  run(queries.counts.text, queries.counts.params),
+]);
+
+/**
+ * Historial paginado con sus conteos y la etapa de cada RIM. Sin el script
+ * 016 se lista igual, sin etapa (salvo que se filtre por ella).
+ */
 const listRims = async (filtros) => {
-  const queries = buildListQuery(filtros);
-  const [rows, counts] = await Promise.all([
-    run(queries.rows.text, queries.rows.params),
-    run(queries.counts.text, queries.counts.params),
-  ]);
+  let rows;
+  let counts;
+  try {
+    [rows, counts] = await consultarHistorial(buildListQuery(filtros));
+  } catch (error) {
+    if (!error?.faltaSeguimiento || filtros.etapa) throw error;
+    [rows, counts] = await consultarHistorial(buildListQuery(filtros, tablesFor(), { seguimiento: false }));
+  }
   const conteo = counts[0] || {};
   return {
     items: rows.map(mapFila),
@@ -424,16 +496,204 @@ const DETALLE_SELECT = (tables) => `
   FROM ${tables.rim} r
   LEFT JOIN ${tables.anulaciones} a ON a.rim_uuid = r.uuid`;
 
+/** Fecha «yyyy-mm-dd» de una columna date, sin pasar por la zona horaria. */
+const fechaTexto = (columna, alias = columna) => `CONVERT(varchar(10), ${columna}, 23) AS ${alias}`;
+
+/** Filas de la ejecución de un RIM, de la primera a la última. */
+const filasEjecucion = (uuid, tables = tablesFor()) => run(`
+  SELECT id, anterior_id, tipo, motivo, recepcion_st, ${fechaTexto('fecha_ingreso')}, tecnico_asignado,
+    ${fechaTexto('fecha_inicio')}, ${fechaTexto('fecha_informe')}, ${fechaTexto('fecha_conclusion')},
+    nro_cotizacion, nro_informe, nro_factura, usuario, usuario_nombre,
+    CONVERT(varchar(19), fecha_reg, 126) AS fecha_reg_texto
+  FROM ${tables.ejecucion} WHERE rim_uuid = @uuid ORDER BY id;`,
+[{ name: 'uuid', type: sql.UniqueIdentifier, value: uuid }]);
+
+/**
+ * Filas de la entrega de un RIM. Las firmas solo de la última fila (la
+ * vigente): las correcciones las copian de la anterior.
+ */
+const filasEntrega = (uuid, tables = tablesFor()) => run(`
+  SELECT e.id, e.anterior_id, e.tipo, e.motivo, e.recibe_nombre, e.entrega_por,
+    ${fechaTexto('e.fecha_entrega', 'fecha_entrega')}, e.lugar_entrega, e.observaciones,
+    CASE WHEN s.id IS NULL THEN e.firma_cliente END AS firma_cliente,
+    CASE WHEN s.id IS NULL THEN e.firma_representante END AS firma_representante,
+    e.usuario, e.usuario_nombre, CONVERT(varchar(19), e.fecha_reg, 126) AS fecha_reg_texto
+  FROM ${tables.entregas} e
+  LEFT JOIN ${tables.entregas} s ON s.anterior_id = e.id
+  WHERE e.rim_uuid = @uuid ORDER BY e.id;`,
+[{ name: 'uuid', type: sql.UniqueIdentifier, value: uuid }]);
+
+/** Ejecución y entrega para la ficha; sin el script 016, el aviso. */
+const cargarSeguimiento = async (row, user) => {
+  try {
+    const [ejecucion, entregas] = await Promise.all([filasEjecucion(row.uuid), filasEntrega(row.uuid)]);
+    return seguimiento.mapSeguimiento({ ejecucion, entregas }, {
+      anulado: Boolean(row.anulacion_id),
+      puedeCorregir: puedeGestionar(user),
+    });
+  } catch (error) {
+    if (error?.faltaSeguimiento) return seguimiento.seguimientoNoDisponible(error.message);
+    throw error;
+  }
+};
+
 /** RIM completo por su N.º (correlativo del servidor). */
 const getRim = async (n, user) => {
   const tables = tablesFor();
   const rows = await run(`${DETALLE_SELECT(tables)} WHERE r.n = @n;`, [{ name: 'n', type: sql.Int, value: n }]);
   if (!rows.length) throw httpError(404, 'El RIM no existe.');
-  const fotos = await run(
-    `SELECT orden, nombre, tipo, contenido FROM ${tables.fotos} WHERE rim_uuid = @uuid ORDER BY orden;`,
-    [{ name: 'uuid', type: sql.UniqueIdentifier, value: rows[0].uuid }],
-  );
-  return mapDetalle(rows[0], { fotos, user });
+  const [fotos, seguimientoRim] = await Promise.all([
+    run(
+      `SELECT orden, nombre, tipo, contenido FROM ${tables.fotos} WHERE rim_uuid = @uuid ORDER BY orden;`,
+      [{ name: 'uuid', type: sql.UniqueIdentifier, value: rows[0].uuid }],
+    ),
+    cargarSeguimiento(rows[0], user),
+  ]);
+  return mapDetalle(rows[0], { fotos, user, seguimiento: seguimientoRim });
+};
+
+/** Lo que hace falta del RIM para registrar su ejecución o su entrega. */
+const rimParaSeguimiento = async (n, tables) => {
+  const [rim] = await run(`
+    SELECT r.uuid, a.id AS anulacion_id,
+      CONVERT(varchar(10), SWITCHOFFSET(r.emitido_en, '${LA_PAZ_OFFSET}'), 23) AS emitido
+    FROM ${tables.rim} r LEFT JOIN ${tables.anulaciones} a ON a.rim_uuid = r.uuid
+    WHERE r.n = @n;`, [{ name: 'n', type: sql.Int, value: n }]);
+  if (!rim) throw httpError(404, 'El RIM no existe.');
+  if (rim.anulacion_id) throw httpError(409, 'El RIM está anulado: no se registran su ejecución ni su entrega.');
+  return rim;
+};
+
+/** Guarda: la fila no se agrega si el RIM se anuló mientras tanto. */
+const SIN_ANULAR = (tables) => `
+  SET XACT_ABORT ON;
+  IF EXISTS (SELECT 1 FROM ${tables.anulaciones} WHERE rim_uuid = @uuid)
+    THROW 51050, N'El RIM está anulado: no se registran su ejecución ni su entrega.', 1;`;
+
+/** Usuario de la sesión: lo impone el servidor en cada fila. */
+const paramsRegistro = ({ uuid, plan, usuario, nombre }) => [
+  { name: 'uuid', type: sql.UniqueIdentifier, value: uuid },
+  { name: 'anterior_id', type: sql.Int, value: plan.anteriorId },
+  { name: 'tipo', type: sql.NVarChar(20), value: plan.tipo },
+  { name: 'motivo', type: sql.NVarChar(1000), value: plan.motivo },
+  { name: 'usuario', type: sql.NVarChar(100), value: usuario },
+  { name: 'nombre', type: sql.NVarChar(150), value: nombre },
+];
+
+/** INSERT de una versión de la ejecución ya decidida por planEjecucion. */
+const buildEjecucionInsert = ({ uuid, plan, usuario, nombre }, tables = tablesFor()) => {
+  const campos = seguimiento.CAMPOS_EJECUCION;
+  const valores = campos.map(({ columna, fecha }) => (fecha ? `CONVERT(date, @${columna}, 23)` : `@${columna}`));
+  return {
+    text: `${SIN_ANULAR(tables)}
+      INSERT INTO ${tables.ejecucion}
+        (rim_uuid, anterior_id, tipo, motivo, ${campos.map(c => c.columna).join(', ')}, origen, usuario, usuario_nombre)
+      VALUES (@uuid, @anterior_id, @tipo, @motivo, ${valores.join(', ')}, N'datametplus', @usuario, @nombre);`,
+    params: [
+      ...paramsRegistro({ uuid, plan, usuario, nombre }),
+      ...campos.map(({ campo, columna, fecha, max }) => ({
+        name: columna,
+        type: fecha ? sql.VarChar(10) : sql.NVarChar(max),
+        value: plan.datos[campo],
+      })),
+    ],
+  };
+};
+
+/**
+ * INSERT de una fila de la entrega ya decidida por planEntrega. La
+ * corrección copia las firmas de la fila que reemplaza: no se vuelven a
+ * pedir ni pueden cambiarse.
+ */
+const buildEntregaInsert = ({ uuid, plan, usuario, nombre }, tables = tablesFor()) => {
+  const datos = plan.datos || {};
+  const params = [
+    ...paramsRegistro({ uuid, plan, usuario, nombre }),
+    ...seguimiento.CAMPOS_ENTREGA.map(({ campo, columna, fecha, max }) => ({
+      name: columna,
+      type: fecha ? sql.VarChar(10) : sql.NVarChar(max),
+      value: datos[campo] ?? null,
+    })),
+  ];
+  const columnas = `(rim_uuid, anterior_id, tipo, motivo, recibe_nombre, entrega_por, fecha_entrega,
+        lugar_entrega, observaciones, firma_cliente, firma_representante, origen, usuario, usuario_nombre)`;
+  const datosSql = '@recibe_nombre, @entrega_por, CONVERT(date, @fecha_entrega, 23), @lugar_entrega, @observaciones';
+  let insert;
+  if (plan.tipo === 'registro') {
+    params.push(
+      { name: 'firma_cliente', type: sql.VarBinary(sql.MAX), value: plan.firmas.cliente },
+      { name: 'firma_representante', type: sql.VarBinary(sql.MAX), value: plan.firmas.representante },
+    );
+    insert = `INSERT INTO ${tables.entregas} ${columnas}
+      VALUES (@uuid, @anterior_id, @tipo, NULL, ${datosSql}, @firma_cliente, @firma_representante,
+        N'datametplus', @usuario, @nombre);`;
+  } else if (plan.tipo === 'correccion') {
+    insert = `INSERT INTO ${tables.entregas} ${columnas}
+      SELECT @uuid, @anterior_id, @tipo, @motivo, ${datosSql}, p.firma_cliente, p.firma_representante,
+        N'datametplus', @usuario, @nombre
+      FROM ${tables.entregas} p WHERE p.id = @anterior_id AND p.rim_uuid = @uuid;
+      IF @@ROWCOUNT = 0 THROW 51051, N'La entrega que se corrige no existe.', 1;`;
+  } else {
+    insert = `INSERT INTO ${tables.entregas} ${columnas}
+      VALUES (@uuid, @anterior_id, @tipo, @motivo, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        N'datametplus', @usuario, @nombre);`;
+  }
+  return { text: `${SIN_ANULAR(tables)}
+      ${insert}`, params };
+};
+
+const erroresSeguimiento = (error, etapa) => {
+  if (error?.number === 51050) return httpError(409, error.message);
+  // Índices únicos de la cadena: otro usuario agregó una fila a la vez.
+  if ([2601, 2627, 51051].includes(error?.number)) {
+    return httpError(409, `Otro usuario actualizó la ${etapa} mientras la editabas. Recarga la ficha y vuelve a intentarlo.`);
+  }
+  return error;
+};
+
+/**
+ * Agrega una versión de la ejecución (6.2): registro, avance o corrección,
+ * según lo que cambie respecto de la vigente (ver planEjecucion).
+ */
+const registrarEjecucion = async (n, entrada, user, { now = new Date() } = {}) => {
+  const tables = tablesFor();
+  const rim = await rimParaSeguimiento(n, tables);
+  const plan = seguimiento.planEjecucion({
+    filas: await filasEjecucion(rim.uuid, tables),
+    nueva: entrada,
+    emitido: rim.emitido,
+    hoy: seguimiento.hoyLaPaz(now),
+    puedeCorregir: puedeGestionar(user),
+  });
+  const usuario = usuarioDe(user);
+  const insert = buildEjecucionInsert({ uuid: rim.uuid, plan, usuario, nombre: await nombreDe(usuario) }, tables);
+  try {
+    await run(insert.text, insert.params);
+  } catch (error) {
+    throw erroresSeguimiento(error, 'ejecución');
+  }
+  return getRim(n, user);
+};
+
+/** Registra, corrige o anula la entrega (6.3); ver planEntrega. */
+const registrarEntrega = async (n, entrada, user, { now = new Date() } = {}) => {
+  const tables = tablesFor();
+  const rim = await rimParaSeguimiento(n, tables);
+  const plan = seguimiento.planEntrega({
+    filas: await filasEntrega(rim.uuid, tables),
+    entrada,
+    emitido: rim.emitido,
+    hoy: seguimiento.hoyLaPaz(now),
+    puedeCorregir: puedeGestionar(user),
+  });
+  const usuario = usuarioDe(user);
+  const insert = buildEntregaInsert({ uuid: rim.uuid, plan, usuario, nombre: await nombreDe(usuario) }, tables);
+  try {
+    await run(insert.text, insert.params);
+  } catch (error) {
+    throw erroresSeguimiento(error, 'entrega');
+  }
+  return getRim(n, user);
 };
 
 /**
@@ -686,6 +946,8 @@ const createWebRim = async (rim, user, { withTransaction, now = new Date() }) =>
 
 module.exports = {
   anularRim,
+  buildEjecucionInsert,
+  buildEntregaInsert,
   buildListQuery,
   buildWhere,
   cerrarTalonario,
@@ -700,7 +962,10 @@ module.exports = {
   mapDetalle,
   mapFila,
   mapTalonario,
+  notReady,
   puedeGestionar,
+  registrarEjecucion,
+  registrarEntrega,
   tablesFor,
   webRimColumns,
 };

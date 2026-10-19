@@ -1,6 +1,7 @@
 /**
  * Validación del módulo Registros RIM: filtros del historial, anulación,
- * cierre de talonarios y alta de un RIM desde el formulario web.
+ * cierre de talonarios, alta de un RIM desde el formulario web y su
+ * ejecución y entrega.
  */
 const { z } = require('zod');
 
@@ -21,6 +22,8 @@ const ESTADOS_COMPONENTE = ['present', 'missing', 'na'];
 const ESTADOS_GENERALES = ['excellent', 'good', 'fair', 'poor', 'critical'];
 const NIVELES_SUCIEDAD = ['clean', 'light', 'moderate', 'heavy'];
 const MOTIVOS_CIERRE = ['telefono_perdido', 'reinstalacion', 'otro'];
+/** Etapa del RIM después de la recepción (ejecución 6.2 y entrega 6.3). */
+const ETAPAS = ['recibido', 'en_ejecucion', 'concluido', 'entregado'];
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
@@ -82,6 +85,29 @@ const pagina = (fallback, max) => z.preprocess(
 
 const vacioANull = (schema) => z.preprocess(value => (value === '' ? undefined : value), schema.optional());
 
+/** Fecha del calendario o null si viene vacía. */
+const fechaOpcional = z.preprocess(
+  value => (value === '' || value === undefined ? null : value),
+  date.nullable(),
+);
+
+/** Id de la fila vigente que se reemplaza; null si todavía no hay ninguna. */
+const anteriorId = z.preprocess(
+  value => (value === '' || value === undefined || value === null ? null : Number(value)),
+  z.number({ error: 'Versión anterior inválida.' }).int().positive().nullable(),
+);
+
+const motivoCorreccion = (mensaje) => requiredText(1000, mensaje, 10);
+
+/** Datos de la entrega (6.3) que se registran o corrigen. */
+const datosEntrega = {
+  recibeNombre: requiredText(150, 'Falta el nombre de quien recibe por el cliente.', 3),
+  entregaPor: requiredText(150, 'Falta el nombre de quien entrega por Métrica.', 3),
+  fechaEntrega: date,
+  lugarEntrega: requiredText(255, 'Falta el lugar de entrega.'),
+  observaciones: optionalText(1000),
+};
+
 const schemas = {
   filtros: z.object({
     q: vacioANull(z.string().trim().max(80)),
@@ -92,6 +118,7 @@ const schemas = {
     area: vacioANull(z.enum(AREAS)),
     origen: vacioANull(z.enum(ORIGENES)),
     estado: vacioANull(z.enum(['vigente', 'anulado'])),
+    etapa: vacioANull(z.enum(ETAPAS)),
     page: pagina(1, 10000),
     pageSize: pagina(25, 100),
   }).refine(data => !data.desde || !data.hasta || data.desde <= data.hasta,
@@ -184,6 +211,46 @@ const schemas = {
     ...data,
     descripcionPruebas: data.pruebas ? data.descripcionPruebas : null,
   })),
+
+  // Versión nueva de la ejecución (6.2): los campos vacíos quedan en null. Si
+  // cambia un dato ya registrado es una corrección y el servicio exige el
+  // motivo.
+  ejecucion: z.object({
+    anteriorId,
+    recepcionSt: optionalText(150),
+    fechaIngreso: fechaOpcional,
+    tecnicoAsignado: optionalText(150),
+    fechaInicio: fechaOpcional,
+    fechaInforme: fechaOpcional,
+    fechaConclusion: fechaOpcional,
+    nroCotizacion: optionalText(60),
+    nroInforme: optionalText(60),
+    nroFactura: optionalText(60),
+    motivo: optionalText(1000),
+  }),
+
+  // Entrega (6.3): registrarla exige las dos firmas; corregirla conserva las
+  // firmas registradas; anularla solo lleva el motivo.
+  entrega: z.discriminatedUnion('accion', [
+    z.object({
+      accion: z.literal('registro'),
+      anteriorId,
+      ...datosEntrega,
+      firmaCliente: firma('La firma de quien recibe'),
+      firmaRepresentante: firma('La firma de quien entrega por Métrica'),
+    }),
+    z.object({
+      accion: z.literal('correccion'),
+      anteriorId,
+      ...datosEntrega,
+      motivo: motivoCorreccion('Escribe el motivo de la corrección (al menos 10 caracteres).'),
+    }),
+    z.object({
+      accion: z.literal('anulacion'),
+      anteriorId,
+      motivo: motivoCorreccion('Escribe el motivo de la anulación de la entrega (al menos 10 caracteres).'),
+    }),
+  ], { error: 'Indica si se registra, corrige o anula la entrega.' }),
 };
 
 /** Valida y normaliza; ante un error responde 400 con el primer mensaje. */
@@ -196,6 +263,7 @@ const parse = (name, data) => {
 
 module.exports = {
   AREAS,
+  ETAPAS,
   MOTIVOS_CIERRE,
   ORIGENES,
   leerCodigo,

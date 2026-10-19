@@ -37,6 +37,8 @@ module.exports = {
   getFiltros: handle(() => rims.getFiltros()),
   getRegistro: handle(req => rims.getRim(readId(req.params.n), req.user)),
   anularRegistro: handle(req => rims.anularRim(readId(req.params.n), parse('anulacion', req.body), req.user)),
+  registrarEjecucion: handle(req => rims.registrarEjecucion(readId(req.params.n), parse('ejecucion', req.body), req.user), 201),
+  registrarEntrega: handle(req => rims.registrarEntrega(readId(req.params.n), parse('entrega', req.body), req.user), 201),
   createRegistro: handle(
     req => rims.createWebRim(parse('registroWeb', req.body), req.user, { withTransaction }),
     201,

@@ -93,7 +93,8 @@ test('el historial filtra por texto, cliente, planta, fechas, área y estado', (
 
 test('sin filtros lista todo, del más reciente al más antiguo', () => {
   const query = buildListQuery(filtros(), tablesFor('servicios_extras'));
-  assert.doesNotMatch(query.rows.text, /WHERE/);
+  // Solo las subconsultas de la etapa filtran (por el RIM de cada fila).
+  assert.doesNotMatch(query.rows.text, /WHERE (?!e.rim_uuid = r.uuid|en.rim_uuid = r.uuid)/);
   assert.match(query.rows.text, /OFFSET 0 ROWS FETCH NEXT 25 ROWS ONLY/);
   assert.deepEqual(query.rows.params, []);
 });
