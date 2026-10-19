@@ -5,7 +5,7 @@ const unwrap = (promise) => promise.then(response => response.data);
 export const rimApi = {
   getPlantas: (clienteId) => api.get(`/clientes/${clienteId}/plantas`),
 
-  // Registros RIM (base servicios_extras de ServiceMET).
+  // Registros RIM (tablas de ServiceMET en DataMET).
   registros: (params) => unwrap(api.get('/rim/registros', params)),
   filtros: () => unwrap(api.get('/rim/registros/filtros')),
   registro: (n) => unwrap(api.get(`/rim/registros/${n}`)),

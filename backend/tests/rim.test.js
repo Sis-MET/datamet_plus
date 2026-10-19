@@ -59,7 +59,7 @@ test('la gestión en curso es la de La Paz, no la de UTC', () => {
 });
 
 test('el nombre de la base de los RIM no admite inyección', () => {
-  assert.equal(tablesFor('servicios_extras').rim, '[servicios_extras].[dbo].[form_rim]');
+  assert.equal(tablesFor('DataMET').rim, '[DataMET].[dbo].[form_rim]');
   assert.throws(() => tablesFor('x]; DROP TABLE t;--'));
 });
 
@@ -67,10 +67,10 @@ test('el historial filtra por texto, cliente, planta, fechas, área y estado', (
   const query = buildListQuery(filtros({
     q: '50%_off', cliente: '0103', planta: '0103-11', desde: '2026-10-01', hasta: '2026-10-19',
     area: 'soporte', origen: 'servicemet', estado: 'anulado', page: '3', pageSize: '10',
-  }), tablesFor('servicios_extras'));
+  }), tablesFor('DataMET'));
 
   const { text } = query.rows;
-  assert.match(text, /FROM \[servicios_extras\]\.\[dbo\]\.\[form_rim\] r LEFT JOIN \[servicios_extras\]\.\[dbo\]\.\[form_rim_anulaciones\] a/);
+  assert.match(text, /FROM \[DataMET\]\.\[dbo\]\.\[form_rim\] r LEFT JOIN \[DataMET\]\.\[dbo\]\.\[form_rim_anulaciones\] a/);
   assert.match(text, /r\.codigo_rim LIKE @q ESCAPE '\\'/);
   assert.match(text, /r\.cod_cliente = @cliente AND r\.cod_planta = @planta/);
   assert.match(text, /r\.tipo_servicio = @area/);
@@ -92,7 +92,7 @@ test('el historial filtra por texto, cliente, planta, fechas, área y estado', (
 });
 
 test('sin filtros lista todo, del más reciente al más antiguo', () => {
-  const query = buildListQuery(filtros(), tablesFor('servicios_extras'));
+  const query = buildListQuery(filtros(), tablesFor('DataMET'));
   // Solo las subconsultas de la etapa filtran (por el RIM de cada fila).
   assert.doesNotMatch(query.rows.text, /WHERE (?!e.rim_uuid = r.uuid|en.rim_uuid = r.uuid)/);
   assert.match(query.rows.text, /OFFSET 0 ROWS FETCH NEXT 25 ROWS ONLY/);

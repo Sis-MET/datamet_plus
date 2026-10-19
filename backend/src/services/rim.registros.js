@@ -1,10 +1,10 @@
 /**
  * Registros RIM (recepción de instrumentos de pesaje).
  *
- * Los RIM viven en la base `servicios_extras` (misma instancia de SQL Server),
- * creada por ServiceMET: `form_rim` con cada RIM y sus dos firmas,
- * `form_rim_anulaciones`, `form_rim_fotos`, `rim_talonarios` y
- * `rim_talonarios_cierres` (scripts 012 y 014 de ServiceMET).
+ * Los RIM viven en DataMET, la misma base de DataMET+ (DB_DATABASE), en las
+ * tablas que crean los scripts 012, 014 y 016 de ServiceMET: `form_rim` con
+ * cada RIM y sus dos firmas, `form_rim_anulaciones`, `form_rim_fotos`,
+ * `rim_talonarios` y `rim_talonarios_cierres`.
  *
  * Un RIM emitido no se edita ni se borra (NB/ISO/IEC 17025, 7.5.2): se anula
  * agregando una fila en `form_rim_anulaciones`, con motivo, quién y cuándo.
@@ -24,7 +24,7 @@ const DATABASE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
 /** Nombres completos de las tablas en la base de los RIM. */
 const tablesFor = (database = env.rim.database) => {
-  if (!DATABASE_NAME.test(database)) throw new Error('RIM_DB_NAME inválido.');
+  if (!DATABASE_NAME.test(database)) throw new Error('DB_DATABASE inválido para los RIM.');
   const t = (name) => `[${database}].[dbo].[${name}]`;
   return {
     rim: t('form_rim'),
@@ -381,7 +381,7 @@ const notReady = (error) => {
   if (TABLAS_SEGUIMIENTO.test(error?.message || '')) {
     if ([208].includes(error?.number) || /Invalid object name/i.test(error?.message || '')) {
       return Object.assign(
-        httpError(503, 'Falta ejecutar el script 016 de ServiceMET en servicios_extras: la ejecución y la entrega del RIM todavía no pueden registrarse.'),
+        httpError(503, 'Falta ejecutar el script 016 de ServiceMET en DataMET: la ejecución y la entrega del RIM todavía no pueden registrarse.'),
         { faltaSeguimiento: true },
       );
     }
@@ -393,10 +393,10 @@ const notReady = (error) => {
     }
   }
   if ([208, 2812].includes(error?.number) || /Invalid (object|column) name/i.test(error?.message || '')) {
-    return httpError(503, 'La base de los RIM no está lista: falta ejecutar el script 014 de ServiceMET en servicios_extras.');
+    return httpError(503, 'Las tablas de los RIM no están listas: falta ejecutar los scripts 012 y 014 de ServiceMET en DataMET.');
   }
   if ([229, 230, 916, 4060].includes(error?.number)) {
-    return httpError(503, 'El usuario de DataMET+ no tiene permiso en servicios_extras: complete @loginDataMetPlus en el script 014 de ServiceMET y ejecútelo.');
+    return httpError(503, 'El usuario de DataMET+ no tiene permiso sobre las tablas de los RIM: complete @loginDataMetPlus en el script 014 de ServiceMET y ejecútelo.');
   }
   return null;
 };

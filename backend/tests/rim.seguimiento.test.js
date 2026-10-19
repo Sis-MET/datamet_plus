@@ -25,7 +25,7 @@ const { parse } = require('../src/services/rim.validation');
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('firma')]);
 const firma = `data:image/png;base64,${PNG.toString('base64')}`;
 const UUID = '3f2a8c1e-7b4d-4e9a-a1c2-5d6e7f8091ab';
-const tables = tablesFor('servicios_extras');
+const tables = tablesFor('DataMET');
 
 const contexto = { emitido: '2026-10-01', hoy: '2026-10-19' };
 const params = (query) => Object.fromEntries(query.params.map(param => [param.name, param.value]));
@@ -316,23 +316,23 @@ test('la ficha lleva el seguimiento y la etapa; sin el script 016, el aviso', ()
 });
 
 test('los errores de las tablas nuevas se reconocen como falta del script 016', () => {
-  const faltaTabla = notReady({ number: 208, message: "Invalid object name 'servicios_extras.dbo.form_rim_ejecucion'." });
+  const faltaTabla = notReady({ number: 208, message: "Invalid object name 'DataMET.dbo.form_rim_ejecucion'." });
   assert.equal(faltaTabla.statusCode, 503);
   assert.equal(faltaTabla.faltaSeguimiento, true);
   assert.match(faltaTabla.message, /script 016/);
-  const sinPermiso = notReady({ number: 229, message: "The SELECT permission was denied on the object 'form_rim_entregas', database 'servicios_extras', schema 'dbo'." });
+  const sinPermiso = notReady({ number: 229, message: "The SELECT permission was denied on the object 'form_rim_entregas', database 'DataMET', schema 'dbo'." });
   assert.equal(sinPermiso.faltaSeguimiento, true);
   assert.match(sinPermiso.message, /@loginDataMetPlus en el script 016/);
   // Las tablas del script 014 siguen con su propio aviso.
-  const falta014 = notReady({ number: 208, message: "Invalid object name 'servicios_extras.dbo.form_rim_anulaciones'." });
+  const falta014 = notReady({ number: 208, message: "Invalid object name 'DataMET.dbo.form_rim_anulaciones'." });
   assert.equal(falta014.faltaSeguimiento, undefined);
-  assert.match(falta014.message, /script 014/);
+  assert.match(falta014.message, /scripts 012 y 014 de ServiceMET en DataMET/);
 });
 
 test('el historial calcula la etapa y filtra por ella', () => {
   const query = buildListQuery(parse('filtros', { etapa: 'concluido' }), tables);
   assert.match(query.rows.text, /OUTER APPLY \(\s+SELECT TOP \(1\) e\.fecha_conclusion/);
-  assert.match(query.rows.text, /FROM \[servicios_extras\]\.\[dbo\]\.\[form_rim_entregas\] en/);
+  assert.match(query.rows.text, /FROM \[DataMET\]\.\[dbo\]\.\[form_rim_entregas\] en/);
   assert.match(query.rows.text, /s\.etapa,/);
   assert.match(query.rows.text, /WHERE s\.etapa = @etapa/);
   assert.match(query.counts.text, /WHERE s\.etapa = @etapa/);
@@ -348,8 +348,8 @@ test('el historial calcula la etapa y filtra por ella', () => {
 test('la ejecución solo se agrega: INSERT con el usuario de la sesión, nunca UPDATE ni DELETE', () => {
   const plan = planEjecucion({ filas: [filaEjecucion()], nueva: ejecucion({ fechaInicio: '2026-10-03' }), ...contexto, puedeCorregir: false });
   const query = buildEjecucionInsert({ uuid: UUID, plan, usuario: 'lchoque', nombre: 'Luis Choque' }, tables);
-  assert.match(query.text, /INSERT INTO \[servicios_extras\]\.\[dbo\]\.\[form_rim_ejecucion\]/);
-  assert.match(query.text, /IF EXISTS \(SELECT 1 FROM \[servicios_extras\]\.\[dbo\]\.\[form_rim_anulaciones\] WHERE rim_uuid = @uuid\)\s+THROW 51050/);
+  assert.match(query.text, /INSERT INTO \[DataMET\]\.\[dbo\]\.\[form_rim_ejecucion\]/);
+  assert.match(query.text, /IF EXISTS \(SELECT 1 FROM \[DataMET\]\.\[dbo\]\.\[form_rim_anulaciones\] WHERE rim_uuid = @uuid\)\s+THROW 51050/);
   assert.match(query.text, /CONVERT\(date, @fecha_inicio, 23\)/);
   assert.doesNotMatch(query.text, /UPDATE|DELETE|fecha_reg/i);
   const values = params(query);

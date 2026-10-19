@@ -43,6 +43,13 @@ if (ivmetEnabled) {
   }
 }
 
+// Los RIM viven en la misma base DB_DATABASE (DataMET; DataMET_prueba en
+// pruebas). RIM_DB_NAME ya no se usa: si quedó en el .env, se ignora.
+const rimDbAnterior = String(process.env.RIM_DB_NAME || '').trim();
+if (rimDbAnterior && rimDbAnterior !== process.env.DB_DATABASE.trim()) {
+  console.warn(`RIM_DB_NAME=${rimDbAnterior} se ignora: los RIM se leen de DB_DATABASE (${process.env.DB_DATABASE.trim()}). Quítela del .env.`);
+}
+
 const smtpPort = Number(process.env.SMTP_PORT) || 587;
 const flag = (value, fallback) => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -90,10 +97,10 @@ module.exports = {
     from: String(process.env.SMTP_FROM || process.env.SMTP_USER || '').trim(),
     rejectUnauthorized: flag(process.env.SMTP_TLS_REJECT_UNAUTHORIZED, true),
   },
-  // Registros RIM: base de ServiceMET con form_rim, en la misma instancia
-  // (scripts 012 y 014 de ServiceMET).
+  // Registros RIM: tablas de los scripts 012, 014 y 016 de ServiceMET, en la
+  // misma base DB_DATABASE.
   rim: {
-    database: String(process.env.RIM_DB_NAME || '').trim() || 'servicios_extras',
+    database: process.env.DB_DATABASE.trim(),
   },
   calibration: {
     alertsEnabled: flag(process.env.CAL_ALERTS_ENABLED, true),
