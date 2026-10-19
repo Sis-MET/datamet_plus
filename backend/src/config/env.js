@@ -90,6 +90,11 @@ module.exports = {
     from: String(process.env.SMTP_FROM || process.env.SMTP_USER || '').trim(),
     rejectUnauthorized: flag(process.env.SMTP_TLS_REJECT_UNAUTHORIZED, true),
   },
+  // Registros RIM: base de ServiceMET con form_rim, en la misma instancia
+  // (scripts 012 y 014 de ServiceMET).
+  rim: {
+    database: String(process.env.RIM_DB_NAME || '').trim() || 'servicios_extras',
+  },
   calibration: {
     alertsEnabled: flag(process.env.CAL_ALERTS_ENABLED, true),
     // Enlace al cronograma que se incluye en los correos (opcional).

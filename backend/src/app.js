@@ -17,7 +17,13 @@ app.use(cors({
 
 // Middlewares Globales
 
-app.use(express.json()); // Permite a express entender body en formato JSON
+// Permite a express entender body en formato JSON. El RIM del formulario web
+// llega con dos firmas y hasta 5 fotos: solo esa ruta admite cuerpos grandes.
+const jsonGeneral = express.json();
+const jsonRim = express.json({ limit: '25mb' });
+app.use((req, res, next) => (
+  req.method === 'POST' && req.path === '/api/rim/registros' ? jsonRim : jsonGeneral
+)(req, res, next));
 app.use(express.urlencoded({ extended: true }));
 
 const path = require('path');

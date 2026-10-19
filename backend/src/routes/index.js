@@ -11,6 +11,7 @@ const cotizacionesRoutes = require('./cotizaciones.routes');
 const ivmetRoutes = require('./ivmet.routes');
 const calibrationRoutes = require('./calibration.routes');
 const systemRoutes = require('./system.routes');
+const rimRoutes = require('./rim.routes');
 
 // Define rutas base (prefijos)
 router.use('/health', healthRoutes);
@@ -23,6 +24,7 @@ router.use('/cotizaciones', cotizacionesRoutes);
 router.use('/ivmet', ivmetRoutes);
 router.use('/calibracion', calibrationRoutes);
 router.use('/sistema', systemRoutes);
+router.use('/rim', rimRoutes);
 
 module.exports = router;
 
