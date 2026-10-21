@@ -5,7 +5,7 @@
  */
 import { NOMBRE_LADO, lecturasCamion, posicionIndicador, posicionesPlataforma } from '../../domain/plataforma';
 
-const AZUL = '#205C97';
+const AZUL = '#1F4E79';
 const VERDE = '#3B7C21';
 const BORDE = '#8A949E';
 const FONDO = '#F2F4F6';
