@@ -302,7 +302,11 @@ la aplicación (migración `008`, rutas `/api/soporte/*`).
   vean celestes al imprimir.
 - **Guardar PDF:** genera el archivo con las mismas hojas de la vista previa
   (cada hoja como imagen de unos 290 ppp, 0,3–1 MB por hoja) y el nombre de
-  las macros. En un sitio seguro (HTTPS o `localhost`) pregunta dónde
+  las macros. Cada hoja se pasa a imagen con las reglas CSS de la página
+  (`components/rasterizar.js`): el navegador la vuelve a acomodar dentro de
+  la imagen, como al imprimir, en vez de copiar las medidas de la pantalla
+  (así una fuente que el navegador dibuja algo más ancha no parte líneas ni
+  monta textos). El PDF se arma sin librerías (`domain/pdf.js`). En un sitio seguro (HTTPS o `localhost`) pregunta dónde
   guardarlo y el navegador recuerda la última carpeta; por HTTP con una IP
   el navegador no lo permite y el PDF se descarga (para elegir la carpeta,
   activar «Preguntar dónde guardar cada archivo antes de descargarlo» en

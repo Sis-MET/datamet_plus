@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { InformeDocumento } from './documento/InformeDocumento';
 import { pdfDeImagenes } from '../domain/pdf';
+import { rasterizarHojas } from './rasterizar';
 
 /**
  * Píxeles por píxel CSS al pasar cada hoja a imagen: 3 da unos 290 ppp, nítido
@@ -19,14 +20,10 @@ const jpegDe = (canvas) => new Promise((resolve, reject) => {
 
 /** Pasa cada hoja del informe a JPEG, en orden. */
 async function capturarHojas(raiz) {
-  const { getFontEmbedCSS, toCanvas } = await import('html-to-image');
   const hojas = [...raiz.querySelectorAll('.st-doc:not(.st-medidor) .st-pagina')];
   if (hojas.length === 0) throw new Error('El informe no tiene hojas para guardar.');
-  // Las fuentes se leen una vez y se reusan en cada hoja.
-  const fontEmbedCSS = await getFontEmbedCSS(hojas[0]);
   const paginas = [];
-  for (const hoja of hojas) {
-    const canvas = await toCanvas(hoja, { pixelRatio: ESCALA, backgroundColor: '#ffffff', fontEmbedCSS });
+  for (const canvas of await rasterizarHojas(hojas, { escala: ESCALA })) {
     const blob = await jpegDe(canvas);
     paginas.push({ jpeg: new Uint8Array(await blob.arrayBuffer()), ancho: canvas.width, alto: canvas.height });
   }
