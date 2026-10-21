@@ -102,6 +102,13 @@ module.exports = {
   rim: {
     database: process.env.DB_DATABASE.trim(),
   },
+  // Soporte técnico: mejora de redacción de los informes (Google Gemini).
+  // Sin clave, la función queda deshabilitada.
+  gemini: {
+    apiKey: String(process.env.GEMINI_API_KEY || '').trim(),
+    model: String(process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim(),
+    modeloRespaldo: String(process.env.GEMINI_MODEL_RESPALDO || 'gemini-3.5-flash').trim(),
+  },
   calibration: {
     alertsEnabled: flag(process.env.CAL_ALERTS_ENABLED, true),
     // Enlace al cronograma que se incluye en los correos (opcional).

@@ -12,6 +12,7 @@ const ivmetRoutes = require('./ivmet.routes');
 const calibrationRoutes = require('./calibration.routes');
 const systemRoutes = require('./system.routes');
 const rimRoutes = require('./rim.routes');
+const soporteRoutes = require('./soporte.routes');
 
 // Define rutas base (prefijos)
 router.use('/health', healthRoutes);
@@ -25,6 +26,7 @@ router.use('/ivmet', ivmetRoutes);
 router.use('/calibracion', calibrationRoutes);
 router.use('/sistema', systemRoutes);
 router.use('/rim', rimRoutes);
+router.use('/soporte', soporteRoutes);
 
 module.exports = router;
 
