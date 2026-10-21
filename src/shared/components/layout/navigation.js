@@ -26,6 +26,7 @@ export const APP_VIEWS = {
     description: 'Calibraciones, verificaciones internas y actividades del área',
     icon: Gauge,
     inNav: true,
+    area: { id: 'calibracion', nombre: 'Calibración' },
   },
   soporte: {
     id: 'soporte',
@@ -34,6 +35,7 @@ export const APP_VIEWS = {
     description: 'Mantenimientos, diagnósticos, instalaciones y verificaciones',
     icon: Wrench,
     inNav: true,
+    area: { id: 'soporte tecnico', nombre: 'Soporte Técnico' },
   },
   ivmet: {
     id: 'ivmet',
@@ -41,7 +43,8 @@ export const APP_VIEWS = {
     description: 'Clientes, licencias y sincronización',
     icon: ShieldCheck,
     inNav: true,
-    requiresIvmet: true,
+    // De momento solo Sistemas.
+    area: { id: null, nombre: 'Sistemas' },
   },
   departures: {
     id: 'departures',
@@ -72,32 +75,48 @@ export const APP_VIEWS = {
   },
 };
 
-export const canManageIvmet = (user) => String(user?.acceso_cron) === '3';
+/**
+ * Sistemas: el nivel 3, la administración del sistema. Entra a todos los
+ * apartados y es el único que ve Control de cambios y Registro de fallas.
+ */
+export const isSystemAdmin = (user) => String(user?.acceso_cron) === '3';
 
-// Control de cambios y registro de fallas: administración del sistema (nivel 3).
-export const isSystemAdmin = canManageIvmet;
+export const canManageIvmet = isSystemAdmin;
 
-/** La vista solo se abre si el usuario tiene acceso; si no, el apartado RIM. */
+const normalizeArea = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
+
+/**
+ * Los apartados de un área (`area`) los ve todo el personal, pero solo los
+ * usan esa área y Sistemas; los demás ven el aviso de acceso restringido. El
+ * backend vuelve a comprobarlo en cada petición.
+ */
+export const canUseView = (view, user) => {
+  const area = APP_VIEWS[view]?.area;
+  if (!area) return true;
+  return isSystemAdmin(user) || (area.id !== null && normalizeArea(user?.area) === area.id);
+};
+
+/**
+ * La vista solo se abre si existe y el usuario puede verla; si no, el
+ * apartado RIM. Los apartados de un área se abren siempre: si no es la del
+ * usuario, con el aviso.
+ */
 export const allowedView = (view, user) => {
   const config = APP_VIEWS[view];
   if (!config) return 'rim';
-  if (config.requiresIvmet && !canManageIvmet(user)) return 'rim';
   if (config.requiresAdmin && !isSystemAdmin(user)) return 'rim';
   return view;
 };
 
-// Quien gestiona el plan de calibración ve su contador de alertas. El backend
-// vuelve a comprobarlo en cada cambio.
-export const managesCalibration = (user) => canManageIvmet(user) || String(user?.area || '')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .trim()
-  .toLowerCase() === 'calibracion';
+// Quien usa el plan de calibración ve su contador de alertas.
+export const managesCalibration = (user) => canUseView('calibration', user);
 
 export function getNavigation(user) {
-  return Object.values(APP_VIEWS).filter(
-    (view) => view.inNav
-      && (!view.requiresIvmet || canManageIvmet(user))
-      && (!view.requiresAdmin || isSystemAdmin(user))
-  );
+  return Object.values(APP_VIEWS)
+    .filter(view => view.inNav && (!view.requiresAdmin || isSystemAdmin(user)))
+    .map(view => ({ ...view, locked: !canUseView(view.id, user) }));
 }

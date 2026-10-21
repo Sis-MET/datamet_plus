@@ -4,7 +4,8 @@ import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-
 import { Sidebar } from './shared/components/layout/Sidebar';
 import { Topbar } from './shared/components/layout/Topbar';
 import { Footer } from './shared/components/layout/Footer';
-import { APP_VIEWS, allowedView, canManageIvmet, isSystemAdmin, managesCalibration } from './shared/components/layout/navigation';
+import { APP_VIEWS, allowedView, canUseView, isSystemAdmin, managesCalibration } from './shared/components/layout/navigation';
+import { RestrictedArea } from './shared/components/layout/RestrictedArea';
 import { useSidebar } from './shared/hooks/useSidebar';
 import { useTheme } from './shared/context/ThemeContext';
 import { safeStorage } from './shared/utils/storage';
@@ -199,11 +200,21 @@ function App() {
   }
 
   const renderView = () => {
+    // Apartado de otra área: se ve, pero difuminado y con el aviso.
+    if (!canUseView(activeView, currentUser)) {
+      return (
+        <RestrictedArea
+          view={APP_VIEWS[activeView]}
+          onExit={() => {
+            safeStorage.setItem('rimmet_last_view', 'rim');
+            setActiveView('rim');
+          }}
+        />
+      );
+    }
     switch (activeView) {
       case 'ivmet':
-        return canManageIvmet(currentUser)
-          ? <IvmetManagementPage onExit={() => setActiveView('calendar')} />
-          : <RimPage currentUser={currentUser} />;
+        return <IvmetManagementPage onExit={() => setActiveView('calendar')} />;
       case 'calendar':
         return <CalendarPage />;
       case 'calibration':

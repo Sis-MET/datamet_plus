@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { LogOut, X } from 'lucide-react';
+import { Lock, LogOut, X } from 'lucide-react';
 import logoMetrica from '../../../assets/logo_metrica.svg';
 import { cn } from '../../utils/cn';
 import { usePageScrollLock } from '../../hooks/usePageScrollLock';
@@ -109,6 +109,12 @@ export function Sidebar({
                 aria-hidden="true"
               />
               <span className="truncate">{view.label}</span>
+              {view.locked && (
+                <>
+                  <Lock className="ml-auto h-3.5 w-3.5 shrink-0 text-fg-subtle" strokeWidth={2} aria-hidden="true" />
+                  <span className="sr-only"> (sin acceso)</span>
+                </>
+              )}
               {badge && (
                 <span
                   className={cn(
@@ -123,7 +129,7 @@ export function Sidebar({
               )}
               {active && (
                 <span
-                  className={cn('h-2 w-2 shrink-0 rounded-full bg-brand ring-2 ring-brand/25', !badge && 'ml-auto')}
+                  className={cn('h-2 w-2 shrink-0 rounded-full bg-brand ring-2 ring-brand/25', !badge && !view.locked && 'ml-auto')}
                   aria-hidden="true"
                 />
               )}
