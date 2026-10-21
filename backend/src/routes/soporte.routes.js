@@ -1,17 +1,18 @@
 const express = require('express');
 const controller = require('../controllers/soporte.controller');
 const { protect } = require('../middleware/auth.middleware');
+const { requireArea } = require('../middleware/area.middleware');
 
 const router = express.Router();
 
-// Consultan todos los usuarios con sesión. Editar, emitir y corregir lo
-// verifica el servicio: área Soporte Técnico y nivel 3.
-router.use(protect);
+// Todo el apartado: área Soporte Técnico y Sistemas (nivel 3). El resto del
+// personal lo ve bloqueado en la aplicación.
+router.use(protect, requireArea('soporte'));
 
 router.get('/informes', controller.listInformes);
 router.get('/informes/filtros', controller.getFiltros);
 router.get('/informes/grupos', controller.listGrupos);
-// Sugerencia de redacción con Google Gemini (editores).
+// Sugerencia de redacción con Google Gemini.
 router.post('/redaccion', controller.redaccion);
 router.get('/informes/:tipo/:codigo', controller.getInforme);
 router.post('/informes/:tipo/:codigo/cambios', controller.guardarCambios);

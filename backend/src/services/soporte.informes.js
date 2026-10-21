@@ -13,7 +13,8 @@
  * un informe emitido, además, con su motivo (NB/ISO/IEC 17025, 7.5.2).
  */
 const { getPool, sql } = require('../config/db');
-const { normalizeArea, withTransaction } = require('./calibration.db');
+const { withTransaction } = require('./calibration.db');
+const { permiteArea } = require('./access.areas');
 const { CLAVES_TIPO, ESTADOS, TIPOS, numeroInforme } = require('./soporte.tipos');
 const { MAX_FOTOS, httpError, text } = require('./soporte.validation');
 const redaccion = require('./soporte.redaccion');
@@ -184,9 +185,8 @@ const leerDatos = (json) => {
 
 // ─── Permisos ──────────────────────────────────────────────────────────────
 
-/** Editan, emiten y corrigen el área Soporte Técnico y el nivel 3. */
-const puedeEditarArea = (area, accesoCron) => String(accesoCron) === '3'
-  || normalizeArea(area) === 'soporte tecnico';
+/** Editan, emiten y corrigen el área Soporte Técnico y Sistemas (nivel 3). */
+const puedeEditarArea = (area, accesoCron) => permiteArea('soporte', { area, acceso_cron: accesoCron });
 
 const datosUsuario = async (user) => {
   const userId = Number(user?.id);

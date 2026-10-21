@@ -194,7 +194,7 @@ const readFallasSistema = () => first(`
   FROM dbo.APP_FALLAS
 `);
 
-// Mismo criterio que getCalibrationPermissions: nivel 3 o área Calibración.
+// Mismo criterio que requireArea('calibracion'): nivel 3 o área Calibración.
 const readAccesos = () => first(`
   SELECT
     COUNT(*) AS activos,
@@ -577,7 +577,7 @@ const REQUISITOS = [
         origen: 'DATOS',
         evidencias: [
           `Para entrar se necesita usuario y contraseña${sesion ? `; la sesión vence a las ${sesion}` : ''}.`,
-          'Solo el área Calibración y el nivel 3 modifican; el servidor lo comprueba en cada cambio.',
+          'Solo el área Calibración y Sistemas (nivel 3) consultan y modifican; el servidor lo comprueba en cada petición y el resto del personal ve el apartado bloqueado.',
           'Tras 3 intentos fallidos el usuario queda bloqueado un minuto.',
         ],
         brechas: [
@@ -591,7 +591,7 @@ const REQUISITOS = [
         accion: 'Coordinar con el Jefe de Sistemas el paso de las contraseñas de DATA_USERS a hash (bcrypt) en todos los sistemas que las usan. Mientras tanto: publicar con HTTPS y fijar NODE_ENV=production.',
         prioridad: 'ALTA',
         datos: [
-          accesos && { etiqueta: 'Usuarios que pueden modificar', valor: ratio(accesos.editores, accesos.activos), tono: 'neutral' },
+          accesos && { etiqueta: 'Usuarios con acceso al apartado', valor: ratio(accesos.editores, accesos.activos), tono: 'neutral' },
           { etiqueta: 'Modo del servidor', valor: entorno.modo, tono: tone(entorno.modo !== 'production', 'warning') },
           sesion && { etiqueta: 'Vencimiento de la sesión', valor: sesion, tono: 'neutral' },
         ],
@@ -894,7 +894,7 @@ const REQUISITOS = [
       estado: 'CUMPLE',
       origen: 'DISENO',
       evidencias: [
-        'Solo usuarios con sesión consultan los registros y solo el área Calibración y el nivel 3 los modifican.',
+        'Solo el área Calibración y Sistemas (nivel 3) consultan y modifican los registros; el resto del personal ve el apartado bloqueado.',
         'Están disponibles al instante desde la ficha de cada equipo.',
       ],
       notas: ['La forma en que se guardan las contraseñas también afecta este punto (ver 7.11.3 a).'],

@@ -13,6 +13,7 @@ const {
 } = require('./calibration.schedule');
 const { buildDigests, renderDigestEmail, normalizeEmail } = require('./calibration.alerts');
 const { isMailConfigured, mailStatus, sendMail } = require('./mailer.service');
+const { tieneAcceso } = require('./access.areas');
 const {
   EQUIPO_SELECT,
   IS_ACTIVE,
@@ -257,16 +258,11 @@ const getAlertHistory = async (desde) => {
 
 // ─── Permisos ──────────────────────────────────────────────────────────────
 
-/** Edita el plan el área Calibración y los usuarios de nivel 3. */
-const getCalibrationPermissions = async (user) => {
-  if (String(user?.acceso_cron) === '3') return { canEdit: true };
-  const userId = Number(user?.id);
-  if (!Number.isInteger(userId)) return { canEdit: false };
-  const result = await getPool().request()
-    .input('id', sql.Int, userId)
-    .query(`SELECT TOP 1 area FROM DATA_USERS WHERE id = @id AND estado = 'ACTIVO'`);
-  return { canEdit: normalizeArea(result.recordset[0]?.area) === 'calibracion' };
-};
+/**
+ * Usan y editan el plan el área Calibración y Sistemas (nivel 3); las rutas
+ * ya lo exigen con `requireArea('calibracion')`.
+ */
+const getCalibrationPermissions = async (user) => ({ canEdit: await tieneAcceso(user, 'calibracion') });
 
 // ─── Plan ──────────────────────────────────────────────────────────────────
 

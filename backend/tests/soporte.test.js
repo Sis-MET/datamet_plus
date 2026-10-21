@@ -146,7 +146,7 @@ test('planCambios registra antes y después y quita lo que vuelve al original', 
   );
 });
 
-test('editan el área Soporte Técnico y el nivel 3', () => {
+test('editan el área Soporte Técnico y Sistemas (nivel 3)', () => {
   assert.equal(puedeEditarArea('Soporte Técnico', 0), true);
   assert.equal(puedeEditarArea(' soporte tecnico ', 2), true);
   assert.equal(puedeEditarArea('Calibración', 2), false);
