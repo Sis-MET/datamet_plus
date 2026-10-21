@@ -257,6 +257,15 @@
   pointer-events: none;
 }
 
+/* Guardar PDF: las mismas hojas, fuera de la pantalla, para pasarlas a imagen. */
+#st-guardado {
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  width: 210mm;
+  pointer-events: none;
+}
+
 /* Página con nombre: no cambia los márgenes de otras impresiones (ficha RIM). */
 @page informe-soporte {
   size: A4;

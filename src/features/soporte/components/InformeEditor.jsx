@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, AlertTriangle, ArrowLeft, BadgeCheck, Camera, ChevronRight, Eye, FileText, History, Info, Loader2, Printer,
+  AlertCircle, AlertTriangle, ArrowLeft, BadgeCheck, Camera, ChevronRight, Download, Eye, FileText, History, Info, Loader2, Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
@@ -21,6 +21,8 @@ import { HistorialPanel } from './HistorialPanel';
 import { MotivoModal } from './MotivoModal';
 import { SeccionEditor } from './secciones';
 import { Impresion, VistaPrevia } from './VistaPrevia';
+import { GuardadoPdf } from './GuardadoPdf';
+import { pedirDestino } from './destinoPdf';
 
 const tiene = (objeto, clave) => Object.prototype.hasOwnProperty.call(objeto, clave);
 const vacio = (valor) => valor === null || valor === undefined || String(valor).trim() === '';
@@ -155,6 +157,8 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   const [emitiendo, setEmitiendo] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
+  // Guardar PDF: { destino } mientras se arma el archivo (destino null = descarga).
+  const [guardandoPdf, setGuardandoPdf] = useState(null);
   const [motivoPedido, setMotivoPedido] = useState(null);
   // Campos cuyo texto se reemplazó con la sugerencia de Gemini.
   const [asistidos, setAsistidos] = useState(() => new Set());
@@ -361,6 +365,13 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   };
   const avisos = avisosEmision({ plantilla, valores, fotos: informe.fotos });
 
+  /** Pide la carpeta al hacer clic (el navegador lo exige) y después arma el PDF. */
+  const guardarPdf = async () => {
+    const destino = await pedirDestino(titulo);
+    if (destino === undefined) return;
+    setGuardandoPdf({ destino });
+  };
+
   /** Lleva a la sección de un aviso (o a las fotos). */
   const irA = (seccion) => {
     setEmitiendo(false);
@@ -409,7 +420,16 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={() => setImprimiendo(true)} disabled={imprimiendo}>
               {imprimiendo ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Printer className="h-4 w-4" aria-hidden="true" />}
-              Imprimir / PDF
+              Imprimir
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={guardarPdf}
+              disabled={Boolean(guardandoPdf) || cantidadPendientes > 0}
+              title={cantidadPendientes > 0 ? 'Guarde los cambios antes de guardar el PDF' : 'Guardar el informe como PDF en la carpeta que elija'}
+            >
+              {guardandoPdf ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+              Guardar PDF
             </Button>
             {editable && !emitido && (
               <Button
@@ -432,7 +452,7 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
       {!editable && (
         <p className="flex items-center gap-2 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-[13px] text-fg-muted">
           <Info className="h-4 w-4 flex-none" aria-hidden="true" />
-          Solo lectura: los informes los editan el área de Soporte Técnico y el nivel 3. Puede verlos e imprimirlos.
+          Solo lectura: los informes los editan el área de Soporte Técnico y Sistemas. Puede verlos, imprimirlos y guardarlos en PDF.
         </p>
       )}
 
@@ -523,6 +543,9 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
       )}
 
       {imprimiendo && <Impresion {...documento} titulo={titulo} onTerminar={() => setImprimiendo(false)} />}
+      {guardandoPdf && (
+        <GuardadoPdf {...documento} titulo={titulo} destino={guardandoPdf.destino} onTerminar={() => setGuardandoPdf(null)} />
+      )}
     </div>
   );
 }
