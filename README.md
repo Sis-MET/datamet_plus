@@ -1,6 +1,6 @@
 # DataMET+
 
-Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, numeración y formulario), el cronograma operativo, el cronograma de calibración y la administración de IvMET.
+Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, numeración y formulario), el cronograma operativo, el cronograma de calibración, los informes de soporte técnico y la administración de IvMET.
 
 ## Características
 
@@ -13,6 +13,7 @@ Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, num
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
 - **Gestión IvMET:** panel administrativo para clientes contratados, licencias, planes y revisión del catálogo sincronizado.
 - **Calibración:** plan anual de calibraciones, verificaciones internas y actividades del área, con alertas en el cronograma y por correo.
+- **Soporte técnico:** informes de los 8 servicios del área a partir de lo que sube ServiceMET, con el diseño de las plantillas Excel, fotografías, edición con historial, emisión y PDF.
 - **Control de cambios y registro de fallas:** historial de los cambios del sistema con su validación y aprobación, y registro de las fallas con sus acciones (NB/ISO/IEC 17025, 7.11).
 
 ## RIM (recepción de instrumentos)
@@ -224,6 +225,137 @@ SMTP_FROM="Calibración Métrica <calibracion@ejemplo.com>"
 CAL_ALERTS_ENABLED=true
 APP_URL=http://<servidor>:3000
 ```
+
+## Soporte técnico
+
+Reemplaza los libros Excel con macros del área (IMPR, IMPA, IDIG/IMCR,
+INST, AJML, IREL): cada servicio que el técnico sube desde ServiceMET aparece
+en la lista y su informe se revisa, se completa, se emite y se imprime desde
+la aplicación (migración `008`, rutas `/api/soporte/*`).
+
+| Servicio | Tabla de ServiceMET | Plantilla | PDF |
+|---|---|---|---|
+| Mantenimiento preventivo regular | `DATA_SERVICIOS_DATOS_MPR_STIL` | IMPR | `IMPR-…` |
+| Mantenimiento preventivo avanzado | `DATA_SERVICIOS_DATOS_MPA_STAC` | IMPA | `IMPA-…` |
+| Mantenimiento correctivo | `DATA_SERVICIOS_DATOS_MCR` | IMCR | `IMCR-…` |
+| Diagnóstico | `DATA_SERVICIOS_DATOS_DIG` | IDIG | `IDIG-…` |
+| Instalación | `DATA_SERVICIOS_DATOS_INT` | INST | `INST-…` |
+| Verificación con IBMETRO | `DATA_SERVICIOS_DATOS_IBM` | AJML (Ajuste Metrológico en Linealidad) | `AJML-…` |
+| Verificaciones internas | `DATA_SERVICIOS_DATOS_VFI` | sin plantilla Excel: mismo diseño | `IVFI-…` |
+| Relevamiento de datos | `DATA_SERVICIOS_DATOS_RVD` | IREL | `IREL-…` |
+
+- **Lista:** un informe por servicio vigente (si ServiceMET volvió a subirlo,
+  cuenta la fila `ACTIVO`), con búsqueda (OTST, número de informe, cliente,
+  serie…), tipo de servicio, filtros de cliente, técnico y fechas, y chips de
+  estado: **pendiente** (solo datos de ServiceMET), **borrador** (revisado o
+  corregido, sin emitir) y **emitido**.
+- **Agrupar por:** **OTST** (por omisión, como se elegía en el Excel: cliente,
+  planta, fechas, técnicos y servicios de la orden; sus informes en el orden
+  de los instrumentos), **técnico** (OTST, clientes y último servicio) o sin
+  agrupar. Cada grupo muestra cuántos informes tiene y cuántos están
+  emitidos, y carga sus informes al abrirlo (de a 50). Al buscar y quedar uno
+  o dos grupos, se abren solos; al volver de un informe se conservan la
+  agrupación y los grupos abiertos. El técnico se agrupa y se filtra sin
+  título, punto final ni inicial del segundo apellido, porque ServiceMET lo
+  registra con variantes («Aux. Elvis Villca .» y «Tec. Elvis Villca .»,
+  «Tec. Jhonatan Barrau» y «Tec. Jhonatan Barrau F.»).
+- **Número de informe:** como en las macros, la OTST y los 3 últimos dígitos
+  del código Métrica (`26-0285-51-S01-002`).
+- **Editor:** formulario por secciones, en el orden del informe, con vista
+  previa al lado (debajo de 1280 px, en su pestaña). Los estados se marcan con
+  los mismos símbolos del informe; cada dato corregido muestra el valor que
+  subió el técnico y se puede restaurar. En las pruebas se elige la forma de
+  la plataforma y las posiciones, con el diagrama a la vista. `Ctrl+S` guarda.
+- **Revisión antes de emitir** (`domain/avisos.js`, con pruebas): al emitir se
+  listan los datos que faltan o parecen incompletos, y cada aviso lleva a su
+  sección. No impide emitir. Revisa datos del cliente e instrumento, d, e (en
+  el avanzado) y unidades, textos vacíos o de relleno (menos de 15
+  caracteres), pruebas sin lecturas o sin carga, puntos de linealidad a
+  medias, valores que no son números, **lecturas que se apartan más del 10 %
+  de su carga** (p. ej. 99.997 g con una carga de 10 g), retorno a cero y
+  estabilidad, parámetros sin estado, la fecha del próximo servicio, la
+  conclusión, el técnico y las fotos.
+- **Redacción con IA:** en los textos largos (observaciones, conclusiones,
+  reporte de falla, evaluación técnica y trabajo realizado) el botón «Mejorar
+  redacción» pide a Google Gemini una
+  versión corregida: solo ortografía, puntuación y estilo técnico, sin
+  cambiar cifras, unidades ni nombres ni agregar datos. El técnico la usa o
+  la descarta; usada, el historial marca ese cambio con «IA». Solo se envían
+  el texto, el tipo de servicio y el nombre de la sección (ni cliente ni
+  instrumento). La clave vive solo en el backend (ver Despliegue).
+- **Informe:** hojas A4 con la cuadrícula de 33 columnas de las plantillas,
+  su membrete, colores y tipografía (Century Gothic). Las valoraciones se
+  imprimen como símbolo: ✓ bueno, ⚠ regular, ✗ malo y ⊘ no aplica (también
+  «Aceptable», «Sí», «Se intentó» y «No» de los ajustes); la leyenda dice
+  «Regular» en todas las plantillas y un ajuste «No aplica» queda en blanco.
+  Las tablas de lecturas imprimen solo las filas con datos. Se pagina solo y
+  respeta los saltos de hoja de cada plantilla. Cada hoja lleva al pie el
+  número de informe, la revisión, quién lo emitió y cuándo (o «Borrador sin
+  emitir») y «Página n de N»; la última, «Fin del informe». «Imprimir / PDF»
+  abre el diálogo del navegador con el nombre de archivo de las macros
+  (`IMPR-<informe>-<cliente>-<instrumento>-<capacidad>-<unidad>-<código interno>`).
+  Sin emitir, cada hoja lleva la marca «BORRADOR».
+- **Diagramas de excentricidad** (`domain/plataforma.js`): la plataforma
+  (cuadrada, rectangular, circular o triangular) con las posiciones
+  numeradas y el indicador, como la dibuja ServiceMET. En la báscula de
+  camión, el puente con la ida arriba y la vuelta abajo y la lectura de cada
+  posición. La plantilla IMPA tenía intercambiadas las posiciones 4 y 6
+  respecto de ServiceMET; el diagrama sigue a ServiceMET.
+- **Cálculos** (`src/features/soporte/domain/calculos.js`, con pruebas): diferencia
+  máxima de excentricidad y repetibilidad (máx − mín), error de linealidad
+  (indicación − carga) y error máximo (mayor |error|), en unidades y en
+  divisiones (÷ d; ÷ e en el preventivo avanzado). En un instrumento de
+  varios rangos cada carga se divide por la d (o e) del rango que la cubre;
+  la linealidad en divisiones es el mayor |error|/división de sus puntos. Si
+  falta e, se usa d y el informe lo indica («Diferencia Maxima (d)»). Los
+  decimales salen de la d más fina (0.01 → 2). Las macros IMCR y AJML
+  restaban al revés (carga − indicación): el error máximo no cambia, solo el
+  signo de cada punto.
+- **Preventivo regular:** además de lo de la macro, el informe muestra las
+  conclusiones del técnico, el estado final y si hubo personal de apoyo
+  cuando ServiceMET los registra.
+- **Fotografías:** hasta 12 por informe, en hojas de 6 con su descripción
+  (como la hoja FOTOGRAFIAS); se reducen a 1400 px en el navegador.
+- **Permisos:** consultan e imprimen todos; editan, suben fotos y emiten el
+  área Soporte Técnico y el nivel 3 (lo verifica el backend).
+
+### Trazabilidad (NB/ISO/IEC 17025, 7.5.2)
+
+Las filas de `DATA_SERVICIOS_DATOS_*` son las observaciones originales del
+técnico y **no se modifican**. Lo corregido se guarda en `ST_INFORMES.datos`
+(campo → valor) y se superpone al original; un campo que vuelve a su valor
+original deja de figurar como corregido. Cada guardado agrega una fila en
+`ST_INFORMES_HISTORIAL` con el valor anterior y el nuevo de cada campo, el
+usuario de la sesión y la hora del servidor.
+
+- La emisión registra quién y cuándo. Desde ahí todo cambio (datos o fotos)
+  es una **corrección**: exige motivo y sube la revisión del informe.
+- Una foto no se borra: se quita con usuario, fecha y, si estaba emitido, motivo.
+- Dos personas no se pisan: cada informe lleva una versión y el segundo en
+  guardar recibe un aviso y la versión vigente (409).
+- No se editan la identidad del servicio (OTST, código de registro, código
+  Métrica) ni las columnas de sistema; el backend valida cada valor contra el
+  tipo y el largo de su columna.
+
+- Un texto redactado con la sugerencia de Gemini queda marcado como tal en
+  su cambio del historial; el autor sigue siendo el usuario que lo guardó.
+
+Despliegue: aplicar la migración `008` (`pnpm migrate` en `backend`; crea
+`ST_INFORMES`, `ST_INFORMES_HISTORIAL` y `ST_INFORMES_FOTOS` y registra el
+cambio CC-2026-019 en el Control de cambios) y después backend y frontend.
+Las fotos se guardan en la base (unos 150–300 KB cada una): en SQL Server
+Express cuentan para el límite de 10 GB.
+
+Para «Mejorar redacción», en `backend/.env`:
+
+| Variable | Valor |
+|---|---|
+| `GEMINI_API_KEY` | Clave de Google AI Studio. Sin ella el botón no aparece. |
+| `GEMINI_MODEL` | Modelo principal (por omisión `gemini-3.5-flash-lite`, responde en 1–2 s). |
+| `GEMINI_MODEL_RESPALDO` | Se usa si el principal está saturado o no disponible (por omisión `gemini-3.5-flash`). |
+
+La clave no va en variables `VITE_` ni en el repositorio: el navegador llama
+a `/api/soporte/redaccion` y el backend llama a Gemini.
 
 ## Control de cambios y registro de fallas
 
