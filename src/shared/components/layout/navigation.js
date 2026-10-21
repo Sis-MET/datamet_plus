@@ -1,4 +1,4 @@
-import { CalendarRange, ClipboardCheck, Gauge, History, MapPinned, ServerCrash, ShieldCheck } from 'lucide-react';
+import { CalendarRange, ClipboardCheck, Gauge, History, MapPinned, ServerCrash, ShieldCheck, Wrench } from 'lucide-react';
 
 // Módulos de la aplicación. `inNav` refleja los accesos visibles en la barra
 // lateral: Salidas del personal solo se abre desde una vista guardada.
@@ -25,6 +25,14 @@ export const APP_VIEWS = {
     title: 'Cronograma de calibración',
     description: 'Calibraciones, verificaciones internas y actividades del área',
     icon: Gauge,
+    inNav: true,
+  },
+  soporte: {
+    id: 'soporte',
+    label: 'Soporte técnico',
+    title: 'Informes de soporte técnico',
+    description: 'Mantenimientos, diagnósticos, instalaciones y verificaciones',
+    icon: Wrench,
     inNav: true,
   },
   ivmet: {

@@ -22,6 +22,8 @@ const LoginPage = lazy(() => import('./features/auth/LoginPage')
   .then(module => ({ default: module.LoginPage })));
 const CalibrationPage = lazy(() => import('./features/calibration/CalibrationPage')
   .then(module => ({ default: module.CalibrationPage })));
+const SoportePage = lazy(() => import('./features/soporte/SoportePage')
+  .then(module => ({ default: module.SoportePage })));
 const IvmetManagementPage = lazy(() => import('./features/ivmet/IvmetManagementPage')
   .then(module => ({ default: module.IvmetManagementPage })));
 const ChangeControlPage = lazy(() => import('./features/system/ChangeControlPage')
@@ -206,6 +208,8 @@ function App() {
         return <CalendarPage />;
       case 'calibration':
         return <CalibrationPage />;
+      case 'soporte':
+        return <SoportePage />;
       case 'departures':
         return <DeparturesPage />;
       case 'changes':

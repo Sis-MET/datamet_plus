@@ -1,0 +1,366 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SOPORTE TÉCNICO
+   La interfaz usa los tokens de la aplicación (src/index.css) y las piezas de
+   Calibración (calibration.css). El informe (.st-doc) NO sigue el tema: es una
+   hoja A4 blanca con los colores y la tipografía de las plantillas Excel,
+   igual en pantalla y en el PDF.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.st-doc {
+  --st-azul: #205c97;
+  --st-gris: #e8e8e8;
+  --st-dif: #d9d9d9;
+  --st-verde: #3b7c21;
+  --st-fila: 11.5pt;
+  color: #000;
+  font-family: 'Century Gothic', CenturyGothic, 'URW Gothic', 'Avant Garde', 'Figtree Variable', sans-serif;
+  font-size: 9pt;
+  line-height: 1.2;
+  font-variant-numeric: normal;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.st-pagina {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 210mm;
+  height: 297mm;
+  padding: 7mm 7.2mm 9mm;
+  overflow: hidden;
+  background: #fff;
+  box-sizing: border-box;
+}
+.st-pagina *,
+.st-pagina *::before,
+.st-pagina *::after { box-sizing: border-box; }
+
+.st-cuerpo {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Medidor de la paginación: fuera de pantalla y sin escala. */
+.st-medidor {
+  position: absolute !important;
+  top: 0;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ── Membrete ── */
+.st-membrete {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  height: 30mm;
+  padding: 1mm 2.5mm 0 3mm;
+}
+.st-membrete-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 64mm;
+}
+.st-membrete-logo img { display: block; width: 64mm; height: auto; }
+.st-membrete-logo span {
+  margin-top: 0.8mm;
+  font-size: 10.5pt;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.st-membrete-dir {
+  display: flex;
+  gap: 1.6mm;
+  padding-top: 3.2mm;
+  font-size: 6.6pt;
+  line-height: 1.32;
+}
+.st-membrete-dir > div { display: flex; flex-direction: column; }
+.st-dir-lp { align-items: flex-end; text-align: right; }
+.st-dir-sc { align-items: flex-start; }
+.st-membrete-dir strong { font-weight: 700; }
+
+/* ── Bloques ── */
+.st-bloque { padding-bottom: 9pt; }
+
+.st-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8mm;
+  padding: 2pt 1mm 0;
+  font-size: 16pt;
+  font-weight: 700;
+}
+
+.st-grid {
+  display: grid;
+  grid-template-columns: repeat(33, minmax(0, 1fr));
+  grid-auto-rows: minmax(var(--st-fila), auto);
+}
+
+.st-c {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0.6pt 2pt;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.st-c.st-izq { justify-content: flex-start; text-align: left; }
+.st-barra {
+  background: var(--st-azul);
+  color: #fff;
+  font-weight: 700;
+}
+.st-etq { background: var(--st-gris); }
+.st-gris { background: var(--st-gris); }
+.st-verde { background: var(--st-verde); color: #fff; white-space: nowrap; padding-left: 0; padding-right: 0; }
+.st-dif { background: var(--st-dif); }
+.st-borde { border: 0.6pt solid #bfbfbf; margin: -0.3pt; }
+
+/* Datos del cliente y del instrumento: filas dobles separadas por blanco. */
+.st-datos { --st-fila: 26pt; grid-template-rows: minmax(12pt, auto); row-gap: 1.5pt; }
+
+.st-rangos { --st-fila: 12pt; }
+.st-rangos .st-rango-n { color: #64748b; }
+
+.st-parrafo { min-height: 30pt; padding: 3pt 2pt; white-space: pre-line; align-items: flex-start; }
+.st-parrafo p { margin: 0; }
+.st-alcance .st-parrafo { padding-top: 14pt; padding-bottom: 6pt; }
+.st-compacto .st-parrafo { padding-top: 2pt; font-size: 8pt; }
+.st-nota { font-weight: 700; font-style: italic; }
+.st-texto .st-parrafo { min-height: 34pt; }
+
+.st-leyenda { --st-fila: 26pt; margin-top: 6pt; }
+.st-leyenda-etq { font-weight: 700; }
+
+.st-pruebas { --st-fila: 12pt; row-gap: 1.2pt; }
+.st-pruebas .st-dif { min-height: 13pt; }
+.st-retorno { --st-fila: 13pt; margin-top: 8pt; }
+.st-retorno .st-c:not(.st-verde) { min-height: 16pt; }
+
+.st-checklist { --st-fila: 12pt; row-gap: 1.5pt; }
+.st-checklist > .st-etq { min-height: 20pt; }
+
+.st-checklist3 { --st-fila: 12pt; row-gap: 1.5pt; }
+
+.st-adicionales { --st-fila: 12pt; }
+.st-adicionales > .st-c:not(.st-barra) { min-height: 24pt; }
+.st-adicionales > .st-etq { margin-top: 1.5pt; }
+
+.st-conclusion { --st-fila: 12pt; }
+.st-conclusion > .st-c:not(.st-barra) { min-height: 24pt; margin-top: 1.5pt; }
+
+.st-tecnico { --st-fila: 24pt; margin-top: 4pt; }
+
+/* Preventivo avanzado: tablas con borde y diagrama de excentricidad. */
+.st-avanzado { --st-fila: 11.5pt; }
+
+/* ── Registro fotográfico ── */
+.st-fotos > .st-barra { font-size: 9pt; padding: 1pt; }
+.st-fotos-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 20mm;
+  row-gap: 3mm;
+  margin-top: 1.5mm;
+}
+.st-foto { display: flex; flex-direction: column; margin: 0; border: 0.8pt solid #000; }
+.st-foto-titulo { padding: 1pt; border-bottom: 0.8pt solid #000; font-family: Calibri, 'Figtree Variable', sans-serif; font-size: 9.5pt; text-align: center; }
+.st-foto-imagen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 55mm;
+  overflow: hidden;
+  border-bottom: 0.8pt solid #000;
+}
+.st-foto-imagen img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.st-foto-imagen span { color: #969696; font-family: Calibri, 'Figtree Variable', sans-serif; font-size: 16pt; font-weight: 700; }
+.st-foto-desc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 15mm;
+  padding: 1.5mm 2mm;
+  overflow: hidden;
+  font-size: 8.5pt;
+  text-align: center;
+}
+
+/* Pie de cada hoja: identificación del informe y número de hoja. */
+.st-pie {
+  position: absolute;
+  right: 7.2mm;
+  bottom: 3.6mm;
+  left: 7.2mm;
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  padding-top: 1mm;
+  border-top: 0.5pt solid #bfbfbf;
+  color: #555;
+  font-size: 6.8pt;
+  line-height: 1.2;
+}
+.st-pie span:last-child { flex: none; }
+.st-pie strong { font-weight: 700; color: #333; }
+
+/* Diagramas de la prueba de excentricidad. */
+.st-diagrama { display: block; width: 100%; height: auto; }
+.st-con-diagrama { grid-template-rows: auto auto 1fr; }
+.st-diagrama-celda { display: flex; align-items: center; justify-content: center; min-width: 0; }
+.st-con-diagrama .st-diagrama-celda { padding: 2pt 4pt 0 0; }
+.st-avanzado .st-diagrama-celda { position: relative; }
+.st-avanzado .st-diagrama-celda > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* Informe sin emitir. */
+.st-marca {
+  position: absolute;
+  top: 52%;
+  left: 50%;
+  color: rgb(0 0 0 / 0.07);
+  font-family: 'Figtree Variable', sans-serif;
+  font-size: 84pt;
+  font-weight: 800;
+  letter-spacing: 6pt;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-32deg);
+  white-space: nowrap;
+}
+
+/* ── Vista previa en pantalla ── */
+.st-vista {
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgb(var(--c-surface-3));
+  padding: 16px;
+}
+.st-vista .st-doc { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.st-vista .st-pagina { box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), 0 10px 30px -14px rgb(0 0 0 / 0.35); }
+
+/* ── Impresión: solo las hojas del informe ──
+   Fuera de la pantalla (no display: none) para que la paginación pueda medir. */
+#st-impresion {
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  width: 210mm;
+  pointer-events: none;
+}
+
+/* Página con nombre: no cambia los márgenes de otras impresiones (ficha RIM). */
+@page informe-soporte {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  body.st-imprimiendo #root,
+  body.st-imprimiendo > :not(#st-impresion) { display: none !important; }
+  body.st-imprimiendo { background: #fff !important; }
+  body.st-imprimiendo #st-impresion { position: static; left: auto; width: auto; }
+  body.st-imprimiendo #st-impresion .st-medidor { display: none !important; }
+  #st-impresion .st-pagina { page: informe-soporte; break-after: page; page-break-after: always; }
+  #st-impresion .st-pagina:last-child { break-after: auto; page-break-after: auto; }
+}
+
+/* ── Formulario ── */
+.st-campo-editado {
+  box-shadow: inset 3px 0 0 rgb(var(--c-info));
+}
+
+/* Parámetros de la lista: se acomodan al ancho del formulario, que se
+   angosta cuando la vista previa está al lado. */
+.st-checklist {
+  container-type: inline-size;
+}
+.st-checklist-encabezado {
+  display: none;
+}
+.st-checklist-fila {
+  display: grid;
+  gap: 0.5rem;
+}
+@container (min-width: 480px) {
+  .st-checklist-fila {
+    grid-template-columns: 230px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+  }
+  .st-checklist-fila > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+@container (min-width: 720px) {
+  .st-checklist-encabezado,
+  .st-checklist-fila {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 230px minmax(0, 220px);
+    align-items: center;
+    column-gap: 0.75rem;
+  }
+  .st-checklist-fila > :first-child {
+    grid-column: auto;
+  }
+}
+.st-valoracion {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgb(var(--c-line));
+  border-radius: 10px;
+  background: rgb(var(--c-surface-2));
+}
+.st-valoracion > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 30px;
+  border-radius: 8px;
+  transition: background-color 120ms ease-out, box-shadow 120ms ease-out, opacity 120ms ease-out;
+  opacity: 0.55;
+}
+.st-valoracion > button:hover:not(:disabled) { opacity: 1; background: rgb(var(--c-surface)); }
+.st-valoracion > button[aria-pressed='true'] {
+  opacity: 1;
+  background: rgb(var(--c-surface));
+  box-shadow: var(--shadow-xs), inset 0 0 0 1px rgb(var(--c-line-strong));
+}
+.st-valoracion > button:disabled { cursor: not-allowed; }
+.dark .st-valoracion svg { filter: brightness(1.15); }
+
+.st-tabla-edicion { width: 100%; border-collapse: separate; border-spacing: 0; }
+.st-tabla-edicion th {
+  padding: 6px 8px;
+  color: rgb(var(--c-fg-muted));
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+.st-tabla-edicion td { padding: 3px 4px; }
+.st-input-celda {
+  height: 34px;
+  width: 100%;
+  padding: 0 10px;
+  border: 1px solid rgb(var(--c-line-strong));
+  border-radius: 10px;
+  background: rgb(var(--c-surface));
+  color: rgb(var(--c-fg));
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+.st-input-celda:focus { outline: none; border-color: rgb(var(--c-focus)); box-shadow: 0 0 0 4px rgb(var(--c-focus) / 0.15); }
+.st-input-celda:disabled { background: rgb(var(--c-surface-2)); color: rgb(var(--c-fg-muted)); cursor: not-allowed; }
+.st-input-celda.st-editado { border-color: rgb(var(--c-info) / 0.6); background: rgb(var(--c-info) / 0.05); }
+.st-input-celda.st-invalido { border-color: rgb(var(--c-danger) / 0.7); }
