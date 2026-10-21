@@ -10,6 +10,7 @@ Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, num
 - **Evidencias:** Subida de fotos con drag & drop y previsualización.
 - **Diseño minimalista:** tokens de color en `src/index.css` con tema claro y oscuro (sigue al sistema hasta que se elige uno desde la barra superior), tipografía Figtree autoalojada y vidrio solo en capas flotantes (barra superior, menús, avisos).
 - **Barra lateral:** módulos, sesión y cierre de sesión; se oculta o muestra con `Ctrl+B` (`⌘B` en macOS) y en móvil se abre como panel.
+- **Acceso por área:** todos ven Calibración, Soporte técnico y Gestión IvMET en la barra lateral, pero solo los usa el personal de su área (Calibración, Soporte Técnico; IvMET por ahora solo Sistemas). Sistemas, que en `DATA_USERS` es el nivel 3 (`acceso_cron = 3`), entra a todos para revisar errores. Quien no es del área ve un candado en el menú y, al abrirlo, el apartado difuminado con un aviso; el apartado no se monta ni pide datos, y el backend responde 403 (`AREA_ACCESS_DENIED`) a sus rutas (`backend/src/services/access.areas.js`).
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
 - **Gestión IvMET:** panel administrativo para clientes contratados, licencias, planes y revisión del catálogo sincronizado.
 - **Calibración:** plan anual de calibraciones, verificaciones internas y actividades del área, con alertas en el cronograma y por correo.
@@ -135,7 +136,9 @@ Módulo independiente del cronograma del personal. Gestiona los equipos de
   actividades y alertas.
 - **Seguimiento:** cada fecha puede marcarse en proceso, realizada (con
   resultado en verificaciones), reprogramada o cancelada.
-- **Permisos:** consultan todos; editan el área Calibración y el nivel 3.
+- **Permisos:** consultan y editan el área Calibración y Sistemas (nivel 3);
+  el resto del personal ve el apartado bloqueado y el backend rechaza sus
+  consultas.
 
 ### Equipos y certificados
 
@@ -183,7 +186,7 @@ y de sus fechas; la de cada actividad, los de su configuración y sus fechas.
 
 ### Cumplimiento NB/ISO/IEC 17025
 
-La pestaña **Cumplimiento** (área Calibración y nivel 3) evalúa el módulo frente
+La pestaña **Cumplimiento** (área Calibración y Sistemas) evalúa el módulo frente
 a la NB/ISO/IEC 17025:2018 (acreditación DTA-IBMETRO), puntos **7.5** registros
 técnicos, **7.11** control de los datos y gestión de la información y **8.4**
 control de registros. Cada vez que se abre, `GET /api/calibracion/cumplimiento`
@@ -291,10 +294,21 @@ la aplicación (migración `008`, rutas `/api/soporte/*`).
   Las tablas de lecturas imprimen solo las filas con datos. Se pagina solo y
   respeta los saltos de hoja de cada plantilla. Cada hoja lleva al pie el
   número de informe, la revisión, quién lo emitió y cuándo (o «Borrador sin
-  emitir») y «Página n de N»; la última, «Fin del informe». «Imprimir / PDF»
+  emitir») y «Página n de N»; la última, «Fin del informe». «Imprimir»
   abre el diálogo del navegador con el nombre de archivo de las macros
   (`IMPR-<informe>-<cliente>-<instrumento>-<capacidad>-<unidad>-<código interno>`).
-  Sin emitir, cada hoja lleva la marca «BORRADOR».
+  Sin emitir, cada hoja lleva la marca «BORRADOR». Las barras van en azul
+  `#1F4E79` (el «Azul, Énfasis 1, más oscuro 50 %» de Excel) para que no se
+  vean celestes al imprimir.
+- **Guardar PDF:** genera el archivo con las mismas hojas de la vista previa
+  (cada hoja como imagen de unos 290 ppp, 0,3–1 MB por hoja) y el nombre de
+  las macros. En un sitio seguro (HTTPS o `localhost`) pregunta dónde
+  guardarlo y el navegador recuerda la última carpeta; por HTTP con una IP
+  el navegador no lo permite y el PDF se descarga (para elegir la carpeta,
+  activar «Preguntar dónde guardar cada archivo antes de descargarlo» en
+  Chrome o Edge). Se habilita con los cambios guardados. El texto del PDF
+  guardado no se puede seleccionar; para un PDF con texto, «Imprimir» →
+  «Guardar como PDF».
 - **Diagramas de excentricidad** (`domain/plataforma.js`): la plataforma
   (cuadrada, rectangular, circular o triangular) con las posiciones
   numeradas y el indicador, como la dibuja ServiceMET. En la báscula de
@@ -316,8 +330,9 @@ la aplicación (migración `008`, rutas `/api/soporte/*`).
   cuando ServiceMET los registra.
 - **Fotografías:** hasta 12 por informe, en hojas de 6 con su descripción
   (como la hoja FOTOGRAFIAS); se reducen a 1400 px en el navegador.
-- **Permisos:** consultan e imprimen todos; editan, suben fotos y emiten el
-  área Soporte Técnico y el nivel 3 (lo verifica el backend).
+- **Permisos:** usan el apartado (consultar, editar, subir fotos, emitir,
+  imprimir y guardar PDF) el área Soporte Técnico y Sistemas (nivel 3); el
+  resto del personal lo ve bloqueado y el backend rechaza sus consultas.
 
 ### Trazabilidad (NB/ISO/IEC 17025, 7.5.2)
 
@@ -390,7 +405,7 @@ desplegarla, y después registra la fecha de implementación.
 
 ## Gestión IvMET
 
-El navegador consume exclusivamente `/api/ivmet/*` con el JWT de RimMET. La conexión administrativa con Supabase ocurre en el backend y requiere un usuario RimMET con `acceso_cron = 3`.
+El navegador consume exclusivamente `/api/ivmet/*` con el JWT de RimMET. La conexión administrativa con Supabase ocurre en el backend y requiere un usuario RimMET con `acceso_cron = 3`. Por ahora solo lo usa Sistemas: el resto del personal lo ve en la barra lateral con candado y, al abrirlo, el aviso de acceso restringido.
 
 Variables del backend:
 
