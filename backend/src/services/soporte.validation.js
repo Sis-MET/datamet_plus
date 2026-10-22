@@ -53,7 +53,7 @@ const schemas = {
   filtros: z.object({
     q: optionalText(120),
     tipo: z.preprocess(v => (v ? String(v).toUpperCase() : null), z.enum(CLAVES_TIPO).nullable()),
-    estado: z.preprocess(v => (v ? String(v).toUpperCase() : null), z.enum(['PENDIENTE', 'BORRADOR', 'EMITIDO']).nullable()),
+    estado: z.preprocess(v => (v ? String(v).toUpperCase() : null), z.enum(['PENDIENTE', 'BORRADOR', 'EMITIDO', 'EN_REVISION']).nullable()),
     cliente: optionalText(250),
     tecnico: optionalText(100),
     desde: z.preprocess(v => (v ? v : null), fecha.nullable()),
@@ -82,6 +82,14 @@ const schemas = {
   }),
 
   emision: z.object({ version }),
+
+  // Reemisión: abrir una revisión exige el motivo (p. ej. el pedido del cliente).
+  abrirRevision: z.object({
+    version,
+    motivo: motivo.refine(value => value !== null, 'Indique el motivo de la revisión.'),
+  }),
+  reemision: z.object({ version }),
+  cancelarRevision: z.object({ version }),
 
   redaccion: z.object({
     tipo: z.preprocess(v => String(v ?? '').toUpperCase(), z.enum(CLAVES_TIPO, { error: 'Tipo de servicio inválido.' })),
@@ -176,6 +184,13 @@ const leerClave = (tipo, codigo) => {
   return { tipo: clave, codigo: cod };
 };
 
+/** Número de revisión en la URL (0 = emisión original). */
+const leerRevision = (valor) => {
+  const revision = Number(valor);
+  if (!Number.isInteger(revision) || revision < 0 || revision > 999) throw httpError(400, 'Revisión inválida.');
+  return revision;
+};
+
 /** Código Métrica del equipo en la URL. */
 const leerEquipo = (valor) => {
   const result = codMetrica.safeParse(String(valor ?? ''));
@@ -183,4 +198,4 @@ const leerEquipo = (valor) => {
   return result.data;
 };
 
-module.exports = { MAX_FOTOS, httpError, leerClave, leerEquipo, parse, text };
+module.exports = { MAX_FOTOS, httpError, leerClave, leerEquipo, leerRevision, parse, text };

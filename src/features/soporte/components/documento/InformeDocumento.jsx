@@ -1,7 +1,7 @@
 import { forwardRef, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import logoMetrica from '../../../../assets/logoMetrica2.png';
 import { decimalesInstrumento, rangosInstrumento } from '../../domain/calculos';
-import { hojasDeFotos } from '../../domain/informe';
+import { hojasDeFotos, textoPie } from '../../domain/informe';
 import { paginar } from '../../domain/paginacion';
 import { Bloque, EncabezadoInforme } from './bloques';
 
@@ -33,29 +33,16 @@ function Membrete() {
   );
 }
 
-const fecha = (iso) => {
-  const valor = iso ? new Date(iso) : null;
-  return valor && !Number.isNaN(valor.getTime())
-    ? valor.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : '';
-};
-
 /**
- * Pie de cada hoja (NB/ISO/IEC 17025, 7.8.2.1): informe, revisión, quién lo
- * emitió y cuándo, número de hoja y el fin del informe en la última.
+ * Pie de cada hoja (NB/ISO/IEC 17025, 7.8.2.1 y 7.8.8): informe, revisión,
+ * quién la emitió y cuándo, a qué revisión reemplaza, número de hoja y el fin
+ * del informe en la última.
  */
 function Pie({ pie, pagina, total }) {
   if (!pie) return null;
-  const partes = [`Informe N° ${pie.numero}`];
-  if (pie.emitido) {
-    partes.push(`Rev. ${pie.revision}${pie.revision > 0 && pie.actualizadoEn ? ` del ${fecha(pie.actualizadoEn)}` : ''}`);
-    partes.push(`Emitido el ${fecha(pie.emitidoEn)}${pie.emitidoPor ? ` por ${pie.emitidoPor}` : ''}`);
-  } else {
-    partes.push('Borrador sin emitir');
-  }
   return (
     <footer className="st-pie">
-      <span>{partes.join(' · ')}</span>
+      <span>{textoPie(pie)}</span>
       <span>
         Página {pagina} de {total}
         {pagina === total && <strong> · Fin del informe</strong>}
@@ -99,12 +86,14 @@ function HojaFotos({ fotos, inicio, borrador, ...hoja }) {
   );
 }
 
+const BLOQUE_REVISIONES = { tipo: 'texto', id: 'revisiones', titulo: 'Revisiones del informe:', campo: 'revisiones' };
+
 /**
  * Informe completo como hojas A4, igual en pantalla y en el PDF. El mismo
  * componente sirve para la vista previa y para imprimir.
  */
 export const InformeDocumento = forwardRef(function InformeDocumento(
-  { plantilla, numero, valores, fotos = [], borrador = false, pie = null },
+  { plantilla, numero, valores, fotos = [], borrador = false, pie = null, notas = null },
   ref,
 ) {
   const medidorRef = useRef(null);
@@ -118,11 +107,18 @@ export const InformeDocumento = forwardRef(function InformeDocumento(
 
   // Los bloques opcionales (p. ej. la conclusión del técnico) sin texto no se imprimen.
   const conTexto = (bloque) => !bloque.opcional || String(valores[bloque.campo] ?? '').trim() !== '';
-  const bloques = [{ tipo: 'encabezado', id: 'encabezado' }, ...plantilla.bloques.filter(conTexto)];
+  // Con reemisiones, el informe cierra con el motivo de cada revisión (7.8.8).
+  const bloques = [
+    { tipo: 'encabezado', id: 'encabezado' },
+    ...plantilla.bloques.filter(conTexto),
+    ...(notas ? [BLOQUE_REVISIONES] : []),
+  ];
 
-  const render = (bloque) => (bloque.tipo === 'encabezado'
-    ? <EncabezadoInforme titulo={plantilla.titulo} numero={numero} />
-    : <Bloque bloque={bloque} valores={valores} contexto={contexto} />);
+  const render = (bloque) => {
+    if (bloque.tipo === 'encabezado') return <EncabezadoInforme titulo={plantilla.titulo} numero={numero} />;
+    if (bloque === BLOQUE_REVISIONES) return <Bloque bloque={bloque} valores={{ [bloque.campo]: notas }} contexto={contexto} />;
+    return <Bloque bloque={bloque} valores={valores} contexto={contexto} />;
+  };
 
   // Medir en cada cambio de datos: el informe se pagina como se imprimirá.
   useLayoutEffect(() => {

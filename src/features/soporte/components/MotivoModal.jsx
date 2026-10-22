@@ -5,7 +5,10 @@ import { CancelButton, FieldLabel, Modal, PrimaryButton } from '../../calibratio
  * Pide el motivo de un cambio en un informe emitido (NB/ISO/IEC 17025,
  * 7.5.2): queda en el historial junto con el dato anterior y el nuevo.
  */
-export function MotivoModal({ titulo, descripcion, accion = 'Guardar corrección', onClose, onConfirm }) {
+export function MotivoModal({
+  titulo, descripcion, accion = 'Guardar corrección', etiqueta = 'Motivo del cambio',
+  placeholder = 'Por ejemplo: el técnico registró mal la serie del instrumento.', onClose, onConfirm,
+}) {
   const baseId = useId();
   const [motivo, setMotivo] = useState('');
   const [error, setError] = useState(null);
@@ -49,7 +52,7 @@ export function MotivoModal({ titulo, descripcion, accion = 'Guardar corrección
           {descripcion || 'Un informe emitido no se sobrescribe: el cambio queda en su historial con el dato anterior, el nuevo, quién lo hizo, cuándo y este motivo, y el informe pasa a la siguiente revisión.'}
         </p>
         <div>
-          <FieldLabel htmlFor={`${baseId}-motivo`}>Motivo del cambio</FieldLabel>
+          <FieldLabel htmlFor={`${baseId}-motivo`}>{etiqueta}</FieldLabel>
           <textarea
             id={`${baseId}-motivo`}
             value={motivo}
@@ -58,7 +61,7 @@ export function MotivoModal({ titulo, descripcion, accion = 'Guardar corrección
             maxLength={500}
             disabled={busy}
             data-autofocus
-            placeholder="Por ejemplo: el técnico registró mal la serie del instrumento."
+            placeholder={placeholder}
             className="field resize-y py-3 leading-relaxed"
           />
         </div>

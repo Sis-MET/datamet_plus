@@ -224,6 +224,9 @@ function Estado({ informe }) {
       {informe.estado === 'EMITIDO' && informe.revision > 0 && (
         <span className="text-[11.5px] text-fg-subtle">Rev. {informe.revision}</span>
       )}
+      {informe.estado === 'EN_REVISION' && (
+        <span className="text-[11.5px] text-fg-subtle">Rev. {informe.revision + 1} en borrador</span>
+      )}
     </span>
   );
 }
@@ -358,12 +361,15 @@ function Paginas({ page, total, pageSize, loading, onPage, etiqueta, className }
 function BarraEstados({ estados, total }) {
   const partes = [
     ['EMITIDO', 'bg-success'],
+    ['EN_REVISION', 'bg-info'],
     ['BORRADOR', 'bg-warning'],
     ['PENDIENTE', 'bg-fg/15'],
   ];
   const detalle = partes
     .filter(([clave]) => estados[clave] > 0)
-    .map(([clave]) => `${estados[clave]} ${ESTADOS_INFORME[clave].label.toLowerCase()}${estados[clave] === 1 ? '' : 's'}`)
+    .map(([clave]) => (clave === 'EN_REVISION'
+      ? `${estados[clave]} en revisión`
+      : `${estados[clave]} ${ESTADOS_INFORME[clave].label.toLowerCase()}${estados[clave] === 1 ? '' : 's'}`))
     .join(', ');
   return (
     <span className="flex flex-col items-end gap-1" title={detalle}>
@@ -374,7 +380,7 @@ function BarraEstados({ estados, total }) {
       </span>
       <span className="text-[11.5px] tabular-nums text-fg-muted">
         <span className="sr-only">{detalle}. </span>
-        <span aria-hidden="true">{estados.EMITIDO} de {total} emitidos</span>
+        <span aria-hidden="true">{(estados.EMITIDO || 0) + (estados.EN_REVISION || 0)} de {total} emitidos</span>
       </span>
     </span>
   );

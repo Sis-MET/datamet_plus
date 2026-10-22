@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, AlertTriangle, ArrowLeft, BadgeCheck, Camera, ChevronRight, Download, Eye, FileText, History, Info, Loader2, Printer,
+  AlertCircle, AlertTriangle, ArrowLeft, BadgeCheck, Camera, ChevronRight, Download, Eye, FilePenLine, FileText, History, Info, Loader2,
+  Printer, Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
@@ -13,12 +14,14 @@ import { soporteApi } from '../api/soporte';
 import { avisosEmision } from '../domain/avisos';
 import { aNumero } from '../domain/calculos';
 import {
-  ESTADOS_INFORME, cambiosParaGuardar, formatoFecha, mismoValor, nombreArchivo, valorGuardado, valoresInforme,
+  ESTADOS_INFORME, cambiosParaGuardar, fechaHora, formatoFecha, mismoValor, nombreArchivo, notasRevision, pieDeInforme,
+  pieDeRevision, valorGuardado, valoresInforme,
 } from '../domain/informe';
 import { PLANTILLAS, seccionesEditor, tipoServicio } from '../domain/plantillas';
 import { FotosPanel } from './FotosPanel';
 import { HistorialPanel } from './HistorialPanel';
 import { MotivoModal } from './MotivoModal';
+import { RevisionesPanel } from './RevisionesPanel';
 import { SeccionEditor } from './secciones';
 import { Impresion, VistaPrevia } from './VistaPrevia';
 import { GuardadoPdf } from './GuardadoPdf';
@@ -46,7 +49,7 @@ function Seccion({ seccion, editor }) {
   );
 }
 
-function EmitirModal({ informe, avisos, onIr, onClose, onConfirm }) {
+function EmitirModal({ informe, avisos, reemision = null, onIr, onClose, onConfirm }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const confirmar = async (close) => {
@@ -63,7 +66,7 @@ function EmitirModal({ informe, avisos, onIr, onClose, onConfirm }) {
   return (
     <Modal
       size="md"
-      title={`Emitir ${informe.numero}`}
+      title={reemision ? `Reemitir ${informe.numero} · Rev. ${reemision}` : `Emitir ${informe.numero}`}
       subtitle={informe.tipoLabel}
       onClose={onClose}
       busy={busy}
@@ -71,7 +74,9 @@ function EmitirModal({ informe, avisos, onIr, onClose, onConfirm }) {
         <>
           <CancelButton onClick={close} disabled={busy} />
           <div className="ml-auto">
-            <PrimaryButton onClick={() => confirmar(close)} busy={busy} busyLabel="Emitiendo">Emitir informe</PrimaryButton>
+            <PrimaryButton onClick={() => confirmar(close)} busy={busy} busyLabel={reemision ? 'Reemitiendo' : 'Emitiendo'}>
+              {reemision ? 'Reemitir informe' : 'Emitir informe'}
+            </PrimaryButton>
           </div>
         </>
       )}
@@ -81,7 +86,7 @@ function EmitirModal({ informe, avisos, onIr, onClose, onConfirm }) {
           <section aria-label="Revisión antes de emitir" className="rounded-2xl border border-warning/30 bg-warning/5 p-3">
             <p className="mb-2 flex items-center gap-2 font-semibold text-fg">
               <AlertTriangle className="h-4 w-4 flex-none text-warning" aria-hidden="true" />
-              Revise antes de emitir ({avisos.length})
+              Revise antes de {reemision ? 'reemitir' : 'emitir'} ({avisos.length})
             </p>
             <ul className="divide-y divide-line/60">
               {avisos.map(aviso => (
@@ -98,7 +103,7 @@ function EmitirModal({ informe, avisos, onIr, onClose, onConfirm }) {
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-[12px]">Puede emitir igual; cada aviso lleva a la sección para corregirlo.</p>
+            <p className="mt-2 text-[12px]">Puede {reemision ? 'reemitir' : 'emitir'} igual; cada aviso lleva a la sección para corregirlo.</p>
           </section>
         ) : (
           <p className="flex items-center gap-2 text-fg">
@@ -106,8 +111,71 @@ function EmitirModal({ informe, avisos, onIr, onClose, onConfirm }) {
             La revisión no encontró datos faltantes.
           </p>
         )}
-        <p>Al emitirlo queda registrado quién lo emitió y cuándo, y el PDF sale sin la marca «BORRADOR».</p>
-        <p>Después se puede seguir corrigiendo, pero cada cambio pedirá su motivo y quedará en el historial como una nueva revisión.</p>
+        {reemision ? (
+          <>
+            <p>
+              Al reemitirlo, la Rev. {reemision} pasa a ser la vigente: queda quién la reemitió y cuándo, el pie dice que
+              reemplaza a la Rev. {reemision - 1} y el informe cierra con el motivo de la revisión.
+            </p>
+            <p>La Rev. {reemision - 1} se conserva tal como se entregó y se puede volver a imprimir desde el historial.</p>
+          </>
+        ) : (
+          <>
+            <p>Al emitirlo queda registrado quién lo emitió y cuándo, y el PDF sale sin la marca «BORRADOR».</p>
+            <p>
+              Después, para cambiarlo (por ejemplo, a pedido del cliente) se abre una revisión con su motivo; la emitida sigue
+              vigente hasta que se reemita.
+            </p>
+          </>
+        )}
+        {error && <p className="field-error" role="alert">{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+function CancelarRevisionModal({ informe, pendientes, onClose, onConfirm }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const confirmar = async (close) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+      close();
+    } catch (failure) {
+      setError(failure.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      size="md"
+      title={`Cancelar la revisión ${informe.revisionAbierta.revision}`}
+      subtitle={informe.numero}
+      onClose={onClose}
+      busy={busy}
+      footer={(close) => (
+        <>
+          <CancelButton onClick={close} disabled={busy}>Seguir con la revisión</CancelButton>
+          <button
+            type="button"
+            onClick={() => confirmar(close)}
+            disabled={busy}
+            className="ml-auto flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            Cancelar la revisión
+          </button>
+        </>
+      )}
+    >
+      <div className="space-y-3 px-5 py-5 text-[13px] leading-relaxed text-fg-muted sm:px-6">
+        <p>
+          Se descartan los cambios del borrador y el informe vuelve a la Rev. {informe.revision} tal como se emitió, con sus
+          datos y sus fotos.{pendientes > 0 ? ' También se pierden los datos sin guardar.' : ''}
+        </p>
+        <p>La cancelación queda en el historial con lo que se deshizo.</p>
         {error && <p className="field-error" role="alert">{error}</p>}
       </div>
     </Modal>
@@ -159,7 +227,12 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   const [imprimiendo, setImprimiendo] = useState(false);
   // Guardar PDF: { destino } mientras se arma el archivo (destino null = descarga).
   const [guardandoPdf, setGuardandoPdf] = useState(null);
-  const [motivoPedido, setMotivoPedido] = useState(null);
+  // Reemisión: abrir o cancelar la revisión, y la copia de una revisión emitida
+  // que se está imprimiendo o guardando en PDF.
+  const [abriendo, setAbriendo] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [revisionDoc, setRevisionDoc] = useState(null);
+  const [cargandoRevision, setCargandoRevision] = useState(null);
   // Campos cuyo texto se reemplazó con la sugerencia de Gemini.
   const [asistidos, setAsistidos] = useState(() => new Set());
 
@@ -179,6 +252,9 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   const secciones = useMemo(() => seccionesEditor(plantilla), [plantilla]);
   const editable = Boolean(informe?.acciones?.editar);
   const emitido = informe?.estado === 'EMITIDO';
+  const enRevision = informe?.estado === 'EN_REVISION';
+  // Un informe emitido no se edita: primero se abre una revisión.
+  const editableDatos = editable && !emitido;
 
   const columnasEditables = useMemo(() => new Set(Object.keys(informe?.columnas || {})), [informe]);
   const tiposNumericos = useMemo(() => Object.fromEntries(
@@ -199,11 +275,11 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
       original,
       pendiente,
       distinto: !mismoValor(valor, original, numerico ? 'numero' : undefined),
-      bloqueado: !editable || !meta,
+      bloqueado: !editableDatos || !meta,
       max: meta?.max || undefined,
       invalido: numerico && !vacio(valor) && aNumero(valor) === null,
     };
-  }, [editable, informe, pendientes]);
+  }, [editableDatos, informe, pendientes]);
 
   const cambiar = useCallback((campo, valor) => {
     setPendientes((actual) => {
@@ -235,13 +311,12 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
     setAsistidos(new Set());
   };
 
-  /** En un informe emitido pide el motivo antes de `accion`; devuelve false si se cancela. */
-  const conMotivo = useCallback((opcionesMotivo, accion) => {
-    if (informeRef.current?.estado !== 'EMITIDO') return Promise.resolve(accion(null)).then(() => true);
-    return new Promise((resolve) => {
-      setMotivoPedido({ ...opcionesMotivo, ejecutar: accion, resolve });
-    });
-  }, []);
+  /**
+   * Las fotos llaman a `accion` a través de aquí. Ya no se pide motivo por
+   * cambio: un informe emitido se cambia abriendo una revisión, que lleva el
+   * motivo una sola vez.
+   */
+  const conMotivo = useCallback((_opciones, accion) => Promise.resolve(accion(null)).then(() => true), []);
 
   /** Respuesta del servidor (el informe completo) o recarga si hubo conflicto. */
   const aplicar = useCallback(async (promesa) => {
@@ -280,12 +355,9 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
     const ia = [...asistidos].filter(campo => tiene(cambios, campo));
     setGuardando(true);
     try {
-      const hecho = await conMotivo({ titulo: 'Corregir el informe emitido', accion: 'Guardar corrección' }, async (motivo) => {
-        await aplicar(soporteApi.guardar(tipo, codigo, { version: informe.version, cambios, motivo, ia }));
-        descartar();
-        toast.success(emitido ? 'Corrección guardada.' : 'Cambios guardados.');
-      });
-      if (!hecho) toast.info('No se guardó: falta el motivo de la corrección.');
+      await aplicar(soporteApi.guardar(tipo, codigo, { version: informe.version, cambios, ia }));
+      descartar();
+      toast.success(enRevision ? `Guardado en el borrador de la Rev. ${informe.revisionAbierta.revision}.` : 'Cambios guardados.');
     } catch (failure) {
       if (failure.status !== 409) toast.error(failure.message);
     } finally {
@@ -347,21 +419,52 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
 
   const estado = ESTADOS_INFORME[informe.estado];
   const servicio = tipoServicio(tipo);
-  const titulo = nombreArchivo(plantilla, informe.numero, valores);
+  const titulo = nombreArchivo(plantilla, informe.numero, valores, emitido ? informe.revision : 0);
+  // Con la revisión abierta, el documento es su borrador (con la marca).
   const documento = {
     plantilla,
     numero: informe.numero,
     valores,
     fotos: informe.fotos,
     borrador: !emitido,
-    pie: {
-      numero: informe.numero,
-      revision: informe.revision,
-      emitido,
-      emitidoEn: informe.trazabilidad.emitidoEn,
-      emitidoPor: informe.trazabilidad.emitidoPor?.nombre || informe.trazabilidad.emitidoPor?.usuario || null,
-      actualizadoEn: informe.trazabilidad.actualizadoEn,
-    },
+    pie: pieDeInforme(informe),
+    notas: notasRevision(informe.revisiones, informe.revisionAbierta),
+  };
+  const copiaVigente = (informe.revisiones || []).some(copia => copia.revision === informe.revision);
+
+  /**
+   * Imprime o guarda en PDF una revisión emitida tal como se entregó. La
+   * carpeta del PDF se pide al hacer clic (el navegador lo exige).
+   */
+  const cargarRevision = async (revision, modo) => {
+    let destino = null;
+    if (modo === 'pdf') {
+      destino = await pedirDestino(nombreArchivo(plantilla, informe.numero, valores, revision));
+      if (destino === undefined) return;
+    }
+    setCargandoRevision(revision);
+    try {
+      const copia = await soporteApi.revision(tipo, codigo, revision);
+      const valoresCopia = { ...copia.fuente, ...copia.datos };
+      setRevisionDoc({
+        modo,
+        destino,
+        titulo: nombreArchivo(plantilla, informe.numero, valoresCopia, revision),
+        documento: {
+          plantilla,
+          numero: informe.numero,
+          valores: valoresCopia,
+          fotos: copia.fotos,
+          borrador: false,
+          pie: pieDeRevision(copia, informe.numero),
+          notas: notasRevision(copia.revisiones),
+        },
+      });
+    } catch (failure) {
+      toast.error(failure.message);
+    } finally {
+      setCargandoRevision(null);
+    }
   };
   const avisos = avisosEmision({ plantilla, valores, fotos: informe.fotos });
 
@@ -411,7 +514,7 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-mono text-xl font-semibold tracking-wide text-fg">{informe.numero}</h2>
-              <ToneBadge tone={estado.tone}>{estado.label}{emitido && informe.revision > 0 ? ` · rev. ${informe.revision}` : ''}</ToneBadge>
+              <ToneBadge tone={estado.tone}>{estado.label}{(emitido || enRevision) && informe.revision > 0 ? ` · rev. ${informe.revision}` : ''}</ToneBadge>
             </div>
             <p className="mt-1 text-[13px] text-fg-muted">
               {[servicio.label, valores.cliente, valores.personal, formatoFecha(valores.fecha_servicio)].filter(Boolean).join(' · ')}
@@ -431,13 +534,24 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
               {guardandoPdf ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
               Guardar PDF
             </Button>
+            {editable && emitido && (
+              <Button onClick={() => setAbriendo(true)}>
+                <FilePenLine className="h-4 w-4" aria-hidden="true" /> Abrir revisión
+              </Button>
+            )}
+            {editable && enRevision && (
+              <Button variant="ghost" onClick={() => setCancelando(true)} disabled={guardando}>
+                <Undo2 className="h-4 w-4" aria-hidden="true" /> Cancelar revisión
+              </Button>
+            )}
             {editable && !emitido && (
               <Button
                 onClick={() => setEmitiendo(true)}
                 disabled={cantidadPendientes > 0}
                 title={cantidadPendientes > 0 ? 'Guarde los cambios antes de emitir' : undefined}
               >
-                <BadgeCheck className="h-4 w-4" aria-hidden="true" /> Emitir informe
+                <BadgeCheck className="h-4 w-4" aria-hidden="true" />
+                {enRevision ? `Reemitir · Rev. ${informe.revisionAbierta.revision}` : 'Emitir informe'}
                 {avisos.length > 0 && (
                   <span className="ml-0.5 rounded-full bg-black/10 px-1.5 text-[11px] tabular-nums" title={`${avisos.length} avisos antes de emitir`}>
                     {avisos.length}
@@ -454,6 +568,46 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           <Info className="h-4 w-4 flex-none" aria-hidden="true" />
           Solo lectura: los informes los editan el área de Soporte Técnico y Sistemas. Puede verlos, imprimirlos y guardarlos en PDF.
         </p>
+      )}
+
+      {editable && emitido && (
+        <p className="flex items-start gap-2 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-[13px] text-fg-muted">
+          <Info className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
+          <span>
+            Emitido{informe.revision > 0 ? ` · Rev. ${informe.revision}` : ''}. Para cambiarlo (por ejemplo, a pedido del cliente), abra una
+            revisión con su motivo: los cambios se guardan como borrador y esta revisión sigue vigente hasta que reemita.
+          </span>
+        </p>
+      )}
+
+      {enRevision && (
+        <section aria-label="Revisión en borrador" className="flex flex-wrap items-start gap-3 rounded-2xl border border-info/30 bg-info/5 px-4 py-3">
+          <FilePenLine className="mt-0.5 h-4 w-4 flex-none text-info" aria-hidden="true" />
+          <div className="min-w-0 flex-1 text-[13px]">
+            <p className="font-semibold text-fg">Revisión {informe.revisionAbierta.revision} en borrador</p>
+            <p className="mt-0.5 break-words text-fg"><span className="font-medium">Motivo:</span> {informe.revisionAbierta.motivo}</p>
+            <p className="mt-0.5 text-fg-muted">
+              Abierta por {informe.revisionAbierta.abiertaPor?.nombre || informe.revisionAbierta.abiertaPor?.usuario} · {fechaHora(informe.revisionAbierta.abiertaEn)}
+              {' · '}La Rev. {informe.revision} sigue vigente: es la que tiene el cliente hasta que reemita.
+            </p>
+          </div>
+          {copiaVigente && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => cargarRevision(informe.revision, 'imprimir')}
+                disabled={cargandoRevision !== null}
+                isLoading={cargandoRevision === informe.revision}
+              >
+                <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Imprimir Rev. {informe.revision}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => cargarRevision(informe.revision, 'pdf')} disabled={cargandoRevision !== null}>
+                <Download className="h-3.5 w-3.5" aria-hidden="true" /> PDF Rev. {informe.revision}
+              </Button>
+            </div>
+          )}
+        </section>
       )}
 
       <Segmented
@@ -477,8 +631,18 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
               {secciones.map(seccion => <Seccion key={seccion.id} seccion={seccion} editor={editor} />)}
             </>
           )}
-          {tab === 'fotos' && <FotosPanel informe={informe} editable={editable} acciones={acciones} />}
-          {tab === 'historial' && <HistorialPanel informe={informe} plantilla={plantilla} />}
+          {tab === 'fotos' && <FotosPanel informe={informe} editable={editableDatos} acciones={acciones} />}
+          {tab === 'historial' && (
+            <>
+              <RevisionesPanel
+                informe={informe}
+                cargando={cargandoRevision}
+                onImprimir={revision => cargarRevision(revision, 'imprimir')}
+                onPdf={revision => cargarRevision(revision, 'pdf')}
+              />
+              <HistorialPanel informe={informe} plantilla={plantilla} />
+            </>
+          )}
           {tab === 'vista' && <VistaPrevia {...documento} />}
         </div>
 
@@ -507,26 +671,45 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
         <EmitirModal
           informe={informe}
           avisos={avisos}
+          reemision={enRevision ? informe.revisionAbierta.revision : null}
           onIr={irA}
           onClose={() => setEmitiendo(false)}
           onConfirm={async () => {
+            if (enRevision) {
+              const nuevo = await aplicar(soporteApi.reemitir(tipo, codigo, { version: informe.version }));
+              toast.success(`${informe.numero} quedó reemitido: Rev. ${nuevo.revision}.`);
+              return;
+            }
             await aplicar(soporteApi.emitir(tipo, codigo, { version: informe.version }));
             toast.success(`${informe.numero} quedó emitido.`);
           }}
         />
       )}
 
-      {motivoPedido && (
+      {abriendo && (
         <MotivoModal
-          titulo={motivoPedido.titulo}
-          accion={motivoPedido.accion}
-          onClose={() => {
-            motivoPedido.resolve(false);
-            setMotivoPedido(null);
-          }}
+          titulo={`Abrir una revisión de ${informe.numero}`}
+          descripcion={`Los cambios se guardarán como borrador de la Rev. ${informe.revision + 1}, sin pedir motivo en cada guardado. La Rev. ${informe.revision} sigue vigente (es la que se imprime) hasta que reemita; si se arrepiente, puede cancelar la revisión.`}
+          etiqueta="Motivo de la revisión"
+          placeholder="Por ejemplo: el cliente pidió corregir la ubicación del equipo."
+          accion="Abrir revisión"
+          onClose={() => setAbriendo(false)}
           onConfirm={async (motivo) => {
-            await motivoPedido.ejecutar(motivo);
-            motivoPedido.resolve(true);
+            await aplicar(soporteApi.abrirRevision(tipo, codigo, { version: informe.version, motivo }));
+            toast.success(`Revisión ${informe.revision + 1} abierta: los cambios se guardan como borrador.`);
+          }}
+        />
+      )}
+
+      {cancelando && (
+        <CancelarRevisionModal
+          informe={informe}
+          pendientes={cantidadPendientes}
+          onClose={() => setCancelando(false)}
+          onConfirm={async () => {
+            await aplicar(soporteApi.cancelarRevision(tipo, codigo, { version: informe.version }));
+            descartar();
+            toast.success(`Revisión cancelada: vuelve la Rev. ${informe.revision}.`);
           }}
         />
       )}
@@ -545,6 +728,17 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
       {imprimiendo && <Impresion {...documento} titulo={titulo} onTerminar={() => setImprimiendo(false)} />}
       {guardandoPdf && (
         <GuardadoPdf {...documento} titulo={titulo} destino={guardandoPdf.destino} onTerminar={() => setGuardandoPdf(null)} />
+      )}
+      {revisionDoc?.modo === 'imprimir' && (
+        <Impresion {...revisionDoc.documento} titulo={revisionDoc.titulo} onTerminar={() => setRevisionDoc(null)} />
+      )}
+      {revisionDoc?.modo === 'pdf' && (
+        <GuardadoPdf
+          {...revisionDoc.documento}
+          titulo={revisionDoc.titulo}
+          destino={revisionDoc.destino}
+          onTerminar={() => setRevisionDoc(null)}
+        />
       )}
     </div>
   );

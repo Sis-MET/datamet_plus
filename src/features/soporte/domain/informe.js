@@ -8,7 +8,8 @@ import { aNumero } from './calculos';
 export const ESTADOS_INFORME = {
   PENDIENTE: { label: 'Pendiente', tone: 'neutral', descripcion: 'Con los datos de ServiceMET, sin revisar' },
   BORRADOR: { label: 'Borrador', tone: 'warning', descripcion: 'Revisado o corregido, sin emitir' },
-  EMITIDO: { label: 'Emitido', tone: 'success', descripcion: 'Emitido; los cambios piden motivo' },
+  EMITIDO: { label: 'Emitido', tone: 'success', descripcion: 'Emitido; para cambiarlo se abre una revisión' },
+  EN_REVISION: { label: 'En revisión', tone: 'info', descripcion: 'Emitido, con una revisión en borrador' },
 };
 
 export const ACCIONES_HISTORIAL = {
@@ -19,6 +20,9 @@ export const ACCIONES_HISTORIAL = {
   FOTO_EDITADA: 'Foto editada',
   FOTO_QUITADA: 'Foto quitada',
   FOTOS_ORDEN: 'Fotos reordenadas',
+  REVISION_ABIERTA: 'Revisión abierta',
+  REEMISION: 'Reemisión',
+  REVISION_CANCELADA: 'Revisión cancelada',
 };
 
 export const MAX_FOTOS = 12;
@@ -113,8 +117,8 @@ const parteArchivo = (valor) => {
  * Nombre del PDF como en las macros:
  * IMPR-<informe>-<cliente>-<instrumento>-<capacidad>-<unidad>-<código interno>.
  */
-export function nombreArchivo(plantilla, numero, valores) {
-  return [
+export function nombreArchivo(plantilla, numero, valores, revision = 0) {
+  const nombre = [
     plantilla.prefijo,
     parteArchivo(numero),
     parteArchivo(valores.cliente),
@@ -123,6 +127,94 @@ export function nombreArchivo(plantilla, numero, valores) {
     parteArchivo(valores.unidades),
     parteArchivo(valores.cod_int),
   ].join('-');
+  // Una reemisión lleva su revisión al final: IMPR-…-Rev1.
+  return revision > 0 ? `${nombre}-Rev${revision}` : nombre;
+}
+
+// ─── Revisiones y pie ──────────────────────────────────────────────────────
+
+const fechaCorta = (valor) => {
+  const fecha = valor ? new Date(valor) : null;
+  return fecha && !Number.isNaN(fecha.getTime())
+    ? fecha.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '';
+};
+
+const persona = (p) => (p ? p.nombre || p.usuario : null);
+
+/**
+ * Pie del informe que se está viendo (NB/ISO/IEC 17025, 7.8.2.1 y 7.8.8):
+ * número, revisión, quién y cuándo la emitió y a qué revisión reemplaza. Con
+ * una revisión abierta, el documento es su borrador.
+ */
+export function pieDeInforme(informe) {
+  const copias = informe.revisiones || [];
+  const revision = informe.revision ?? 0;
+  const vigente = copias.find(copia => copia.revision === revision);
+  const anterior = copias.find(copia => copia.revision === revision - 1);
+  const { trazabilidad = {} } = informe;
+  return {
+    numero: informe.numero,
+    estado: informe.estado,
+    revision,
+    revisionBorrador: informe.revisionAbierta?.revision ?? null,
+    emitidoEn: vigente?.emitidoEn || trazabilidad.emitidoEn || null,
+    emitidoPor: persona(vigente?.emitidoPor) || persona(trazabilidad.emitidoPor),
+    reemplaza: revision > 0 && anterior ? { revision: anterior.revision, emitidoEn: anterior.emitidoEn } : null,
+    // Informes corregidos antes de las revisiones (sin copia de la vigente).
+    legado: revision > 0 && !vigente,
+    actualizadoEn: trazabilidad.actualizadoEn || null,
+  };
+}
+
+/** Pie de una revisión emitida, al volver a imprimirla. */
+export function pieDeRevision(copia, numero) {
+  const anterior = (copia.revisiones || []).find(item => item.revision === copia.revision - 1);
+  return {
+    numero,
+    estado: 'EMITIDO',
+    revision: copia.revision,
+    revisionBorrador: null,
+    emitidoEn: copia.emitidoEn,
+    emitidoPor: persona(copia.emitidoPor),
+    reemplaza: copia.revision > 0 && anterior ? { revision: anterior.revision, emitidoEn: anterior.emitidoEn } : null,
+    legado: false,
+    actualizadoEn: null,
+  };
+}
+
+/** Texto del pie (sin la numeración de páginas). */
+export function textoPie(pie) {
+  if (!pie) return '';
+  const partes = [`Informe N° ${pie.numero}`];
+  const por = pie.emitidoPor ? ` por ${pie.emitidoPor}` : '';
+  if (pie.estado === 'EN_REVISION') {
+    partes.push(`Borrador de la Rev. ${pie.revisionBorrador} · Vigente: Rev. ${pie.revision}`);
+  } else if (pie.estado !== 'EMITIDO') {
+    partes.push('Borrador sin emitir');
+  } else if (pie.legado) {
+    partes.push(`Rev. ${pie.revision}${pie.actualizadoEn ? ` del ${fechaCorta(pie.actualizadoEn)}` : ''}`);
+    partes.push(`Emitido el ${fechaCorta(pie.emitidoEn)}${por}`);
+  } else if (pie.revision === 0) {
+    partes.push('Rev. 0');
+    partes.push(`Emitido el ${fechaCorta(pie.emitidoEn)}${por}`);
+  } else {
+    partes.push(`Rev. ${pie.revision} del ${fechaCorta(pie.emitidoEn)}${por}`);
+    if (pie.reemplaza) partes.push(`Reemplaza a la Rev. ${pie.reemplaza.revision} del ${fechaCorta(pie.reemplaza.emitidoEn)}`);
+  }
+  return partes.join(' · ');
+}
+
+/**
+ * Notas del final del informe: el motivo de cada reemisión y, con una
+ * revisión abierta, el de su borrador. null si no hay ninguna.
+ */
+export function notasRevision(revisiones = [], abierta = null) {
+  const lineas = revisiones
+    .filter(copia => copia.revision > 0 && copia.motivo)
+    .map(copia => `Rev. ${copia.revision} (${fechaCorta(copia.emitidoEn)}): ${copia.motivo}`);
+  if (abierta?.motivo) lineas.push(`Rev. ${abierta.revision} (en borrador): ${abierta.motivo}`);
+  return lineas.length ? lineas.join('\n') : null;
 }
 
 /** Fotos en hojas de 6, como la hoja FOTOGRAFIAS. */

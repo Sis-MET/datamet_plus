@@ -6,7 +6,7 @@ import { InformeDocumento } from './documento/InformeDocumento';
 const ANCHO_HOJA = (210 / 25.4) * 96;
 
 /** Vista previa a escala del informe, con las mismas hojas que se imprimen. */
-export function VistaPrevia({ plantilla, numero, valores, fotos, borrador, pie, className }) {
+export function VistaPrevia({ plantilla, numero, valores, fotos, borrador, pie, notas, className }) {
   const contenedorRef = useRef(null);
   const [escala, setEscala] = useState(0.6);
 
@@ -26,7 +26,7 @@ export function VistaPrevia({ plantilla, numero, valores, fotos, borrador, pie, 
   return (
     <div ref={contenedorRef} className={`st-vista ${className || ''}`}>
       <div style={{ zoom: escala }}>
-        <InformeDocumento plantilla={plantilla} numero={numero} valores={valores} fotos={fotos} borrador={borrador} pie={pie} />
+        <InformeDocumento plantilla={plantilla} numero={numero} valores={valores} fotos={fotos} borrador={borrador} pie={pie} notas={notas} />
       </div>
     </div>
   );
@@ -37,7 +37,7 @@ export function VistaPrevia({ plantilla, numero, valores, fotos, borrador, pie, 
  * monta las hojas fuera de la pantalla, espera las fuentes y las fotos, pone
  * el nombre del archivo en el título de la página y abre la impresión.
  */
-export function Impresion({ plantilla, numero, valores, fotos, borrador, pie, titulo, onTerminar }) {
+export function Impresion({ plantilla, numero, valores, fotos, borrador, pie, notas, titulo, onTerminar }) {
   const raizRef = useRef(null);
   const [raiz] = useState(() => {
     const nodo = document.createElement('div');
@@ -81,7 +81,7 @@ export function Impresion({ plantilla, numero, valores, fotos, borrador, pie, ti
 
   return createPortal(
     <div ref={raizRef}>
-      <InformeDocumento plantilla={plantilla} numero={numero} valores={valores} fotos={fotos} borrador={borrador} pie={pie} />
+      <InformeDocumento plantilla={plantilla} numero={numero} valores={valores} fotos={fotos} borrador={borrador} pie={pie} notas={notas} />
     </div>,
     raiz,
   );

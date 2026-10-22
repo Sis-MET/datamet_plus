@@ -46,7 +46,7 @@ function descargar(blob, nombre) {
  * mismas de la vista previa), espera fuentes y fotos, las pasa a imagen y
  * escribe el archivo en la carpeta elegida o lo descarga.
  */
-export function GuardadoPdf({ plantilla, numero, valores, fotos, borrador, pie, titulo, destino, onTerminar }) {
+export function GuardadoPdf({ plantilla, numero, valores, fotos, borrador, pie, notas, titulo, destino, onTerminar }) {
   const raizRef = useRef(null);
   const [raiz] = useState(() => {
     const nodo = document.createElement('div');
@@ -108,7 +108,7 @@ export function GuardadoPdf({ plantilla, numero, valores, fotos, borrador, pie, 
 
   return createPortal(
     <div ref={raizRef}>
-      <InformeDocumento plantilla={plantilla} numero={numero} valores={valores} fotos={fotos} borrador={borrador} pie={pie} />
+      <InformeDocumento plantilla={plantilla} numero={numero} valores={valores} fotos={fotos} borrador={borrador} pie={pie} notas={notas} />
     </div>,
     raiz,
   );

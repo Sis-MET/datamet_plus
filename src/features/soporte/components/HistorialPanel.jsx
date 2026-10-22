@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BadgeCheck, Camera, FilePenLine, History, PencilLine } from 'lucide-react';
+import { BadgeCheck, Camera, FilePenLine, History, PencilLine, Undo2 } from 'lucide-react';
 import { EmptyState } from '../../calibration/components/primitives';
 import { ACCIONES_HISTORIAL, fechaHora, formatoFecha } from '../domain/informe';
 import { etiquetasCampos } from '../domain/plantillas';
@@ -13,6 +13,9 @@ const ICONOS = {
   FOTO_EDITADA: Camera,
   FOTO_QUITADA: Camera,
   FOTOS_ORDEN: Camera,
+  REVISION_ABIERTA: FilePenLine,
+  REEMISION: BadgeCheck,
+  REVISION_CANCELADA: Undo2,
 };
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;

@@ -6,6 +6,10 @@ import {
   hojasDeFotos,
   mismoValor,
   nombreArchivo,
+  notasRevision,
+  pieDeInforme,
+  pieDeRevision,
+  textoPie,
   valorGuardado,
   valoresInforme,
 } from './informe';
@@ -64,5 +68,59 @@ describe('formatos', () => {
   it('fotos en hojas de 6', () => {
     expect(hojasDeFotos([1, 2, 3, 4, 5, 6, 7]).map(h => h.length)).toEqual([6, 1]);
     expect(hojasDeFotos([])).toEqual([]);
+  });
+});
+
+describe('revisiones y pie del informe', () => {
+  // Mediodía UTC: la fecha local (dd/mm/aaaa) no cambia con la zona horaria.
+  const copias = [
+    { revision: 0, motivo: null, emitidoPor: { usuario: 'ana', nombre: 'Ana Rojas' }, emitidoEn: '2026-10-18T12:00:00Z', posterior: false },
+    { revision: 1, motivo: 'El cliente pidió corregir la ubicación.', emitidoPor: { usuario: 'luis', nombre: 'Luis Paz' }, emitidoEn: '2026-10-22T12:00:00Z', posterior: false },
+  ];
+  const base = { numero: '26-0087-11-S01-020', trazabilidad: { emitidoEn: '2026-10-18T12:00:00Z', emitidoPor: { usuario: 'ana', nombre: 'Ana Rojas' } } };
+
+  it('la Rev. 0 dice quién la emitió y cuándo', () => {
+    const pie = pieDeInforme({ ...base, estado: 'EMITIDO', revision: 0, revisiones: copias.slice(0, 1) });
+    expect(textoPie(pie)).toBe('Informe N° 26-0087-11-S01-020 · Rev. 0 · Emitido el 18/10/2026 por Ana Rojas');
+  });
+
+  it('una reemisión dice quién la reemitió y a qué revisión reemplaza', () => {
+    const pie = pieDeInforme({ ...base, estado: 'EMITIDO', revision: 1, revisiones: copias });
+    expect(textoPie(pie)).toBe(
+      'Informe N° 26-0087-11-S01-020 · Rev. 1 del 22/10/2026 por Luis Paz · Reemplaza a la Rev. 0 del 18/10/2026',
+    );
+  });
+
+  it('con la revisión abierta el documento es su borrador', () => {
+    const pie = pieDeInforme({ ...base, estado: 'EN_REVISION', revision: 1, revisiones: copias, revisionAbierta: { revision: 2 } });
+    expect(textoPie(pie)).toBe('Informe N° 26-0087-11-S01-020 · Borrador de la Rev. 2 · Vigente: Rev. 1');
+    expect(textoPie(pieDeInforme({ ...base, estado: 'BORRADOR', revision: 0 }))).toBe('Informe N° 26-0087-11-S01-020 · Borrador sin emitir');
+  });
+
+  it('un informe corregido antes de las revisiones conserva su pie anterior', () => {
+    const pie = pieDeInforme({
+      ...base, estado: 'EMITIDO', revision: 2, revisiones: [], trazabilidad: { ...base.trazabilidad, actualizadoEn: '2026-10-20T12:00:00Z' },
+    });
+    expect(textoPie(pie)).toBe('Informe N° 26-0087-11-S01-020 · Rev. 2 del 20/10/2026 · Emitido el 18/10/2026 por Ana Rojas');
+  });
+
+  it('el pie de una revisión anterior al reimprimirla', () => {
+    expect(textoPie(pieDeRevision({ ...copias[1], revisiones: copias }, base.numero)))
+      .toBe('Informe N° 26-0087-11-S01-020 · Rev. 1 del 22/10/2026 por Luis Paz · Reemplaza a la Rev. 0 del 18/10/2026');
+    expect(textoPie(pieDeRevision({ ...copias[0], revisiones: copias.slice(0, 1) }, base.numero)))
+      .toBe('Informe N° 26-0087-11-S01-020 · Rev. 0 · Emitido el 18/10/2026 por Ana Rojas');
+  });
+
+  it('las notas del final llevan el motivo de cada revisión', () => {
+    expect(notasRevision(copias.slice(0, 1))).toBeNull();
+    expect(notasRevision(copias)).toBe('Rev. 1 (22/10/2026): El cliente pidió corregir la ubicación.');
+    expect(notasRevision(copias, { revision: 2, motivo: 'Cambiar la foto 3.' })).toBe(
+      'Rev. 1 (22/10/2026): El cliente pidió corregir la ubicación.\nRev. 2 (en borrador): Cambiar la foto 3.',
+    );
+  });
+
+  it('el PDF de una reemisión lleva su revisión en el nombre', () => {
+    expect(nombreArchivo(PLANTILLAS.IBM, 'X', {}, 2)).toBe('AJML-X-SinDato-SinDato-SinDato-SinDato-SinDato-Rev2');
+    expect(nombreArchivo(PLANTILLAS.IBM, 'X', {}, 0)).toBe('AJML-X-SinDato-SinDato-SinDato-SinDato-SinDato');
   });
 });

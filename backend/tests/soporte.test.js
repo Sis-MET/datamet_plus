@@ -6,7 +6,6 @@ const {
   claveTecnico,
   coercer,
   esEditable,
-  exigirMotivo,
   mapColumna,
   mapFila,
   mapGrupo,
@@ -161,12 +160,15 @@ test('la versión editada debe ser la vigente', () => {
   assert.throws(() => verificarVersion({ version: 3 }, 2), error => error.statusCode === 409);
 });
 
-test('un informe emitido solo se corrige con motivo', () => {
-  assert.doesNotThrow(() => exigirMotivo(null, null));
-  assert.doesNotThrow(() => exigirMotivo({ estado: 'BORRADOR' }, null));
-  assert.throws(() => exigirMotivo({ estado: 'EMITIDO' }, null), error => error.statusCode === 400);
-  assert.doesNotThrow(() => exigirMotivo({ estado: 'EMITIDO' }, 'Error de transcripción'));
-  assert.throws(() => parse('cambios', { cambios: { a: 1 }, motivo: 'corto' }), /10 caracteres/);
+test('abrir una revisión exige un motivo de al menos 10 caracteres', () => {
+  assert.throws(() => parse('abrirRevision', { version: 3 }), /motivo de la revisión/);
+  assert.throws(() => parse('abrirRevision', { version: 3, motivo: 'corto' }), /10 caracteres/);
+  assert.deepEqual(parse('abrirRevision', { version: '3', motivo: '  El cliente pidió corregir la ubicación ' }), {
+    version: 3, motivo: 'El cliente pidió corregir la ubicación',
+  });
+  assert.equal(parse('reemision', { version: 4 }).version, 4);
+  assert.equal(parse('cancelarRevision', {}).version, null);
+  assert.equal(parse('filtros', { estado: 'en_revision' }).estado, 'EN_REVISION');
 });
 
 test('validación de los cambios, la emisión y las fotos', () => {
@@ -295,7 +297,7 @@ test('resumen de un grupo', () => {
       { clave: 'OTRA', tipo: 'RVD', cliente: 'X', planta: 'Y', tecnico_clave: 'Z' },
     ],
   );
-  assert.deepEqual(grupo.estados, { PENDIENTE: 1, BORRADOR: 0, EMITIDO: 2 });
+  assert.deepEqual(grupo.estados, { PENDIENTE: 1, BORRADOR: 0, EMITIDO: 2, EN_REVISION: 0 });
   assert.deepEqual(grupo.tipos, ['MPA', 'MCR']);
   assert.deepEqual(grupo.clientes, ['SINCHI WAYRA']);
   assert.deepEqual(grupo.tecnicos, ['Jason Cali', 'Jorge De La Rocha']);

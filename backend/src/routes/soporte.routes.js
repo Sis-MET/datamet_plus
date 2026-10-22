@@ -17,6 +17,11 @@ router.post('/redaccion', controller.redaccion);
 router.get('/informes/:tipo/:codigo', controller.getInforme);
 router.post('/informes/:tipo/:codigo/cambios', controller.guardarCambios);
 router.post('/informes/:tipo/:codigo/emision', controller.emitir);
+// Reemisión de un informe emitido.
+router.post('/informes/:tipo/:codigo/revision', controller.abrirRevision);
+router.post('/informes/:tipo/:codigo/revision/cancelar', controller.cancelarRevision);
+router.post('/informes/:tipo/:codigo/reemision', controller.reemitir);
+router.get('/informes/:tipo/:codigo/revisiones/:revision', controller.getRevision);
 router.post('/informes/:tipo/:codigo/fotos', controller.agregarFoto);
 router.post('/informes/:tipo/:codigo/fotos/orden', controller.ordenarFotos);
 router.put('/informes/:tipo/:codigo/fotos/:fotoId', controller.editarFoto);

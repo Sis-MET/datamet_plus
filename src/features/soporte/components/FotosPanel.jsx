@@ -20,7 +20,7 @@ function Descripcion({ foto, editable, onGuardar }) {
     if (texto.trim() === (foto.descripcion || '')) return;
     setGuardando(true);
     try {
-      // false: se canceló el motivo de un informe emitido.
+      // false: no se guardó (se canceló la confirmación).
       const hecho = await onGuardar(texto.trim());
       if (!hecho) setTexto(foto.descripcion || '');
     } catch (error) {
@@ -49,7 +49,7 @@ function Descripcion({ foto, editable, onGuardar }) {
   );
 }
 
-function QuitarFotoModal({ foto, emitido, onClose, onConfirm }) {
+function QuitarFotoModal({ foto, onClose, onConfirm }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const confirmar = async (close) => {
@@ -86,7 +86,6 @@ function QuitarFotoModal({ foto, emitido, onClose, onConfirm }) {
         <img src={foto.url} alt="" className="max-h-56 rounded-xl border border-line object-contain" />
         <p className="text-[13px] leading-relaxed text-fg-muted">
           La foto sale del informe pero no se borra: queda en el historial con quién la quitó y cuándo.
-          {emitido && ' Como el informe ya fue emitido, se le pedirá el motivo.'}
         </p>
         {error && <p className="field-error" role="alert">{error}</p>}
       </div>
@@ -101,7 +100,6 @@ function QuitarFotoModal({ foto, emitido, onClose, onConfirm }) {
 export function FotosPanel({ informe, editable, acciones }) {
   const fotos = informe.fotos.map((foto, index) => ({ ...foto, posicion: index + 1 }));
   const libres = MAX_FOTOS - fotos.length;
-  const emitido = informe.estado === 'EMITIDO';
   const [subiendo, setSubiendo] = useState(null);
   const [quitando, setQuitando] = useState(null);
 
@@ -230,7 +228,6 @@ export function FotosPanel({ informe, editable, acciones }) {
       {quitando && (
         <QuitarFotoModal
           foto={quitando}
-          emitido={emitido}
           onClose={() => setQuitando(null)}
           onConfirm={() => acciones.conMotivo(
             { titulo: `Quitar la foto ${quitando.posicion}`, accion: 'Quitar foto' },

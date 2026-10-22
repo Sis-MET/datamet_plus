@@ -22,6 +22,12 @@ export const soporteApi = {
   // Cada acción responde el informe actualizado.
   guardar: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/cambios`, body, { timeout: 30000 })).then(avisar),
   emitir: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/emision`, body, { timeout: 30000 })),
+  // Reemisión: abrir una revisión (con motivo), reemitirla o cancelarla.
+  abrirRevision: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/revision`, body, { timeout: 30000 })),
+  reemitir: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/reemision`, body, { timeout: 30000 })).then(avisar),
+  cancelarRevision: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/revision/cancelar`, body, { timeout: 30000 })).then(avisar),
+  // Copia de una revisión emitida, para imprimirla tal como se entregó.
+  revision: (tipo, codigo, revision) => unwrap(api.get(`${ruta(tipo, codigo)}/revisiones/${revision}`, undefined, { timeout: 30000 })),
   agregarFoto: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/fotos`, body, { timeout: 60000 })),
   editarFoto: (tipo, codigo, id, body) => unwrap(api.put(`${ruta(tipo, codigo)}/fotos/${id}`, body, { timeout: 30000 })),
   quitarFoto: (tipo, codigo, id, body) => unwrap(api.post(`${ruta(tipo, codigo)}/fotos/${id}/quitar`, body, { timeout: 30000 })),

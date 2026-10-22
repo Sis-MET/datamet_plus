@@ -347,9 +347,25 @@ original deja de figurar como corregido. Cada guardado agrega una fila en
 `ST_INFORMES_HISTORIAL` con el valor anterior y el nuevo de cada campo, el
 usuario de la sesión y la hora del servidor.
 
-- La emisión registra quién y cuándo. Desde ahí todo cambio (datos o fotos)
-  es una **corrección**: exige motivo y sube la revisión del informe.
-- Una foto no se borra: se quita con usuario, fecha y, si estaba emitido, motivo.
+- La emisión registra quién y cuándo, y guarda una copia completa de la
+  Rev. 0 en `ST_INFORMES_REVISIONES` (fila del servicio, correcciones y fotos).
+- **Reemisión** (migración `010`): un informe emitido no se edita
+  directamente. «Abrir revisión» pide el motivo una vez (por ejemplo, el
+  pedido del cliente) y deja el informe «En revisión»: los cambios de datos y
+  fotos se guardan como borrador de la revisión siguiente, sin pedir motivo
+  ni subir la revisión en cada guardado, mientras la vigente sigue siendo la
+  que se entrega (se puede imprimir desde el aviso). «Reemitir» la convierte
+  en la nueva revisión con quién y cuándo, y guarda su copia; «Cancelar
+  revisión» devuelve datos y fotos a la vigente. Todo queda en el historial.
+- El pie de un informe reemitido dice «Rev. N del … por … · Reemplaza a la
+  Rev. N-1 del …» y el informe cierra con «Revisiones del informe», el motivo
+  de cada una (NB/ISO/IEC 17025, 7.8.8). En el historial, «Revisiones
+  emitidas» permite volver a imprimir o guardar en PDF cualquier revisión tal
+  como se entregó; el PDF de una reemisión termina en `-RevN`.
+- Los informes emitidos antes de la migración 010 guardan la copia de su
+  revisión vigente al abrir su primera revisión (se marca como copia
+  posterior); sus revisiones anteriores no se pueden reimprimir.
+- Una foto no se borra: se quita con usuario y fecha.
 - Dos personas no se pisan: cada informe lleva una versión y el segundo en
   guardar recibe un aviso y la versión vigente (409).
 - No se editan la identidad del servicio (OTST, código de registro, código
@@ -363,7 +379,9 @@ Despliegue: aplicar la migración `008` (`pnpm migrate` en `backend`; crea
 `ST_INFORMES`, `ST_INFORMES_HISTORIAL` y `ST_INFORMES_FOTOS` y registra el
 cambio CC-2026-019 en el Control de cambios) y después backend y frontend.
 Las fotos se guardan en la base (unos 150–300 KB cada una): en SQL Server
-Express cuentan para el límite de 10 GB.
+Express cuentan para el límite de 10 GB. La reemisión necesita además la
+migración `010` (estado «En revisión», nuevas acciones del historial y
+`ST_INFORMES_REVISIONES`; registra el cambio CC-2026-021).
 
 Para «Mejorar redacción», en `backend/.env`:
 

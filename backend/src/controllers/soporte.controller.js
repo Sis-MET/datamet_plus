@@ -1,6 +1,6 @@
 const informes = require('../services/soporte.informes');
 const proximos = require('../services/soporte.proximos');
-const { leerClave, leerEquipo, parse } = require('../services/soporte.validation');
+const { leerClave, leerEquipo, leerRevision, parse } = require('../services/soporte.validation');
 const { recordFailure } = require('../services/system.failures');
 
 const readId = (value) => {
@@ -20,12 +20,15 @@ const handle = (action, status = 200) => async (req, res, next) => {
     if ([400, 403, 404, 409, 503].includes(error.statusCode)) {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
-    // Tablas de los próximos servicios ausentes: falta aplicar la migración 009.
-    if (/Invalid object name 'dbo\.ST_(PROXIMOS|AVISOS)_/i.test(error.message || '')) {
+    // Tablas o columnas ausentes: falta aplicar la migración 009 o la 010.
+    const faltante = /Invalid object name 'dbo\.ST_(PROXIMOS|AVISOS)_/i.test(error.message || '') ? '009 (próximos servicios)'
+      : /Invalid (object|column) name '(dbo\.ST_INFORMES_REVISIONES|revision_motivo|revision_abierta_)/i.test(error.message || '') ? '010 (reemisión de informes)'
+        : null;
+    if (faltante) {
       recordFailure({ origen: 'SERVIDOR', error: Object.assign(error, { statusCode: 503 }), req });
       return res.status(503).json({
         success: false,
-        message: 'Falta la migración 009 (próximos servicios de Soporte técnico) en la base de datos.',
+        message: `Falta la migración ${faltante} de Soporte técnico en la base de datos.`,
       });
     }
     return next(error);
@@ -54,6 +57,23 @@ module.exports = {
   emitir: handle((req) => {
     const { tipo, codigo } = clave(req);
     return informes.emitirInforme(tipo, codigo, parse('emision', req.body), req.user);
+  }),
+  // Reemisión: abrir una revisión, reemitirla o cancelarla, y ver una revisión emitida.
+  abrirRevision: handle((req) => {
+    const { tipo, codigo } = clave(req);
+    return informes.abrirRevision(tipo, codigo, parse('abrirRevision', req.body), req.user);
+  }),
+  reemitir: handle((req) => {
+    const { tipo, codigo } = clave(req);
+    return informes.reemitirInforme(tipo, codigo, parse('reemision', req.body), req.user);
+  }),
+  cancelarRevision: handle((req) => {
+    const { tipo, codigo } = clave(req);
+    return informes.cancelarRevision(tipo, codigo, parse('cancelarRevision', req.body), req.user);
+  }),
+  getRevision: handle((req) => {
+    const { tipo, codigo } = clave(req);
+    return informes.getRevision(tipo, codigo, leerRevision(req.params.revision));
   }),
   agregarFoto: handle((req) => {
     const { tipo, codigo } = clave(req);

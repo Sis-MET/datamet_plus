@@ -15,8 +15,8 @@ const TIPOS = Object.freeze({
 
 const CLAVES_TIPO = Object.keys(TIPOS);
 
-/** Estados del informe en la lista: sin tocar, en edición o emitido. */
-const ESTADOS = ['PENDIENTE', 'BORRADOR', 'EMITIDO'];
+/** Estados del informe en la lista: sin tocar, en edición, emitido o emitido con una revisión abierta. */
+const ESTADOS = ['PENDIENTE', 'BORRADOR', 'EMITIDO', 'EN_REVISION'];
 
 /**
  * Número del informe, como en las plantillas Excel: la OTST y los 3 últimos
