@@ -31,8 +31,8 @@ export const APP_VIEWS = {
   soporte: {
     id: 'soporte',
     label: 'Soporte técnico',
-    title: 'Informes de soporte técnico',
-    description: 'Mantenimientos, diagnósticos, instalaciones y verificaciones',
+    title: 'Soporte técnico',
+    description: 'Informes de servicio, próximos servicios y avisos',
     icon: Wrench,
     inNav: true,
     area: { id: 'soporte tecnico', nombre: 'Soporte Técnico' },

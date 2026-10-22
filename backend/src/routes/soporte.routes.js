@@ -22,4 +22,20 @@ router.post('/informes/:tipo/:codigo/fotos/orden', controller.ordenarFotos);
 router.put('/informes/:tipo/:codigo/fotos/:fotoId', controller.editarFoto);
 router.post('/informes/:tipo/:codigo/fotos/:fotoId/quitar', controller.quitarFoto);
 
+// Próximos servicios sugeridos por los técnicos y su seguimiento.
+router.get('/proximos', controller.proximosPlan);
+router.get('/proximos/resumen', controller.proximosResumen);
+router.get('/proximos/equipos/:codMetrica', controller.proximosEquipo);
+router.post('/proximos/seguimiento', controller.registrarSeguimiento);
+
+// Avisos por correo de los próximos servicios.
+router.get('/avisos', controller.avisos);
+router.get('/avisos/personal', controller.avisosPersonal);
+router.put('/avisos/ajustes', controller.avisosAjustes);
+router.post('/avisos/contactos', controller.crearContacto);
+router.put('/avisos/contactos/:id', controller.editarContacto);
+router.delete('/avisos/contactos/:id', controller.quitarContacto);
+router.post('/avisos/prueba', controller.avisosPrueba);
+router.post('/avisos/ejecutar', controller.avisosEjecutar);
+
 module.exports = router;

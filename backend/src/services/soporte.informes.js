@@ -1019,6 +1019,10 @@ const sugerirRedaccion = async (body, user) => {
 module.exports = {
   PROTEGIDAS,
   agregarFoto,
+  columnasDe,
+  exigirEditor,
+  leerDatos,
+  permisos,
   buildGroupsQuery,
   buildListQuery,
   claveTecnico,

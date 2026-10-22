@@ -1,5 +1,7 @@
 const informes = require('../services/soporte.informes');
-const { leerClave, parse } = require('../services/soporte.validation');
+const proximos = require('../services/soporte.proximos');
+const { leerClave, leerEquipo, parse } = require('../services/soporte.validation');
+const { recordFailure } = require('../services/system.failures');
 
 const readId = (value) => {
   const id = Number(value);
@@ -17,6 +19,14 @@ const handle = (action, status = 200) => async (req, res, next) => {
   } catch (error) {
     if ([400, 403, 404, 409, 503].includes(error.statusCode)) {
       return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+    // Tablas de los próximos servicios ausentes: falta aplicar la migración 009.
+    if (/Invalid object name 'dbo\.ST_(PROXIMOS|AVISOS)_/i.test(error.message || '')) {
+      recordFailure({ origen: 'SERVIDOR', error: Object.assign(error, { statusCode: 503 }), req });
+      return res.status(503).json({
+        success: false,
+        message: 'Falta la migración 009 (próximos servicios de Soporte técnico) en la base de datos.',
+      });
     }
     return next(error);
   }
@@ -61,4 +71,20 @@ module.exports = {
     const { tipo, codigo } = clave(req);
     return informes.ordenarFotos(tipo, codigo, parse('fotosOrden', req.body), req.user);
   }),
+
+  // Próximos servicios y su seguimiento.
+  proximosPlan: handle(req => proximos.getPlan({ anio: parse('proximosPlan', req.query).anio, user: req.user })),
+  proximosResumen: handle(() => proximos.getAlertSummary()),
+  proximosEquipo: handle(req => proximos.getEquipo(leerEquipo(req.params.codMetrica), req.user)),
+  registrarSeguimiento: handle(req => proximos.registrarSeguimiento(parse('seguimiento', req.body), req.user), 201),
+
+  // Avisos por correo.
+  avisos: handle(req => proximos.getAlertSettings(req.user)),
+  avisosPersonal: handle(() => proximos.getPersonal()),
+  avisosAjustes: handle(req => proximos.updateAjustes(parse('avisosAjustes', req.body), req.user)),
+  crearContacto: handle(req => proximos.createContacto(parse('avisosContacto', req.body), req.user), 201),
+  editarContacto: handle(req => proximos.updateContacto(readId(req.params.id), parse('avisosContacto', req.body), req.user)),
+  quitarContacto: handle(req => proximos.deleteContacto(readId(req.params.id), req.user)),
+  avisosPrueba: handle(req => proximos.sendTestEmail(parse('avisosPrueba', req.body).email, req.user)),
+  avisosEjecutar: handle(req => proximos.runAlertsManual(req.user)),
 };

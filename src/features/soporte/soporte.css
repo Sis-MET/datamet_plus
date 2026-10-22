@@ -373,3 +373,56 @@
 .st-input-celda:disabled { background: rgb(var(--c-surface-2)); color: rgb(var(--c-fg-muted)); cursor: not-allowed; }
 .st-input-celda.st-editado { border-color: rgb(var(--c-info) / 0.6); background: rgb(var(--c-info) / 0.05); }
 .st-input-celda.st-invalido { border-color: rgb(var(--c-danger) / 0.7); }
+
+/* ═══ Próximos servicios: grupo de un cliente en la línea de tiempo ═══ */
+/* Misma grilla que .cal-tl-row: nombre del cliente a la izquierda y, a la
+   derecha, sus próximos servicios del año en miniatura. */
+.st-tl-group {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: var(--cal-label-w) minmax(0, 1fr);
+  min-height: 40px;
+  border-bottom: 1px solid rgb(var(--c-line));
+  cursor: pointer;
+}
+.st-tl-group-label {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 14px;
+  border-right: 1px solid rgb(var(--c-line));
+  background: rgb(var(--c-surface-2));
+  color: rgb(var(--c-fg));
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-align: left;
+  text-transform: uppercase;
+}
+button.st-tl-group-label:focus-visible { outline-offset: -2px; }
+.st-tl-group-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-tl-sum {
+  position: relative;
+  background: rgb(var(--c-fg) / 0.03);
+}
+.st-tl-group:hover .st-tl-group-label { background: color-mix(in srgb, rgb(var(--c-fg)) 4%, rgb(var(--c-surface-2))); }
+.st-tl-group:hover .st-tl-sum { background: rgb(var(--c-fg) / 0.05); }
+.st-tl-sum .st-tl-sum-mark {
+  --glyph-size: 7px;
+  position: absolute;
+  top: 50%;
+  border-width: 1.5px;
+  transform: translate(-50%, -50%);
+}
+.st-tl-sum .st-tl-sum-mark.cal-glyph-diamond { transform: translate(-50%, -50%) rotate(45deg) scale(0.86); }

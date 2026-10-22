@@ -39,6 +39,16 @@ const version = z.preprocess(
 
 const fecha = z.iso.date({ error: 'Fecha inválida.' });
 
+/** Código Métrica del equipo ("0058-11-001"); se compara en mayúsculas. */
+const COD_METRICA = /^[A-Z0-9][A-Z0-9_.\-/ ]{1,49}$/;
+const codMetrica = z.string({ error: 'Falta el equipo.' })
+  .transform(value => text(value).toUpperCase())
+  .pipe(z.string().regex(COD_METRICA, 'Código Métrica inválido.'));
+
+const ACCIONES_SEGUIMIENTO = ['CONTACTO', 'COORDINACION', 'REPROGRAMACION', 'DESCARTE', 'REACTIVACION'];
+const FRECUENCIAS_AVISO = ['UNICA', 'SEMANAL', 'DIARIA', 'NINGUNA'];
+const email = z.string({ error: 'Falta el correo.' }).trim().toLowerCase().max(150).pipe(z.email('Correo no válido.'));
+
 const schemas = {
   filtros: z.object({
     q: optionalText(120),
@@ -103,6 +113,46 @@ const schemas = {
 
   fotoQuitar: z.object({ motivo }),
 
+  // Próximos servicios: año de la línea de tiempo.
+  proximosPlan: z.object({
+    anio: z.preprocess(
+      v => (v === undefined || v === null || v === '' ? new Date().getFullYear() : v),
+      z.coerce.number({ error: 'Año inválido.' }).int('Año inválido.').min(2000, 'Año inválido.').max(2100, 'Año inválido.'),
+    ),
+  }),
+
+  // Una gestión del próximo servicio vigente del equipo. `ultimo` es la
+  // última gestión que vio quien la registra (control de concurrencia).
+  seguimiento: z.object({
+    codMetrica,
+    origenTipo: z.preprocess(v => String(v ?? '').toUpperCase(), z.enum(CLAVES_TIPO, { error: 'Tipo de servicio inválido.' })),
+    origenCodigo: z.string({ error: 'Falta el servicio.' }).transform(text).pipe(z.string().regex(CODIGO, 'Código de registro inválido.')),
+    accion: z.enum(ACCIONES_SEGUIMIENTO, { error: 'Acción de seguimiento desconocida.' }),
+    fecha: z.preprocess(v => (v ? v : null), fecha.nullable()),
+    nota: z.string({ error: 'Escriba la nota o el motivo.' }).transform(text)
+      .pipe(z.string().min(10, 'La nota debe tener al menos 10 caracteres.').max(500, 'Máximo 500 caracteres.')),
+    ultimo: z.preprocess(
+      v => (v === undefined || v === '' ? null : v),
+      z.union([z.null(), z.coerce.number().int().positive()], { error: 'Seguimiento inválido.' }),
+    ),
+  }),
+
+  avisosAjustes: z.object({
+    alertaDias: z.number({ error: 'Indique los días de anticipación.' }).int().min(0).max(365, 'Máximo 365 días.'),
+    alertaFrecuencia: z.enum(FRECUENCIAS_AVISO, { error: 'Frecuencia inválida.' }),
+    alertaCorreo: z.boolean(),
+    horaEnvio: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use el formato HH:mm.'),
+  }),
+
+  avisosContacto: z.object({
+    usuarioId: z.number().int().positive().nullable().default(null),
+    nombre: z.string({ error: 'El nombre es obligatorio.' }).transform(text).pipe(z.string().min(1, 'El nombre es obligatorio.').max(100)),
+    email,
+    activo: z.boolean().default(true),
+  }),
+
+  avisosPrueba: z.object({ email }),
+
   fotosOrden: z.object({
     motivo,
     ids: z.array(z.coerce.number().int().positive()).min(1).max(MAX_FOTOS * 4)
@@ -126,4 +176,11 @@ const leerClave = (tipo, codigo) => {
   return { tipo: clave, codigo: cod };
 };
 
-module.exports = { MAX_FOTOS, httpError, leerClave, parse, text };
+/** Código Métrica del equipo en la URL. */
+const leerEquipo = (valor) => {
+  const result = codMetrica.safeParse(String(valor ?? ''));
+  if (!result.success) throw httpError(400, 'Código Métrica inválido.');
+  return result.data;
+};
+
+module.exports = { MAX_FOTOS, httpError, leerClave, leerEquipo, parse, text };

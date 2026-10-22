@@ -11,6 +11,7 @@ import { useTheme } from './shared/context/ThemeContext';
 import { safeStorage } from './shared/utils/storage';
 import { decodeJwtPayload, isJwtExpired } from './shared/utils/jwt';
 import { useCalibrationAlertCount } from './features/calibration/hooks/useCalibrationAlertCount';
+import { useSoporteAlertCount } from './features/soporte/hooks/useSoporteAlertCount';
 import { useFailureSummary } from './features/system/hooks/useFailureSummary';
 
 const RimPage = lazy(() => import('./features/rim/RimPage')
@@ -62,6 +63,8 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
   const sidebar = useSidebar();
   const { isDesktop, close: closeSidebar } = sidebar;
   const calibrationAlerts = useCalibrationAlertCount(managesCalibration(currentUser));
+  // Quien usa Soporte técnico ve el contador de próximos servicios.
+  const soporteAlerts = useSoporteAlertCount(canUseView('soporte', currentUser));
   const failures = useFailureSummary(isSystemAdmin(currentUser));
   const pendingFailures = (failures?.abiertas || 0) + (failures?.enCurso || 0);
 
@@ -87,6 +90,13 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
                 count: calibrationAlerts.total,
                 urgent: calibrationAlerts.vencidas > 0,
                 label: `${calibrationAlerts.total} fechas de calibración requieren atención`,
+              },
+            } : {}),
+            ...(soporteAlerts?.total ? {
+              soporte: {
+                count: soporteAlerts.total,
+                urgent: soporteAlerts.vencidas > 0,
+                label: `${soporteAlerts.total} próximos servicios de soporte requieren atención`,
               },
             } : {}),
             ...(pendingFailures > 0 ? {

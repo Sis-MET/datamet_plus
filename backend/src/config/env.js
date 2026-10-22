@@ -114,6 +114,10 @@ module.exports = {
     // Enlace al cronograma que se incluye en los correos (opcional).
     appUrl: String(process.env.APP_URL || '').trim(),
   },
+  // Soporte técnico: correo diario de los próximos servicios (mismo SMTP).
+  soporte: {
+    alertsEnabled: flag(process.env.ST_ALERTS_ENABLED, true),
+  },
   ivmet: {
     enabled: ivmetEnabled,
     configurationReady: missingIvmetVars.length === 0,

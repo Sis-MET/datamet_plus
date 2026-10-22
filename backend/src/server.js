@@ -2,6 +2,7 @@ const app = require('./app');
 const env = require('./config/env');
 const { connectDB } = require('./config/db');
 const { startCalibrationScheduler, stopCalibrationScheduler } = require('./services/calibration.scheduler');
+const { startSoporteScheduler, stopSoporteScheduler } = require('./services/soporte.scheduler');
 const { recordFailure } = require('./services/system.failures');
 
 // Errores que escapan a las rutas y tareas: también al registro de fallas.
@@ -21,13 +22,16 @@ const startServer = async () => {
       console.log(`Entorno: ${env.nodeEnv}`);
     });
 
-    // 3. Revisión diaria de alertas de calibración por correo
+    // 3. Revisión diaria de alertas de calibración y de los próximos
+    //    servicios de soporte técnico por correo
     startCalibrationScheduler();
+    startSoporteScheduler();
 
     // Manejo de cierres gráciles (Graceful Shutdown)
     const shutdown = () => {
       console.log('Apagando servidor...');
       stopCalibrationScheduler();
+      stopSoporteScheduler();
       server.close(() => {
         console.log('Servidor HTTP cerrado.');
         process.exit(0);
