@@ -14,7 +14,7 @@ Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, num
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
 - **Gestión IvMET:** panel administrativo para clientes contratados, licencias, planes y revisión del catálogo sincronizado.
 - **Calibración:** plan anual de calibraciones, verificaciones internas y actividades del área, con alertas en el cronograma y por correo.
-- **Soporte técnico:** informes de los 8 servicios del área a partir de lo que sube ServiceMET, con el diseño de las plantillas Excel, fotografías, edición con historial, emisión y PDF.
+- **Soporte técnico:** informes de los 8 servicios del área a partir de lo que sube ServiceMET, con el diseño de las plantillas Excel, fotografías, edición con historial, emisión y PDF; y los próximos servicios que sugieren los técnicos, con línea de tiempo, seguimiento y avisos por correo.
 - **Control de cambios y registro de fallas:** historial de los cambios del sistema con su validación y aprobación, y registro de las fallas con sus acciones (NB/ISO/IEC 17025, 7.11).
 
 ## RIM (recepción de instrumentos)
@@ -375,6 +375,60 @@ Para «Mejorar redacción», en `backend/.env`:
 
 La clave no va en variables `VITE_` ni en el repositorio: el navegador llama
 a `/api/soporte/redaccion` y el backend llama a Gemini.
+
+### Próximos servicios
+
+En casi todos los servicios el técnico llena «Fecha próximo servicio
+sugerido» y «Tipo de servicio sugerido». La pestaña **Próximos servicios** los
+reúne por equipo (Código Métrica) para que el área sepa a qué cliente volver y
+cuándo (migración `009`, rutas `/api/soporte/proximos*` y `/api/soporte/avisos*`).
+
+- **Qué fecha vale:** la que sugirió el último mantenimiento (preventivo
+  regular o avanzado, correctivo), instalación o verificación (IBMETRO o
+  interna) del equipo. Un servicio posterior de esos tipos la reemplaza con la
+  suya, aunque venga sin fecha; el diagnóstico y el relevamiento no la cambian.
+  Si el área corrigió la fecha en el informe, vale la corregida. Una fecha que
+  no es posterior al servicio no cuenta. Reglas y pruebas en
+  `backend/src/services/soporte.proximos.reglas.js` y
+  `backend/tests/soporte.proximos.test.js`.
+- **Situación:** programado, en aviso (le faltan los días de anticipación o
+  menos), coordinado (visita acordada con el cliente), vencido o descartado.
+- **Vista:** «Requieren atención» con lo vencido y lo próximo de cualquier
+  año, agrupado por cliente y planta (los equipos de una misma visita; cada
+  grupo se despliega y la OTST del servicio anterior figura solo como
+  referencia de cada equipo); línea de tiempo anual agrupada por cliente (una fila por equipo, con
+  los servicios realizados, la banda hasta el próximo servicio, el periodo de
+  aviso y lo vencido sin atender); vistas de mes y agenda, también agrupadas
+  por cliente; filtros por
+  cliente, ciudad, tipo sugerido, situación y búsqueda. El contador de la
+  barra lateral y de la pestaña cuenta lo que requiere atención.
+- **Seguimiento (oculto por ahora):** el área todavía no tiene un
+  procedimiento para gestionar estas fechas, así que los botones están
+  ocultos con `SEGUIMIENTO_UI = false` en
+  `src/features/soporte/domain/proximos.js` (el backend y la tabla siguen
+  intactos; la bitácora de un equipo se muestra si ya tiene gestiones).
+  Ponerlo en `true` los vuelve a mostrar. Con él activo, desde la ficha del
+  equipo se registra el contacto con el
+  cliente, una visita coordinada (con fecha), una reprogramación (nueva fecha
+  y motivo), un descarte (motivo; deja de avisar) o una reactivación. Cada
+  gestión es una fila de `ST_PROXIMOS_SEGUIMIENTO` con usuario de la sesión y
+  hora del servidor; no se edita ni se borra (7.5.2). Dos personas no se
+  pisan: el segundo recibe un aviso (409) y la ficha vigente. Si el equipo
+  tiene un servicio nuevo, el seguimiento anterior queda en la bitácora y la
+  nueva fecha empieza limpia.
+- **Avisos:** pestaña **Avisos** con la anticipación (30 días por omisión),
+  la repetición (una vez, semanal, diaria o sin avisos), la hora y los
+  destinatarios. Cada día, a esa hora, cada destinatario activo recibe un
+  correo con lo vencido y lo próximo agrupado por cliente. Usa el mismo SMTP
+  que calibración; `ST_ALERTS_ENABLED=false` lo detiene. `ST_AVISOS_ENVIOS`
+  registra cada aviso para no repetirlo antes de tiempo (si la fecha se
+  reprograma, el aviso empieza de nuevo) y `ST_AVISOS_HISTORIAL` cada cambio
+  de los ajustes y los destinatarios.
+
+Despliegue: aplicar la migración `009` (crea `ST_PROXIMOS_SEGUIMIENTO`,
+`ST_AVISOS_AJUSTES`, `ST_AVISOS_CONTACTOS`, `ST_AVISOS_HISTORIAL` y
+`ST_AVISOS_ENVIOS`, y registra el cambio CC-2026-020) y después backend y
+frontend. Mientras no haya destinatarios no sale ningún correo.
 
 ## Control de cambios y registro de fallas
 
