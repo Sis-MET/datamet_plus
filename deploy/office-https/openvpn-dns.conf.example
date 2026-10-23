@@ -1,0 +1,12 @@
+# Fragmento para OpenVPN Community: integrar en la configuración existente
+# del SERVIDOR VPN, sustituyendo IP_DNS_INTERNO por el DNS real de la oficina.
+# No utilizar este fragmento como un archivo de configuración completo.
+#
+# El DNS elegido debe resolver datamet.lenash.dev -> 192.168.1.5 y debe
+# ser accesible desde la VPN (UDP/TCP 53). La ruta hacia 192.168.1.5 ya
+# debe existir, igual que para el acceso HTTP actual.
+#
+# push "dhcp-option DNS IP_DNS_INTERNO"
+#
+# OpenVPN Access Server administra DNS desde su panel; no pegar esta
+# directiva de Community sin comprobar primero la edición utilizada.

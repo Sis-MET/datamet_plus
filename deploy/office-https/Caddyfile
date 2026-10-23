@@ -1,0 +1,23 @@
+# Ejecutar en servidor-metrica (192.168.1.5).
+# Requiere Caddy con el módulo github.com/caddy-dns/cloudflare y
+# CF_API_TOKEN en el entorno del proceso/servicio. Nunca escribir el token aquí.
+{
+	auto_https disable_redirects
+	admin 127.0.0.1:2019
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+	storage file_system C:/ProgramData/DataMET-Caddy/data
+	log {
+		output file C:/ProgramData/DataMET-Caddy/logs/caddy.log
+	}
+}
+
+https://datamet.lenash.dev {
+	bind 192.168.1.5
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+		# La comprobación del TXT consulta el DNS público, incluso si el
+		# servidor utiliza un DNS interno para datamet.lenash.dev.
+		resolvers 1.1.1.1 1.0.0.1
+	}
+	reverse_proxy 127.0.0.1:3000
+}

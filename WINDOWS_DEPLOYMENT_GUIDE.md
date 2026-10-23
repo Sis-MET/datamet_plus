@@ -2,6 +2,8 @@
 
 Esta guía detalla los pasos para migrar y levantar el **Backend (API)** de RimMET en un servidor Windows o Windows Server, dejando de lado la configuración basada en Docker (Ubuntu) para usar una instalación nativa que ofrezca mejor rendimiento y facilidad de mantenimiento.
 
+Para el HTTPS privado de DataMET+ en `192.168.1.5:3000`, con `datamet.lenash.dev` y acceso por oficina/OpenVPN, seguir [HTTPS de oficina](docs/https-oficina.md). Incluye el proxy, la validación DNS del certificado, el DNS de la VPN y la configuración del frontend.
+
 ## 1. Requisitos Previos en el Servidor (Instalaciones)
 
 Antes de copiar el código, debes asegurarte de que el servidor tenga instaladas las herramientas base:
