@@ -10,6 +10,18 @@ test('solo el cargo exacto del jefe de Soporte concede aprobación, sin excepcio
   assert.equal(puedeAprobar({ area: 'Sistemas', cargo: 'Jefe de Area', acceso_cron: 3 }), false);
 });
 
+test('la delegación concede aprobación solo al área de soporte y requiere autorización explícita', () => {
+  assert.equal(puedeAprobar({ area: 'Soporte Técnico', cargo: 'Técnico', autorizado: true }), true);
+  assert.equal(puedeAprobar({ area: 'Sistemas', cargo: 'Técnico', autorizado: true }), false);
+  assert.equal(puedeAprobar({ area: 'Calibración', autorizado: true }), false);
+  assert.equal(puedeAprobar({ area: 'Soporte Técnico', autorizado: 'true' }), false);
+  assert.deepEqual(parse('aprobadores', { version: 1, aprobadores: [2, 3] }).aprobadores, [2, 3]);
+  for (const body of [{ version: 1, aprobadores: [2, 2] }, { version: null, aprobadores: [] },
+    { version: 1, aprobadores: ['2'] }, { version: 1, aprobadores: [], cargo: 'Jefe de Area' }]) {
+    assert.throws(() => parse('aprobadores', body), e => e.statusCode === 400);
+  }
+});
+
 test('la aprobación corresponde exactamente a la fuente, las correcciones y las fotografías revisadas', () => {
   const actual = { fuente: { cap_max1: 300, d1: 0.1 }, datos: { comentario_general: 'Verificado' }, fotos: [{ id: 1, orden: 1, descripcion: 'Placa' }] };
   const informe = { validacion_estado: 'APROBADO', validacion_huella: huella(actual) };

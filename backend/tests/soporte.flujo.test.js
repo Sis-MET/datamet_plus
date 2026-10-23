@@ -134,6 +134,23 @@ test('flujo real de servicios: envío, observaciones, aprobación, emisión y nu
   assert.equal(almacen.historial.filter(h => h.accion === 'VALIDACION_APROBADA').length, 2);
 });
 
+test('un delegado aprueba y su revocación, baja o cambio de área se aplican en la siguiente solicitud', async () => {
+  reset();
+  personal.aprobador_delegado = 1;
+  assert.equal((await informes.permisos(usuario)).aprobar, true);
+  assert.equal((await informes.permisos(usuario)).configurarAprobadores, false);
+  await informes.enviarValidacion('MPR', 'ST-001', version(), usuario);
+  await informes.resolverValidacion('MPR', 'ST-001', { ...version(), decision: 'APROBAR' }, usuario);
+  await informes.retirarValidacion('MPR', 'ST-001', version(), usuario);
+  await informes.enviarValidacion('MPR', 'ST-001', version(), usuario);
+  for (const cambio of [{ aprobador_delegado: 0 }, { aprobador_delegado: 1, activo: false },
+    { aprobador_delegado: 1, activo: true, area: 'Sistemas' }]) {
+    Object.assign(personal, cambio);
+    await assert.rejects(informes.resolverValidacion('MPR', 'ST-001', { ...version(), decision: 'APROBAR' }, { ...usuario, autorizado: true, acceso_cron: 3 }), e => e.statusCode === 403);
+    assert.equal(almacen.informe.validacion_estado, 'PENDIENTE');
+  }
+});
+
 test('una reposición de ServiceMET invalida la aprobación; retirar obliga a reenviar', async () => {
   reset();
   await informes.enviarValidacion('MPR', 'ST-001', version(), usuario);

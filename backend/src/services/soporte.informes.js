@@ -200,15 +200,18 @@ const datosUsuario = async (user) => {
   const result = await getPool().request()
     .input('id', sql.Int, userId)
     .query(`
-      SELECT TOP (1) area, cargo, LTRIM(RTRIM(CONCAT(nombre1, ' ', apellido1))) AS nombre
+      SELECT TOP (1) area, cargo, LTRIM(RTRIM(CONCAT(nombre1, ' ', apellido1))) AS nombre,
+        CASE WHEN EXISTS (SELECT 1 FROM dbo.ST_APROBADORES a WHERE a.usuario_id = DATA_USERS.id) THEN 1 ELSE 0 END AS aprobador_delegado
       FROM DATA_USERS WHERE id = @id AND estado = 'ACTIVO';`);
   const row = result.recordset[0] || {};
-  return { area: row.area || null, nombre: row.nombre || null, cargo: row.cargo || null, activo: Boolean(result.recordset[0]) };
+  return { area: row.area || null, nombre: row.nombre || null, cargo: row.cargo || null,
+    autorizado: row.aprobador_delegado === 1 || row.aprobador_delegado === true, activo: Boolean(result.recordset[0]) };
 };
 
 const permisos = async (user) => {
-  const { area, nombre, cargo, activo } = await datosUsuario(user);
-  return { editar: activo && puedeEditarArea(area, user?.acceso_cron), aprobar: activo && aprobacion.puedeAprobar({ area, cargo }), nombre };
+  const { area, nombre, cargo, activo, autorizado } = await datosUsuario(user);
+  return { editar: activo && puedeEditarArea(area, user?.acceso_cron), aprobar: activo && aprobacion.puedeAprobar({ area, cargo, autorizado }),
+    configurarAprobadores: activo && aprobacion.esJefeArea({ area, cargo }), nombre };
 };
 
 const exigirEditor = async (user) => {
@@ -1253,14 +1256,14 @@ const enviarValidacion = async (tipo, codigo, body, user) => {
         validacion_resuelta_por = NULL, validacion_resuelta_en = NULL, validacion_observacion = NULL,
         version = version + 1, actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME() WHERE id = @id;`);
     await registrarHistorial(newRequest, { informeId: informe.id, accion: 'VALIDACION_ENVIADA',
-      detalle: 'Enviado al jefe de área para validar antes de emitir', revision: revisiones.revisionDeCambio(informe), actor });
+      detalle: 'Enviado a los aprobadores autorizados para validar antes de emitir', revision: revisiones.revisionDeCambio(informe), actor });
   });
   return getInforme(tipo, codigo, user);
 };
 
 const resolverValidacion = async (tipo, codigo, body, user) => {
   const permiso = await permisos(user);
-  if (!permiso.aprobar) throw httpError(403, 'Solo el personal activo de Soporte Técnico con cargo «Jefe de Area» puede validar informes.');
+  if (!permiso.aprobar) throw httpError(403, 'Solo el jefe de área o el personal activo de Soporte Técnico autorizado por él puede validar informes.');
   const actor = await exigirEditor(user);
   const columnas = await columnasDe(tipo);
   await conInforme({ tipo, codigo, actor, crear: false }, async ({ informe, newRequest }) => {
@@ -1286,7 +1289,7 @@ const resolverValidacion = async (tipo, codigo, body, user) => {
         version = version + 1, actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME() WHERE id = @id;`);
     await registrarHistorial(newRequest, { informeId: informe.id,
       accion: aprobado ? 'VALIDACION_APROBADA' : 'VALIDACION_OBSERVADA',
-      detalle: aprobado ? 'Aprobado por el jefe de área para emitir' : 'Devuelto al técnico para corregir',
+      detalle: aprobado ? 'Aprobado por personal autorizado para emitir' : 'Devuelto al técnico para corregir',
       motivo: body.observacion, revision: revisiones.revisionDeCambio(informe), actor });
   });
   return getInforme(tipo, codigo, user);

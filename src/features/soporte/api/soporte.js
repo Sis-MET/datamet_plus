@@ -12,6 +12,9 @@ const avisar = (result) => {
 };
 
 export const soporteApi = {
+  permisos: () => unwrap(api.get('/soporte/permisos')),
+  aprobadores: () => unwrap(api.get('/soporte/configuracion/aprobadores')),
+  guardarAprobadores: body => unwrap(api.put('/soporte/configuracion/aprobadores', body)),
   carpetas: (carpeta = '') => unwrap(api.get('/soporte/documentos/carpetas', { carpeta }, { timeout: 30000 })),
   documentos: (tipo, codigo) => unwrap(api.get(`${ruta(tipo, codigo)}/documentos`)),
   guardarPdf: (tipo, codigo, pdf, meta) => unwrap(api.post(`${ruta(tipo, codigo)}/documentos`, pdf, {

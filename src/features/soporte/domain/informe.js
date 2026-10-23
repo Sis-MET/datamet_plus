@@ -24,7 +24,7 @@ export const ACCIONES_HISTORIAL = {
   REEMISION: 'Reemisión',
   REVISION_CANCELADA: 'Revisión cancelada',
   VALIDACION_ENVIADA: 'Enviado a validación',
-  VALIDACION_APROBADA: 'Aprobado por el jefe de área',
+  VALIDACION_APROBADA: 'Aprobado para emitir',
   VALIDACION_OBSERVADA: 'Devuelto con observaciones',
   VALIDACION_RETIRADA: 'Validación retirada',
 };

@@ -1,8 +1,11 @@
 import { useCallback, useState } from 'react';
-import { BellRing, CalendarRange, FileText } from 'lucide-react';
+import { BellRing, CalendarRange, FileText, Settings } from 'lucide-react';
 import { cn } from '../../shared/utils/cn';
 import { safeStorage } from '../../shared/utils/storage';
 import { InformeEditor } from './components/InformeEditor';
+import { AprobadoresPanel } from './components/AprobadoresPanel';
+import { soporteApi } from './api/soporte';
+import { useResource } from '../system/hooks/useResource';
 import { InformesLista } from './components/InformesLista';
 import { AvisosPanel } from './components/proximos/AvisosPanel';
 import { ProximosPanel } from './components/proximos/ProximosPanel';
@@ -15,7 +18,7 @@ import './soporte.css';
 const ABIERTO = 'rimmet_soporte_informe';
 const AGRUPAR = 'rimmet_soporte_agrupar';
 const PESTANA = 'rimmet_soporte_pestana';
-const PESTANAS = ['informes', 'proximos', 'avisos'];
+const PESTANAS = ['informes', 'proximos', 'avisos', 'configuracion'];
 
 const leerPestana = () => {
   const valor = safeStorage.getItem(PESTANA);
@@ -39,14 +42,15 @@ const leerAgrupar = () => {
 };
 
 /** Pestañas del apartado; «Próximos servicios» lleva el contador de lo que requiere atención. */
-function Pestanas({ pestana, onChange, alertas }) {
+function Pestanas({ pestana, onChange, alertas, configurar }) {
   const secciones = [
     { id: 'informes', label: 'Informes', icon: FileText },
     { id: 'proximos', label: 'Próximos servicios', icon: CalendarRange, count: alertas?.total || null, alert: alertas?.vencidas > 0 },
     { id: 'avisos', label: 'Avisos', icon: BellRing },
+    ...(configurar ? [{ id: 'configuracion', label: 'Configuración', icon: Settings }] : []),
   ];
   return (
-    <nav aria-label="Secciones de Soporte técnico" className="cal-segmented cal-tabs self-start">
+    <nav aria-label="Secciones de Soporte técnico" className="cal-segmented cal-tabs flex-wrap self-start">
       {secciones.map((seccion) => {
         const Icon = seccion.icon;
         return (
@@ -71,7 +75,10 @@ function Pestanas({ pestana, onChange, alertas }) {
  * abiertos, y se vuelve a la pestaña de la que se salió.
  */
 export function SoportePage() {
-  const [pestana, setPestanaState] = useState(leerPestana);
+  const [pestanaGuardada, setPestanaState] = useState(leerPestana);
+  const { data: permisos } = useResource(soporteApi.permisos);
+  const configurar = permisos?.configurarAprobadores === true;
+  const pestana = pestanaGuardada === 'configuracion' && !configurar ? 'informes' : pestanaGuardada;
   const alertas = useSoporteAlertCount(true);
   const [abierto, setAbierto] = useState(leerAbierto);
   const [filtros, setFiltros] = useState(filtrosVacios);
@@ -113,7 +120,8 @@ export function SoportePage() {
 
   return (
     <main className={`mx-auto flex w-full flex-col gap-4 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 ${ancho}`}>
-      {!abierto && <Pestanas pestana={pestana} onChange={setPestana} alertas={alertas} />}
+      {!abierto && <Pestanas pestana={pestana} onChange={setPestana} alertas={alertas} configurar={configurar} />}
+      {!abierto && pestana === 'configuracion' && configurar && <AprobadoresPanel />}
       {abierto && (
         <InformeEditor key={`${abierto.tipo}:${abierto.codigo}`} tipo={abierto.tipo} codigo={abierto.codigo} onVolver={cerrar} />
       )}

@@ -50,6 +50,11 @@ const FRECUENCIAS_AVISO = ['UNICA', 'SEMANAL', 'DIARIA', 'NINGUNA'];
 const email = z.string({ error: 'Falta el correo.' }).trim().toLowerCase().max(150).pipe(z.email('Correo no válido.'));
 
 const schemas = {
+  aprobadores: z.object({
+    version: z.number().int().positive(),
+    aprobadores: z.array(z.number().int().positive()).max(500)
+      .refine(ids => new Set(ids).size === ids.length, 'Hay personas repetidas.'),
+  }).strict(),
   filtros: z.object({
     q: optionalText(120),
     tipo: z.preprocess(v => (v ? String(v).toUpperCase() : null), z.enum(CLAVES_TIPO).nullable()),

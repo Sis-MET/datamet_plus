@@ -64,7 +64,7 @@ function PanelFiltros({ id, filtros, opciones, onChange }) {
   );
   return (
     <section id={id} aria-label="Filtros de los informes" className="card grid gap-x-4 gap-y-3 p-4 shadow-card sm:grid-cols-2 lg:grid-cols-4">
-      {campo('validacion', 'Validación por el jefe de área', (
+      {campo('validacion', 'Validación del informe', (
         <Dropdown id={`${baseId}-validacion`} ariaLabel="Validación" value={filtros.validacion || ''}
           onChange={validacion => onChange({ validacion })}
           options={[{ value: '', label: 'Todas las validaciones' }, ...Object.entries(ESTADOS_VALIDACION).map(([value, meta]) => ({ value, label: meta.label }))]} />

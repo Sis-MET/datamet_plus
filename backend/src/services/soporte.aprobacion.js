@@ -3,16 +3,18 @@ const { normalizeArea } = require('./calibration.db');
 const { httpError } = require('./soporte.validation');
 const { copiaFotos } = require('./soporte.revisiones');
 
-// La aprobación es una atribución del cargo del personal de Soporte Técnico.
+// El jefe de Soporte puede aprobar y delegar en personal de su área.
 // El acceso administrativo de Sistemas no concede esta atribución.
-const puedeAprobar = ({ area, cargo } = {}) => normalizeArea(area) === 'soporte tecnico'
+const esJefeArea = ({ area, cargo } = {}) => normalizeArea(area) === 'soporte tecnico'
   && normalizeArea(cargo).replace(/\s+/g, ' ') === 'jefe de area';
+const puedeAprobar = ({ area, cargo, autorizado = false } = {}) => normalizeArea(area) === 'soporte tecnico'
+  && (esJefeArea({ area, cargo }) || autorizado === true);
 
 const bloqueada = (informe) => ['PENDIENTE', 'APROBADO'].includes(informe?.validacion_estado);
 
 const exigirEditable = (informe) => {
   if (informe?.estado !== 'EMITIDO' && bloqueada(informe)) {
-    throw httpError(409, 'Retire la validación antes de modificar datos o fotos. Después deberá enviarlos nuevamente al jefe de área.');
+    throw httpError(409, 'Retire la validación antes de modificar datos o fotos. Después deberá enviarlos nuevamente a revisión.');
   }
 };
 
@@ -35,9 +37,9 @@ const exigirHuella = (informe, actual) => {
 
 const exigirAprobado = (informe, actual) => {
   if (informe?.validacion_estado !== 'APROBADO') {
-    throw httpError(409, 'El jefe de área debe aprobar el informe antes de emitirlo.');
+    throw httpError(409, 'Un aprobador autorizado debe aprobar el informe antes de emitirlo.');
   }
   exigirHuella(informe, actual);
 };
 
-module.exports = { bloqueada, exigirAprobado, exigirEditable, exigirHuella, huella, puedeAprobar };
+module.exports = { bloqueada, esJefeArea, exigirAprobado, exigirEditable, exigirHuella, huella, puedeAprobar };

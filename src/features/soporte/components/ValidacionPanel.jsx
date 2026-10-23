@@ -33,8 +33,8 @@ export function ValidacionPanel({ informe, pendientes, avisos, onAccion, tipo, c
             {validacion.estado === 'APROBADO'
               ? 'El técnico ya puede emitir. Para cambiar datos o fotos, retire la validación y solicite una nueva aprobación.'
               : validacion.estado === 'PENDIENTE'
-                ? 'El jefe de área debe revisar los datos, las pruebas y las fotos antes de aprobar la emisión.'
-                : 'Guarde los datos y envíe el informe al jefe de área. Solo podrá emitir después de su aprobación.'}
+                ? 'Un aprobador autorizado debe revisar los datos, las pruebas y las fotos antes de aprobar la emisión.'
+                : 'Guarde los datos y envíe el informe a revisión. Solo podrá emitir después de la aprobación de personal autorizado.'}
           </p>
           {validacion.enviadaPor && <p className="mt-1 text-xs text-fg-muted">Enviado por {validacion.enviadaPor.nombre || validacion.enviadaPor.usuario} · {fechaHora(validacion.enviadaEn)}</p>}
           {validacion.resueltaPor && <p className="mt-1 text-xs text-fg-muted">Revisado por {validacion.resueltaPor.nombre || validacion.resueltaPor.usuario} · {fechaHora(validacion.resueltaEn)}</p>}
@@ -43,7 +43,7 @@ export function ValidacionPanel({ informe, pendientes, avisos, onAccion, tipo, c
         </div>
         <div className="flex flex-wrap gap-2">
           {informe.acciones.editar && !bloqueado && (
-            <Button onClick={() => ejecutar(soporteApi.enviarValidacion, 'Informe enviado al jefe de área.')}
+            <Button onClick={() => ejecutar(soporteApi.enviarValidacion, 'Informe enviado a revisión.')}
               disabled={busy || pendientes > 0} isLoading={busy} title={pendientes ? 'Guarde los cambios antes de enviar' : undefined}>
               <Send className="h-4 w-4" aria-hidden="true" /> Enviar a revisión
             </Button>
@@ -63,7 +63,7 @@ export function ValidacionPanel({ informe, pendientes, avisos, onAccion, tipo, c
         </div>
       </div>
       {observando && <MotivoModal titulo="Devolver al técnico" descripcion="Indique qué debe corregirse antes de solicitar otra validación."
-        etiqueta="Observaciones del jefe de área" accion="Devolver con observaciones" onClose={() => setObservando(false)}
+        etiqueta="Observaciones del aprobador" accion="Devolver con observaciones" onClose={() => setObservando(false)}
         onConfirm={async observacion => {
           await onAccion(soporteApi.resolverValidacion(tipo, codigo, { version: informe.version, decision: 'OBSERVAR', observacion }));
           toast.success('Informe devuelto para corregir.');
