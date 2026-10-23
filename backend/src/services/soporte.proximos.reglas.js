@@ -165,6 +165,10 @@ const datosEquipo = (servicio) => ({
   serie: limpio(servicio.serie),
   codInt: limpio(servicio.codInt),
   ubicacion: limpio(servicio.ubicacion),
+  unidades: servicio.unidades || null,
+  rangos: servicio.rangos || [],
+  tipoRango: servicio.tipoRango || null,
+  capacidadMaxima: servicio.capacidadMaxima ?? null,
 });
 
 const resumenServicio = (servicio) => ({
@@ -256,6 +260,10 @@ const construirEquipos = ({ servicios = [], seguimiento = [], hoy, ajustes }) =>
         marca: base.marca,
         modelo: base.modelo,
         serie: base.serie,
+        unidades: base.unidades,
+        rangos: base.rangos,
+        tipoRango: base.tipoRango,
+        capacidadMaxima: base.capacidadMaxima,
         origen: resumenServicio(origen),
         tipoSugerido: claveSugerido(origen.recomendacion),
         recomendacion: limpio(origen.recomendacion),

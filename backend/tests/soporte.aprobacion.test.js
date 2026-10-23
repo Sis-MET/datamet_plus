@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { puedeAprobar, huella, exigirAprobado, exigirEditable } = require('../src/services/soporte.aprobacion');
 const { parse } = require('../src/services/soporte.validation');
+const { datosPesaje } = require('../src/services/soporte.equipo');
 
 test('solo el cargo exacto del jefe de Soporte concede aprobación, sin excepciones por nivel', () => {
   for (const cargo of ['Jefe de Area', ' Jefe de Área ', 'JEFE DE AREA']) assert.equal(puedeAprobar({ area: 'Soporte Técnico', cargo }), true);
@@ -27,4 +28,14 @@ test('devolver un informe requiere observaciones y no acepta decisiones desconoc
   assert.throws(() => parse('resolverValidacion', { version: 2, decision: 'OBSERVAR' }), /correcciones/);
   assert.equal(parse('resolverValidacion', { version: 2, decision: 'OBSERVAR', observacion: 'Corregir la serie del equipo' }).decision, 'OBSERVAR');
   assert.throws(() => parse('resolverValidacion', { version: 2, decision: 'EMITIR' }));
+});
+
+test('rangos de pesaje: capacidad, división y verificación, sin interpretar ceros como rangos activos', () => {
+  assert.deepEqual(datosPesaje({ cap_max1: '300', d1: '0,05', e1: 0.1, cap_max2: 0, cap_max3: null, unidades: ' kg ' }), {
+    unidades: 'kg', rangos: [{ numero: 1, capacidad: 300, division: 0.05, verificacion: 0.1 }], tipoRango: 'Rango único', capacidadMaxima: 300,
+  });
+  assert.equal(datosPesaje({ cap_max1: 150, cap_max2: 300 }).tipoRango, 'Doble rango');
+  assert.equal(datosPesaje({ cap_max1: 150, cap_max2: 300, cap_max3: 600 }).tipoRango, 'Triple rango');
+  assert.equal(datosPesaje({ d2: 0.1 }).tipoRango, 'Rangos incompletos');
+  assert.equal(datosPesaje({}).tipoRango, null);
 });

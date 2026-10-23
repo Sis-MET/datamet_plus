@@ -14,6 +14,7 @@ const { isMailConfigured, mailStatus, sendMail } = require('./mailer.service');
 const { CLAVES_TIPO, TIPOS, numeroInforme } = require('./soporte.tipos');
 const { httpError, text } = require('./soporte.validation');
 const { columnasDe, leerDatos, permisos } = require('./soporte.informes');
+const { datosPesaje } = require('./soporte.equipo');
 const {
   alertasActivas,
   armarResumenes,
@@ -58,6 +59,8 @@ const CAMPOS = [
   ['modelo', 'modelo'],
   ['serie', 'serie'],
   ['ubicacion', 'ubicacion'],
+  ['unidades', 'unidades'],
+  ...[1, 2, 3].flatMap(n => [`cap_max${n}`, `d${n}`, `e${n}`].map(campo => [campo, campo])),
   ['fecha_prox_servicio', 'fecha_prox_servicio'],
 ];
 
@@ -115,6 +118,8 @@ const mapServicio = (row) => {
     modelo: limpio(valor('modelo')),
     serie: limpio(valor('serie')),
     ubicacion: limpio(valor('ubicacion')),
+    ...datosPesaje(Object.fromEntries(['unidades', ...[1, 2, 3].flatMap(n => [`cap_max${n}`, `d${n}`, `e${n}`])]
+      .map(campo => [campo, valor(campo)]))),
   };
 };
 

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-  AlertCircle, CalendarDays, ChevronLeft, ChevronRight, Filter, GanttChart, ListChecks, MapPin, RefreshCw, Search, Shapes,
+  AlertCircle, CalendarDays, ChevronLeft, ChevronRight, Download, Filter, GanttChart, ListChecks, MapPin, RefreshCw, Search, Shapes,
 } from 'lucide-react';
 import { Button } from '../../../../shared/components/ui/Button';
 import { cn } from '../../../../shared/utils/cn';
@@ -16,6 +16,7 @@ import { LineaTiempo } from './LineaTiempo';
 import { Agenda, AtencionPanel } from './Listas';
 import { VistaMes } from './VistaMes';
 import { Glifo, Leyenda } from './piezas';
+import { ExportarPlanModal } from './ExportarPlanModal';
 
 const VISTA_KEY = 'rimmet_soporte_proximos_vista';
 const VISTAS = ['anio', 'mes', 'agenda'];
@@ -67,6 +68,7 @@ export function ProximosPanel({ onAbrirInforme }) {
   // Lo que la persona abrió o cerró a mano; el resto sigue la regla automática.
   const [elegidos, setElegidos] = useState(() => new Map());
   const [ficha, setFicha] = useState(null);
+  const [exportando, setExportando] = useState(false);
 
   const { data, error, loading, reload } = useProximos(anio);
 
@@ -185,6 +187,9 @@ export function ProximosPanel({ onAbrirInforme }) {
         <button type="button" onClick={irAHoy} className={cn(CONTROL, 'gap-2 px-3 text-[13px] font-semibold hover:bg-surface-2')}>
           <CalendarDays className="h-4 w-4 text-fg-muted" aria-hidden="true" /> Hoy
         </button>
+        <Button variant="secondary" size="sm" onClick={() => setExportando(true)} disabled={!data || loading || Boolean(error)}>
+          <Download className="h-4 w-4" aria-hidden="true" /> Exportar PDF
+        </Button>
         <button
           type="button"
           onClick={reload}
@@ -331,6 +336,11 @@ export function ProximosPanel({ onAbrirInforme }) {
           onAbrirInforme={onAbrirInforme}
         />
       )}
+      {exportando && <ExportarPlanModal anio={anio} mes={mes} eventos={eventos}
+        filtros={[cliente && `Cliente: ${cliente}`, ciudad && `Ciudad: ${ciudad}`, query && `Búsqueda: ${query}`,
+          sugerido && `Tipo: ${sugerido === 'NINGUNO' ? 'Sin tipo sugerido' : SUGERIDOS[sugerido]?.label}`,
+          situaciones.size > 0 && `Situación: ${[...situaciones].map(s => SITUACIONES[s]?.label).join(', ')}`].filter(Boolean).join(' · ')}
+        onClose={() => setExportando(false)} />}
     </div>
   );
 }

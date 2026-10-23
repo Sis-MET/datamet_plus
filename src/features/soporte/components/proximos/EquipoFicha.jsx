@@ -13,7 +13,7 @@ import { soporteApi } from '../../api/soporte';
 import { ESTADOS_INFORME } from '../../domain/informe';
 import {
   ACCIONES, ESTADO_SUGERENCIA, SEGUIMIENTO_UI, cuando, formaDe, gestionTitulo, subtituloEquipo, sugeridoLabel, tipoLabel,
-  tonoTexto,
+  tonoTexto, medidaPesaje,
 } from '../../domain/proximos';
 import { Glifo, SituacionBadge } from './piezas';
 
@@ -362,6 +362,16 @@ export function EquipoFicha({ codMetrica, onClose, onAbrirInforme }) {
                 <Dato label="Serie">{equipo.serie}</Dato>
                 <Dato label="Código interno">{equipo.codInt}</Dato>
                 <Dato label="Ubicación">{equipo.ubicacion}</Dato>
+                <Dato label="Capacidad máxima">{medidaPesaje(equipo.capacidadMaxima, equipo.unidades)}</Dato>
+                <Dato label="Rangos de pesaje">{equipo.tipoRango || 'Sin datos de rangos'}</Dato>
+                {(equipo.rangos || []).map(rango => (
+                  <div className="col-span-2" key={rango.numero}>
+                    <Dato label={`Rango ${rango.numero}`}>
+                      Máx. {medidaPesaje(rango.capacidad, equipo.unidades)} · d = {medidaPesaje(rango.division, equipo.unidades)}
+                      {rango.verificacion != null && ` · e = ${medidaPesaje(rango.verificacion, equipo.unidades)}`}
+                    </Dato>
+                  </div>
+                ))}
               </dl>
               {/* Con el seguimiento oculto, la bitácora solo aparece si ya tiene gestiones. */}
               {(SEGUIMIENTO_UI || data.seguimiento.length > 0) && (

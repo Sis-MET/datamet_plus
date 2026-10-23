@@ -147,7 +147,16 @@ export const ESTADO_SUGERENCIA = {
   REEMPLAZADA: { label: 'Reemplazada', tone: 'muted' },
 };
 
-export const subtituloEquipo = (equipo) => [equipo?.instrumento, equipo?.marca, equipo?.modelo].filter(Boolean).join(' · ');
+export const medidaPesaje = (valor, unidad) => valor === null || valor === undefined ? 'Sin dato'
+  : `${Number(valor).toLocaleString('es-BO', { maximumFractionDigits: 9 })}${unidad ? ` ${unidad}` : ''}`;
+
+export const resumenPesaje = equipo => (equipo?.rangos || []).map(r => (
+  `R${r.numero}: Máx. ${medidaPesaje(r.capacidad, equipo.unidades)}; d ${medidaPesaje(r.division, equipo.unidades)}`
+  + (r.verificacion !== null && r.verificacion !== undefined ? `; e ${medidaPesaje(r.verificacion, equipo.unidades)}` : '')
+)).join(' / ');
+
+export const subtituloEquipo = (equipo) => [equipo?.instrumento, equipo?.marca, equipo?.modelo,
+  equipo?.capacidadMaxima != null ? `Máx. ${medidaPesaje(equipo.capacidadMaxima, equipo.unidades)}` : null].filter(Boolean).join(' · ');
 
 export const coincideEquipo = (query, equipo) => matchesQuery(
   query,
@@ -197,6 +206,12 @@ export function enriquecerEvento(evento, equipo) {
     instrumento: equipo.instrumento,
     marca: equipo.marca,
     modelo: equipo.modelo,
+    serie: equipo.serie,
+    ubicacion: equipo.ubicacion,
+    unidades: equipo.unidades,
+    capacidadMaxima: equipo.capacidadMaxima,
+    tipoRango: equipo.tipoRango,
+    rangos: equipo.rangos || [],
     ...(evento.clase === 'PROXIMO' ? {
       origen: equipo.origen,
       ultimoContacto: equipo.proximo?.ultimoContacto || null,
