@@ -118,3 +118,7 @@ En producción o en un servidor, no debes levantar tu app corriendo un simple `p
 
 ---
 > **Importante acerca de Docker:** En tu Windows Server, puedes eliminar o ignorar completamente los archivos `Dockerfile` y `docker-compose.yml`. Todo tu código ahora corre directo nativo y se nutre del SQL Server y Node instalados en tu máquina.
+
+## PDF de soporte en OneDrive
+
+El guardado en la carpeta elegida por el técnico se configura con `ST_DOCUMENTOS_DIR=D:\OneDrive\SOPORTE TECNICO` y la migración 012. Ver [instalación y comprobación](docs/soporte-documentos.md).
