@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, AlertTriangle, ArrowLeft, BadgeCheck, Camera, ChevronRight, Download, Eye, FilePenLine, FileText, History, Info, Loader2,
-  Printer, Undo2,
+  FolderOpen, Printer, Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
@@ -27,6 +27,8 @@ import { Impresion, VistaPrevia } from './VistaPrevia';
 import { GuardadoPdf } from './GuardadoPdf';
 import { pedirDestino } from './destinoPdf';
 import { ValidacionPanel } from './ValidacionPanel';
+import { GuardarPdfModal } from './GuardarPdfModal';
+import { DocumentosPanel, PdfGuardadoModal } from './DocumentosPanel';
 
 const tiene = (objeto, clave) => Object.prototype.hasOwnProperty.call(objeto, clave);
 const vacio = (valor) => valor === null || valor === undefined || String(valor).trim() === '';
@@ -219,6 +221,8 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   const load = useCallback(() => soporteApi.informe(tipo, codigo), [tipo, codigo]);
   const { data: cargado, error, reload } = useResource(load);
   const { data: opciones } = useResource(soporteApi.filtros);
+  const cargarArchivos = useCallback(() => soporteApi.documentos(tipo, codigo), [tipo, codigo]);
+  const { data: archivo, error: errorArchivo, loading: cargandoArchivo, reload: recargarArchivo } = useResource(cargarArchivos);
   const [actualizado, setActualizado] = useState(null);
   const [pendientes, setPendientes] = useState({});
   const [tab, setTab] = useState('datos');
@@ -226,8 +230,10 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   const [emitiendo, setEmitiendo] = useState(false);
   const [saliendo, setSaliendo] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
-  // Guardar PDF: { destino } mientras se arma el archivo (destino null = descarga).
+  // Descarga local opcional, independiente del archivo del área.
   const [guardandoPdf, setGuardandoPdf] = useState(null);
+  const [destinoServidor, setDestinoServidor] = useState(null);
+  const [pdfAbierto, setPdfAbierto] = useState(null);
   // Reemisión: abrir o cancelar la revisión, y la copia de una revisión emitida
   // que se está imprimiendo o guardando en PDF.
   const [abriendo, setAbriendo] = useState(false);
@@ -438,21 +444,15 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
 
   /**
    * Imprime o guarda en PDF una revisión emitida tal como se entregó. La
-   * carpeta del PDF se pide al hacer clic (el navegador lo exige).
+   * carpeta de destino se elige en el archivo del área.
    */
   const cargarRevision = async (revision, modo) => {
-    let destino = null;
-    if (modo === 'pdf') {
-      destino = await pedirDestino(nombreArchivo(plantilla, informe.numero, valores, revision));
-      if (destino === undefined) return;
-    }
     setCargandoRevision(revision);
     try {
       const copia = await soporteApi.revision(tipo, codigo, revision);
       const valoresCopia = { ...copia.fuente, ...copia.datos };
-      setRevisionDoc({
+      const copiaDoc = {
         modo,
-        destino,
         titulo: nombreArchivo(plantilla, informe.numero, valoresCopia, revision),
         documento: {
           plantilla,
@@ -463,7 +463,9 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           pie: pieDeRevision(copia, informe.numero),
           notas: notasRevision(copia.revisiones),
         },
-      });
+      };
+      if (modo === 'pdf') setDestinoServidor({ ...copiaDoc, revision, version: informe.version });
+      else setRevisionDoc(copiaDoc);
     } catch (failure) {
       toast.error(failure.message);
     } finally {
@@ -472,12 +474,16 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   };
   const avisos = avisosEmision({ plantilla, valores, fotos: informe.fotos });
 
-  /** Pide la carpeta al hacer clic (el navegador lo exige) y después arma el PDF. */
-  const guardarPdf = async () => {
+  /** Copia local opcional, separada del archivo compartido del área. */
+  const descargarCopia = async () => {
     const destino = await pedirDestino(titulo);
     if (destino === undefined) return;
     setGuardandoPdf({ destino });
   };
+  const guardarPdf = () => setDestinoServidor({ documento, titulo, version: informe.version,
+    revision: enRevision ? informe.revisionAbierta.revision : emitido ? informe.revision : 0 });
+  const documentos = archivo?.documentos || [];
+  const pdfVigente = documentos.find(doc => !doc.borrador && doc.revision === informe.revision);
 
   /** Lleva a la sección de un aviso (o a las fotos). */
   const irA = (seccion) => {
@@ -535,9 +541,15 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
               disabled={Boolean(guardandoPdf) || cantidadPendientes > 0}
               title={cantidadPendientes > 0 ? 'Guarde los cambios antes de guardar el PDF' : 'Guardar el informe como PDF en la carpeta que elija'}
             >
-              {guardandoPdf ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+              <FolderOpen className="h-4 w-4" aria-hidden="true" />
               Guardar PDF
             </Button>
+            <Button variant="ghost" onClick={descargarCopia} disabled={Boolean(guardandoPdf) || cantidadPendientes > 0} title="Descargar una copia en esta computadora">
+              <Download className="h-4 w-4" aria-hidden="true" /> Descargar copia
+            </Button>
+            {pdfVigente && <Button variant="secondary" onClick={() => setPdfAbierto(pdfVigente)}>
+              <FileText className="h-4 w-4" aria-hidden="true" /> Abrir PDF
+            </Button>}
             {editable && emitido && (
               <Button onClick={() => setAbriendo(true)}>
                 <FilePenLine className="h-4 w-4" aria-hidden="true" /> Abrir revisión
@@ -618,6 +630,9 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           )}
         </section>
       )}
+
+      <DocumentosPanel documentos={documentos} nombreRaiz={archivo?.nombreRaiz} error={errorArchivo} cargando={cargandoArchivo}
+        onRecargar={recargarArchivo} onAbrir={setPdfAbierto} />
 
       <Segmented
         label="Partes del informe"
@@ -735,19 +750,14 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
       )}
 
       {imprimiendo && <Impresion {...documento} titulo={titulo} onTerminar={() => setImprimiendo(false)} />}
+      {destinoServidor && <GuardarPdfModal tipo={tipo} codigo={codigo} {...destinoServidor}
+        onClose={() => setDestinoServidor(null)} onGuardado={recargarArchivo} />}
+      {pdfAbierto && <PdfGuardadoModal key={pdfAbierto.id} documento={pdfAbierto} onClose={() => setPdfAbierto(null)} />}
       {guardandoPdf && (
         <GuardadoPdf {...documento} titulo={titulo} destino={guardandoPdf.destino} onTerminar={() => setGuardandoPdf(null)} />
       )}
       {revisionDoc?.modo === 'imprimir' && (
         <Impresion {...revisionDoc.documento} titulo={revisionDoc.titulo} onTerminar={() => setRevisionDoc(null)} />
-      )}
-      {revisionDoc?.modo === 'pdf' && (
-        <GuardadoPdf
-          {...revisionDoc.documento}
-          titulo={revisionDoc.titulo}
-          destino={revisionDoc.destino}
-          onTerminar={() => setRevisionDoc(null)}
-        />
       )}
     </div>
   );

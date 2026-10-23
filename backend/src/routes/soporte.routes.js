@@ -9,6 +9,11 @@ const router = express.Router();
 // personal lo ve bloqueado en la aplicación.
 router.use(protect, requireArea('soporte'));
 
+router.get('/documentos/carpetas', controller.carpetas);
+router.get('/documentos/:id/pdf', controller.abrirDocumento);
+router.get('/informes/:tipo/:codigo/documentos', controller.documentos);
+router.post('/informes/:tipo/:codigo/documentos', express.raw({ type: 'application/pdf', limit: '30mb' }), controller.guardarDocumento);
+
 router.get('/informes', controller.listInformes);
 router.get('/informes/filtros', controller.getFiltros);
 router.get('/informes/grupos', controller.listGrupos);

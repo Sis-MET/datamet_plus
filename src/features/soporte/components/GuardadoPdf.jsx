@@ -46,7 +46,7 @@ function descargar(blob, nombre) {
  * mismas de la vista previa), espera fuentes y fotos, las pasa a imagen y
  * escribe el archivo en la carpeta elegida o lo descarga.
  */
-export function GuardadoPdf({ plantilla, numero, valores, fotos, borrador, pie, notas, titulo, destino, onTerminar }) {
+export function GuardadoPdf({ plantilla, numero, valores, fotos, borrador, pie, notas, titulo, destino, onGuardar, onError, onTerminar }) {
   const raizRef = useRef(null);
   const [raiz] = useState(() => {
     const nodo = document.createElement('div');
@@ -77,7 +77,10 @@ export function GuardadoPdf({ plantilla, numero, valores, fotos, borrador, pie, 
         const paginas = await capturarHojas(raizRef.current);
         const archivo = `${titulo}.pdf`;
         const pdf = new Blob([pdfDeImagenes(paginas, { titulo, autor: 'Métrica Ltda.' })], { type: 'application/pdf' });
-        if (destino) {
+        if (onGuardar) {
+          await onGuardar(pdf);
+          toast.success(`Se guardó ${archivo}.`, { id: aviso });
+        } else if (destino) {
           const escritura = await destino.createWritable();
           await escritura.write(pdf);
           await escritura.close();
@@ -94,6 +97,7 @@ export function GuardadoPdf({ plantilla, numero, valores, fotos, borrador, pie, 
         }
       } catch (error) {
         toast.error(`No se pudo guardar el PDF: ${error.message}`, { id: aviso });
+        if (activo) onError?.(error);
       } finally {
         if (activo) onTerminar();
       }

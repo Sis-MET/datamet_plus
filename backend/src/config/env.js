@@ -117,6 +117,7 @@ module.exports = {
   // Soporte técnico: correo diario de los próximos servicios (mismo SMTP).
   soporte: {
     alertsEnabled: flag(process.env.ST_ALERTS_ENABLED, true),
+    documentosDir: String(process.env.ST_DOCUMENTOS_DIR || '').trim(),
   },
   ivmet: {
     enabled: ivmetEnabled,

@@ -22,7 +22,7 @@ function getAuthHeaders() {
 
 const REQUEST_TIMEOUT_MS = 15000;
 
-async function request(endpoint, { method = 'GET', body, params, headers = {}, retry = method === 'GET' ? 1 : 0, timeout = REQUEST_TIMEOUT_MS } = {}) {
+async function request(endpoint, { method = 'GET', body, params, headers = {}, retry = method === 'GET' ? 1 : 0, timeout = REQUEST_TIMEOUT_MS, responseType } = {}) {
   let url = `${API_BASE}${endpoint}`;
 
   if (params) {
@@ -37,6 +37,7 @@ async function request(endpoint, { method = 'GET', body, params, headers = {}, r
   }
 
   const isFormData = body instanceof FormData;
+  const isBinary = body instanceof Blob;
 
   const controller = new AbortController();
   const timeoutId = globalThis.setTimeout(() => controller.abort(), timeout);
@@ -47,15 +48,15 @@ async function request(endpoint, { method = 'GET', body, params, headers = {}, r
       method,
       signal: controller.signal,
       headers: {
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(isFormData ? {} : { 'Content-Type': isBinary ? body.type || 'application/octet-stream' : 'application/json' }),
         ...getAuthHeaders(),
         ...headers,
       },
-      ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {}),
+      ...(body ? { body: isFormData || isBinary ? body : JSON.stringify(body) } : {}),
     });
   } catch (error) {
     if (retry > 0 && method === 'GET') {
-      return request(endpoint, { method, body, params, headers, retry: retry - 1, timeout });
+      return request(endpoint, { method, body, params, headers, retry: retry - 1, timeout, responseType });
     }
     const isTimeout = error?.name === 'AbortError';
     throw new ApiError(
@@ -69,6 +70,7 @@ async function request(endpoint, { method = 'GET', body, params, headers = {}, r
     globalThis.clearTimeout(timeoutId);
   }
 
+  if (res.ok && responseType === 'blob') return res.blob();
   let data;
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
@@ -94,6 +96,7 @@ function parseToken() {
 }
 
 export const api = {
+  blob: (endpoint, options) => request(endpoint, { ...options, responseType: 'blob' }),
   get: (endpoint, params, options) => request(endpoint, { params, ...options }),
 
   post: (endpoint, body, options) => request(endpoint, { method: 'POST', body, ...options }),

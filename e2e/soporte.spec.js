@@ -18,7 +18,7 @@ async function preparar(page, { proximos = false, jefe = false } = {}) {
     localStorage.setItem('rimmet_soporte_pestana', proximos ? 'proximos' : 'informes');
     if (!proximos) localStorage.setItem('rimmet_soporte_informe', JSON.stringify({ tipo: 'MPR', codigo: 'ST-001' }));
   }, { token, proximos });
-  const estado = { jefe, redaccion: null, estado: 'BORRADOR', validacion: 'BORRADOR', version: 1 };
+  const estado = { jefe, redaccion: null, estado: 'BORRADOR', validacion: 'BORRADOR', version: 1, documentos: [], fallarGuardado: 0 };
   const fuente = { otst: '26-0001-S01', cod_metrica: '0001-11-001', cliente: 'Cliente de prueba', planta: 'Planta de prueba',
     personal: 'Técnico QA', fecha_servicio: '2026-10-23', tipo_equipo: 'Balanza de plataforma', marca: 'Métrica', modelo: 'P300',
     serie: 'QA-123', cap_max1: 150, cap_max2: 300, d1: 0.05, d2: 0.1, e1: 0.05, e2: 0.1, unidades: 'kg', comentario_general: 'se verifico la plataforma' };
@@ -39,6 +39,34 @@ async function preparar(page, { proximos = false, jefe = false } = {}) {
     const path = url.pathname;
     const body = request.headers()['content-type']?.includes('application/json') ? request.postDataJSON() : null;
     const json = data => route.fulfill({ json: { success: true, data } });
+    if (path.endsWith('/soporte/documentos/carpetas')) {
+      if (estado.errorCarpetas) return route.fulfill({ status: 503, json: { message: 'La carpeta del archivo de Soporte no está disponible en el servidor.' } });
+      const carpeta = url.searchParams.get('carpeta') || '';
+      const arbol = { '': ['Clientes', 'Gestiones'], Clientes: ['Cliente QA'], 'Clientes/Cliente QA': ['2026', '2027'], 'Clientes/Cliente QA/2026': [] };
+      return json({ nombreRaiz: 'SOPORTE TECNICO', carpeta, carpetas: (arbol[carpeta] || []).map(nombre => ({ nombre, ruta: carpeta ? `${carpeta}/${nombre}` : nombre })) });
+    }
+    if (path.endsWith('/ST-001/documentos')) {
+      if (request.method() === 'GET') return json({ configurado: true, nombreRaiz: 'SOPORTE TECNICO', documentos: estado.documentos });
+      const bytes = request.postDataBuffer();
+      expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
+      expect(request.headers().authorization).toContain('Bearer ');
+      if (estado.fallarGuardado > 0) {
+        estado.primerPdf = bytes;
+        estado.fallarGuardado--;
+        return route.fulfill({ status: 503, json: { message: 'El PDF se escribió, pero no se pudo confirmar su registro. Reintente con la misma carpeta y nombre para completar el guardado.' } });
+      }
+      if (estado.primerPdf) expect(bytes.equals(estado.primerPdf)).toBe(true);
+      estado.pdf = bytes;
+      const doc = { id: '11111111-1111-4111-8111-111111111111', nombre: url.searchParams.get('nombre'), carpeta: url.searchParams.get('carpeta'),
+        revision: Number(url.searchParams.get('revision')), borrador: url.searchParams.get('borrador') === 'true', version: Number(url.searchParams.get('version')),
+        guardadoPor: { usuario: 'qa', nombre: 'Técnico QA' }, guardadoEn: '2026-10-23T15:00:00Z', bytes: bytes.length };
+      estado.documentos.push(doc);
+      return json(doc);
+    }
+    if (path.includes('/soporte/documentos/') && path.endsWith('/pdf')) {
+      if (estado.errorPdf) return route.fulfill({ status: 404, json: { message: 'La carpeta o el PDF ya no están disponibles en el servidor.' } });
+      return route.fulfill({ contentType: 'application/pdf', body: estado.pdf });
+    }
     if (path.endsWith('/soporte/informes/filtros')) return json({ tipos: [], clientes: [fuente.cliente], tecnicos: [fuente.personal] });
     if (path.endsWith('/proximos/resumen')) return json({ total: 0, vencidas: 0 });
     if (path.endsWith('/soporte/proximos')) return json({ anio: Number(url.searchParams.get('anio')), hoy: '2026-10-23',
@@ -90,6 +118,80 @@ test('el técnico envía, el jefe aprueba y se habilita emitir; la IA incluye ca
   await page.getByRole('button', { name: /^Emitir informe/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Emitir informe', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Abrir revisión', exact: true })).toBeVisible();
+});
+
+test('el técnico elige la carpeta en cada guardado, reintenta y abre el PDF archivado', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const estado = await preparar(page);
+  estado.estado = 'EMITIDO';
+  estado.validacion = 'APROBADO';
+  estado.fallarGuardado = 1;
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Guardar PDF', exact: true }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal.getByRole('button', { name: 'Abrir carpeta Clientes', exact: true })).toBeVisible();
+  await modal.getByRole('button', { name: 'Abrir carpeta Clientes', exact: true }).click();
+  await modal.getByRole('button', { name: 'Abrir carpeta Cliente QA', exact: true }).click();
+  await modal.getByRole('button', { name: 'Abrir carpeta 2026', exact: true }).click();
+  await expect(modal).toContainText('Esta carpeta no tiene subcarpetas');
+  await modal.getByLabel('Nombre del archivo', { exact: true }).fill('Informe cliente - Rev0.pdf');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await modal.screenshot({ path: '.impeccable/review/pdf-selector-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await modal.screenshot({ path: '.impeccable/review/pdf-selector-mobile.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await modal.getByRole('button', { name: 'Guardar aquí', exact: true }).click();
+  await expect(modal.getByRole('alert')).toContainText('no se pudo confirmar su registro', { timeout: 30000 });
+  await modal.getByRole('button', { name: 'Guardar aquí', exact: true }).click();
+  await expect(modal).toBeHidden({ timeout: 30000 });
+  expect(estado.documentos).toHaveLength(1);
+  expect(estado.documentos[0]).toMatchObject({ carpeta: 'Clientes/Cliente QA/2026', nombre: 'Informe cliente - Rev0.pdf', borrador: false, revision: 0 });
+  const documentos = page.getByRole('region', { name: 'PDF guardados', exact: true });
+  await expect(documentos).toContainText('Informe cliente - Rev0.pdf');
+  await documentos.screenshot({ path: '.impeccable/review/pdf-guardados-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await documentos.screenshot({ path: '.impeccable/review/pdf-guardados-mobile.png' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await documentos.getByRole('button', { name: 'Abrir PDF', exact: true }).click();
+  const paginaPdf = page.getByRole('img', { name: /^Página 1 de \d+ de Informe cliente - Rev0.pdf$/ });
+  await expect(paginaPdf).toHaveAttribute('data-ready', 'true', { timeout: 30000 });
+  expect(await paginaPdf.evaluate(canvas => {
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    return pixels.some((value, i) => i % 4 !== 3 && value < 200);
+  })).toBe(true);
+  await page.getByRole('dialog').screenshot({ path: '.impeccable/review/pdf-visor-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(paginaPdf).toHaveAttribute('data-ready', 'true');
+  await page.getByRole('dialog').screenshot({ path: '.impeccable/review/pdf-visor-mobile.png' });
+  await page.getByRole('button', { name: 'Cerrar ficha', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeHidden();
+  // Cada guardado vuelve a ofrecer la elección, sin fijar el cliente anterior.
+  await page.getByRole('button', { name: 'Guardar PDF', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Abrir carpeta Clientes', exact: true })).toBeVisible();
+});
+
+test('el selector permite recuperar una carpeta no disponible y el visor explica un PDF ausente', async ({ page }) => {
+  const estado = await preparar(page);
+  estado.errorCarpetas = true;
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Guardar PDF', exact: true }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal.getByRole('alert')).toContainText('no está disponible');
+  await expect(modal.getByRole('button', { name: 'Guardar aquí', exact: true })).toBeDisabled();
+  estado.errorCarpetas = false;
+  await modal.getByRole('button', { name: 'Reintentar', exact: true }).click();
+  await modal.getByLabel('Buscar carpeta').fill('inexistente');
+  await expect(modal).toContainText('No hay carpetas con ese nombre.');
+  await modal.getByLabel('Buscar carpeta').fill('');
+  await expect(modal.getByRole('button', { name: 'Abrir carpeta Clientes', exact: true })).toBeVisible();
+  await modal.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(modal).toBeHidden();
+  estado.documentos.push({ id: '11111111-1111-4111-8111-111111111111', nombre: 'Documento anterior.pdf', carpeta: 'Clientes', revision: 0, borrador: true, guardadoPor: { usuario: 'qa' } });
+  estado.errorPdf = true;
+  await page.reload();
+  await page.getByRole('region', { name: 'PDF guardados', exact: true }).getByRole('button', { name: 'Abrir PDF', exact: true }).click();
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('ya no están disponibles');
 });
 
 test('el plan exporta un mes, varios meses y 2027 completo; la ficha muestra doble rango', async ({ page }) => {

@@ -12,6 +12,12 @@ const avisar = (result) => {
 };
 
 export const soporteApi = {
+  carpetas: (carpeta = '') => unwrap(api.get('/soporte/documentos/carpetas', { carpeta }, { timeout: 30000 })),
+  documentos: (tipo, codigo) => unwrap(api.get(`${ruta(tipo, codigo)}/documentos`)),
+  guardarPdf: (tipo, codigo, pdf, meta) => unwrap(api.post(`${ruta(tipo, codigo)}/documentos`, pdf, {
+    params: { ...meta, version: meta.version ?? '' }, timeout: 120000,
+  })),
+  abrirPdf: id => api.blob(`/soporte/documentos/${encodeURIComponent(id)}/pdf`, { timeout: 60000 }),
   informes: (params) => unwrap(api.get('/soporte/informes', params)),
   // Lista agrupada: `por` es 'otst' o 'tecnico'.
   grupos: (params) => unwrap(api.get('/soporte/informes/grupos', params)),

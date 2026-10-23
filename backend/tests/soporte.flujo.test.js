@@ -76,6 +76,25 @@ const aprobar = async () => {
   tecnico();
 };
 
+test('el archivo valida la versión del borrador y solo admite revisiones realmente emitidas', async () => {
+  reset();
+  await informes.contextoArchivo('MPR', 'ST-001', usuario, { version: null, revision: 0, borrador: true });
+  await informes.guardarCambios('MPR', 'ST-001', { ...version(), cambios: { comentario_general: 'Limpieza.' } }, usuario);
+  await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { version: 999, revision: 0, borrador: true }), e => e.statusCode === 409);
+  await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 0, borrador: false }), e => e.statusCode === 409);
+  await informes.enviarValidacion('MPR', 'ST-001', version(), usuario);
+  await aprobar();
+  await informes.emitirInforme('MPR', 'ST-001', version(), usuario);
+  await informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 0, borrador: false });
+  await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 0, borrador: true }), e => e.statusCode === 409);
+  await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 1, borrador: false }), e => e.statusCode === 409);
+  await informes.abrirRevision('MPR', 'ST-001', { ...version(), motivo: 'Corrección' }, usuario);
+  await informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 1, borrador: true });
+  await informes.contextoArchivo('MPR', 'ST-001', usuario, { version: 1, revision: 0, borrador: false });
+  personal = { area: 'Sistemas', activo: false };
+  await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', { ...usuario, acceso_cron: 3 }, { version: 1, revision: 0, borrador: false }), e => e.statusCode === 403);
+});
+
 test('flujo real de servicios: envío, observaciones, aprobación, emisión y nueva aprobación por revisión', async () => {
   reset();
   await assert.rejects(informes.emitirInforme('MPR', 'ST-001', version(), usuario), /debe aprobar/);

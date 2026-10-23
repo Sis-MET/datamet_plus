@@ -1330,7 +1330,32 @@ const sugerirRedaccion = async (body, user) => {
   });
 };
 
+// El archivo PDF conserva su propia referencia incluso para un borrador que
+// todavía no creó ST_INFORMES. Las revisiones emitidas siempre deben existir.
+const contextoArchivo = async (tipo, codigo, user, meta, newRequest) => {
+  const actor = await exigirEditor(user);
+  const request = newRequest || (() => getPool().request());
+  const informe = await leerInforme(tipo, codigo, request(), { bloquear: Boolean(newRequest) });
+  if (!informe) await leerFuente(tipo, codigo, await columnasDe(tipo));
+  if (meta?.borrador) {
+    verificarVersion(informe, meta.version);
+    const revision = informe?.estado === 'EN_REVISION' ? (informe.revision ?? 0) + 1 : 0;
+    if (informe?.estado === 'EMITIDO' || meta.revision !== revision) throw httpError(409, 'El informe cambió. Recárguelo antes de guardar el PDF.');
+  } else if (meta) {
+    const copia = informe && await revisiones.leerCopia(request(), informe.id, meta.revision);
+    if (!copia) {
+      if (informe?.estado !== 'EMITIDO' || meta.revision !== (informe.revision ?? 0)) {
+        throw httpError(409, 'La revisión emitida ya no está disponible. Recargue el informe.');
+      }
+      verificarVersion(informe, meta.version);
+      await asegurarCopiaVigente(request, { informe, fuente: await leerFuente(tipo, codigo, await columnasDe(tipo), request(), true) });
+    }
+  }
+  return actor;
+};
+
 module.exports = {
+  contextoArchivo,
   PROTEGIDAS,
   abrirRevision,
   agregarFoto,
