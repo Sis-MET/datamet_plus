@@ -1,17 +1,33 @@
-# Soporte técnico · versión 2.11.0
+# Soporte técnico · versión 2.13.0
 
 ## Puesta en marcha
 
-1. Aplicar las migraciones antes de publicar el frontend y reiniciar el backend: desde `backend`, ejecutar `pnpm migrate`. La nueva migración es `011_soporte_validacion.sql`; requiere las migraciones 008-010. El ejecutor registra su aplicación y la ejecuta en una transacción.
+1. Aplicar las migraciones antes de publicar el frontend y reiniciar el backend: desde `backend`, ejecutar `pnpm migrate`. Deben estar aplicadas las migraciones hasta `013_soporte_aprobadores.sql`, incluidas la 011 de validación y la 012 de documentos. El ejecutor registra su aplicación y la ejecuta en una transacción.
 2. Comprobar en `DATA_USERS` que el responsable esté activo (`estado = 'ACTIVO'`), pertenezca a `Soporte Técnico` y tenga `cargo = 'Jefe de Area'`. Para el área y el cargo se ignoran diferencias de mayúsculas, tildes y espacios en los extremos; en el cargo también se normalizan los espacios internos. El cargo se consulta en cada operación; el JWT y el nivel de administración no conceden autorización para aprobar.
 3. Conservar la configuración existente de Gemini (`GEMINI_API_KEY`, modelo principal y modelo de respaldo).
 4. Ejecutar `pnpm build` en la raíz y publicar siguiendo la guía habitual del proyecto.
 
-La migración conserva los informes ya emitidos y registra el cambio CC-2026-022. Las nuevas emisiones y todas las nuevas reemisiones requieren validación. El módulo devuelve un mensaje explícito si falta la migración 011.
+Las migraciones conservan los informes ya emitidos. La 013 registra CC-2026-024. Las nuevas emisiones y todas las nuevas reemisiones requieren validación. El módulo devuelve un mensaje explícito si falta una migración del flujo.
+
+## Configuración de aprobadores
+
+El jefe de área abre **Soporte Técnico → Configuración → Aprobadores de informes** y marca uno o varios integrantes activos de Soporte Técnico. **Guardar aprobadores** aplica la selección a todo el módulo. El jefe conserva la autorización por su cargo y aparece marcado sin posibilidad de desactivarlo; puede dejar la lista de aprobadores adicionales vacía.
+
+Solo el personal activo con el área y cargo indicados puede consultar o cambiar esta configuración. Un técnico delegado puede aprobar y devolver informes, pero no administrar aprobadores. Ni el JWT ni el nivel de Sistemas sustituyen esa autorización. Se vuelven a consultar la delegación, el área y el estado activo en cada operación; una revocación impide aprobar en la siguiente solicitud. No se anulan aprobaciones ya registradas.
+
+La configuración utiliza una versión para impedir que dos jefes sobrescriban sus cambios: ante un conflicto se debe recargar y seleccionar de nuevo. `ST_APROBADORES` conserva las delegaciones, `ST_APROBADORES_AJUSTES` la versión y `ST_APROBADORES_HISTORIAL` los identificadores anteriores/nuevos, usuario, nombre y fecha de cada cambio. Los permisos de personas inactivas o trasladadas a otra área no conceden aprobación aunque exista una delegación antigua; al volver a guardar se eliminan las delegaciones que ya no son elegibles.
+
+### Interfaz de Configuración
+
+La pestaña **Configuración** se muestra cuando el servidor concede el permiso al jefe activo de Soporte Técnico. Las pestañas se distribuyen en varias líneas cuando falta ancho. El panel conserva las superficies neutras, los bordes suaves y la acción principal amarilla del módulo.
+
+Cada integrante activo se presenta en una fila con nombre, cargo y casilla de selección múltiple. Las casillas usan el color de texto del tema y un contorno visible al navegar con teclado. El jefe permanece marcado y bloqueado, con la indicación **Autorizado por cargo**; el conteo inferior corresponde solo a los aprobadores adicionales. **Guardar aprobadores** se habilita al cambiar la selección y **Descartar cambios** permite restaurarla. Durante el guardado se bloquea la edición. La carga se anuncia en el panel; los errores, incluido un conflicto de versión, ofrecen **Recargar configuración**, que descarta la selección local para recuperar la vigente.
 
 ## Validación y emisión
 
-El técnico guarda su informe y selecciona **Enviar a revisión**. El jefe de área encuentra los pendientes en **Informes → Filtros → Validación por el jefe de área**, revisa datos, pruebas y fotografías y selecciona **Aprobar informe** o **Devolver con observaciones**. Para devolverlo se exige una observación de al menos diez caracteres. Después de aprobarlo se habilita **Emitir informe** para los editores del módulo.
+El técnico guarda su informe y selecciona **Enviar a revisión**. El jefe de área o un aprobador designado encuentra los pendientes en **Informes → Filtros → Validación del informe**, revisa datos, pruebas y fotografías y selecciona **Aprobar informe** o **Devolver con observaciones**. Para devolverlo se exige una observación de al menos diez caracteres. Después de aprobarlo se habilita **Emitir informe** para los editores del módulo.
+
+Después de emitir o reemitir, se abre automáticamente el selector de carpeta para archivar el PDF de la revisión recién emitida. **Guardar PDF**, **Descargar copia** e **Imprimir** permanecen deshabilitados mientras el informe sea un borrador, esté en revisión o solo esté aprobado sin emitir. La vista previa sigue disponible para revisar. Las revisiones ya emitidas se pueden archivar e imprimir desde su historial. Cancelar el selector o fallar el guardado no revierte la emisión: el aviso **PDF pendiente de guardar** permite volver a elegir la carpeta. Véase [Archivo PDF](soporte-documentos.md).
 
 Durante la validación pendiente o aprobada se bloquean los cambios de datos y fotografías. **Retirar para editar** vuelve al borrador y exige un nuevo envío y aprobación. La devolución con observaciones permite corregir y reenviar. Cada envío, resolución y retiro queda en el historial con usuario, fecha y revisión.
 
