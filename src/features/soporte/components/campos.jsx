@@ -127,7 +127,7 @@ function MejorarRedaccion({ campo, label, texto, editor }) {
   const pedir = async () => {
     setEstado({ cargando: true, sugerencia: null, error: null });
     try {
-      const sugerencia = await editor.redaccion.sugerir({ seccion: label, texto });
+      const sugerencia = await editor.redaccion.sugerir({ campo, seccion: label, texto });
       setEstado({ cargando: false, sugerencia, error: null });
     } catch (failure) {
       setEstado({ cargando: false, sugerencia: null, error: failure.message });
@@ -147,7 +147,7 @@ function MejorarRedaccion({ campo, label, texto, editor }) {
           type="button"
           onClick={pedir}
           disabled={vacio || estado.cargando}
-          title={vacio ? 'Escriba primero el texto' : 'Corrige ortografía y redacción sin cambiar los datos'}
+          title={vacio ? 'Escriba primero el texto' : 'Analiza todos los datos del servicio y mejora su prerredacción'}
           className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12.5px] font-semibold text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
         >
           {estado.cargando
@@ -166,7 +166,7 @@ function MejorarRedaccion({ campo, label, texto, editor }) {
             <Sparkles className="h-3.5 w-3.5 text-info" aria-hidden="true" /> Sugerencia de Gemini
           </p>
           <p className="whitespace-pre-line text-[13px] leading-relaxed text-fg">{estado.sugerencia}</p>
-          <p className="mt-2 text-[12px] text-fg-muted">Revise que no cambie el sentido ni los datos antes de usarla.</p>
+          <p className="mt-2 text-[12px] text-fg-muted">Basada en los datos del servicio y los cambios sin guardar. Revise las cifras y el sentido antes de usarla.</p>
           <div className="mt-2.5 flex flex-wrap gap-2">
             <button
               type="button"

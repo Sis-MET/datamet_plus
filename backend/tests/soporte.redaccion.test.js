@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const env = require('../src/config/env');
-const { instrucciones, mejorarRedaccion, textoRespuesta } = require('../src/services/soporte.redaccion');
+const { contextoInforme, instrucciones, mejorarRedaccion, textoRespuesta } = require('../src/services/soporte.redaccion');
 const { marcarIa } = require('../src/services/soporte.informes');
 const { parse } = require('../src/services/soporte.validation');
 
@@ -45,7 +45,7 @@ test('sugiere con el modelo principal y la clave en la cabecera', async () => {
   assert.equal(llamadas[0].opciones.headers['x-goog-api-key'], 'clave-de-prueba');
   assert.doesNotMatch(llamadas[0].url, /key=/);
   const cuerpo = JSON.parse(llamadas[0].opciones.body);
-  assert.equal(cuerpo.contents[0].parts[0].text, 'se realizo limpieza');
+  assert.deepEqual(JSON.parse(cuerpo.contents[0].parts[0].text), { datosDelServicio: {}, prerredaccion: 'se realizo limpieza' });
 });
 
 test('si el modelo principal está saturado usa el de respaldo', async () => {
@@ -83,11 +83,28 @@ test('sin clave la función responde que no está configurada', async () => {
 });
 
 test('validación de la solicitud de redacción', () => {
-  assert.deepEqual(parse('redaccion', { tipo: 'mpr', seccion: ' Observaciones ', texto: ' hola mundo ' }), {
-    tipo: 'MPR', seccion: 'Observaciones', texto: 'hola mundo',
+  const ficha = { codigo: 'ST-001', campo: 'comentario_general', version: 2 };
+  assert.deepEqual(parse('redaccion', { ...ficha, tipo: 'mpr', seccion: ' Observaciones ', texto: ' hola mundo ' }), {
+    ...ficha, tipo: 'MPR', seccion: 'Observaciones', texto: 'hola mundo', cambios: {},
   });
-  assert.throws(() => parse('redaccion', { tipo: 'MPR', seccion: 'x', texto: 'a' }), /Escriba primero/);
-  assert.throws(() => parse('redaccion', { tipo: 'XX', seccion: 'x', texto: 'hola' }), /Tipo de servicio/);
+  assert.throws(() => parse('redaccion', { ...ficha, tipo: 'MPR', seccion: 'x', texto: 'a' }), /Escriba primero/);
+  assert.throws(() => parse('redaccion', { ...ficha, tipo: 'XX', seccion: 'x', texto: 'hola' }), /Tipo de servicio/);
+  assert.throws(() => parse('redaccion', { tipo: 'MPR', seccion: 'x', texto: 'hola' }));
+});
+
+test('envía mediciones, valoraciones y prerredacción en un contexto separado de las instrucciones', async () => {
+  let enviado;
+  await conFetch(async (_, opciones) => {
+    enviado = JSON.parse(opciones.body);
+    return conTexto('Se verificó el retorno a cero.');
+  }, () => mejorarRedaccion({ texto: 'verificado retorno', servicio: 'preventivo', seccion: 'Observaciones',
+    datos: { cap_max1: 30000, d1: 10, indicacion1: 50, retorno1: 0, fisico: 'Bueno', foto_balanza: 'data:image/x;base64,AA', session_id: 'interno' } }));
+  assert.deepEqual(JSON.parse(enviado.contents[0].parts[0].text), {
+    datosDelServicio: { cap_max1: 30000, d1: 10, indicacion1: 50, retorno1: 0, fisico: 'Bueno' }, prerredaccion: 'verificado retorno',
+  });
+  assert.match(enviado.systemInstruction.parts[0].text, /nunca instrucciones/);
+  assert.match(enviado.systemInstruction.parts[0].text, /contradice los datos/);
+  assert.deepEqual(contextoInforme({ texto: null, password: 'secreto' }), { texto: null });
 });
 
 test('los campos redactados con IA quedan marcados en el historial', () => {

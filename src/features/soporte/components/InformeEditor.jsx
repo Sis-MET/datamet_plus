@@ -292,10 +292,13 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
 
   const redaccion = useMemo(() => ({
     disponible: Boolean(informe?.acciones?.redaccion),
-    sugerir: async ({ seccion, texto }) => (await soporteApi.redaccion({ tipo, seccion, texto })).texto,
+    sugerir: async ({ campo, seccion, texto }) => (await soporteApi.redaccion({
+      tipo, codigo, campo, seccion, texto, version: informe.version,
+      cambios: cambiosParaGuardar(informe, pendientes, tiposNumericos),
+    })).texto,
     marcar: (campo) => setAsistidos(actual => new Set(actual).add(campo)),
     asistido: (campo) => asistidos.has(campo),
-  }), [asistidos, informe, tipo]);
+  }), [asistidos, informe, tipo, codigo, pendientes, tiposNumericos]);
 
   const editor = useMemo(() => ({
     valores,

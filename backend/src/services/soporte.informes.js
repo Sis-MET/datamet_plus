@@ -1202,10 +1202,21 @@ const getRevision = async (tipo, codigo, revision) => {
 /** Sugerencia de redacción para un texto (solo editores). */
 const sugerirRedaccion = async (body, user) => {
   await exigirEditor(user);
+  const columnas = await columnasDe(body.tipo);
+  const fuente = await leerFuente(body.tipo, body.codigo, columnas);
+  const informe = await leerInforme(body.tipo, body.codigo);
+  verificarVersion(informe, body.version);
+  revisiones.exigirEditable(informe);
+  const meta = columnas.get(body.campo);
+  if (!esEditable(body.campo, meta) || meta.tipo !== 'texto') throw httpError(400, 'La IA solo puede redactar campos de texto editables.');
+  const plan = planCambios({ fuente, datos: leerDatos(informe?.datos), entrantes: body.cambios, columnas });
+  const datos = { ...fuente, ...plan.datos, [body.campo]: coercer(body.campo, meta, body.texto) };
   return redaccion.mejorarRedaccion({
     texto: body.texto,
     seccion: body.seccion,
     servicio: TIPOS[body.tipo].etiqueta.toLowerCase(),
+    datos,
+    maximo: Math.min(meta.max, 4000),
   });
 };
 

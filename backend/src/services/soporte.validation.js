@@ -93,6 +93,11 @@ const schemas = {
 
   redaccion: z.object({
     tipo: z.preprocess(v => String(v ?? '').toUpperCase(), z.enum(CLAVES_TIPO, { error: 'Tipo de servicio inválido.' })),
+    codigo: z.string().transform(text).pipe(z.string().regex(CODIGO, 'Código de registro inválido.')),
+    version,
+    campo: z.string().regex(CAMPO, 'Campo inválido.'),
+    cambios: z.record(z.string().regex(CAMPO), z.union([z.string().max(4000), z.number(), z.null()]))
+      .refine(v => Object.keys(v).length <= MAX_CAMPOS, 'Demasiados campos.').default({}),
     seccion: z.string({ error: 'Falta la sección.' }).transform(text).pipe(z.string().min(1).max(120)),
     texto: z.string({ error: 'Falta el texto.' }).transform(text)
       .pipe(z.string().min(3, 'Escriba primero el texto que quiere mejorar.').max(4000, 'El texto es demasiado largo (máximo 4000 caracteres).')),
