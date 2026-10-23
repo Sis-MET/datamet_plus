@@ -19,6 +19,11 @@ const { CLAVES_TIPO, ESTADOS, TIPOS, numeroInforme } = require('./soporte.tipos'
 const { MAX_FOTOS, httpError, text } = require('./soporte.validation');
 const redaccion = require('./soporte.redaccion');
 const revisiones = require('./soporte.revisiones');
+const aprobacion = require('./soporte.aprobacion');
+const exigirBorradorEditable = (informe) => {
+  revisiones.exigirEditable(informe);
+  aprobacion.exigirEditable(informe);
+};
 
 // ─── Columnas ──────────────────────────────────────────────────────────────
 
@@ -191,19 +196,19 @@ const puedeEditarArea = (area, accesoCron) => permiteArea('soporte', { area, acc
 
 const datosUsuario = async (user) => {
   const userId = Number(user?.id);
-  if (!Number.isInteger(userId)) return { area: null, nombre: null };
+  if (!Number.isInteger(userId)) return { area: null, nombre: null, cargo: null, activo: false };
   const result = await getPool().request()
     .input('id', sql.Int, userId)
     .query(`
-      SELECT TOP (1) area, LTRIM(RTRIM(CONCAT(nombre1, ' ', apellido1))) AS nombre
-      FROM DATA_USERS WHERE id = @id;`);
+      SELECT TOP (1) area, cargo, LTRIM(RTRIM(CONCAT(nombre1, ' ', apellido1))) AS nombre
+      FROM DATA_USERS WHERE id = @id AND estado = 'ACTIVO';`);
   const row = result.recordset[0] || {};
-  return { area: row.area || null, nombre: row.nombre || null };
+  return { area: row.area || null, nombre: row.nombre || null, cargo: row.cargo || null, activo: Boolean(result.recordset[0]) };
 };
 
 const permisos = async (user) => {
-  const { area, nombre } = await datosUsuario(user);
-  return { editar: puedeEditarArea(area, user?.acceso_cron), nombre };
+  const { area, nombre, cargo, activo } = await datosUsuario(user);
+  return { editar: activo && puedeEditarArea(area, user?.acceso_cron), aprobar: activo && aprobacion.puedeAprobar({ area, cargo }), nombre };
 };
 
 const exigirEditor = async (user) => {
@@ -315,6 +320,10 @@ const buildWhere = (filtros, { conTipo = true, conEstado = true } = {}) => {
     add('estado', sql.VarChar(20), filtros.estado);
     where.push(`${ESTADO_SQL} = @estado`);
   }
+  if (filtros.validacion) {
+    add('validacion', sql.VarChar(20), filtros.validacion);
+    where.push(`ISNULL(i.validacion_estado, 'BORRADOR') = @validacion AND ISNULL(i.estado, 'BORRADOR') <> 'EMITIDO'`);
+  }
   return { where: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
 };
 
@@ -331,7 +340,7 @@ const buildListQuery = (filtros) => {
           f.cod_metrica, f.tipo_equipo, f.marca, f.modelo, f.serie,
           ${NUMERO_SQL} AS numero,
           ${ESTADO_SQL} AS estado,
-          i.id AS informe_id, i.revision, i.actualizado_en, i.emitido_en,
+          i.id AS informe_id, i.revision, i.actualizado_en, i.emitido_en, i.validacion_estado,
           (SELECT COUNT(*) FROM dbo.ST_INFORMES_FOTOS ft WHERE ft.informe_id = i.id AND ft.quitada_en IS NULL) AS fotos,
           COUNT(*) OVER () AS total
         ${fromInformes(tiposFila)}
@@ -457,6 +466,7 @@ const mapFila = (row) => ({
     serie: limpio(row.serie),
   },
   estado: row.estado,
+  validacionEstado: row.validacion_estado || 'BORRADOR',
   revision: row.revision ?? 0,
   actualizadoEn: iso(row.actualizado_en),
   emitidoEn: iso(row.emitido_en),
@@ -532,14 +542,16 @@ const getFiltros = async () => {
 const INFORME_SELECT = `
   SELECT id, tipo, codigo_registro, numero, datos, estado, revision, version,
     creado_por, creado_en, actualizado_por, actualizado_en, emitido_por, emitido_en,
-    revision_motivo, revision_abierta_por, revision_abierta_en
+    revision_motivo, revision_abierta_por, revision_abierta_en,
+    validacion_estado, validacion_huella, validacion_enviada_por, validacion_enviada_en,
+    validacion_resuelta_por, validacion_resuelta_en, validacion_observacion
   FROM dbo.ST_INFORMES`;
 
-const leerFuente = async (tipo, codigo, columnas) => {
-  const result = await getPool().request()
+const leerFuente = async (tipo, codigo, columnas, request = getPool().request(), bloquear = false) => {
+  const result = await request
     .input('codigo', sql.NVarChar(100), codigo)
     .query(`
-      SELECT TOP (1) * FROM dbo.[${TIPOS[tipo].tabla}]
+      SELECT TOP (1) * FROM dbo.[${TIPOS[tipo].tabla}]${bloquear ? ' WITH (HOLDLOCK)' : ''}
       WHERE codigo_registro = @codigo AND ISNULL(estado_servicio_csv, N'') <> N'ANULADO'
       ORDER BY n DESC;`);
   const row = result.recordset[0];
@@ -595,7 +607,7 @@ const columnasEditables = (columnas) => Object.fromEntries(
   [...columnas.entries()].filter(([nombre, meta]) => esEditable(nombre, meta)),
 );
 
-const mapDetalle = ({ tipo, codigo, fuente, informe, fotos, historial, columnas, nombres, editar, copias = [] }) => {
+const mapDetalle = ({ tipo, codigo, fuente, informe, fotos, historial, columnas, nombres, editar, aprobar = false, copias = [] }) => {
   const nombre = (usuario) => (usuario ? { usuario, nombre: nombres.get(usuario) || null } : null);
   return {
     tipo,
@@ -634,17 +646,30 @@ const mapDetalle = ({ tipo, codigo, fuente, informe, fotos, historial, columnas,
       abiertaEn: iso(informe.revision_abierta_en),
     } : null,
     revisiones: copias,
-    acciones: { editar, redaccion: editar && redaccion.disponible() },
+    validacion: {
+      estado: informe?.validacion_estado || 'BORRADOR',
+      enviadaPor: nombre(informe?.validacion_enviada_por),
+      enviadaEn: iso(informe?.validacion_enviada_en),
+      resueltaPor: nombre(informe?.validacion_resuelta_por),
+      resueltaEn: iso(informe?.validacion_resuelta_en),
+      observacion: informe?.validacion_observacion || null,
+    },
+    acciones: { editar, aprobar, redaccion: editar && redaccion.disponible() },
   };
 };
 
 const getInforme = async (tipo, codigo, user) => {
   const columnas = await columnasDe(tipo);
-  const [fuente, informe, actor] = await Promise.all([
-    leerFuente(tipo, codigo, columnas),
+  const [informe, actor] = await Promise.all([
     leerInforme(tipo, codigo),
     permisos(user),
   ]);
+  // Un PDF emitido usa la fuente congelada al emitir, incluso si ServiceMET
+  // repone después el servicio. Los cambios se revisan al abrir otra revisión.
+  const publicada = informe?.estado === 'EMITIDO'
+    ? await revisiones.leerCopia(getPool().request(), informe.id, informe.revision ?? 0) : null;
+  const fuente = publicada?.fuente || await leerFuente(tipo, codigo, columnas);
+  const informeVisible = publicada ? { ...informe, datos: JSON.stringify(publicada.datos) } : informe;
   let fotos = [];
   let historial = [];
   let copias = [];
@@ -665,14 +690,18 @@ const getInforme = async (tipo, codigo, user) => {
   }
   const nombres = await nombresDe([
     informe?.creado_por, informe?.actualizado_por, informe?.emitido_por, informe?.revision_abierta_por,
+    informe?.validacion_enviada_por, informe?.validacion_resuelta_por,
     ...fotos.map(foto => foto.subido_por),
   ]);
-  return mapDetalle({ tipo, codigo, fuente, informe, fotos, historial, columnas, nombres, editar: actor.editar, copias });
+  return mapDetalle({ tipo, codigo, fuente, informe: informeVisible, fotos, historial, columnas, nombres, editar: actor.editar, aprobar: actor.aprobar, copias });
 };
 
 // ─── Escritura ─────────────────────────────────────────────────────────────
 
 const CONFLICTO = 'Otra persona guardó cambios en este informe mientras lo editaba. Se cargó la versión vigente: revise y vuelva a aplicar sus cambios.';
+const LIMPIAR_VALIDACION = `validacion_estado = 'BORRADOR', validacion_huella = NULL,
+  validacion_enviada_por = NULL, validacion_enviada_en = NULL, validacion_resuelta_por = NULL,
+  validacion_resuelta_en = NULL, validacion_observacion = NULL`;
 
 const esDuplicado = (error) => [2601, 2627].includes(error?.number || error?.originalError?.info?.number);
 
@@ -763,7 +792,7 @@ const guardarCambios = async (tipo, codigo, body, user) => {
     if (plan.cambios.length === 0) return;
     // Emitido: primero se abre una revisión. Con la revisión abierta los
     // cambios son su borrador y no suben la revisión vigente.
-    revisiones.exigirEditable(informe);
+    exigirBorradorEditable(informe);
     const cambios = marcarIa(plan.cambios, body.ia);
     const usaronIa = cambios.some(cambio => cambio.ia);
 
@@ -802,18 +831,16 @@ const guardarCambios = async (tipo, codigo, body, user) => {
 const emitirInforme = async (tipo, codigo, body, user) => {
   const actor = await exigirEditor(user);
   const columnas = await columnasDe(tipo);
-  const fuente = await leerFuente(tipo, codigo, columnas);
-
   await withTransaction(async (newRequest) => {
     const informe = await leerInforme(tipo, codigo, newRequest(), { bloquear: true });
     verificarVersion(informe, body.version);
     if (informe?.estado === 'EMITIDO') throw httpError(409, 'El informe ya fue emitido.');
     if (informe?.estado === 'EN_REVISION') throw httpError(409, 'El informe tiene una revisión abierta: reemítalo.');
-    let id = informe?.id;
-    if (!informe) {
-      id = (await crearInforme(newRequest, { tipo, codigo, fuente, actor, estado: 'EMITIDO' })).id;
-    } else {
-      await newRequest()
+    const fuente = await leerFuente(tipo, codigo, columnas, newRequest(), true);
+    const fotos = informe ? await revisiones.fotosVigentes(newRequest(), informe.id) : [];
+    aprobacion.exigirAprobado(informe, { fuente, datos: leerDatos(informe?.datos), fotos });
+    const id = informe.id;
+    await newRequest()
         .input('id', sql.Int, id)
         .input('usuario', sql.NVarChar(50), actor.usuario)
         .query(`
@@ -821,14 +848,13 @@ const emitirInforme = async (tipo, codigo, body, user) => {
           SET estado = 'EMITIDO', emitido_por = @usuario, emitido_en = SYSUTCDATETIME(),
             version = version + 1, actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME()
           WHERE id = @id;`);
-    }
     // Copia de la Rev. 0 tal como se entrega.
     await revisiones.guardarCopia(newRequest(), {
       informeId: id,
       revision: informe?.revision ?? 0,
       fuente,
       datos: informe ? leerDatos(informe.datos) : {},
-      fotos: await revisiones.fotosVigentes(newRequest(), id),
+      fotos,
       emitidoPor: actor.usuario,
       emitidoNombre: actor.nombre,
     });
@@ -868,7 +894,7 @@ const agregarFoto = async (tipo, codigo, body, user) => {
   const fuente = await leerFuente(tipo, codigo, await columnasDe(tipo));
 
   await conInforme({ tipo, codigo, fuente, actor }, async ({ informe, newRequest }) => {
-    revisiones.exigirEditable(informe);
+    exigirBorradorEditable(informe);
     const estado = await newRequest()
       .input('id', sql.Int, informe.id)
       .query(`
@@ -931,7 +957,7 @@ const editarFoto = async (tipo, codigo, fotoId, body, user) => {
   await conInforme({ tipo, codigo, fuente, actor, crear: false }, async ({ informe, newRequest }) => {
     const foto = await leerFoto(newRequest, informe, fotoId);
     if (iguales(foto.descripcion ?? null, body.descripcion)) return;
-    revisiones.exigirEditable(informe);
+    exigirBorradorEditable(informe);
     await newRequest()
       .input('foto', sql.Int, foto.id)
       .input('descripcion', sql.NVarChar(300), body.descripcion)
@@ -956,7 +982,7 @@ const quitarFoto = async (tipo, codigo, fotoId, body, user) => {
 
   await conInforme({ tipo, codigo, fuente, actor, crear: false }, async ({ informe, newRequest }) => {
     const foto = await leerFoto(newRequest, informe, fotoId);
-    revisiones.exigirEditable(informe);
+    exigirBorradorEditable(informe);
     const posicion = await posicionFoto(newRequest, informe.id, foto.id);
     await newRequest()
       .input('foto', sql.Int, foto.id)
@@ -995,7 +1021,7 @@ const ordenarFotos = async (tipo, codigo, body, user) => {
       throw httpError(409, 'Las fotos cambiaron mientras las ordenaba. Vuelva a intentarlo.');
     }
     if (ids.every((id, index) => id === body.ids[index])) return;
-    revisiones.exigirEditable(informe);
+    exigirBorradorEditable(informe);
     for (const [index, id] of body.ids.entries()) {
       await newRequest()
         .input('foto', sql.Int, id)
@@ -1060,6 +1086,7 @@ const abrirRevision = async (tipo, codigo, body, user) => {
         UPDATE dbo.ST_INFORMES
         SET estado = 'EN_REVISION', revision_motivo = @motivo, revision_abierta_por = @usuario,
           revision_abierta_en = SYSUTCDATETIME(), version = version + 1,
+          ${LIMPIAR_VALIDACION},
           actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME()
         WHERE id = @id;`);
     const siguiente = (informe.revision ?? 0) + 1;
@@ -1079,17 +1106,20 @@ const abrirRevision = async (tipo, codigo, body, user) => {
 /** Reemite el informe: la revisión abierta pasa a ser la vigente. */
 const reemitirInforme = async (tipo, codigo, body, user) => {
   const actor = await exigirEditor(user);
-  const fuente = await leerFuente(tipo, codigo, await columnasDe(tipo));
+  const columnas = await columnasDe(tipo);
+  const fuente = await leerFuente(tipo, codigo, columnas);
 
   await conInforme({ tipo, codigo, fuente, actor, crear: false }, async ({ informe, newRequest }) => {
     verificarVersion(informe, body.version);
     if (informe?.estado !== 'EN_REVISION') throw httpError(409, 'El informe no tiene una revisión abierta.');
+    const fuenteActual = await leerFuente(tipo, codigo, columnas, newRequest(), true);
     const vigente = await asegurarCopiaVigente(newRequest, { informe, fuente });
     const actual = {
-      fuente,
+      fuente: fuenteActual,
       datos: leerDatos(informe.datos),
       fotos: await revisiones.fotosVigentes(newRequest(), informe.id),
     };
+    aprobacion.exigirAprobado(informe, actual);
     if (!revisiones.hayCambios({ vigente, actual })) {
       throw httpError(400, `La revisión no cambia nada respecto de la Rev. ${informe.revision ?? 0}: cancélela en vez de reemitir.`);
     }
@@ -1144,6 +1174,7 @@ const cancelarRevision = async (tipo, codigo, body, user) => {
       .query(`
         UPDATE dbo.ST_INFORMES
         SET estado = 'EMITIDO', datos = @datos, revision_motivo = NULL, revision_abierta_por = NULL,
+          ${LIMPIAR_VALIDACION},
           revision_abierta_en = NULL, version = version + 1,
           actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME()
         WHERE id = @id;`);
@@ -1199,14 +1230,93 @@ const getRevision = async (tipo, codigo, revision) => {
   };
 };
 
-/** Sugerencia de redacción para un texto (solo editores). */
+// ─── Validación previa a emitir ───────────────────────────────────────────
+
+const enviarValidacion = async (tipo, codigo, body, user) => {
+  const actor = await exigirEditor(user);
+  const columnas = await columnasDe(tipo);
+  const fuente = await leerFuente(tipo, codigo, columnas);
+  await conInforme({ tipo, codigo, fuente, actor }, async ({ informe, nuevo, newRequest }) => {
+    verificarVersion(nuevo ? null : informe, body.version);
+    exigirBorradorEditable(informe);
+    const actual = {
+      fuente: await leerFuente(tipo, codigo, columnas, newRequest(), true),
+      datos: leerDatos(informe.datos),
+      fotos: await revisiones.fotosVigentes(newRequest(), informe.id),
+    };
+    await newRequest()
+      .input('id', sql.Int, informe.id)
+      .input('huella', sql.VarChar(64), aprobacion.huella(actual))
+      .input('usuario', sql.NVarChar(50), actor.usuario)
+      .query(`UPDATE dbo.ST_INFORMES SET validacion_estado = 'PENDIENTE', validacion_huella = @huella,
+        validacion_enviada_por = @usuario, validacion_enviada_en = SYSUTCDATETIME(),
+        validacion_resuelta_por = NULL, validacion_resuelta_en = NULL, validacion_observacion = NULL,
+        version = version + 1, actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME() WHERE id = @id;`);
+    await registrarHistorial(newRequest, { informeId: informe.id, accion: 'VALIDACION_ENVIADA',
+      detalle: 'Enviado al jefe de área para validar antes de emitir', revision: revisiones.revisionDeCambio(informe), actor });
+  });
+  return getInforme(tipo, codigo, user);
+};
+
+const resolverValidacion = async (tipo, codigo, body, user) => {
+  const permiso = await permisos(user);
+  if (!permiso.aprobar) throw httpError(403, 'Solo el personal activo de Soporte Técnico con cargo «Jefe de Area» puede validar informes.');
+  const actor = await exigirEditor(user);
+  const columnas = await columnasDe(tipo);
+  await conInforme({ tipo, codigo, actor, crear: false }, async ({ informe, newRequest }) => {
+    verificarVersion(informe, body.version);
+    if (!informe || informe.estado === 'EMITIDO' || informe.validacion_estado !== 'PENDIENTE') {
+      throw httpError(409, 'El informe no está pendiente de validación.');
+    }
+    if (body.decision === 'APROBAR') {
+      aprobacion.exigirHuella(informe, {
+        fuente: await leerFuente(tipo, codigo, columnas, newRequest(), true),
+        datos: leerDatos(informe.datos),
+        fotos: await revisiones.fotosVigentes(newRequest(), informe.id),
+      });
+    }
+    const aprobado = body.decision === 'APROBAR';
+    await newRequest()
+      .input('id', sql.Int, informe.id)
+      .input('estado', sql.VarChar(20), aprobado ? 'APROBADO' : 'OBSERVADO')
+      .input('observacion', sql.NVarChar(500), body.observacion)
+      .input('usuario', sql.NVarChar(50), actor.usuario)
+      .query(`UPDATE dbo.ST_INFORMES SET validacion_estado = @estado,
+        validacion_resuelta_por = @usuario, validacion_resuelta_en = SYSUTCDATETIME(), validacion_observacion = @observacion,
+        version = version + 1, actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME() WHERE id = @id;`);
+    await registrarHistorial(newRequest, { informeId: informe.id,
+      accion: aprobado ? 'VALIDACION_APROBADA' : 'VALIDACION_OBSERVADA',
+      detalle: aprobado ? 'Aprobado por el jefe de área para emitir' : 'Devuelto al técnico para corregir',
+      motivo: body.observacion, revision: revisiones.revisionDeCambio(informe), actor });
+  });
+  return getInforme(tipo, codigo, user);
+};
+
+const retirarValidacion = async (tipo, codigo, body, user) => {
+  const actor = await exigirEditor(user);
+  await conInforme({ tipo, codigo, actor, crear: false }, async ({ informe, newRequest }) => {
+    verificarVersion(informe, body.version);
+    if (!informe || informe.estado === 'EMITIDO' || !aprobacion.bloqueada(informe)) {
+      throw httpError(409, 'El informe no tiene una validación que se pueda retirar.');
+    }
+    await newRequest().input('id', sql.Int, informe.id).input('usuario', sql.NVarChar(50), actor.usuario)
+      .query(`UPDATE dbo.ST_INFORMES SET ${LIMPIAR_VALIDACION}, version = version + 1,
+        actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME() WHERE id = @id;`);
+    await registrarHistorial(newRequest, { informeId: informe.id, accion: 'VALIDACION_RETIRADA',
+      detalle: 'Validación retirada para editar; requiere un nuevo envío y aprobación',
+      revision: revisiones.revisionDeCambio(informe), actor });
+  });
+  return getInforme(tipo, codigo, user);
+};
+
+/** Redacción con toda la ficha efectiva y los cambios aún no guardados. */
 const sugerirRedaccion = async (body, user) => {
   await exigirEditor(user);
   const columnas = await columnasDe(body.tipo);
   const fuente = await leerFuente(body.tipo, body.codigo, columnas);
   const informe = await leerInforme(body.tipo, body.codigo);
   verificarVersion(informe, body.version);
-  revisiones.exigirEditable(informe);
+  exigirBorradorEditable(informe);
   const meta = columnas.get(body.campo);
   if (!esEditable(body.campo, meta) || meta.tipo !== 'texto') throw httpError(400, 'La IA solo puede redactar campos de texto editables.');
   const plan = planCambios({ fuente, datos: leerDatos(informe?.datos), entrantes: body.cambios, columnas });
@@ -1255,5 +1365,8 @@ module.exports = {
   puedeEditarArea,
   quitarFoto,
   sugerirRedaccion,
+  enviarValidacion,
+  resolverValidacion,
+  retirarValidacion,
   verificarVersion,
 };

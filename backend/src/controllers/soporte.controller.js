@@ -21,7 +21,8 @@ const handle = (action, status = 200) => async (req, res, next) => {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
     // Tablas o columnas ausentes: falta aplicar la migración 009 o la 010.
-    const faltante = /Invalid object name 'dbo\.ST_(PROXIMOS|AVISOS)_/i.test(error.message || '') ? '009 (próximos servicios)'
+    const faltante = /Invalid column name 'validacion_/i.test(error.message || '') ? '011 (validación de informes)'
+      : /Invalid object name 'dbo\.ST_(PROXIMOS|AVISOS)_/i.test(error.message || '') ? '009 (próximos servicios)'
       : /Invalid (object|column) name '(dbo\.ST_INFORMES_REVISIONES|revision_motivo|revision_abierta_)/i.test(error.message || '') ? '010 (reemisión de informes)'
         : null;
     if (faltante) {
@@ -57,6 +58,18 @@ module.exports = {
   emitir: handle((req) => {
     const { tipo, codigo } = clave(req);
     return informes.emitirInforme(tipo, codigo, parse('emision', req.body), req.user);
+  }),
+  enviarValidacion: handle(req => {
+    const { tipo, codigo } = clave(req);
+    return informes.enviarValidacion(tipo, codigo, parse('enviarValidacion', req.body), req.user);
+  }),
+  resolverValidacion: handle(req => {
+    const { tipo, codigo } = clave(req);
+    return informes.resolverValidacion(tipo, codigo, parse('resolverValidacion', req.body), req.user);
+  }),
+  retirarValidacion: handle(req => {
+    const { tipo, codigo } = clave(req);
+    return informes.retirarValidacion(tipo, codigo, parse('retirarValidacion', req.body), req.user);
   }),
   // Reemisión: abrir una revisión, reemitirla o cancelarla, y ver una revisión emitida.
   abrirRevision: handle((req) => {

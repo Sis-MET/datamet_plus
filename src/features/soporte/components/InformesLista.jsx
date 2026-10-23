@@ -8,14 +8,14 @@ import { Dropdown } from '../../calibration/components/Dropdown';
 import { EmptyState, FieldLabel, Segmented, ToneBadge } from '../../calibration/components/primitives';
 import { useResource } from '../../system/hooks/useResource';
 import { soporteApi } from '../api/soporte';
-import { ESTADOS_INFORME, formatoFecha } from '../domain/informe';
+import { ESTADOS_INFORME, ESTADOS_VALIDACION, formatoFecha } from '../domain/informe';
 import { TIPOS_SERVICIO, tipoServicio } from '../domain/plantillas';
 
 const PAGE_SIZE = 25;
 const GRUPOS_POR_PAGINA = 20;
 const INFORMES_POR_GRUPO = 50;
 
-const AVANZADOS = ['cliente', 'tecnico', 'desde', 'hasta'];
+const AVANZADOS = ['cliente', 'tecnico', 'desde', 'hasta', 'validacion'];
 const hayFiltros = (filtros) => Object.values(filtros).some(Boolean);
 const activos = (filtros) => Object.fromEntries(Object.entries(filtros).filter(([, value]) => value));
 
@@ -64,6 +64,11 @@ function PanelFiltros({ id, filtros, opciones, onChange }) {
   );
   return (
     <section id={id} aria-label="Filtros de los informes" className="card grid gap-x-4 gap-y-3 p-4 shadow-card sm:grid-cols-2 lg:grid-cols-4">
+      {campo('validacion', 'Validación por el jefe de área', (
+        <Dropdown id={`${baseId}-validacion`} ariaLabel="Validación" value={filtros.validacion || ''}
+          onChange={validacion => onChange({ validacion })}
+          options={[{ value: '', label: 'Todas las validaciones' }, ...Object.entries(ESTADOS_VALIDACION).map(([value, meta]) => ({ value, label: meta.label }))]} />
+      ))}
       {campo('cliente', 'Cliente', (
         <Dropdown
           id={`${baseId}-cliente`}
@@ -107,6 +112,7 @@ function PanelFiltros({ id, filtros, opciones, onChange }) {
 }
 
 const ETIQUETA_FILTRO = {
+  validacion: v => ESTADOS_VALIDACION[v]?.label || v,
   cliente: (v) => v,
   tecnico: (v) => v,
   desde: (v) => `Desde ${formatoFecha(v)}`,
@@ -221,6 +227,9 @@ function Estado({ informe }) {
   return (
     <span className="flex flex-col items-end gap-1">
       <ToneBadge tone={estado.tone}>{estado.label}</ToneBadge>
+      {informe.estado !== 'EMITIDO' && informe.validacionEstado && informe.validacionEstado !== 'BORRADOR' && (
+        <ToneBadge tone={ESTADOS_VALIDACION[informe.validacionEstado].tone}>{ESTADOS_VALIDACION[informe.validacionEstado].label}</ToneBadge>
+      )}
       {informe.estado === 'EMITIDO' && informe.revision > 0 && (
         <span className="text-[11.5px] text-fg-subtle">Rev. {informe.revision}</span>
       )}

@@ -23,6 +23,17 @@ export const ACCIONES_HISTORIAL = {
   REVISION_ABIERTA: 'Revisión abierta',
   REEMISION: 'Reemisión',
   REVISION_CANCELADA: 'Revisión cancelada',
+  VALIDACION_ENVIADA: 'Enviado a validación',
+  VALIDACION_APROBADA: 'Aprobado por el jefe de área',
+  VALIDACION_OBSERVADA: 'Devuelto con observaciones',
+  VALIDACION_RETIRADA: 'Validación retirada',
+};
+
+export const ESTADOS_VALIDACION = {
+  BORRADOR: { label: 'Sin enviar a validación', tone: 'neutral' },
+  PENDIENTE: { label: 'Pendiente de validación', tone: 'info' },
+  APROBADO: { label: 'Aprobado para emitir', tone: 'success' },
+  OBSERVADO: { label: 'Con observaciones', tone: 'warning' },
 };
 
 export const MAX_FOTOS = 12;
@@ -81,7 +92,7 @@ export function cambiosParaGuardar(informe, pendientes, tipos = {}) {
 export const AGRUPACIONES = ['otst', 'tecnico', 'ninguno'];
 
 /** Filtros de la lista sin aplicar. */
-export const filtrosVacios = () => ({ q: '', tipo: '', estado: '', cliente: '', tecnico: '', desde: '', hasta: '' });
+export const filtrosVacios = () => ({ q: '', tipo: '', estado: '', cliente: '', tecnico: '', desde: '', hasta: '', validacion: '' });
 
 /** Texto corto del dato original para mostrarlo bajo un campo corregido. */
 export function textoOriginal(valor, tipo) {

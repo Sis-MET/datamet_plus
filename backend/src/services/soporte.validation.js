@@ -56,6 +56,7 @@ const schemas = {
     estado: z.preprocess(v => (v ? String(v).toUpperCase() : null), z.enum(['PENDIENTE', 'BORRADOR', 'EMITIDO', 'EN_REVISION']).nullable()),
     cliente: optionalText(250),
     tecnico: optionalText(100),
+    validacion: z.preprocess(v => (v ? String(v).toUpperCase() : null), z.enum(['BORRADOR', 'PENDIENTE', 'APROBADO', 'OBSERVADO']).nullable()),
     desde: z.preprocess(v => (v ? v : null), fecha.nullable()),
     hasta: z.preprocess(v => (v ? v : null), fecha.nullable()),
     // Lista agrupada por OTST o por técnico; `grupo` pide los informes de
@@ -82,6 +83,14 @@ const schemas = {
   }),
 
   emision: z.object({ version }),
+  enviarValidacion: z.object({ version }),
+  retirarValidacion: z.object({ version }),
+  resolverValidacion: z.object({
+    version,
+    decision: z.enum(['APROBAR', 'OBSERVAR']),
+    observacion: optionalText(500),
+  }).refine(v => v.decision !== 'OBSERVAR' || (v.observacion && v.observacion.length >= 10),
+    'Explique las correcciones necesarias (al menos 10 caracteres).'),
 
   // Reemisión: abrir una revisión exige el motivo (p. ej. el pedido del cliente).
   abrirRevision: z.object({

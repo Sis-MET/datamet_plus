@@ -17,6 +17,9 @@ router.post('/redaccion', controller.redaccion);
 router.get('/informes/:tipo/:codigo', controller.getInforme);
 router.post('/informes/:tipo/:codigo/cambios', controller.guardarCambios);
 router.post('/informes/:tipo/:codigo/emision', controller.emitir);
+router.post('/informes/:tipo/:codigo/validacion', controller.enviarValidacion);
+router.post('/informes/:tipo/:codigo/validacion/resolver', controller.resolverValidacion);
+router.post('/informes/:tipo/:codigo/validacion/retirar', controller.retirarValidacion);
 // Reemisión de un informe emitido.
 router.post('/informes/:tipo/:codigo/revision', controller.abrirRevision);
 router.post('/informes/:tipo/:codigo/revision/cancelar', controller.cancelarRevision);

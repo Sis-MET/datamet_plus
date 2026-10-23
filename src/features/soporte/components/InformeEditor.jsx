@@ -26,6 +26,7 @@ import { SeccionEditor } from './secciones';
 import { Impresion, VistaPrevia } from './VistaPrevia';
 import { GuardadoPdf } from './GuardadoPdf';
 import { pedirDestino } from './destinoPdf';
+import { ValidacionPanel } from './ValidacionPanel';
 
 const tiene = (objeto, clave) => Object.prototype.hasOwnProperty.call(objeto, clave);
 const vacio = (valor) => valor === null || valor === undefined || String(valor).trim() === '';
@@ -254,7 +255,7 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   const emitido = informe?.estado === 'EMITIDO';
   const enRevision = informe?.estado === 'EN_REVISION';
   // Un informe emitido no se edita: primero se abre una revisión.
-  const editableDatos = editable && !emitido;
+  const editableDatos = editable && !emitido && !['PENDIENTE', 'APROBADO'].includes(informe?.validacion?.estado);
 
   const columnasEditables = useMemo(() => new Set(Object.keys(informe?.columnas || {})), [informe]);
   const tiposNumericos = useMemo(() => Object.fromEntries(
@@ -547,7 +548,7 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
                 <Undo2 className="h-4 w-4" aria-hidden="true" /> Cancelar revisión
               </Button>
             )}
-            {editable && !emitido && (
+            {editable && !emitido && informe.validacion?.estado === 'APROBADO' && (
               <Button
                 onClick={() => setEmitiendo(true)}
                 disabled={cantidadPendientes > 0}
@@ -565,6 +566,11 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           </div>
         </div>
       </div>
+
+      {!emitido && (
+        <ValidacionPanel informe={informe} pendientes={cantidadPendientes} avisos={avisos.length}
+          onAccion={aplicar} tipo={tipo} codigo={codigo} />
+      )}
 
       {!editable && (
         <p className="flex items-center gap-2 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-[13px] text-fg-muted">
