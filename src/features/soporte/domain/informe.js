@@ -234,3 +234,13 @@ export function hojasDeFotos(fotos) {
   for (let i = 0; i < fotos.length; i += FOTOS_POR_HOJA) hojas.push(fotos.slice(i, i + FOTOS_POR_HOJA));
   return hojas;
 }
+
+/** Construye el PDF con la respuesta de emisión, sin reutilizar el borrador en pantalla. */
+export function prepararPdfEmitido(informe, plantilla) {
+  if (informe.estado !== 'EMITIDO') throw new Error('El informe todavía no está emitido.');
+  const valores = valoresInforme(informe, {});
+  return { titulo: nombreArchivo(plantilla, informe.numero, valores, informe.revision),
+    revision: informe.revision, version: informe.version,
+    documento: { plantilla, numero: informe.numero, valores, fotos: informe.fotos,
+      borrador: false, pie: pieDeInforme(informe), notas: notasRevision(informe.revisiones) } };
+}

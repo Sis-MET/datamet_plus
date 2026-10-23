@@ -4,9 +4,9 @@ import fs from 'node:fs/promises';
 test.setTimeout(60000);
 test.use({ actionTimeout: 30000 });
 
-async function preparar(page, { proximos = false, jefe = false } = {}) {
+async function preparar(page, { proximos = false, jefe = false, configuracion = false } = {}) {
   const token = Buffer.from(JSON.stringify({ exp: 4102444800, id: 1, acceso_cron: 1 })).toString('base64url');
-  await page.addInitScript(({ token, proximos }) => {
+  await page.addInitScript(({ token, proximos, configuracion }) => {
     // Verifica la descarga en Chromium sin abrir el selector nativo del SO.
     window.showSaveFilePicker = undefined;
     if (sessionStorage.getItem('soporte-qa')) return;
@@ -15,18 +15,20 @@ async function preparar(page, { proximos = false, jefe = false } = {}) {
     localStorage.setItem('rimmet_token', `header.${token}.signature`);
     localStorage.setItem('rimmet_user', JSON.stringify({ id: 1, usuario: 'qa', nombre: 'Usuario', apellido: 'QA', area: 'Soporte Técnico', cargo: 'Técnico', acceso_cron: 1 }));
     localStorage.setItem('rimmet_last_view', 'soporte');
-    localStorage.setItem('rimmet_soporte_pestana', proximos ? 'proximos' : 'informes');
-    if (!proximos) localStorage.setItem('rimmet_soporte_informe', JSON.stringify({ tipo: 'MPR', codigo: 'ST-001' }));
-  }, { token, proximos });
-  const estado = { jefe, redaccion: null, estado: 'BORRADOR', validacion: 'BORRADOR', version: 1, documentos: [], fallarGuardado: 0 };
+    localStorage.setItem('rimmet_soporte_pestana', configuracion ? 'configuracion' : proximos ? 'proximos' : 'informes');
+    if (!proximos && !configuracion) localStorage.setItem('rimmet_soporte_informe', JSON.stringify({ tipo: 'MPR', codigo: 'ST-001' }));
+  }, { token, proximos, configuracion });
+  const estado = { jefe, redaccion: null, estado: 'BORRADOR', validacion: 'BORRADOR', version: 1, revision: 0,
+    documentos: [], fallarGuardado: 0, configVersion: 1, aprobadores: [] };
   const fuente = { otst: '26-0001-S01', cod_metrica: '0001-11-001', cliente: 'Cliente de prueba', planta: 'Planta de prueba',
     personal: 'Técnico QA', fecha_servicio: '2026-10-23', tipo_equipo: 'Balanza de plataforma', marca: 'Métrica', modelo: 'P300',
     serie: 'QA-123', cap_max1: 150, cap_max2: 300, d1: 0.05, d2: 0.1, e1: 0.05, e2: 0.1, unidades: 'kg', comentario_general: 'se verifico la plataforma' };
   const informe = () => ({ tipo: 'MPR', codigo: 'ST-001', numero: '26-0001-S01-001', tipoLabel: 'Mantenimiento preventivo regular',
-    fuente, datos: {}, estado: estado.estado, version: estado.version, revision: 0,
+    fuente, datos: {}, estado: estado.estado, version: estado.version, revision: estado.revision,
     columnas: Object.fromEntries(Object.entries(fuente).map(([k, v]) => [k, { tipo: typeof v === 'number' ? 'decimal' : 'texto', max: 4000 }])),
     acciones: { editar: true, aprobar: estado.jefe, redaccion: true }, fotos: [], historial: [], revisiones: [], trazabilidad: {},
-    validacion: { estado: estado.validacion, observacion: estado.observacion, resueltaPor: estado.validacion === 'APROBADO' ? { nombre: 'Jefe QA' } : null }, revisionAbierta: null });
+    validacion: { estado: estado.validacion, observacion: estado.observacion, resueltaPor: estado.validacion === 'APROBADO' ? { nombre: 'Jefe QA' } : null },
+    revisionAbierta: estado.estado === 'EN_REVISION' ? { revision: estado.revision + 1, motivo: 'Corrección solicitada por el cliente' } : null });
   const rangos = [{ numero: 1, capacidad: 150, division: 0.05, verificacion: 0.05 }, { numero: 2, capacidad: 300, division: 0.1, verificacion: 0.1 }];
   const equipo = { id: '0001-11-001', codMetrica: '0001-11-001', cliente: fuente.cliente, planta: fuente.planta, ciudad: 'La Paz',
     instrumento: fuente.tipo_equipo, marca: fuente.marca, modelo: fuente.modelo, serie: fuente.serie,
@@ -39,6 +41,18 @@ async function preparar(page, { proximos = false, jefe = false } = {}) {
     const path = url.pathname;
     const body = request.headers()['content-type']?.includes('application/json') ? request.postDataJSON() : null;
     const json = data => route.fulfill({ json: { success: true, data } });
+    if (path.endsWith('/soporte/permisos')) return json({ editar: true, aprobar: estado.jefe, configurarAprobadores: estado.jefe });
+    if (path.endsWith('/configuracion/aprobadores')) {
+      if (request.method() === 'PUT') {
+        if (estado.errorConfig) return route.fulfill({ status: 409, json: { message: 'La configuración cambió. Recárguela antes de guardar.' } });
+        estado.aprobadores = body.aprobadores; estado.configVersion++;
+      }
+      return json({ version: estado.configVersion, aprobadores: estado.aprobadores, personal: [
+        { id: 1, nombre: 'Jefe QA', cargo: 'Jefe de Area', esJefe: true, autorizado: true },
+        { id: 2, nombre: 'Ana QA', cargo: 'Técnico', esJefe: false, autorizado: estado.aprobadores.includes(2) },
+        { id: 3, nombre: 'Luis QA', cargo: 'Técnico', esJefe: false, autorizado: estado.aprobadores.includes(3) },
+      ] });
+    }
     if (path.endsWith('/soporte/documentos/carpetas')) {
       if (estado.errorCarpetas) return route.fulfill({ status: 503, json: { message: 'La carpeta del archivo de Soporte no está disponible en el servidor.' } });
       const carpeta = url.searchParams.get('carpeta') || '';
@@ -79,6 +93,7 @@ async function preparar(page, { proximos = false, jefe = false } = {}) {
     else if (path.endsWith('/validacion/resolver')) { estado.validacion = body.decision === 'APROBAR' ? 'APROBADO' : 'OBSERVADO'; estado.observacion = body.observacion; }
     else if (path.endsWith('/validacion/retirar')) estado.validacion = 'BORRADOR';
     else if (path.endsWith('/ST-001/emision')) estado.estado = 'EMITIDO';
+    else if (path.endsWith('/ST-001/reemision')) { estado.estado = 'EMITIDO'; estado.revision++; }
     else if (path.endsWith('/ST-001/cambios')) Object.assign(fuente, body.cambios);
     else return json({ total: 0, items: [] });
     estado.version++;
@@ -94,6 +109,8 @@ test('el técnico envía, el jefe aprueba y se habilita emitir; la IA incluye ca
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Enviar a revisión', exact: true })).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole('button', { name: /^Emitir informe/ })).toHaveCount(0);
+  for (const name of ['Guardar PDF', 'Descargar copia', 'Imprimir']) await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Configuración', exact: true })).toHaveCount(0);
   const comentario = page.locator('#seccion-observaciones textarea').first();
   await comentario.fill('se realizo limpieza y verificacion');
   await comentario.locator('xpath=..').getByRole('button', { name: 'Mejorar redacción', exact: true }).click();
@@ -104,11 +121,13 @@ test('el técnico envía, el jefe aprueba y se habilita emitir; la IA incluye ca
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();
   await page.getByRole('button', { name: 'Enviar a revisión', exact: true }).click();
   await expect(comentario).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Guardar PDF', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Aprobar informe', exact: true })).toHaveCount(0);
   estado.jefe = true;
   await page.reload();
   await page.getByRole('button', { name: 'Aprobar informe', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Emitir informe/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Guardar PDF', exact: true })).toBeDisabled();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: '.impeccable/review/soporte-desktop.png', fullPage: true });
   await page.getByRole('region', { name: 'Validación del informe', exact: true }).screenshot({ path: '.impeccable/review/validacion-desktop.png' });
@@ -118,6 +137,17 @@ test('el técnico envía, el jefe aprueba y se habilita emitir; la IA incluye ca
   await page.getByRole('button', { name: /^Emitir informe/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Emitir informe', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Abrir revisión', exact: true })).toBeVisible();
+  const selector = page.getByRole('dialog');
+  await expect(selector.getByRole('button', { name: 'Abrir carpeta Clientes', exact: true })).toBeVisible();
+  await expect(page.getByText('26-0001-S01-001 quedó emitido.', { exact: true })).toHaveCount(0);
+  await selector.screenshot({ path: '.impeccable/review/emision-destino-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await selector.screenshot({ path: '.impeccable/review/emision-destino-mobile.png' });
+  await selector.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(selector).toBeHidden();
+  await expect(page.getByText('PDF pendiente de guardar.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Guardar PDF', exact: true })).toBeEnabled();
+  expect(estado.estado).toBe('EMITIDO');
 });
 
 test('el técnico elige la carpeta en cada guardado, reintenta y abre el PDF archivado', async ({ page }) => {
@@ -173,6 +203,7 @@ test('el técnico elige la carpeta en cada guardado, reintenta y abre el PDF arc
 
 test('el selector permite recuperar una carpeta no disponible y el visor explica un PDF ausente', async ({ page }) => {
   const estado = await preparar(page);
+  estado.estado = 'EMITIDO'; estado.validacion = 'APROBADO';
   estado.errorCarpetas = true;
   await page.goto('/');
   await page.getByRole('button', { name: 'Guardar PDF', exact: true }).click();
@@ -192,6 +223,53 @@ test('el selector permite recuperar una carpeta no disponible y el visor explica
   await page.reload();
   await page.getByRole('region', { name: 'PDF guardados', exact: true }).getByRole('button', { name: 'Abrir PDF', exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('alert')).toContainText('ya no están disponibles');
+});
+
+test('el jefe configura varios aprobadores, recarga un conflicto y revoca autorizaciones', async ({ page }) => {
+  const estado = await preparar(page, { jefe: true, configuracion: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Aprobadores de informes' })).toBeVisible();
+  const jefe = page.getByRole('checkbox', { name: /Jefe QA/ });
+  await expect(jefe).toBeChecked(); await expect(jefe).toBeDisabled();
+  await page.getByRole('checkbox', { name: /Ana QA/ }).check();
+  await page.getByRole('checkbox', { name: /Luis QA/ }).check();
+  await page.screenshot({ path: '.impeccable/review/aprobadores-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: '.impeccable/review/aprobadores-mobile.png', fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+  await page.getByRole('button', { name: 'Guardar aprobadores', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Guardar aprobadores', exact: true })).toBeDisabled();
+  expect(estado.aprobadores).toEqual([2, 3]);
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: /Ana QA/ })).toBeChecked();
+  await page.getByRole('checkbox', { name: /Ana QA/ }).uncheck();
+  estado.errorConfig = true;
+  await page.getByRole('button', { name: 'Guardar aprobadores', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('La configuración cambió');
+  estado.errorConfig = false;
+  await page.getByRole('button', { name: 'Recargar configuración', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: /Ana QA/ })).toBeChecked();
+  await page.getByRole('checkbox', { name: /Ana QA/ }).uncheck();
+  await page.getByRole('button', { name: 'Guardar aprobadores', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Guardar aprobadores', exact: true })).toBeDisabled();
+  expect(estado.aprobadores).toEqual([3]);
+});
+
+test('reemisión abre el destino automáticamente y archiva la nueva revisión sin marca de borrador', async ({ page }) => {
+  const estado = await preparar(page);
+  estado.estado = 'EN_REVISION'; estado.validacion = 'APROBADO'; estado.version = 8;
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Guardar PDF', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: /^Reemitir · Rev/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Reemitir informe', exact: true }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal.getByRole('button', { name: 'Abrir carpeta Clientes', exact: true })).toBeVisible();
+  await modal.getByRole('button', { name: 'Guardar aquí', exact: true }).click();
+  await expect(modal).toBeHidden({ timeout: 30000 });
+  expect(estado.documentos).toHaveLength(1);
+  expect(estado.documentos[0]).toMatchObject({ borrador: false, revision: 1, version: 9 });
+  await expect(page.getByText('PDF pendiente de guardar.', { exact: true })).toHaveCount(0);
 });
 
 test('el plan exporta un mes, varios meses y 2027 completo; la ficha muestra doble rango', async ({ page }) => {

@@ -37,6 +37,7 @@ function crearServicio({ raiz, repositorio }) {
     },
     async guardar(tipo, codigo, query, contenido, user) {
       const meta = metadatos(query);
+      if (meta.borrador) throw error(409, 'Apruebe y emita el informe antes de guardar su PDF.');
       validarPdf(contenido);
       const destino = await archivo.resolver(meta.carpeta);
       const contenidoHuella = hash(contenido);

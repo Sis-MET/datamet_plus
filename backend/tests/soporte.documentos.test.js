@@ -8,7 +8,7 @@ const { crearServicio } = require('../src/services/soporte.documentos');
 
 const pdf = Buffer.from('%PDF-1.4\nDocumento de prueba\n%%EOF\n');
 const user = { usuario: 'tecnico', nombre: 'Técnico', autorizado: true };
-const meta = (extra = {}) => ({ carpeta: 'Cliente A/2026', nombre: 'Informe.pdf', revision: '0', borrador: 'true', version: '1', ...extra });
+const meta = (extra = {}) => ({ carpeta: 'Cliente A/2026', nombre: 'Informe.pdf', revision: '0', borrador: 'false', version: '1', ...extra });
 const status = expected => e => e.statusCode === expected;
 
 async function fixture(t) {
@@ -56,7 +56,7 @@ test('el técnico elige cualquier carpeta existente y abre exactamente el PDF re
   assert.equal(destino.carpetas[0].ruta, 'Cliente B/2027');
   const documento = await servicio.guardar('MPR', 'ST-001', meta({ carpeta: 'Cliente B/2027' }), pdf, user);
   assert.equal(documento.carpeta, 'Cliente B/2027');
-  assert.equal(documento.borrador, true);
+  assert.equal(documento.borrador, false);
   assert.equal(documento.guardadoPor.usuario, user.usuario);
   assert.deepEqual(await fs.readFile(path.join(root, 'Cliente B', '2027', 'Informe.pdf')), pdf);
   assert.deepEqual((await servicio.abrir(documento.id, user)).contenido, pdf);
@@ -74,6 +74,13 @@ test('no sobrescribe otro PDF y cada revisión puede conservar una ubicación di
   assert.notEqual(anterior.id, revision.id);
   assert.equal(revision.revision, 1);
   assert.deepEqual((await servicio.abrir(anterior.id, user)).contenido, pdf);
+});
+
+test('rechaza archivar un borrador sin escribir archivos ni registrar documentos', async t => {
+  const { servicio, root, rows } = await fixture(t);
+  await assert.rejects(servicio.guardar('MPR', 'ST-001', meta({ borrador: 'true' }), pdf, user), status(409));
+  assert.equal(rows().length, 0);
+  assert.deepEqual(await fs.readdir(path.join(root, 'Cliente A', '2026')), []);
 });
 
 test('un reintento completa el registro sin perder el PDF escrito ni duplicar referencias', async t => {

@@ -76,9 +76,9 @@ const aprobar = async () => {
   tecnico();
 };
 
-test('el archivo valida la versión del borrador y solo admite revisiones realmente emitidas', async () => {
+test('el archivo rechaza borradores y solo admite revisiones realmente emitidas', async () => {
   reset();
-  await informes.contextoArchivo('MPR', 'ST-001', usuario, { version: null, revision: 0, borrador: true });
+  await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { version: null, revision: 0, borrador: true }), e => e.statusCode === 409);
   await informes.guardarCambios('MPR', 'ST-001', { ...version(), cambios: { comentario_general: 'Limpieza.' } }, usuario);
   await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { version: 999, revision: 0, borrador: true }), e => e.statusCode === 409);
   await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 0, borrador: false }), e => e.statusCode === 409);
@@ -89,7 +89,7 @@ test('el archivo valida la versión del borrador y solo admite revisiones realme
   await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 0, borrador: true }), e => e.statusCode === 409);
   await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 1, borrador: false }), e => e.statusCode === 409);
   await informes.abrirRevision('MPR', 'ST-001', { ...version(), motivo: 'Corrección' }, usuario);
-  await informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 1, borrador: true });
+  await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', usuario, { ...version(), revision: 1, borrador: true }), e => e.statusCode === 409);
   await informes.contextoArchivo('MPR', 'ST-001', usuario, { version: 1, revision: 0, borrador: false });
   personal = { area: 'Sistemas', activo: false };
   await assert.rejects(informes.contextoArchivo('MPR', 'ST-001', { ...usuario, acceso_cron: 3 }, { version: 1, revision: 0, borrador: false }), e => e.statusCode === 403);

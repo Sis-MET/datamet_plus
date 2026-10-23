@@ -47,7 +47,9 @@ test('las rutas autentican, reciben PDF binario y entregan el archivo sin public
   assert.equal(listado.status, 200);
   assert.deepEqual((await listado.json()).data.carpetas, []);
   const pdf = Buffer.from('%PDF-1.4\nHTTP de prueba\n%%EOF\n');
-  const query = new URLSearchParams({ carpeta: '', nombre: "Informe - gestión O'Connor (2026).pdf", version: '1', revision: '0', borrador: 'true' });
+  const query = new URLSearchParams({ carpeta: '', nombre: "Informe - gestión O'Connor (2026).pdf", version: '1', revision: '0', borrador: 'false' });
+  const borrador = new URLSearchParams(query); borrador.set('borrador', 'true');
+  assert.equal((await fetch(`${base}/informes/MPR/ST-001/documentos?${borrador}`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/pdf' }, body: pdf })).status, 409);
   const guardado = await fetch(`${base}/informes/MPR/ST-001/documentos?${query}`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/pdf' }, body: pdf });
   assert.equal(guardado.status, 201);
   const id = (await guardado.json()).data.id;

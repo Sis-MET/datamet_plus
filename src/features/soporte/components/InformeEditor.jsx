@@ -15,7 +15,7 @@ import { avisosEmision } from '../domain/avisos';
 import { aNumero } from '../domain/calculos';
 import {
   ESTADOS_INFORME, cambiosParaGuardar, fechaHora, formatoFecha, mismoValor, nombreArchivo, notasRevision, pieDeInforme,
-  pieDeRevision, valorGuardado, valoresInforme,
+  pieDeRevision, prepararPdfEmitido, valorGuardado, valoresInforme,
 } from '../domain/informe';
 import { PLANTILLAS, seccionesEditor, tipoServicio } from '../domain/plantillas';
 import { FotosPanel } from './FotosPanel';
@@ -52,14 +52,15 @@ function Seccion({ seccion, editor }) {
   );
 }
 
-function EmitirModal({ informe, avisos, reemision = null, onIr, onClose, onConfirm }) {
+function EmitirModal({ informe, avisos, reemision = null, onIr, onClose, onConfirm, onEmitido }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const emitido = useRef(null);
   const confirmar = async (close) => {
     setBusy(true);
     setError(null);
     try {
-      await onConfirm();
+      emitido.current = await onConfirm();
       close();
     } catch (failure) {
       setError(failure.message);
@@ -71,7 +72,7 @@ function EmitirModal({ informe, avisos, reemision = null, onIr, onClose, onConfi
       size="md"
       title={reemision ? `Reemitir ${informe.numero} · Rev. ${reemision}` : `Emitir ${informe.numero}`}
       subtitle={informe.tipoLabel}
-      onClose={onClose}
+      onClose={() => { onClose(); if (emitido.current) onEmitido(emitido.current); }}
       busy={busy}
       footer={(close) => (
         <>
@@ -132,6 +133,7 @@ function EmitirModal({ informe, avisos, reemision = null, onIr, onClose, onConfi
           </>
         )}
         {error && <p className="field-error" role="alert">{error}</p>}
+        <p>Después de emitir, elija la carpeta donde se guardará el PDF del informe.</p>
       </div>
     </Modal>
   );
@@ -476,12 +478,12 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
 
   /** Copia local opcional, separada del archivo compartido del área. */
   const descargarCopia = async () => {
+    if (!emitido) return;
     const destino = await pedirDestino(titulo);
     if (destino === undefined) return;
     setGuardandoPdf({ destino });
   };
-  const guardarPdf = () => setDestinoServidor({ documento, titulo, version: informe.version,
-    revision: enRevision ? informe.revisionAbierta.revision : emitido ? informe.revision : 0 });
+  const guardarPdf = () => { if (emitido) setDestinoServidor(prepararPdfEmitido(informe, plantilla)); };
   const documentos = archivo?.documentos || [];
   const pdfVigente = documentos.find(doc => !doc.borrador && doc.revision === informe.revision);
 
@@ -531,20 +533,20 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => setImprimiendo(true)} disabled={imprimiendo}>
+            <Button variant="secondary" onClick={() => setImprimiendo(true)} disabled={!emitido || imprimiendo} title={!emitido ? 'Apruebe y emita el informe antes de imprimir' : undefined}>
               {imprimiendo ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Printer className="h-4 w-4" aria-hidden="true" />}
               Imprimir
             </Button>
             <Button
               variant="secondary"
               onClick={guardarPdf}
-              disabled={Boolean(guardandoPdf) || cantidadPendientes > 0}
-              title={cantidadPendientes > 0 ? 'Guarde los cambios antes de guardar el PDF' : 'Guardar el informe como PDF en la carpeta que elija'}
+              disabled={!emitido || Boolean(guardandoPdf) || cantidadPendientes > 0}
+              title={!emitido ? 'Apruebe y emita el informe antes de guardar el PDF' : cantidadPendientes > 0 ? 'Guarde los cambios antes de guardar el PDF' : 'Guardar el informe como PDF en la carpeta que elija'}
             >
               <FolderOpen className="h-4 w-4" aria-hidden="true" />
               Guardar PDF
             </Button>
-            <Button variant="ghost" onClick={descargarCopia} disabled={Boolean(guardandoPdf) || cantidadPendientes > 0} title="Descargar una copia en esta computadora">
+            <Button variant="ghost" onClick={descargarCopia} disabled={!emitido || Boolean(guardandoPdf) || cantidadPendientes > 0} title={!emitido ? 'Apruebe y emita el informe antes de descargar' : 'Descargar una copia en esta computadora'}>
               <Download className="h-4 w-4" aria-hidden="true" /> Descargar copia
             </Button>
             {pdfVigente && <Button variant="secondary" onClick={() => setPdfAbierto(pdfVigente)}>
@@ -631,6 +633,11 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
         </section>
       )}
 
+      {emitido && archivo && !cargandoArchivo && !errorArchivo && !pdfVigente && <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm text-fg">
+        <FolderOpen className="h-5 w-5 shrink-0" aria-hidden="true" />
+        <p className="min-w-0 flex-1"><strong>PDF pendiente de guardar.</strong> El informe ya está emitido. Elija una carpeta para guardar esta revisión.</p>
+        <Button variant="secondary" onClick={guardarPdf}>Elegir carpeta</Button>
+      </div>}
       <DocumentosPanel documentos={documentos} nombreRaiz={archivo?.nombreRaiz} error={errorArchivo} cargando={cargandoArchivo}
         onRecargar={recargarArchivo} onAbrir={setPdfAbierto} />
 
@@ -698,14 +705,14 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           reemision={enRevision ? informe.revisionAbierta.revision : null}
           onIr={irA}
           onClose={() => setEmitiendo(false)}
+          onEmitido={nuevo => setDestinoServidor(prepararPdfEmitido(nuevo, plantilla))}
           onConfirm={async () => {
             if (enRevision) {
               const nuevo = await aplicar(soporteApi.reemitir(tipo, codigo, { version: informe.version }));
-              toast.success(`${informe.numero} quedó reemitido: Rev. ${nuevo.revision}.`);
-              return;
+              return nuevo;
             }
-            await aplicar(soporteApi.emitir(tipo, codigo, { version: informe.version }));
-            toast.success(`${informe.numero} quedó emitido.`);
+            const nuevo = await aplicar(soporteApi.emitir(tipo, codigo, { version: informe.version }));
+            return nuevo;
           }}
         />
       )}

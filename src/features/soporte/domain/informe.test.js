@@ -9,6 +9,7 @@ import {
   notasRevision,
   pieDeInforme,
   pieDeRevision,
+  prepararPdfEmitido,
   textoPie,
   valorGuardado,
   valoresInforme,
@@ -19,6 +20,16 @@ const informe = {
   fuente: { comentario_general: 'Original', d1: 0.05, cliente: 'CBN', fecha_servicio: '2026-08-13' },
   datos: { comentario_general: 'Corregido' },
 };
+
+it('prepara el PDF de la revisión recién emitida con su versión y contenido efectivos', () => {
+  const emitido = { ...informe, numero: '26-001', estado: 'EMITIDO', revision: 2, version: 9,
+    fotos: [{ id: 1 }], revisiones: [{ revision: 2, motivo: 'Corrección solicitada', emitidoEn: '2026-10-23' }], trazabilidad: {} };
+  const pdf = prepararPdfEmitido(emitido, PLANTILLAS.MPR);
+  expect(pdf).toMatchObject({ version: 9, revision: 2, documento: { borrador: false, valores: { comentario_general: 'Corregido' }, fotos: [{ id: 1 }] } });
+  expect(pdf.titulo).toBe(nombreArchivo(PLANTILLAS.MPR, emitido.numero, valoresInforme(emitido), 2));
+  expect(pdf.documento.notas).toContain('Corrección solicitada');
+  expect(() => prepararPdfEmitido({ ...emitido, estado: 'EN_REVISION' }, PLANTILLAS.MPR)).toThrow('todavía');
+});
 
 describe('valores del informe', () => {
   it('superpone corregidos y pendientes al dato original', () => {
