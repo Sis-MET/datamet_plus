@@ -333,11 +333,11 @@ function TablaInformes({ items, onOpen, ocultar = {}, loading = false, caption }
             <th scope="col" className="px-4 py-2.5 text-right font-medium">Estado</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-line">
+        <tbody className="stagger-in divide-y divide-line">
           {items.map(informe => <Fila key={`${informe.tipo}:${informe.codigo}`} informe={informe} onOpen={onOpen} ocultar={ocultar} />)}
         </tbody>
       </table>
-      <ul className="divide-y divide-line md:hidden">
+      <ul className="stagger-in divide-y divide-line md:hidden">
         {items.map(informe => <Tarjeta key={`${informe.tipo}:${informe.codigo}`} informe={informe} onOpen={onOpen} ocultar={ocultar} />)}
       </ul>
     </div>
@@ -635,7 +635,7 @@ export function InformesLista({ filtros, page, agrupar, abiertos, onFiltros, onP
               {algunoAbierto ? 'Cerrar todos' : 'Abrir todos'}
             </button>
           </div>
-          <div className={cn('flex flex-col gap-2.5 transition-opacity', loading && 'opacity-60')}>
+          <div className={cn('stagger-in flex flex-col gap-2.5 transition-opacity', loading && 'opacity-60')}>
             {grupos.map(grupo => (
               <Grupo
                 key={claveGrupo(grupo)}

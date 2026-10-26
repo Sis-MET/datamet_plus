@@ -231,10 +231,10 @@ test.beforeEach(async ({ page }) => {
     if (sessionStorage.getItem('rim-spec-ready')) return;
     sessionStorage.setItem('rim-spec-ready', '1');
     localStorage.clear();
-    localStorage.setItem('rimmet_token', token);
-    localStorage.setItem('rimmet_user', JSON.stringify({ id: 1, usuario: 'qa', nombre: 'Usuario', apellido: 'QA', cargo: 'Jefe de Área', acceso_cron: 1 }));
-    localStorage.setItem('rimmet_last_view', 'rim');
-    localStorage.setItem('rimmet_rim_tab', 'registros');
+    localStorage.setItem('datamet_token', token);
+    localStorage.setItem('datamet_user', JSON.stringify({ id: 1, usuario: 'qa', nombre: 'Usuario', apellido: 'QA', cargo: 'Jefe de Área', acceso_cron: 1 }));
+    localStorage.setItem('datamet_last_view', 'rim');
+    localStorage.setItem('datamet_rim_tab', 'registros');
   }, { token: `header.${tokenPayload}.signature` });
 });
 

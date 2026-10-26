@@ -12,7 +12,7 @@ class ApiError extends Error {
 }
 
 function getToken() {
-  return safeStorage.getItem('rimmet_token');
+  return safeStorage.getItem('datamet_token');
 }
 
 function getAuthHeaders() {
@@ -25,7 +25,7 @@ const REQUEST_TIMEOUT_MS = 15000;
 // El backend responde 401 con este código cuando el token venció o el usuario
 // ya no está activo. La app escucha el evento y vuelve al inicio de sesión.
 // Otras respuestas 401 (como el código de acceso de IvMET) no lo disparan.
-const SESSION_INVALID_EVENT = 'rimmet:session-invalid';
+const SESSION_INVALID_EVENT = 'datamet:session-invalid';
 
 async function request(endpoint, { method = 'GET', body, params, headers = {}, retry = method === 'GET' ? 1 : 0, timeout = REQUEST_TIMEOUT_MS, responseType } = {}) {
   let url = `${API_BASE}${endpoint}`;

@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { Button } from '../../shared/components/ui/Button';
 import { cn } from '../../shared/utils/cn';
+import { usePestanaRuta } from '../../shared/navigation/ruta';
 import { safeStorage } from '../../shared/utils/storage';
 import { calibrationApi } from './api/calibration';
 import { useCalibrationPlan } from './hooks/useCalibrationPlan';
@@ -50,8 +51,8 @@ import { AlertSettings } from './components/AlertSettings';
 import { CompliancePanel } from './components/CompliancePanel';
 import './calibration.css';
 
-const TAB_KEY = 'rimmet_cal_tab';
-const VIEW_KEY = 'rimmet_cal_view';
+const TAB_KEY = 'datamet_cal_tab';
+const VIEW_KEY = 'datamet_cal_view';
 const TABS = ['cronograma', 'equipos', 'actividades', 'alertas', 'cumplimiento'];
 const VIEWS = ['anio', 'mes', 'agenda'];
 
@@ -88,7 +89,11 @@ function PlanSkeleton() {
 }
 
 export function CalibrationPage() {
-  const [storedTab, setTabState] = useState(() => readStored(TAB_KEY, TABS, 'cronograma'));
+  // La pestaña va en la dirección (/calibracion/equipos, /calibracion/alertas…).
+  const { pestana: storedTab, cambiarPestana: setTab } = usePestanaRuta('calibration', TABS, {
+    clave: TAB_KEY,
+    predeterminada: 'cronograma',
+  });
   const [view, setViewState] = useState(() => readStored(VIEW_KEY, VIEWS, 'anio'));
   const [anio, setAnio] = useState(() => new Date().getFullYear());
   const [mes, setMes] = useState(() => new Date().getMonth());
@@ -107,10 +112,6 @@ export function CalibrationPage() {
   const { data, error, loading, reload } = useCalibrationPlan(anio);
   const personal = usePersonal();
 
-  const setTab = (next) => {
-    safeStorage.setItem(TAB_KEY, next);
-    setTabState(next);
-  };
   const setView = (next) => {
     safeStorage.setItem(VIEW_KEY, next);
     setViewState(next);
@@ -311,6 +312,7 @@ export function CalibrationPage() {
         )}
       </div>
 
+      <div className="vt-panel flex flex-col gap-4">
       {error && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-danger/30 bg-danger/5 px-4 py-3" role="alert">
           <AlertCircle className="h-[18px] w-[18px] flex-none text-danger" aria-hidden="true" />
@@ -696,6 +698,7 @@ export function CalibrationPage() {
           }}
         />
       )}
+      </div>
     </main>
   );
 }

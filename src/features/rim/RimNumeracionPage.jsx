@@ -119,7 +119,7 @@ function CerrarTalonarioModal({ talonario, onClose, onCerrado }) {
             type="button"
             onClick={() => cerrar(close)}
             disabled={busy}
-            className="ml-auto flex h-10 items-center gap-2 rounded-xl bg-fg px-4 text-sm font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="ml-auto flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent-hover disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             Cerrar talonario

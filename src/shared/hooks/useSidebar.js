@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { safeStorage } from '../utils/storage';
 
-const STORAGE_KEY = 'rimmet_sidebar';
+const STORAGE_KEY = 'datamet_sidebar';
 const DESKTOP_QUERY = '(min-width: 1024px)';
 
 const matchesDesktop = () => typeof window !== 'undefined'

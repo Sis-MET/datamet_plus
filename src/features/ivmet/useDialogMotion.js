@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePageScrollLock } from '../../shared/hooks/usePageScrollLock';
+import { exitDelay } from '../../shared/utils/motion';
 
-// Mantiene el diálogo modal durante los 100 ms de salida: no se pierde el
+// Mantiene el diálogo modal durante su salida (EXIT_MS): no se pierde el
 // bloqueo de foco ni se pueden pulsar controles de la pantalla de fondo.
 export function useDialogMotion(dialog, onClose, active = true) {
   usePageScrollLock(active);
@@ -24,14 +25,11 @@ export function useDialogMotion(dialog, onClose, active = true) {
   const close = () => {
     if (timer.current !== null) return;
     setClosing(true);
-    const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      ? 0
-      : 100;
     timer.current = setTimeout(() => {
       timer.current = null;
       setClosing(false);
       callback.current();
-    }, delay);
+    }, exitDelay());
   };
   return { closing, close };
 }

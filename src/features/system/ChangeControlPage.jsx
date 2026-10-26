@@ -208,7 +208,7 @@ export function ChangeControlPage() {
                 {group.items.length} {group.items.length === 1 ? 'cambio' : 'cambios'}
               </p>
             </header>
-            <ul className="divide-y divide-line">
+            <ul className="stagger-in divide-y divide-line">
               {group.items.map(cambio => (
                 <ChangeRow key={cambio.id} cambio={cambio} onOpen={(item) => setFicha({ type: 'detalle', id: item.id })} />
               ))}

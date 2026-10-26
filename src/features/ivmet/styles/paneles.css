@@ -1,0 +1,211 @@
+/* Panel lateral de detalle y operaciones internas. */
+
+/* ── Panel lateral de detalle ── */
+.iv-detail::backdrop {
+  background: var(--scrim, rgb(24 24 22 / 0.35));
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.iv-detail {
+  position: fixed;
+  inset: 8px 8px 8px auto;
+  margin: 0;
+  padding: 0;
+  width: min(500px, calc(100% - 16px));
+  max-width: calc(100vw - 16px);
+  height: calc(100dvh - 16px);
+  max-height: calc(100dvh - 16px);
+  color: var(--iv-text);
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-dialog);
+  flex-direction: column;
+  overflow: hidden;
+}
+.iv-detail[open] {
+  display: flex;
+}
+.iv-detail header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--iv-border);
+}
+.iv-detail h2 {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.iv-detail-content {
+  padding: 20px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  flex: 1;
+}
+.iv-detail h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-top: 14px;
+}
+.iv-detail h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 20px 0 12px;
+}
+.iv-definition {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.iv-definition dt,
+.iv-range dt {
+  color: var(--iv-muted);
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+.iv-definition dd {
+  color: var(--iv-text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.iv-range {
+  padding: 14px;
+  background: var(--iv-surface-2);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+.iv-range > strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.iv-range dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.iv-range dd {
+  font-size: 13px;
+  color: var(--iv-text);
+  overflow-wrap: anywhere;
+}
+.iv-detail footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--iv-border);
+}
+.iv-detail footer button {
+  width: 100%;
+}
+
+/* ── Operaciones internas ── */
+.iv-privacy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--iv-border);
+  border-radius: 14px;
+  background: var(--iv-surface);
+  margin: 16px 0;
+}
+.iv-privacy-note p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.iv-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.iv-readiness-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+  display: grid;
+  gap: 12px;
+  font-size: 13px;
+}
+.iv-readiness-list li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--iv-muted);
+}
+.iv-readiness-list li.ready {
+  color: rgb(var(--c-success));
+}
+.iv-case-timeline {
+  padding-left: 24px;
+  display: grid;
+  gap: 20px;
+}
+.iv-case-timeline li {
+  padding-left: 8px;
+}
+.iv-case-timeline time {
+  display: block;
+  font-size: 12px;
+  color: var(--iv-muted);
+  margin-top: 4px;
+}
+.iv-case-timeline p,
+.iv-preserve-lines,
+.iv-client-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.iv-client-message {
+  padding: 12px 16px;
+  margin: 18px 0;
+  border-radius: 12px;
+  background: var(--iv-surface-2);
+}
+.iv-evidence .iv-detail-grid {
+  margin: 18px 0;
+}
+.iv-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px 24px;
+}
+.iv-detail-grid dt {
+  color: var(--iv-muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.iv-detail-grid dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.iv-evidence-detail {
+  padding: 14px;
+  border: 1px solid var(--iv-border);
+  border-radius: 12px;
+  margin: 12px 0;
+}
+.iv-evidence-detail summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.iv-evidence-detail pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+.iv-trial-card {
+  padding: 18px 0;
+  border-top: 1px solid var(--iv-border);
+}
+.iv-trial-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}

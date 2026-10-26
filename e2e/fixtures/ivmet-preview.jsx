@@ -9,7 +9,7 @@ import { safeStorage } from '../../src/shared/utils/storage';
 
 // Autenticación ficticia, sin leer ni modificar almacenamiento del navegador.
 safeStorage.getItem = (key) =>
-  key === 'rimmet_token' ? 'fixture-session' : null;
+  key === 'datamet_token' ? 'fixture-session' : null;
 let accessAttempts = 0;
 let caseReads = 0;
 const fixtureTicket = 'fixture-ivmet-ticket';

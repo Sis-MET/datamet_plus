@@ -294,6 +294,8 @@ test('el correo agrupa por cliente y no inyecta HTML', () => {
   assert.doesNotMatch(correo.html, /<script>/);
   assert.match(correo.text, /Vencido hace 21 días/);
   assert.match(correo.text, /Preventivo regular/);
+  // El enlace abre directamente los próximos servicios de Soporte.
+  assert.match(correo.html, /href="https:\/\/datamet\.local\/soporte\/proximos"/);
 });
 
 test('el correo junta los equipos de cada cliente; la OTST anterior es solo referencia', () => {

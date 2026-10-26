@@ -12,11 +12,11 @@ async function preparar(page, { proximos = false, jefe = false, configuracion = 
     if (sessionStorage.getItem('soporte-qa')) return;
     sessionStorage.setItem('soporte-qa', '1');
     localStorage.clear();
-    localStorage.setItem('rimmet_token', `header.${token}.signature`);
-    localStorage.setItem('rimmet_user', JSON.stringify({ id: 1, usuario: 'qa', nombre: 'Usuario', apellido: 'QA', area: 'Soporte Técnico', cargo: 'Técnico', acceso_cron: 1 }));
-    localStorage.setItem('rimmet_last_view', 'soporte');
-    localStorage.setItem('rimmet_soporte_pestana', configuracion ? 'configuracion' : proximos ? 'proximos' : 'informes');
-    if (!proximos && !configuracion) localStorage.setItem('rimmet_soporte_informe', JSON.stringify({ tipo: 'MPR', codigo: 'ST-001' }));
+    localStorage.setItem('datamet_token', `header.${token}.signature`);
+    localStorage.setItem('datamet_user', JSON.stringify({ id: 1, usuario: 'qa', nombre: 'Usuario', apellido: 'QA', area: 'Soporte Técnico', cargo: 'Técnico', acceso_cron: 1 }));
+    localStorage.setItem('datamet_last_view', 'soporte');
+    localStorage.setItem('datamet_soporte_pestana', configuracion ? 'configuracion' : proximos ? 'proximos' : 'informes');
+    if (!proximos && !configuracion) localStorage.setItem('datamet_soporte_informe', JSON.stringify({ tipo: 'MPR', codigo: 'ST-001' }));
   }, { token, proximos, configuracion });
   const estado = { jefe, redaccion: null, estado: 'BORRADOR', validacion: 'BORRADOR', version: 1, revision: 0,
     documentos: [], fallarGuardado: 0, configVersion: 1, aprobadores: [] };

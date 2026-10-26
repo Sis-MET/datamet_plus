@@ -5,7 +5,7 @@ import { cn } from '../../utils/cn';
 import { SIDEBAR_SHORTCUT_LABEL } from './shortcuts';
 import { ThemeToggle } from './ThemeToggle';
 
-export function Topbar({ view, isSidebarOpen, isDesktop, onToggleSidebar }) {
+export function Topbar({ view, isSidebarOpen, isDesktop, onToggleSidebar, className }) {
   const [scrolled, setScrolled] = useState(false);
 
   // El borde inferior solo aparece cuando hay contenido desplazándose debajo
@@ -36,7 +36,8 @@ export function Topbar({ view, isSidebarOpen, isDesktop, onToggleSidebar }) {
     <header
       className={cn(
         'glass-bar sticky top-0 z-40 flex h-[var(--topbar-height)] shrink-0 items-center gap-2 border-b px-3 transition-[border-color] duration-200 sm:gap-3 sm:px-5',
-        scrolled ? 'border-line' : 'border-transparent'
+        scrolled ? 'border-line' : 'border-transparent',
+        className
       )}
     >
       <button

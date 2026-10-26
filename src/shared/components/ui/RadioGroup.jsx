@@ -4,7 +4,7 @@ import { cn } from '../../utils/cn';
 // Cada opción conserva su significado cromático: el color solo aparece en la
 // opción elegida; las demás quedan neutras.
 const SELECTED_TONE = {
-  neutral: 'border-fg bg-fg text-canvas',
+  neutral: 'border-accent bg-accent text-accent-fg',
   success: 'border-success bg-success text-canvas',
   warning: 'border-warning bg-warning text-canvas',
   orange: 'border-orange-600 bg-orange-600 text-white dark:border-orange-400 dark:bg-orange-400 dark:text-canvas',

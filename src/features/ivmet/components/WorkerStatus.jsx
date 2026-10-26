@@ -30,7 +30,7 @@ export function WorkerStatus({ workers, scopeId = null }) {
         </strong>
         <p>
           {online
-            ? 'Las solicitudes se procesan en el servidor, aunque cierres RimMET.'
+            ? 'Las solicitudes se procesan en el servidor, aunque cierres DataMET+.'
             : state === 'RESTRICTED'
               ? 'El worker conserva un filtro de piloto. El responsable del servidor debe configurar el alcance de producción.'
               : state === 'DEGRADED'

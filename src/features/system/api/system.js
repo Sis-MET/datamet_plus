@@ -3,7 +3,7 @@ import { api } from '../../../shared/api/client';
 const BASE = '/sistema';
 
 // Avisa a la barra lateral que cambió el número de fallas abiertas.
-export const FAILURES_CHANGED_EVENT = 'rimmet:failures-changed';
+export const FAILURES_CHANGED_EVENT = 'datamet:failures-changed';
 const notifyFailures = (result) => {
   window.dispatchEvent(new Event(FAILURES_CHANGED_EVENT));
   return result;

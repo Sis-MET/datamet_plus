@@ -52,11 +52,11 @@ async function main() {
   if (code !== confirmation) throw new Error('Los códigos no coinciden.');
   const hash = await bcrypt.hash(code, 12);
   console.log(
-    '\nCopia esta línea en el .env privado del backend de RimMET, conservando las demás variables:',
+    '\nCopia esta línea en el .env privado del backend de DataMET+, conservando las demás variables:',
   );
   console.log('IVMET_ACCESS_CODE_HASH=' + hash);
   console.log(
-    '\nNo publiques el hash. Reinicia únicamente el backend de RimMET después de guardarlo.',
+    '\nNo publiques el hash. Reinicia únicamente el backend de DataMET+ después de guardarlo.',
   );
 }
 if (require.main === module)

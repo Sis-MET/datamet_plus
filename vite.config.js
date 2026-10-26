@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// HTTPS Configuration has been removed to allow HTTP access across all devices
-// on the local network via IP (e.g. http://192.168.1.60:3000)
+// El servidor de desarrollo usa HTTP para que lo abran otros equipos de la red
+// por IP. El HTTPS de producción lo da Caddy (docs/https-oficina.md).
 
 export default defineConfig({
   plugins: [react()],
@@ -13,7 +13,6 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Para que escuche en la IP de la red local
     port: 3000,
-    // https: false // No longer using HTTPS
 
     // ── Proxy de desarrollo ──────────────────────────────────────────────────
     // Redirige las llamadas /api al backend local (puerto 5000).

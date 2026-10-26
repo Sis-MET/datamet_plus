@@ -65,7 +65,7 @@ export function TimelineBar({ occupiedBlocks, horaInicio, horaFin, jInicio, jFin
 
           {selectedWidth > 0 && (
             <div
-              className="absolute top-0 h-full rounded-full bg-fg"
+              className="absolute top-0 h-full rounded-full bg-accent"
               style={{
                 left: `${selectedLeft}%`,
                 width: `${selectedWidth}%`,

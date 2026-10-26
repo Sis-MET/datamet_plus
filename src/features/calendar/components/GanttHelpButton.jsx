@@ -212,7 +212,7 @@ export function GanttHelpButton() {
         >
           {/* Cabecera */}
           <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-fg text-canvas">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-accent text-accent-fg">
               <HelpCircle className="h-4 w-4" strokeWidth={2} />
             </span>
             <div className="min-w-0 flex-1">
@@ -299,7 +299,7 @@ export function GanttHelpButton() {
         onClick={handleBtnClick}
         aria-label="Ayuda — funciones del cronograma"
         aria-expanded={isOpen}
-        className={`fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-fg text-canvas shadow-pop transition-transform duration-200 ease-out ${isOpen || hovered ? 'scale-105' : 'scale-100'}`}
+        className={`fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-fg shadow-pop transition-[transform,background-color] hover:bg-accent-hover duration-200 ease-out ${isOpen || hovered ? 'scale-105' : 'scale-100'}`}
       >
         <X
           className="absolute h-4 w-4 transition-all duration-200"

@@ -99,7 +99,7 @@ documentos, p. ej. manuales) y **8.7** (acciones correctivas).
 | 7.5.1 en el momento | Guardar la fecha de registro aparte de la fecha del hecho; la fecha de registro no se edita. |
 | 7.5.2 modificaciones | Nada se sobrescribe sin dejar rastro: tabla de historial con valor anterior → nuevo, autor y fecha. Nada se borra físicamente: se anula con motivo. Una corrección conserva la versión anterior completa. |
 | 7.11.2 validación y cambios | Pruebas automáticas de cálculos y reglas; migraciones versionadas y registradas en `SCHEMA_MIGRATIONS`; commits separados y descritos. El laboratorio aprueba un informe de validación antes de cada puesta en producción. |
-| 7.11.3 a acceso | Contraseñas con hash (bcrypt, ya disponible en `backend/src/utils/hash.utils.js`), sesiones con vencimiento, permisos por rol verificados en el backend, bloqueo de intentos persistente, HTTPS, `NODE_ENV=production` (sin trazas de error al cliente). |
+| 7.11.3 a acceso | Contraseñas con hash (bcrypt ya es dependencia del backend; DATA_USERS la comparte con el DataMET de escritorio), sesiones con vencimiento, permisos por rol verificados en el backend, bloqueo de intentos persistente, HTTPS, `NODE_ENV=production` (sin trazas de error al cliente). |
 | 7.11.3 b manipulación y pérdida | Transacciones; sin borrados físicos de registros; respaldos programados y restauraciones probadas. |
 | 7.11.3 d integridad | Validación (zod) y restricciones en la base (PK, CHECK, UNIQUE); bloqueos para evitar duplicados; valores calculados por el sistema en vez de digitados. |
 | 7.11.3 e fallas | Registrar los errores del servidor y los envíos fallidos en tablas, con la acción inmediata y la correctiva. |
@@ -125,7 +125,7 @@ prioridad (alta: lo pediría un auditor o expone registros; media: debilita el
 control; baja: mejora). Prefiere evaluar con datos en vivo (consultas de solo
 lectura) y deja claro qué se evaluó «por diseño».
 
-## Estado conocido de RimMET (octubre 2026)
+## Estado conocido de DataMET+ (octubre 2026)
 
 Revisa la pestaña Cumplimiento para el estado actual. Resumen de lo hecho:
 

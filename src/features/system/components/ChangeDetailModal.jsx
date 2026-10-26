@@ -33,7 +33,7 @@ function Step({ title, state, children, last = false }) {
       <span className={cn('relative mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full border-2', marker)} aria-hidden="true">
         {state === 'done' && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
         {state === 'failed' && <X className="h-3.5 w-3.5" strokeWidth={3} />}
-        {state === 'current' && <span className="h-2 w-2 rounded-full bg-fg" />}
+        {state === 'current' && <span className="h-2 w-2 rounded-full bg-accent" />}
       </span>
       <div className="min-w-0 flex-1">
         <p className={cn('text-[13.5px] font-semibold', state === 'pending' ? 'text-fg-muted' : 'text-fg')}>{title}</p>

@@ -1,0 +1,233 @@
+/* Planes, contratos, suscripciones y línea de tiempo. */
+
+/* ── Planes ── */
+.iv-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.iv-plan-card {
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border);
+  border-radius: 16px;
+  padding: 20px;
+}
+.iv-plan-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.iv-object-icon {
+  color: var(--iv-text);
+  padding: 10px;
+  background: var(--iv-surface-2);
+  border-radius: 12px;
+}
+.iv-plan-card h3 {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.iv-plan-card > p {
+  color: var(--iv-muted);
+  font-size: 13px;
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.iv-plan-seats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 0;
+}
+.iv-plan-seats > strong {
+  font-size: 34px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.iv-plan-seats > span {
+  font-size: 13px;
+}
+.iv-plan-seats small {
+  display: block;
+  font-size: 12px;
+  color: var(--iv-muted);
+  margin-top: 2px;
+}
+.iv-prices {
+  padding: 6px 0;
+  border-top: 1px solid var(--iv-border);
+}
+.iv-prices > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  font-size: 13px;
+}
+.iv-prices > div strong {
+  font-variant-numeric: tabular-nums;
+}
+.iv-prices small {
+  display: block;
+  color: var(--iv-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.iv-prices p {
+  color: var(--iv-muted);
+  font-size: 13px;
+  padding: 12px 0;
+}
+.iv-plan-card footer {
+  display: flex;
+  gap: 8px;
+  padding-top: 14px;
+}
+
+/* ── Contratos y suscripciones ── */
+.iv-contract {
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border);
+  border-radius: 16px;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+.iv-contract-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+}
+.iv-contract-top h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.iv-contract-top p {
+  font-size: 13px;
+  color: var(--iv-muted);
+  margin-top: 2px;
+}
+.iv-contract-top > .iv-badge {
+  margin-left: auto;
+}
+.iv-subscription {
+  padding: 20px;
+  border-top: 1px solid var(--iv-border);
+  background: rgb(var(--c-fg) / 0.015);
+}
+.iv-subscription-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.iv-subscription-info h4 {
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.iv-subscription-info p {
+  font-size: 13px;
+  color: var(--iv-muted);
+  margin-top: 4px;
+}
+.iv-seat-count {
+  text-align: right;
+}
+.iv-seat-count strong {
+  font-size: 24px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.iv-seat-count strong span {
+  font-size: 18px;
+  color: var(--iv-subtle);
+}
+.iv-seat-count small {
+  display: block;
+  font-size: 12px;
+  color: var(--iv-muted);
+}
+.iv-seat-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(var(--c-fg) / 0.08);
+  margin: 18px 0;
+  overflow: hidden;
+}
+.iv-seat-bar i {
+  display: block;
+  height: 100%;
+  background: rgb(var(--c-fg));
+  border-radius: 999px;
+}
+.iv-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.iv-cup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--iv-muted);
+  padding: 14px 0 0;
+}
+.iv-payment-details summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--iv-text);
+  cursor: pointer;
+  margin-top: 6px;
+}
+.iv-payment-details p {
+  color: var(--iv-muted);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+/* ── Línea de tiempo ── */
+.iv-timeline {
+  padding-left: 8px;
+}
+.iv-timeline > div {
+  display: flex;
+  gap: 14px;
+  padding-bottom: 22px;
+  position: relative;
+}
+.iv-timeline > div:not(:last-child):before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: 0;
+  width: 1px;
+  background: var(--iv-border-strong);
+}
+.iv-timeline > div > span {
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--iv-surface-2);
+  color: var(--iv-text);
+  flex-shrink: 0;
+}
+.iv-timeline strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.iv-timeline p {
+  font-size: 12px;
+  color: var(--iv-muted);
+  margin-top: 4px;
+}

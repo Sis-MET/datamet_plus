@@ -162,7 +162,7 @@ export function FailureLogPage() {
       )}
 
       {visibles.length > 0 && (
-        <ul className="card divide-y divide-line overflow-hidden shadow-card">
+        <ul className="stagger-in card divide-y divide-line overflow-hidden shadow-card">
           {visibles.map(falla => (
             <FailureRow key={falla.id} falla={falla} onOpen={(item) => setFicha({ type: 'detalle', id: item.id })} />
           ))}

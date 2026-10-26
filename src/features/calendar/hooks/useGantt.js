@@ -104,7 +104,7 @@ export function useGantt() {
 
   // Intentar cargar del backend; si falla, conservar mock
   const fetchData = useCallback(async ({ silent = false } = {}) => {
-    const token = safeStorage.getItem('rimmet_token');
+    const token = safeStorage.getItem('datamet_token');
     if (!token) return;
 
     if (!silent) setLoading(true);
@@ -216,7 +216,7 @@ export function useGantt() {
   useEffect(() => {
     const pollForChanges = async () => {
       if (document.visibilityState !== 'visible') return;
-      if (!safeStorage.getItem('rimmet_token')) return;
+      if (!safeStorage.getItem('datamet_token')) return;
       const version = await fetchScheduleVersion();
       if (version && version === scheduleVersionRef.current) return;
       await fetchData({ silent: true });

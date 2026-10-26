@@ -32,10 +32,10 @@ export function LoginPage({ onLogin, notice = '' }) {
 
   // Estados para bloqueo
   const [attempts, setAttempts] = useState(() => {
-    return parseInt(safeStorage.getItem('rimmet_login_attempts') || '0', 10);
+    return parseInt(safeStorage.getItem('datamet_login_attempts') || '0', 10);
   });
   const [lockUntil, setLockUntil] = useState(() => {
-    const saved = safeStorage.getItem('rimmet_login_lock_until');
+    const saved = safeStorage.getItem('datamet_login_lock_until');
     return saved ? parseInt(saved, 10) : null;
   });
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -52,8 +52,8 @@ export function LoginPage({ onLogin, notice = '' }) {
         setLockUntil(null);
         setAttempts(0);
         setTimeRemaining(0);
-        safeStorage.removeItem('rimmet_login_lock_until');
-        safeStorage.setItem('rimmet_login_attempts', '0');
+        safeStorage.removeItem('datamet_login_lock_until');
+        safeStorage.setItem('datamet_login_attempts', '0');
         clearInterval(interval);
       } else {
         setTimeRemaining(Math.ceil((lockUntil - now) / 1000));
@@ -65,8 +65,8 @@ export function LoginPage({ onLogin, notice = '' }) {
     if (now >= lockUntil) {
       setLockUntil(null);
       setAttempts(0);
-      safeStorage.removeItem('rimmet_login_lock_until');
-      safeStorage.setItem('rimmet_login_attempts', '0');
+      safeStorage.removeItem('datamet_login_lock_until');
+      safeStorage.setItem('datamet_login_attempts', '0');
     } else {
       setTimeRemaining(Math.ceil((lockUntil - now) / 1000));
     }
@@ -79,13 +79,13 @@ export function LoginPage({ onLogin, notice = '' }) {
     const until = Date.now() + lockTimeMs;
     setLockTotalSecs(Math.max(1, Math.ceil(lockTimeMs / 1000)));
     setLockUntil(until);
-    safeStorage.setItem('rimmet_login_lock_until', until.toString());
+    safeStorage.setItem('datamet_login_lock_until', until.toString());
   };
 
   const handleFailedAttempt = () => {
     const newAttempts = attempts + 1;
     setAttempts(newAttempts);
-    safeStorage.setItem('rimmet_login_attempts', newAttempts.toString());
+    safeStorage.setItem('datamet_login_attempts', newAttempts.toString());
     if (newAttempts >= MAX_ATTEMPTS) {
       lockAccount();
     }
@@ -108,12 +108,12 @@ export function LoginPage({ onLogin, notice = '' }) {
 
       setAttempts(0);
       setLockUntil(null);
-      safeStorage.removeItem('rimmet_login_attempts');
-      safeStorage.removeItem('rimmet_login_lock_until');
+      safeStorage.removeItem('datamet_login_attempts');
+      safeStorage.removeItem('datamet_login_lock_until');
 
-      safeStorage.setItem('rimmet_token', data.data.token);
-      safeStorage.setItem('rimmet_user', JSON.stringify(loggedUser));
-      safeStorage.setItem('rimmet_last_view', 'calendar');
+      safeStorage.setItem('datamet_token', data.data.token);
+      safeStorage.setItem('datamet_user', JSON.stringify(loggedUser));
+      safeStorage.setItem('datamet_last_view', 'calendar');
       onLogin(loggedUser, 'calendar');
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
@@ -142,18 +142,20 @@ export function LoginPage({ onLogin, notice = '' }) {
 
   return (
     <div className="relative flex min-h-dvh flex-col bg-canvas text-fg lg:flex-row">
-      <ThemeToggle className="absolute right-3 top-3 z-10 sm:right-5 sm:top-5" />
+      {/* Un botón por zona: en móvil queda sobre el panel azul; en escritorio, sobre el acceso. */}
+      <ThemeToggle className="absolute right-3 top-3 z-10 hidden sm:right-5 sm:top-5 lg:flex" />
 
-      {/* Marca */}
-      <section className="flex flex-col justify-between gap-10 border-b border-line bg-surface px-6 pb-8 pt-6 sm:px-10 sm:pt-10 lg:w-[44%] lg:max-w-[640px] lg:border-b-0 lg:border-r lg:px-14 lg:py-14">
+      {/* Marca, en el azul METTLER TOLEDO de la barra lateral */}
+      <section className="login-brand theme-navy blueprint flex flex-col justify-between gap-10 overflow-hidden bg-canvas px-6 pb-8 pt-6 sm:px-10 sm:pt-10 lg:w-[44%] lg:max-w-[640px] lg:px-14 lg:py-14">
+        <ThemeToggle className="absolute right-3 top-3 z-10 sm:right-5 sm:top-5 lg:hidden" />
         <img
           src={logoMetrica}
           alt="Métrica Ltda. — Expertos en sistemas de pesaje"
-          className="h-11 w-auto self-start select-none sm:h-14"
+          className="animate-rise h-11 w-auto self-start select-none sm:h-14"
           draggable={false}
         />
 
-        <div className="max-w-md">
+        <div className="animate-rise max-w-md [--rise-delay:90ms]">
           <h1 className="flex items-center gap-2 text-4xl font-semibold tracking-[-0.03em] text-fg sm:text-5xl">
             DataMET
             <span className="sr-only">+</span>
@@ -175,7 +177,7 @@ export function LoginPage({ onLogin, notice = '' }) {
       </section>
 
       {/* Acceso */}
-      <main className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10">
+      <main className="blueprint flex flex-1 items-center justify-center px-6 py-10 sm:px-10">
         <div className="w-full max-w-[380px] animate-fade-in-up">
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-fg">
             {lockUntil ? 'Acceso bloqueado' : 'Iniciar sesión'}
@@ -199,7 +201,7 @@ export function LoginPage({ onLogin, notice = '' }) {
               </p>
               <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
                 <div
-                  className="h-full rounded-full bg-fg transition-[width] duration-1000 ease-linear"
+                  className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-linear"
                   style={{ width: `${lockProgress}%` }}
                 />
               </div>

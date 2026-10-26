@@ -60,13 +60,13 @@ export function useCalendarPage() {
   // User permissions
   let user = null;
   try {
-    user = JSON.parse(safeStorage.getItem('rimmet_user') || 'null');
+    user = JSON.parse(safeStorage.getItem('datamet_user') || 'null');
   } catch { /* ignore */ }
   if (!user) {
-    user = decodeJwtPayload(safeStorage.getItem('rimmet_token'));
+    user = decodeJwtPayload(safeStorage.getItem('datamet_token'));
   }
-  // rimmet_user no trae el id; el del token decide quién creó una reserva.
-  const tokenUserId = decodeJwtPayload(safeStorage.getItem('rimmet_token'))?.id ?? null;
+  // datamet_user no trae el id; el del token decide quién creó una reserva.
+  const tokenUserId = decodeJwtPayload(safeStorage.getItem('datamet_token'))?.id ?? null;
   const actor = useMemo(() => ({
     id: tokenUserId,
     usuario: user?.usuario,
@@ -174,7 +174,7 @@ export function useCalendarPage() {
 
   // Pending task alert (once per session)
   useEffect(() => {
-    // El id sale del token: rimmet_user no lo trae.
+    // El id sale del token: datamet_user no lo trae.
     if (!actor.id || !tasks || tasks.length === 0) return;
     if (pendingAlertFiredRef.current) return;
 

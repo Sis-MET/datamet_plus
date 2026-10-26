@@ -69,7 +69,7 @@ export function CheckboxWithLocation({
                           className={cn(
                             'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors duration-150 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus',
                             selected
-                              ? 'border-fg bg-fg text-canvas'
+                              ? 'border-accent bg-accent text-accent-fg'
                               : 'border-line-strong text-fg-muted hover:border-fg/30 hover:text-fg'
                           )}
                         >

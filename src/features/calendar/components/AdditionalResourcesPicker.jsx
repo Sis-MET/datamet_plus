@@ -60,7 +60,7 @@ export function AdditionalResourcesPicker({
           <span className="text-[13px] font-medium text-fg">
             Asignar a más personal
             {selectedResources.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-fg px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-canvas">
+              <span className="ml-1.5 rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-accent-fg">
                 {selectedResources.length}
               </span>
             )}
@@ -138,7 +138,7 @@ export function AdditionalResourcesPicker({
                           >
                             <span className={cn(
                               'flex h-4 w-4 items-center justify-center rounded-[5px] border transition-colors',
-                              isSelected ? 'border-fg bg-fg text-canvas' : 'border-line-strong bg-surface'
+                              isSelected ? 'border-accent bg-accent text-accent-fg' : 'border-line-strong bg-surface'
                             )}>
                               {isSelected && <Check size={10} strokeWidth={3} />}
                             </span>

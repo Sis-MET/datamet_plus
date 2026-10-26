@@ -61,5 +61,5 @@ export function createAccessSession(readAuth, now = Date.now) {
 }
 
 export const ivmetAccessSession = createAccessSession(() =>
-  safeStorage.getItem('rimmet_token'),
+  safeStorage.getItem('datamet_token'),
 );

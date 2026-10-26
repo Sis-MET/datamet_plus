@@ -8,7 +8,7 @@ Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, num
 - **Validación Robusta:** Uso de Zod y React Hook Form para asegurar la integridad de datos.
 - **Firmas Digitales:** Captura de firma en pantalla táctil o con mouse.
 - **Evidencias:** Subida de fotos con drag & drop y previsualización.
-- **Diseño minimalista:** tokens de color en `src/index.css` con tema claro y oscuro (sigue al sistema hasta que se elige uno desde la barra superior), tipografía Figtree autoalojada y vidrio solo en capas flotantes (barra superior, menús, avisos).
+- **Diseño con la marca Métrica:** la paleta del sitio de Métrica (blanco hueso, amarillo y azul METTLER TOLEDO) en tokens de `src/index.css`, con tema claro y oscuro (sigue al sistema hasta que se elige uno desde la barra superior), tipografía Figtree autoalojada y vidrio solo en capas flotantes (barra superior, menús, avisos).
 - **Barra lateral:** módulos, sesión y cierre de sesión; se oculta o muestra con `Ctrl+B` (`⌘B` en macOS) y en móvil se abre como panel.
 - **Acceso por área:** todos ven Calibración, Soporte técnico y Gestión IvMET en la barra lateral, pero solo los usa el personal de su área (Calibración, Soporte Técnico; IvMET por ahora solo Sistemas). Sistemas, que en `DATA_USERS` es el nivel 3 (`acceso_cron = 3`), entra a todos para revisar errores. Quien no es del área ve un candado en el menú y, al abrirlo, el apartado difuminado con un aviso; el apartado no se monta ni pide datos, y el backend responde 403 (`AREA_ACCESS_DENIED`) a sus rutas (`backend/src/services/access.areas.js`).
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
@@ -481,7 +481,7 @@ desplegarla, y después registra la fecha de implementación.
 
 ## Gestión IvMET
 
-El navegador consume exclusivamente `/api/ivmet/*` con el JWT de RimMET. La conexión administrativa con Supabase ocurre en el backend y requiere un usuario RimMET con `acceso_cron = 3`. Por ahora solo lo usa Sistemas: el resto del personal lo ve en la barra lateral con candado y, al abrirlo, el aviso de acceso restringido.
+El navegador consume exclusivamente `/api/ivmet/*` con el JWT de DataMET+. La conexión administrativa con Supabase ocurre en el backend y requiere un usuario de DataMET+ con `acceso_cron = 3`. Por ahora solo lo usa Sistemas: el resto del personal lo ve en la barra lateral con candado y, al abrirlo, el aviso de acceso restringido.
 
 Variables del backend:
 
@@ -535,7 +535,8 @@ El frontend y el backend se deben actualizar juntos. Consulta la
   cargo y área (`backend/src/services/auth.session.js`), así que una baja o un
   cambio de nivel rige de inmediato. Si el usuario ya no puede entrar, la API
   responde 401 con `code: 'SESSION_INVALID'` y la aplicación vuelve al inicio
-  de sesión con el motivo.
+  de sesión con el motivo. La dirección se conserva: al volver a entrar se
+  sigue en el mismo apartado o informe.
 - **Intentos fallidos** (`backend/src/services/auth.attempts.js`, en memoria):
   3 fallos seguidos bloquean ese usuario **desde ese equipo** durante 60 s, y
   20 fallos en 15 min desde un mismo equipo, con cualquier usuario, bloquean el
@@ -549,39 +550,68 @@ El frontend y el backend se deben actualizar juntos. Consulta la
   fallas, pero fuera de `NODE_ENV=development` el usuario solo ve «Error
   interno del servidor».
 
+## Diseño, movimiento y direcciones
+
+- **Paleta de la marca** (la del sitio de Métrica, tokens en `src/index.css`):
+  blanco hueso y grises carbón para lienzo y textos; amarillo Métrica
+  (`brand`) para las acciones principales y «hoy»; azul METTLER TOLEDO
+  (`accent`) para lo elegido o marcado (día, casilla, opción) y el foco. La
+  barra lateral y el panel del inicio de sesión van en azul METTLER
+  (`.theme-navy`, que redefine los tokens dentro de ellos).
+- **Modo oscuro:** azul noche en lugar de negro; se conserva el cambio de tema
+  desde la barra superior y sigue al sistema hasta que se elige uno.
+- **Retícula de plano técnico** (`.blueprint`): detrás del contenido, nunca en
+  la barra lateral; se ve entre las tarjetas y se desvanece desde la esquina
+  superior derecha. En oscuro suma un brillo azul.
+- **Movimiento:** curva `--ease-out-expo` del sitio. Diálogos, menús
+  desplegables y el panel lateral móvil entran con calma y salen más rápido
+  (`--motion-exit`; `EXIT_MS` en `src/shared/utils/motion.js` espera la
+  salida antes de desmontar). Al cambiar de apartado o de pestaña el contenido
+  sale y entra con una transición de vista (`src/shared/utils/viewTransition.js`);
+  las listas principales aparecen escalonadas (`.stagger-in`). Con «reducir
+  movimiento» en el sistema no hay animaciones.
+- **Direcciones** (`src/shared/navigation/ruta.js`): cada apartado y pestaña
+  tiene la suya y el botón Atrás del navegador vuelve al paso anterior:
+  `/rim/registros`, `/rim/numeracion`, `/rim/nuevo`, `/cronograma`,
+  `/calibracion/<cronograma|equipos|actividades|alertas|cumplimiento>`,
+  `/soporte/<informes|proximos|avisos|configuracion>`, `/ivmet`,
+  `/sistema/cambios` y `/sistema/fallas`. Un informe abierto es
+  `/soporte/<pestaña>/<tipo>/<código>` y se puede compartir. En `/` se abre el
+  último apartado usado. Los correos de alertas enlazan a
+  `APP_URL/calibracion/alertas` y `APP_URL/soporte/proximos`.
+
 ## Tecnologías
 
-- React 19
-- Vite
-- Tailwind CSS
-- React Hook Form + Zod
-- React Signature Canvas
-- React Dropzone
-- Lucide React
+- **Frontend:** React 19, Vite, Tailwind CSS, React Hook Form + Zod, React PDF, Lucide React.
+- **Backend:** Node.js con Express, SQL Server (`mssql`), JWT, Zod, Nodemailer; Supabase para IvMET.
+- **Pruebas:** Vitest (frontend), `node:test` (backend) y Playwright (de punta a punta).
 
-## Instalación y Ejecución
+## Instalación y ejecución
 
-1.  **Instalar dependencias:**
+Desde la carpeta del repositorio:
 
-    ```bash
-    cd rim-app
-    corepack pnpm install
-    ```
+1. **Frontend** (puerto 3000):
 
-2.  **Iniciar servidor de desarrollo:**
+   ```bash
+   corepack pnpm install
+   corepack pnpm dev
+   ```
 
-    ```bash
-    corepack pnpm dev
-    ```
+2. **Backend** (puerto 5000, con `backend/.env` creado a partir de `backend/.env.example`):
 
-3.  **Construir para producción:**
-    ```bash
-    corepack pnpm build
-    ```
+   ```bash
+   cd backend
+   corepack pnpm install
+   corepack pnpm dev
+   ```
 
-## Estructura del Proyecto
+3. **Pruebas y compilación:** `corepack pnpm lint`, `corepack pnpm test`, `corepack pnpm test:e2e` y `corepack pnpm build` en la raíz; `corepack pnpm test` dentro de `backend`.
 
-- `src/components/ui`: Componentes base reutilizables.
-- `src/components/forms`: Componentes complejos del formulario (Firma, Fotos).
-- `src/components/layout`: Elementos de estructura (Header).
-- `src/utils`: Validaciones y utilidades.
+## Estructura del proyecto
+
+- `src/features/`: un apartado por carpeta (`rim`, `calendar`, `departures`, `calibration`, `soporte`, `ivmet`, `system`, `auth`), cada uno con sus pantallas, componentes, hooks, dominio y llamadas a la API.
+- `src/shared/`: componentes de interfaz, cliente de la API, tema, barra lateral y utilidades comunes.
+- `src/config/` y `src/utils/`: dirección de la API, validaciones y PDF del formulario RIM.
+- `backend/src/`: `routes` → `controllers` → `services`; `config` tiene la conexión, el entorno y las migraciones SQL.
+- `backend/tests/`, `e2e/`: pruebas del backend y de punta a punta.
+- `docs/` y `deploy/`: guías de IvMET, Soporte técnico, HTTPS de oficina y despliegue.

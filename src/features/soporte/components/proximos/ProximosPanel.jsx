@@ -18,7 +18,7 @@ import { VistaMes } from './VistaMes';
 import { Glifo, Leyenda } from './piezas';
 import { ExportarPlanModal } from './ExportarPlanModal';
 
-const VISTA_KEY = 'rimmet_soporte_proximos_vista';
+const VISTA_KEY = 'datamet_soporte_proximos_vista';
 const VISTAS = ['anio', 'mes', 'agenda'];
 const AUTO_ABRIR = 3;
 

@@ -13,7 +13,7 @@ async function main() {
   try {
     username = (
       await prompt.question(
-        'Usuario existente de RimMET que será administrador IvMET: '
+        'Usuario existente de DataMET+ que será administrador IvMET: '
       )
     )
       .trim()
@@ -34,6 +34,7 @@ async function main() {
   }
   const { connectDB, sql } = require('../src/config/db');
   const { getSupabaseAdminClient } = require('../src/config/supabase');
+  const { actorIvmet } = require('../src/services/ivmet.actor');
   const pool = await connectDB();
   try {
     const result = await pool
@@ -47,7 +48,7 @@ async function main() {
       throw new Error('El usuario debe existir y tener acceso_cron 3.');
     const { error } = await getSupabaseAdminClient().rpc(
       'ivmet_bootstrap_admin',
-      { target_actor: 'RIMMET:' + username, target_name: name }
+      { target_actor: actorIvmet(username), target_name: name }
     );
     if (error)
       throw new Error(

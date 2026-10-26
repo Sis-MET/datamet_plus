@@ -643,7 +643,7 @@ export function RimFormPage({ currentUser }) {
                     <span
                       className={cn(
                         'relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors duration-200',
-                        isActive && 'border-fg bg-fg text-canvas',
+                        isActive && 'border-accent bg-accent text-accent-fg',
                         isCompleted && 'border-fg/40 bg-surface text-fg',
                         !isActive && !isCompleted && 'border-line-strong bg-surface text-fg-subtle'
                       )}
@@ -669,7 +669,7 @@ export function RimFormPage({ currentUser }) {
         <div className="flex w-full min-w-0 flex-1 flex-col gap-4">
           <div className="card flex items-center justify-between gap-3 p-4 shadow-card lg:hidden">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-fg text-sm font-semibold text-canvas">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-fg">
                 {currentStep}
               </span>
               <div className="min-w-0">

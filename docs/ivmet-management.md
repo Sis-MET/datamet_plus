@@ -1,6 +1,6 @@
-# Gestión IvMET en RimMET
+# Gestión IvMET en DataMET+
 
-RimMET administra la contratación, las cuentas y la configuración de IvMET.
+DataMET+ administra la contratación, las cuentas y la configuración de IvMET.
 Supabase es la fuente de la operación; DataMET conserva los catálogos maestros.
 El módulo no modifica DataMET, no ejecuta el worker y no expone evidencia privada.
 
@@ -25,7 +25,7 @@ El módulo no modifica DataMET, no ejecuta el worker y no expone evidencia priva
    sobre el proyecto vinculado. No registrar migraciones como aplicadas con
    `migration repair` si no se ejecutaron realmente.
 
-2. En `RimMET/backend/.env`, conservar la configuración de RimMET y añadir:
+2. En `backend/.env`, conservar la configuración de DataMET+ y añadir:
 
    ```dotenv
    IVMET_ENABLED=true
@@ -38,25 +38,25 @@ El módulo no modifica DataMET, no ejecuta el worker y no expone evidencia priva
    backend necesita SELECT sobre los cuatro catálogos de DataMET. El módulo no
    concede permisos SQL ni necesita escritura en esa base.
 
-   El login de RimMET sigue validándose en su `DB_DATABASE` habitual (incluida
+   El login de DataMET+ sigue validándose en su `DB_DATABASE` habitual (incluida
    `DataMET_prueba` durante desarrollo). El catálogo IvMET usa una conexión
    separada a `IVMET_DATAMET_DATABASE`; no se confunden las dos bases.
 
 3. Instalar y reiniciar el backend y el frontend de desarrollo:
 
    ```powershell
-   Set-Location C:\Users\jhona\RimMET
+   Set-Location C:\Users\jhona\DataMET_plus
    pnpm install
    pnpm --dir backend install
    pnpm --dir backend dev
    ```
 
-   En otra terminal, desde RimMET: `pnpm dev`. En producción, compilar con
-   `pnpm build`, desplegar el código/backend de RimMET y reiniciar **su** proceso
+   En otra terminal, desde DataMET+: `pnpm dev`. En producción, compilar con
+   `pnpm build`, desplegar el código/backend de DataMET+ y reiniciar **su** proceso
    habitual; no reiniciar `servicemet-api`. Usar HTTPS en el acceso real, porque
    los formularios de cuentas envían contraseñas temporales al backend.
 
-4. Entrar con un usuario RimMET de nivel `acceso_cron = 3`. Ese permiso se
+4. Entrar con un usuario de DataMET+ de nivel `acceso_cron = 3`. Ese permiso se
    comprueba en SQL en cada solicitud; un JWT antiguo no conserva un permiso
    revocado. Abrir **Gestión IvMET** y desbloquearlo con el código autorizado.
    La barrera temporal de desarrollo, su configuración y el despliegue completo
@@ -165,7 +165,7 @@ desde estos formularios.
 
 ## Contrato HTTP y seguridad
 
-Todas las rutas requieren JWT de RimMET, nivel 3 vigente y `IVMET_ENABLED=true`.
+Todas las rutas requieren JWT de DataMET+, nivel 3 vigente y `IVMET_ENABLED=true`.
 Respuesta: `{ success: true, data }`; error: `{ success: false, message, code }`.
 Errores de validación añaden `issues: [{path,message}]`, sin valores sensibles.
 
@@ -205,7 +205,7 @@ y `scope.extend`, además de `scope.retry` (id y motivo),
 Auth no tienen ruta pública.
 
 Las RPC de Supabase solo se conceden a `service_role`. El actor se deriva del
-JWT de RimMET, no del cuerpo. Cada mutación se valida/transacciona en PostgreSQL
+JWT de DataMET+, no del cuerpo. Cada mutación se valida/transacciona en PostgreSQL
 y audita. Las contraseñas van exclusivamente a Auth; un HMAC privado detecta
 reintentos distintos. No se registran cuerpos con contraseñas ni se devuelven
 errores internos sin filtrar. La auditoría visible no muestra snapshots de
@@ -217,7 +217,7 @@ verificaciones ni alertas no compartidas.
 
 Aplicar primero `202608270004_onboarding_queue.sql` desde el repositorio IvMET y
 desplegar su worker actualizado. Seguir `IvMET/docs/onboarding-production.md`
-para el proceso permanente y el arranque del servidor; RimMET no arranca procesos.
+para el proceso permanente y el arranque del servidor; DataMET+ no arranca procesos.
 
 - El directorio incluye solicitudes aunque todavía no tengan un UUID en el
   catálogo público; muestran **Ver incorporación** en vez de abrir una ficha vacía.
@@ -276,7 +276,7 @@ operaciones sobre clientes reales. El build conserva los avisos preexistentes
 de Browserslist y tamaño del módulo PDF.
 
 ```powershell
-Set-Location C:\Users\jhona\RimMET
+Set-Location C:\Users\jhona\DataMET_plus
 pnpm lint
 pnpm test
 pnpm --dir backend test
@@ -298,7 +298,7 @@ y abrir `/e2e/fixtures/ivmet-preview.html`; `?error=1` muestra el error controla
 Intercepta las solicitudes en memoria y muestra un aviso de datos ficticios.
 La app normal **nunca** hace fallback a esos datos.
 
-Rollback: `IVMET_ENABLED=false` y reiniciar el backend RimMET, o restaurar el
+Rollback: `IVMET_ENABLED=false` y reiniciar el backend de DataMET+, o restaurar el
 código de la versión anterior. Conservar las migraciones, auditoría y evidencia.
 No hay borrado de tablas ni rollback destructivo.
 

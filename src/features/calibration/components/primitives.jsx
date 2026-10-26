@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, X } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { usePageScrollLock } from '../../../shared/hooks/usePageScrollLock';
+import { exitDelay } from '../../../shared/utils/motion';
 import { SITUACION_TONE, TIPOS, situationLabel } from '../domain/format';
 
 /** Forma del tipo (círculo, rombo, cuadrado) coloreada por la situación. */
@@ -123,7 +124,7 @@ export function Modal({ title, subtitle, actions, onClose, children, footer, siz
 
   useEffect(() => {
     if (!closing) return undefined;
-    const timer = setTimeout(() => onCloseRef.current(), 100);
+    const timer = setTimeout(() => onCloseRef.current(), exitDelay());
     return () => clearTimeout(timer);
   }, [closing]);
 

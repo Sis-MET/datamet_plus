@@ -1,4 +1,5 @@
 const { createOperations } = require('../services/ivmet.operations');
+const { actorIvmet } = require('../services/ivmet.actor');
 // Los casos y actualizaciones se atienden dentro de cada cliente: soporte y
 // metrología necesitan el directorio y la ficha básica, nunca lo comercial.
 const clientDirectory = (req) =>
@@ -49,7 +50,7 @@ function createStaffMiddleware(service = createOperations()) {
         : 'commercial';
     try {
       const staff = await service.authorize(
-        'RIMMET:' + req.user.usuario.trim().toLowerCase(),
+        actorIvmet(req.user.usuario),
         directory ? null : capability
       );
       if (

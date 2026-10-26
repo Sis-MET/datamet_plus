@@ -38,7 +38,7 @@ if (ivmetEnabled) {
   }
 
   if (missingIvmetVars.length > 0) {
-    // Una configuración incompleta de IvMET no debe derribar Cronograma/RimMET.
+    // Una configuración incompleta de IvMET no debe derribar el resto de DataMET+.
     console.warn('IvMET no disponible: faltan variables ' + missingIvmetVars.join(', '));
   }
 }

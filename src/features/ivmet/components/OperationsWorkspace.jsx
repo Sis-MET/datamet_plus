@@ -33,7 +33,7 @@ export function OperationsWorkspace({ section, revision, onSaved }) {
       action: 'staff.save',
       title: s.actor ? 'Editar permiso interno' : 'Asignar permiso interno',
       description:
-        'El usuario debe existir en RimMET con acceso_cron 3. Este permiso no concede acceso a resultados privados.',
+        'El usuario debe existir en DataMET+ con acceso_cron 3. Este permiso no concede acceso a resultados privados.',
       values: {
         actor: s.actor || 'RIMMET:',
         name: s.nombre || '',

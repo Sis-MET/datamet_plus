@@ -14,7 +14,7 @@ export function useDepartures() {
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState(null);
 
-  const getToken = () => safeStorage.getItem('rimmet_token');
+  const getToken = () => safeStorage.getItem('datamet_token');
 
   // ─── Fetch tecnicos — excluye vehículos ───
   const fetchTecnicos = useCallback(async () => {

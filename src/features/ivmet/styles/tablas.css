@@ -1,0 +1,257 @@
+/* Tablas, paginación y estados: carga, vacío, error, avisos y sincronización. */
+
+/* ── Tablas ── */
+.iv-table-wrap {
+  overflow-x: auto;
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border);
+  border-radius: 14px;
+}
+.iv-table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 13px;
+}
+.iv-table th {
+  padding: 10px 16px;
+  background: var(--iv-surface-2);
+  color: var(--iv-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.iv-table td {
+  padding: 13px 16px;
+  border-top: 1px solid var(--iv-border);
+  color: var(--iv-text);
+  font-variant-numeric: tabular-nums;
+}
+.iv-table tbody tr:hover td {
+  background: rgb(var(--c-fg) / 0.02);
+}
+.iv-table strong {
+  font-weight: 600;
+}
+.iv-table td small {
+  display: block;
+  font-size: 12px;
+  color: var(--iv-muted);
+  margin-top: 2px;
+  max-width: 260px;
+  white-space: normal;
+}
+.iv-table .code {
+  font-size: 12px;
+}
+.iv-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 220px;
+}
+.iv-row-actions button {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--iv-text);
+  white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--c-fg) / 0.3);
+  text-underline-offset: 3px;
+}
+.iv-row-actions button:hover {
+  text-decoration-color: rgb(var(--c-fg));
+}
+.iv-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 2px;
+  color: var(--iv-muted);
+  font-size: 12px;
+}
+.iv-table-wrap > .iv-pagination {
+  padding: 8px 12px 8px 16px;
+  border-top: 1px solid var(--iv-border);
+}
+.iv-pagination > div {
+  display: flex;
+  gap: 4px;
+}
+
+/* ── Estados ── */
+.iv-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--iv-muted);
+  min-height: 200px;
+  font-size: 13px;
+}
+.iv-empty {
+  min-height: 240px;
+  padding: 32px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border: 1px dashed var(--iv-border-strong);
+  border-radius: 16px;
+}
+.iv-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--iv-surface-2);
+  color: var(--iv-muted);
+  margin-bottom: 14px;
+}
+.iv-empty h3 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--iv-text);
+}
+.iv-empty p {
+  font-size: 13px;
+  color: var(--iv-muted);
+  max-width: 420px;
+  margin: 6px 0 18px;
+  line-height: 1.6;
+}
+.iv-error {
+  display: flex;
+  gap: 10px;
+  border: 1px solid rgb(var(--c-danger) / 0.25);
+  background: rgb(var(--c-danger) / 0.07);
+  color: rgb(var(--c-danger));
+  padding: 14px 16px;
+  border-radius: 12px;
+  margin: 14px 0;
+  font-size: 13px;
+}
+.iv-error > svg {
+  flex-shrink: 0;
+}
+.iv-error p {
+  margin-top: 4px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--iv-text);
+}
+.iv-notice {
+  padding: 12px 14px;
+  background: rgb(var(--c-warning) / 0.08);
+  border: 1px solid rgb(var(--c-warning) / 0.22);
+  border-radius: 12px;
+  color: var(--iv-text);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 14px 0;
+}
+.iv-worker-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 0 18px;
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border);
+  border-radius: 14px;
+  color: var(--iv-text);
+}
+.iv-worker-status > svg {
+  flex-shrink: 0;
+  color: var(--iv-muted);
+  margin-top: 2px;
+}
+.iv-worker-status.attention > svg {
+  color: rgb(var(--c-warning));
+}
+.iv-worker-status strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.iv-worker-status p {
+  color: var(--iv-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 2px;
+}
+.iv-sync-summary {
+  margin: 16px 0;
+}
+.iv-sync-summary p {
+  color: var(--iv-muted);
+  line-height: 1.65;
+  font-size: 13px;
+  margin-top: 10px;
+}
+.iv-sync-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 22px 0;
+}
+.iv-sync-details dt {
+  color: var(--iv-muted);
+  font-size: 12px;
+}
+.iv-sync-details dd {
+  margin: 4px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.iv-sync-issues {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 20px;
+}
+.iv-sync-issues li {
+  display: grid;
+  gap: 4px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--iv-border);
+  font-size: 13px;
+}
+.iv-sync-issues li span {
+  color: var(--iv-muted);
+}
+.iv-sync-retry {
+  padding: 16px;
+  border: 1px solid var(--iv-border);
+  border-radius: 14px;
+}
+.iv-sync-retry .iv-field {
+  margin-bottom: 12px;
+}
+.iv-sync-retry p {
+  margin-top: 10px;
+}
+.iv-tracking-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  max-height: 90dvh;
+}
+.iv-tracking-dialog > header,
+.iv-tracking-dialog > footer {
+  flex-shrink: 0;
+}
+.iv-tracking-dialog > .iv-dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+.iv-tracking-dialog .iv-sync-retry {
+  display: block;
+  max-height: none;
+}
+@media (max-width: 600px) {
+  .iv-sync-details {
+    grid-template-columns: 1fr;
+  }
+}

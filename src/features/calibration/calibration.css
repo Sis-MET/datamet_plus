@@ -101,6 +101,11 @@
   box-shadow: var(--shadow-xs), inset 0 0 0 1px rgb(var(--c-line));
 }
 .cal-tabs > button { min-height: 36px; padding: 0 14px; }
+/* La opción elegida lleva su ícono en el azul de selección. */
+.cal-segmented > button[aria-pressed='true'] > svg,
+.cal-segmented > button[aria-current='page'] > svg { color: rgb(var(--c-accent)); }
+.dark .cal-segmented > button[aria-pressed='true'] > svg,
+.dark .cal-segmented > button[aria-current='page'] > svg { color: rgb(var(--c-info)); }
 /* Opciones que se reparten el ancho disponible (estado de una fecha). */
 .cal-segmented-fill { display: flex; width: 100%; }
 .cal-segmented-fill > button { flex: 1 1 0; justify-content: center; padding: 0 6px; }
@@ -549,9 +554,8 @@ button.cal-tl-label:focus-visible { outline-offset: -2px; }
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
   transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.cal-switch:checked { background: rgb(var(--c-fg)); }
+.cal-switch:checked { background: rgb(var(--c-accent)); }
 .cal-switch:checked::after { transform: translateX(16px); }
-.dark .cal-switch:checked::after { background: rgb(var(--c-canvas)); }
 .cal-switch:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Tabla de equipos ── */

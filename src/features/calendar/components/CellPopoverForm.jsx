@@ -1,29 +1,30 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarClock, ChevronDown, Clock, Info, Loader2, Palette, Trash2, Users, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Info, Loader2, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { HexColorPicker } from 'react-colorful';
-import { cn } from '../../../shared/utils/cn';
-import { safeStorage } from '../../../shared/utils/storage';
 import { usePageScrollLock } from '../../../shared/hooks/usePageScrollLock';
+import { exitDelay } from '../../../shared/utils/motion';
 import { api } from '../../../shared/api/client';
 import { CotizacionAutocomplete } from './CotizacionAutocomplete';
-import { AdditionalResourcesPicker } from './AdditionalResourcesPicker';
-import { VehiclePicker } from './VehiclePicker';
-import { TimelineBar } from './TimelineBar';
-import { TimeSelect } from './TimeSelect';
-import { FloatingDropdown } from '../../../shared/components/ui/FloatingDropdown';
+import { ActivitySelect } from './taskForm/ActivitySelect';
+import { ClienteAutocomplete } from './taskForm/ClienteAutocomplete';
+import { FieldLabel } from './taskForm/FieldLabel';
+import { PlantaSelect } from './taskForm/PlantaSelect';
+import { TaskAssignments } from './taskForm/TaskAssignments';
+import { TaskColorPicker } from './taskForm/TaskColorPicker';
+import { TaskDescriptionField } from './taskForm/TaskDescriptionField';
+import { TaskScheduleFields } from './taskForm/TaskScheduleFields';
+import { useRecentColors } from '../hooks/useRecentColors';
+import { useTaskTimeSlots } from '../hooks/useTaskTimeSlots';
 import { useVehicleAvailability } from '../hooks/useVehicleAvailability';
 import { isVehicleResource } from '../domain/vehicleAvailability';
 import {
   ACTIVITY_OPTIONS,
   NO_CLIENT_ACTIVITY_TYPES,
-  PRESET_COLORS,
   QUOTE_ACTIVITY_TYPES,
   buildTaskPayload,
   getClientCodeFromPlantCode,
-  getPlantOptionLabel,
   getPlantParts,
   isPlantCode,
   normalizeArea,
@@ -33,7 +34,6 @@ import {
 import {
   TIME_SLOTS,
   buildOccupiedBlocks,
-  computeSuggestedStart,
   getFirstFreeSlot,
   getMaxEndForStart,
   hasTimeOverlap,
@@ -47,370 +47,6 @@ import {
 // sistema, asi que el campo se oculta para todos los tipos de tarea. El codigo
 // se conserva intacto; poner esto en true lo vuelve a mostrar tal cual estaba.
 const QUOTES_ENABLED = false;
-
-// Los selectores personalizados comparten la apariencia de `.field`; en
-// pantallas angostas se usa el select nativo del sistema.
-const SELECT_TRIGGER = 'field hidden h-11 cursor-pointer items-center justify-between gap-2 text-left font-medium sm:flex';
-const NATIVE_SELECT = 'field h-11 cursor-pointer font-medium sm:hidden';
-const MENU = 'glass rounded-xl border p-1';
-
-function FieldLabel({ htmlFor, children, required, optional }) {
-  return (
-    <label htmlFor={htmlFor} className="field-label">
-      {children}
-      {required && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
-      {optional && <span className="ml-1 font-normal text-fg-subtle">(opcional)</span>}
-    </label>
-  );
-}
-
-const TaskDescriptionField = React.memo(React.forwardRef(function TaskDescriptionField(
-  _props,
-  forwardedRef
-) {
-  const [value, setValue] = useState('');
-
-  React.useImperativeHandle(forwardedRef, () => ({
-    getValue: () => value,
-    setValue: (nextValue) => setValue(String(nextValue || '')),
-  }), [value]);
-
-  return (
-    <div className="mt-5">
-      <div className="flex items-center justify-between gap-3">
-        <FieldLabel htmlFor="task-description" required>Descripción</FieldLabel>
-        <span className="mb-1.5 text-xs tabular-nums text-fg-subtle">
-          {value.length}/200
-        </span>
-      </div>
-      <textarea
-        id="task-description"
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        placeholder="Describe el trabajo, la dirección o cualquier indicación útil…"
-        maxLength={200}
-        spellCheck={false}
-        className="field min-h-[112px] resize-y py-3 leading-relaxed"
-      />
-    </div>
-  );
-}));
-
-TaskDescriptionField.displayName = 'TaskDescriptionField';
-
-
-function ActivitySelect({ value, onChange, options }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-  const buttonRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handler = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  return (
-    <div ref={containerRef} className="relative min-w-0">
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        aria-label="Tipo de tarea"
-        className={NATIVE_SELECT}
-      >
-        <option value="" disabled>Seleccionar...</option>
-        {options.map(option => <option key={option} value={option}>{option}</option>)}
-      </select>
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => setOpen(current => !current)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className={SELECT_TRIGGER}
-      >
-        <span className={cn('truncate', !value && 'font-normal text-fg-subtle')}>
-          {value || 'Seleccionar...'}
-        </span>
-        <ChevronDown className={cn('h-4 w-4 shrink-0 text-fg-subtle transition-transform duration-150', open && 'rotate-180')} />
-      </button>
-
-      <FloatingDropdown
-        open={open}
-        anchorRef={buttonRef}
-        onClose={() => setOpen(false)}
-        maxHeight={220}
-        ariaLabel="Tipos de tarea"
-        className={MENU}
-      >
-          <div role="listbox" className="max-h-52 overflow-y-auto">
-            {options.map(option => (
-              <button
-                key={option}
-                type="button"
-                role="option"
-                aria-selected={option === value}
-                data-selected={option === value}
-                onClick={() => {
-                  onChange(option);
-                  setOpen(false);
-                }}
-                className="menu-item"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-      </FloatingDropdown>
-    </div>
-  );
-}
-
-function ClienteAutocomplete({ value, onChange, onSelect }) {
-  const [query, setQuery] = useState(value || '');
-  const [results, setResults] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  const debounceRef = useRef(null);
-  const containerRef = useRef(null);
-  const inputRef = useRef(null);
-  // Secuencia de peticiones: solo la ultima en salir puede tocar el estado.
-  const requestIdRef = useRef(0);
-
-  useEffect(() => {
-    setQuery(value || '');
-  }, [value]);
-
-  useEffect(() => {
-    const handler = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  useEffect(() => () => {
-    clearTimeout(debounceRef.current);
-    // Invalida cualquier respuesta que llegue despues de desmontar.
-    requestIdRef.current += 1;
-  }, []);
-
-  const searchClientes = async (text) => {
-    const requestId = ++requestIdRef.current;
-
-    if (text.length < 1) {
-      setResults([]);
-      setOpen(false);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const data = await api.get('/clientes/search', { q: text });
-      if (requestId !== requestIdRef.current) return;
-      const items = data.success ? data.data || [] : [];
-      setResults(items);
-      setOpen(items.length > 0);
-    } catch {
-      if (requestId !== requestIdRef.current) return;
-      setResults([]);
-      setOpen(false);
-    } finally {
-      if (requestId === requestIdRef.current) setIsLoading(false);
-    }
-  };
-
-  const handleInput = (event) => {
-    const text = event.target.value;
-    setQuery(text);
-    onChange(text);
-
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchClientes(text), 300);
-  };
-
-  const handleSelect = (item) => {
-    setQuery(item.cliente || '');
-    setResults([]);
-    setOpen(false);
-    onSelect(item);
-  };
-
-  return (
-    <div ref={containerRef} className="relative min-w-0">
-      <div className="relative">
-        <input
-          ref={inputRef}
-          id="task-client"
-          type="text"
-          value={query}
-          onChange={handleInput}
-          onFocus={() => {
-            if (results.length > 0) setOpen(true);
-          }}
-          placeholder="Buscar cliente..."
-          autoComplete="off"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={open && results.length > 0}
-          spellCheck={false}
-          className="field h-11 pr-10 font-medium"
-        />
-        {isLoading && (
-          /* El centrado va por margen y no por -translate-y-1/2: `animate-spin`
-             reemplaza el transform completo y el icono se descolgaba hacia abajo. */
-          <Loader2 className="pointer-events-none absolute right-3.5 top-1/2 -mt-2 h-4 w-4 animate-spin text-fg-subtle" />
-        )}
-      </div>
-
-      <FloatingDropdown
-        open={open && results.length > 0}
-        anchorRef={inputRef}
-        onClose={() => setOpen(false)}
-        maxHeight={220}
-        ariaLabel="Resultados de clientes"
-        className={MENU}
-      >
-          <div role="listbox" className="max-h-52 overflow-y-auto">
-            {results.map(item => (
-              <button
-                key={item.codigo_cliente || item.cliente}
-                type="button"
-                role="option"
-                onClick={() => handleSelect(item)}
-                className="menu-item flex-col items-start gap-0.5"
-              >
-                <span className="block w-full truncate text-[13px] font-medium">{item.cliente}</span>
-                {item.codigo_cliente && (
-                  <span className="block font-mono text-[11px] text-fg-subtle">
-                    {item.codigo_cliente}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-      </FloatingDropdown>
-    </div>
-  );
-}
-
-function PlantaSelect({ value, onChange, plantas, clienteLabel, isLoading, disabled }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-  const buttonRef = useRef(null);
-
-  const selectedPlanta = plantas.find(planta => planta.codigo_planta === value) || null;
-  const isDropdownOpen = open && !disabled;
-
-  useEffect(() => {
-    if (!isDropdownOpen) return;
-
-    const handler = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [isDropdownOpen]);
-
-  const placeholder = isLoading
-    ? 'Cargando plantas...'
-    : disabled
-      ? 'Selecciona un cliente primero...'
-      : 'Seleccionar planta...';
-
-  return (
-    <div ref={containerRef} className="relative min-w-0">
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled || isLoading}
-        aria-label="Planta"
-        className={NATIVE_SELECT}
-      >
-        <option value="">{placeholder}</option>
-        {plantas.map(planta => (
-          <option key={planta.codigo_planta} value={planta.codigo_planta}>
-            {getPlantOptionLabel(planta, clienteLabel)}
-          </option>
-        ))}
-      </select>
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => {
-          if (!disabled && !isLoading && plantas.length > 0) {
-            setOpen(current => !current);
-          }
-        }}
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={isDropdownOpen && plantas.length > 0}
-        className={SELECT_TRIGGER}
-      >
-        <span className={cn('truncate', !selectedPlanta && 'font-normal text-fg-subtle')}>
-          {selectedPlanta ? getPlantOptionLabel(selectedPlanta, clienteLabel) : placeholder}
-        </span>
-        {isLoading ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-fg-subtle" />
-        ) : (
-          <ChevronDown className={cn('h-4 w-4 shrink-0 text-fg-subtle transition-transform duration-150', isDropdownOpen && 'rotate-180')} />
-        )}
-      </button>
-
-      <FloatingDropdown
-        open={isDropdownOpen && plantas.length > 0}
-        anchorRef={buttonRef}
-        onClose={() => setOpen(false)}
-        maxHeight={250}
-        ariaLabel="Plantas disponibles"
-        className={MENU}
-      >
-          <div role="listbox" className="max-h-60 overflow-y-auto">
-            {plantas.map(planta => {
-              const plantaLabel = getPlantOptionLabel(planta, clienteLabel);
-              const isSelected = planta.codigo_planta === value;
-
-              return (
-                <button
-                  key={planta.codigo_planta}
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  data-selected={isSelected}
-                  onClick={() => {
-                    onChange(planta.codigo_planta);
-                    setOpen(false);
-                  }}
-                  className="menu-item flex-col items-start gap-0.5"
-                >
-                  <span className="block w-full truncate text-[13px]">{plantaLabel}</span>
-                  {planta.codigo_planta && (
-                    <span className="block font-mono text-[11px] font-normal text-fg-subtle">
-                      {planta.codigo_planta}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-      </FloatingDropdown>
-    </div>
-  );
-}
 
 const NO_LINKED_TASKS = Object.freeze([]);
 
@@ -437,7 +73,7 @@ export function CellPopoverForm({
   const [colorAM, setColorAM] = useState('');
   const [estadoAM, setEstadoAM] = useState('Pendiente');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeColorPicker, setActiveColorPicker] = useState(null);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [showAdditionalUsers, setShowAdditionalUsers] = useState(false);
   const [additionalResources, setAdditionalResources] = useState([]);
   const [showVehicles, setShowVehicles] = useState(false);
@@ -445,8 +81,6 @@ export function CellPopoverForm({
   const [showAssignments, setShowAssignments] = useState(false);
   const [showAvailability, setShowAvailability] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const colorPickerRefAM = useRef(null);
-  const colorButtonRefAM = useRef(null);
   const lastInitializationKeyRef = useRef(null);
   const closeTimerRef = useRef(null);
   const descriptionFieldRef = useRef(null);
@@ -506,35 +140,13 @@ export function CellPopoverForm({
     ? vehicleAvailability[selectedVehicle]?.conflict || null
     : null;
 
-  const occupiedBlocks = useMemo(
-    () => buildOccupiedBlocks(existingTasks, event?.rowId, userJInicio),
-    [existingTasks, event?.rowId, userJInicio]
-  );
-
-  const suggestedStart = useMemo(
-    () => computeSuggestedStart(existingTasks, event?.rowId, userJInicio),
-    [existingTasks, event?.rowId, userJInicio]
-  );
-
-  const isJornadaFull = timeToMinutes(suggestedStart) >= timeToMinutes(userJFin);
-  const maxFinMinutes = timeToMinutes(getMaxEndForStart(occupiedBlocks, horaInicio, userJFin));
-
-  const isInsideOccupied = (time) => {
-    const minutes = timeToMinutes(time);
-    return occupiedBlocks.some(
-      block => minutes >= timeToMinutes(block.start) && minutes < timeToMinutes(block.end)
-    );
-  };
-
-  const horaInicioSlots = TIME_SLOTS.filter(time => {
-    if (timeToMinutes(time) >= timeToMinutes(userJFin)) return false;
-    return !isInsideOccupied(time) && timeToMinutes(time) >= timeToMinutes(userJInicio);
-  });
-
-  const horaFinSlots = TIME_SLOTS.filter(time => {
-    const minutes = timeToMinutes(time);
-    return minutes > timeToMinutes(horaInicio) && minutes <= maxFinMinutes;
-  });
+  const {
+    occupiedBlocks,
+    suggestedStart,
+    isJornadaFull,
+    horaInicioSlots,
+    horaFinSlots,
+  } = useTaskTimeSlots({ existingTasks, rowId: event?.rowId, jornadaInicio: userJInicio, jornadaFin: userJFin, horaInicio });
 
   const dateTitle = (() => {
     if (!prefilledDate) return '';
@@ -542,31 +154,7 @@ export function CellPopoverForm({
     return formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
   })();
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (
-        activeColorPicker === 'am' &&
-        colorPickerRefAM.current &&
-        !colorPickerRefAM.current.contains(e.target)
-      ) {
-        setActiveColorPicker(null);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [activeColorPicker]);
-
-  const [recentColors, setRecentColors] = useState(() => {
-    if (typeof window === 'undefined') return [];
-
-    try {
-      const saved = safeStorage.getItem('rimmet_recent_colors');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [recentColors, saveToRecent] = useRecentColors();
 
   const initializationKey = [
     event?.rowId ?? 'new',
@@ -673,7 +261,7 @@ export function CellPopoverForm({
     // Al editar se muestran las personas y el vehículo que ya son parte de la ficha.
     const isVehicleRow = (task) => isVehicleResource(tecnicos.find(item => item.id === task.Tecnico));
     const linkedOthers = event ? linkedTasks.filter(task => task.Tecnico !== prefilledResource) : [];
-    setActiveColorPicker(null);
+    setIsColorPickerOpen(false);
     setAdditionalResources([...new Set(linkedOthers.filter(task => !isVehicleRow(task)).map(task => task.Tecnico))]);
     setSelectedVehicle(linkedOthers.find(isVehicleRow)?.Tecnico || '');
     setShowVehicles(false);
@@ -696,7 +284,7 @@ export function CellPopoverForm({
   const requestClose = useCallback((allowWhileSubmitting = false) => {
     if (isClosing || (isSubmitting && !allowWhileSubmitting)) return;
     setIsClosing(true);
-    closeTimerRef.current = setTimeout(() => onClose(), 100);
+    closeTimerRef.current = setTimeout(() => onClose(), exitDelay());
   }, [isClosing, isSubmitting, onClose]);
 
   useEffect(() => {
@@ -709,21 +297,6 @@ export function CellPopoverForm({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, requestClose]);
-
-  const saveToRecent = (color) => {
-    setRecentColors(prev => {
-      let updated = [...prev];
-
-      if (color && !PRESET_COLORS.includes(color)) {
-        updated = updated.filter(item => item !== color);
-        updated.unshift(color);
-      }
-
-      updated = updated.slice(0, 5);
-      safeStorage.setItem('rimmet_recent_colors', JSON.stringify(updated));
-      return updated;
-    });
-  };
 
   const handleActivityChange = (value) => {
     if (value !== activityType) {
@@ -778,6 +351,30 @@ export function CellPopoverForm({
     }
 
     setAdditionalResources(prev => Array.from(new Set([...prev, ...ids])));
+  };
+
+  const handleHoraInicioChange = (newInicio) => {
+    setHoraInicio(newInicio);
+    if (timeToMinutes(horaFin) <= timeToMinutes(newInicio)) {
+      const nextSlot = TIME_SLOTS.find(time => timeToMinutes(time) > timeToMinutes(newInicio));
+      if (nextSlot) setHoraFin(nextSlot);
+    }
+  };
+
+  const handleVehicleSelect = (vehicleId) => {
+    if (vehicleId) {
+      const status = vehicleAvailability[vehicleId];
+      if (status && !status.available) {
+        const vehicleName = vehiculos.find(vehicle => vehicle.id === vehicleId)?.nombre || 'Este vehículo';
+        toast.error(`${vehicleName} no está disponible en este horario.`, {
+          description: `Ya está asignado a “${status.conflict.label}” de ${status.conflict.start} a ${status.conflict.end}.`,
+          duration: 5000,
+        });
+        return;
+      }
+    }
+    setSelectedVehicle(vehicleId);
+    setShowVehicles(false);
   };
 
   const handleSubmit = async (e) => {
@@ -868,10 +465,6 @@ export function CellPopoverForm({
 
   if (!isOpen) return null;
 
-  const selectedVehicleName = vehiculos.find(vehicle => vehicle.id === selectedVehicle)?.nombre;
-  const assignmentCount = additionalResources.length + (selectedVehicle ? 1 : 0);
-  const swatchClass = 'h-6 w-6 rounded-full ring-1 ring-inset ring-black/10 transition-transform duration-150 hover:scale-110';
-
   return (
     <div
       role="dialog"
@@ -952,96 +545,13 @@ export function CellPopoverForm({
                       onChange={handleActivityChange}
                       options={ACTIVITY_OPTIONS}
                     />
-                    <div className="relative shrink-0" ref={colorPickerRefAM}>
-                      <button
-                        ref={colorButtonRefAM}
-                        type="button"
-                        onClick={() => setActiveColorPicker(activeColorPicker === 'am' ? null : 'am')}
-                        aria-haspopup="dialog"
-                        aria-expanded={activeColorPicker === 'am'}
-                        aria-label={colorAM ? `Cambiar color de la ficha, actual ${colorAM}` : 'Elegir color de la ficha, obligatorio'}
-                        title="Elegir color de la ficha"
-                        className={cn(
-                          'relative flex h-11 w-11 items-center justify-center rounded-xl border transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px',
-                          colorAM
-                            ? 'border-black/10 shadow-xs'
-                            : 'border-dashed border-danger/60 bg-surface text-fg-subtle hover:border-danger'
-                        )}
-                        style={{ backgroundColor: colorAM || undefined }}
-                      >
-                        {colorAM ? (
-                          <span className="h-3.5 w-3.5 rounded-full border-2 border-white/80 shadow-xs" aria-hidden="true" />
-                        ) : (
-                          <>
-                            <Palette className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden="true" />
-                            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-danger ring-2 ring-surface" aria-hidden="true" />
-                          </>
-                        )}
-                      </button>
-
-                      <FloatingDropdown
-                        open={activeColorPicker === 'am'}
-                        anchorRef={colorButtonRefAM}
-                        onClose={() => setActiveColorPicker(null)}
-                        width={232}
-                        maxHeight={340}
-                        align="end"
-                        ariaLabel="Selector de color"
-                        className="glass rounded-2xl border p-3"
-                      >
-                          <div className="mb-2.5 flex items-center justify-between">
-                            <span className="text-[13px] font-medium text-fg">Color de la ficha</span>
-                            <button
-                              type="button"
-                              onClick={() => setActiveColorPicker(null)}
-                              aria-label="Cerrar selector de color"
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-
-                          <HexColorPicker
-                            color={colorAM || PRESET_COLORS[1]}
-                            onChange={setColorAM}
-                            style={{ width: '100%', height: '124px' }}
-                          />
-
-                          <div className="mt-3">
-                            <span className="mb-2 block text-[11px] font-medium text-fg-subtle">Predefinidos</span>
-                            <div className="flex flex-wrap gap-2">
-                              {PRESET_COLORS.map(color => (
-                                <button
-                                  key={color}
-                                  type="button"
-                                  onClick={() => setColorAM(color)}
-                                  aria-label={`Usar color ${color}`}
-                                  className={cn(swatchClass, colorAM === color && 'ring-2 ring-fg ring-offset-2 ring-offset-surface')}
-                                  style={{ backgroundColor: color }}
-                                />
-                              ))}
-                            </div>
-                          </div>
-
-                          {recentColors.length > 0 && (
-                            <div className="mt-3 border-t border-line pt-3">
-                              <span className="mb-2 block text-[11px] font-medium text-fg-subtle">Recientes</span>
-                              <div className="flex flex-wrap gap-2">
-                                {recentColors.map((color, index) => (
-                                  <button
-                                    key={`recent-${color}-${index}`}
-                                    type="button"
-                                    onClick={() => setColorAM(color)}
-                                    aria-label={`Usar color ${color}`}
-                                    className={cn(swatchClass, colorAM === color && 'ring-2 ring-fg ring-offset-2 ring-offset-surface')}
-                                    style={{ backgroundColor: color }}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                      </FloatingDropdown>
-                    </div>
+                    <TaskColorPicker
+                      value={colorAM}
+                      onChange={setColorAM}
+                      isOpen={isColorPickerOpen}
+                      onOpenChange={setIsColorPickerOpen}
+                      recentColors={recentColors}
+                    />
                   </div>
                 </div>
 
@@ -1108,139 +618,40 @@ export function CellPopoverForm({
                 </div>
 
                 <div className="mt-5 space-y-4">
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-fg-muted" />
-                      <span className="text-[13px] font-medium text-fg">
-                        Horario
-                      </span>
-                      {isJornadaFull && (
-                        <span className="ml-auto rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">
-                          Jornada completa
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-[1fr_auto_1fr] items-center rounded-xl border border-line-strong bg-surface shadow-xs">
-                      <div className="min-w-0 px-3.5 py-1.5">
-                        <span className="block text-[11px] text-fg-subtle">Desde</span>
-                        <TimeSelect
-                          value={horaInicio}
-                          slots={horaInicioSlots}
-                          onChange={(newInicio) => {
-                            setHoraInicio(newInicio);
-                            if (timeToMinutes(horaFin) <= timeToMinutes(newInicio)) {
-                              const nextSlot = TIME_SLOTS.find(time => timeToMinutes(time) > timeToMinutes(newInicio));
-                              if (nextSlot) setHoraFin(nextSlot);
-                            }
-                          }}
-                        />
-                      </div>
-                      <span className="h-8 w-px bg-line" />
-                      <div className="min-w-0 px-3.5 py-1.5">
-                        <span className="block text-[11px] text-fg-subtle">Hasta</span>
-                        <TimeSelect value={horaFin} slots={horaFinSlots} onChange={setHoraFin} />
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowAvailability(previous => !previous)}
-                      aria-expanded={showAvailability}
-                      className="mt-2 flex min-h-9 w-full items-center justify-between rounded-lg px-2.5 text-[13px] font-medium text-fg-muted transition-colors hover:bg-fg/[0.05] hover:text-fg"
-                    >
-                      <span className="flex items-center gap-2">
-                        <CalendarClock className="h-4 w-4" />
-                        {showAvailability ? 'Ocultar disponibilidad' : 'Ver disponibilidad del día'}
-                      </span>
-                      <ChevronDown className={cn('h-4 w-4 transition-transform duration-150', showAvailability && 'rotate-180')} />
-                    </button>
-
-                    <div className={`task-disclosure ${showAvailability ? 'is-open' : ''}`} aria-hidden={!showAvailability}>
-                      <div>
-                        <div className="space-y-2 px-1 pb-1 pt-2">
-                          <TimelineBar
-                            occupiedBlocks={occupiedBlocks}
-                            horaInicio={horaInicio}
-                            horaFin={horaFin}
-                            jInicio={userJInicio}
-                            jFin={userJFin}
-                          />
-                          {!isJornadaFull && occupiedBlocks.length > 0 && (
-                            <p className="text-xs text-fg-muted">
-                              Próximo tramo libre: <span className="font-semibold tabular-nums text-fg">{suggestedStart}–{userJFin}</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <TaskScheduleFields
+                    horaInicio={horaInicio}
+                    horaFin={horaFin}
+                    horaInicioSlots={horaInicioSlots}
+                    horaFinSlots={horaFinSlots}
+                    onHoraInicioChange={handleHoraInicioChange}
+                    onHoraFinChange={setHoraFin}
+                    isJornadaFull={isJornadaFull}
+                    occupiedBlocks={occupiedBlocks}
+                    suggestedStart={suggestedStart}
+                    jornadaInicio={userJInicio}
+                    jornadaFin={userJFin}
+                    showAvailability={showAvailability}
+                    onToggleAvailability={() => setShowAvailability(previous => !previous)}
+                  />
 
                   <div className="h-px bg-line" />
 
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAssignments(previous => !previous)}
-                      aria-expanded={showAssignments}
-                      className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-2.5 text-left transition-colors hover:bg-fg/[0.05]"
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <span className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border',
-                          assignmentCount > 0 ? 'border-fg bg-fg text-canvas' : 'border-line bg-surface text-fg-muted'
-                        )}>
-                          <Users className="h-4 w-4" />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[13px] font-semibold text-fg">Asignaciones</span>
-                          <span className="block truncate text-xs text-fg-muted">
-                            {assignmentCount === 0
-                              ? 'Sin vehículo ni personal adicional'
-                              : `${selectedVehicleName || 'Sin vehículo'}${additionalResources.length ? ` · ${additionalResources.length} persona${additionalResources.length === 1 ? '' : 's'}` : ''}`}
-                          </span>
-                        </span>
-                      </span>
-                      <ChevronDown className={cn('h-4 w-4 shrink-0 text-fg-muted transition-transform duration-150', showAssignments && 'rotate-180')} />
-                    </button>
-
-                    <div className={`task-disclosure ${showAssignments ? 'is-open' : ''}`} aria-hidden={!showAssignments}>
-                      <div>
-                        <div className="space-y-2 pb-1 pt-2">
-                          <VehiclePicker
-                            vehicles={vehiculos}
-                            isOpen={showVehicles}
-                            selectedVehicle={selectedVehicle}
-                            availability={vehicleAvailability}
-                            onToggleOpen={() => setShowVehicles(previous => !previous)}
-                            onSelectVehicle={(vehicleId) => {
-                              if (vehicleId) {
-                                const status = vehicleAvailability[vehicleId];
-                                if (status && !status.available) {
-                                  const vehicleName = vehiculos.find(vehicle => vehicle.id === vehicleId)?.nombre || 'Este vehículo';
-                                  toast.error(`${vehicleName} no está disponible en este horario.`, {
-                                    description: `Ya está asignado a “${status.conflict.label}” de ${status.conflict.start} a ${status.conflict.end}.`,
-                                    duration: 5000,
-                                  });
-                                  return;
-                                }
-                              }
-                              setSelectedVehicle(vehicleId);
-                              setShowVehicles(false);
-                            }}
-                          />
-                          <AdditionalResourcesPicker
-                            grupos={grupos}
-                            isOpen={showAdditionalUsers}
-                            selectedResources={additionalResources}
-                            onToggleOpen={() => setShowAdditionalUsers(previous => !previous)}
-                            onToggleResource={toggleAdditionalTecnico}
-                            onSelectArea={selectAllArea}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <TaskAssignments
+                    isOpen={showAssignments}
+                    onToggleOpen={() => setShowAssignments(previous => !previous)}
+                    vehicles={vehiculos}
+                    vehicleAvailability={vehicleAvailability}
+                    selectedVehicle={selectedVehicle}
+                    showVehicles={showVehicles}
+                    onToggleVehicles={() => setShowVehicles(previous => !previous)}
+                    onSelectVehicle={handleVehicleSelect}
+                    grupos={grupos}
+                    additionalResources={additionalResources}
+                    showAdditionalUsers={showAdditionalUsers}
+                    onToggleAdditionalUsers={() => setShowAdditionalUsers(previous => !previous)}
+                    onToggleResource={toggleAdditionalTecnico}
+                    onSelectArea={selectAllArea}
+                  />
 
                   {event && (event.author || event.timestampUpdated) && (
                     <div className="flex items-start gap-2 pt-1 text-xs leading-4 text-fg-muted">

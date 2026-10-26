@@ -1,7 +1,7 @@
 {
-  "name": "rimmet-backend",
+  "name": "datamet-plus-backend",
   "version": "1.0.0",
-  "description": "Backend API for RimMET built with Node.js and Express",
+  "description": "API de DataMET+ (Node.js, Express y SQL Server)",
   "main": "src/server.js",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
@@ -19,7 +19,7 @@
     "nodejs",
     "express",
     "mssql",
-    "rimmet"
+    "datamet"
   ],
   "author": "lenash.dev",
   "license": "ISC",

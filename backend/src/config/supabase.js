@@ -21,7 +21,7 @@ const getSupabaseAdminClient = () => {
           persistSession: false
         },
         global: {
-          headers: { 'X-Client-Info': 'rimmet-ivmet-admin/1.0' }
+          headers: { 'X-Client-Info': 'datamet-plus-ivmet-admin/1.0' }
         }
       }
     );

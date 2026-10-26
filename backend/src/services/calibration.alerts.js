@@ -3,6 +3,7 @@
  * a quién y cuándo avisar, y arman el correo resumen de cada destinatario.
  */
 const { diffDays } = require('./calibration.schedule');
+const { enlaceApp } = require('../utils/app-url');
 
 const INTERVALO_DIAS = { DIARIA: 1, SEMANAL: 7 };
 
@@ -131,6 +132,8 @@ const whenLabel = ({ occurrence, motivo }) => {
 
 /** Correo resumen para un destinatario. */
 const renderDigestEmail = ({ nombre, items, appUrl }) => {
+  // El enlace abre la pestaña Alertas del cronograma de calibración.
+  const destino = enlaceApp(appUrl, '/calibracion/alertas');
   const vencidos = items.filter(item => item.motivo === 'VENCIDO').length;
   const proximos = items.length - vencidos;
   const partes = [];
@@ -159,8 +162,8 @@ const renderDigestEmail = ({ nombre, items, appUrl }) => {
       </tr>`;
   }).join('');
 
-  const link = appUrl
-    ? `<p style="margin:24px 0 0;"><a href="${escapeHtml(appUrl)}" style="display:inline-block;background:#f9e300;color:#161614;font-weight:600;text-decoration:none;padding:10px 16px;border-radius:10px;">Abrir el cronograma</a></p>`
+  const link = destino
+    ? `<p style="margin:24px 0 0;"><a href="${escapeHtml(destino)}" style="display:inline-block;background:#f9e300;color:#161614;font-weight:600;text-decoration:none;padding:10px 16px;border-radius:10px;">Abrir el cronograma</a></p>`
     : '';
 
   const html = `<!doctype html>
@@ -188,7 +191,7 @@ const renderDigestEmail = ({ nombre, items, appUrl }) => {
     `Cronograma de calibración: ${partes.join(' y ')}`,
     '',
     ...items.map(item => `- ${TIPO_LABEL[item.occurrence.tipo]}: ${itemTitle(item.occurrence)} — ${whenLabel(item)} (${formatDate(item.occurrence.fechaPlan)})`),
-    ...(appUrl ? ['', appUrl] : []),
+    ...(destino ? ['', destino] : []),
   ].join('\n');
 
   return { subject, html, text };

@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const ACCESS_HEADER = 'x-ivmet-access';
-const ISSUER = 'rimmet-development-access';
+const ISSUER = 'datamet-plus-development-access';
 const AUDIENCE = 'ivmet-management';
 const HASH_PATTERN = /^\$2[ab]\$(?:1[0-5])\$[./A-Za-z0-9]{53}$/;
 const WINDOW_MS = 15 * 60 * 1000;
@@ -15,7 +15,7 @@ function accessError(statusCode, code, message, retryAfter) {
 }
 
 // Esta concesión es independiente del JWT de inicio de sesión. Nunca permite
-// entrar a RimMET ni sustituye la comprobación de nivel 3 contra DataMET.
+// entrar a DataMET+ ni sustituye la comprobación de nivel 3 contra DataMET.
 function createAccessService({
   codeHash = '',
   secret = '',

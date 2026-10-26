@@ -1,6 +1,6 @@
 # Guía de Despliegue en Windows Server (Node.js + SQL Server)
 
-Esta guía detalla los pasos para migrar y levantar el **Backend (API)** de RimMET en un servidor Windows o Windows Server, dejando de lado la configuración basada en Docker (Ubuntu) para usar una instalación nativa que ofrezca mejor rendimiento y facilidad de mantenimiento.
+Esta guía detalla los pasos para levantar DataMET+ en un servidor Windows o Windows Server con Node.js y SQL Server instalados. La API de Express también sirve la aplicación compilada (`backend/dist`), así que un solo proceso atiende ambas.
 
 Para el HTTPS privado de DataMET+ en `192.168.1.5:3000`, con `datamet.lenash.dev` y acceso por oficina/OpenVPN, seguir [HTTPS de oficina](docs/https-oficina.md). Incluye el proxy, la validación DNS del certificado, el DNS de la VPN y la configuración del frontend.
 
@@ -20,7 +20,7 @@ Antes de copiar el código, debes asegurarte de que el servidor tenga instaladas
    > **Nota:** El proyecto usa pnpm mediante Corepack. Si quieres tener el comando `pnpm` disponible directamente, abre PowerShell como Administrador y ejecuta `corepack enable`.
 
 ### B. Instalar y Configurar la Base de Datos (SQL Server)
-*(Si la base de datos no estará en el mismo servidor, puedes saltar este punto. Ignora Docker completamente).*
+*(Si la base de datos no estará en el mismo servidor, puedes saltar este punto).*
 1. Instala **Microsoft SQL Server** (la edición Express es gratuita y suficiente para empezar) y **SQL Server Management Studio (SSMS)**.
 2. Habilita las conexiones por puerto (TCP/IP):
    - Abre el **SQL Server Configuration Manager**.
@@ -28,7 +28,7 @@ Antes de copiar el código, debes asegurarte de que el servidor tenga instaladas
    - Haz clic derecho sobre **TCP/IP** y selecciona **Enable**.
    - Haz doble clic en TCP/IP, ve a la pestaña *IP Addresses*, baja al final hasta *IPAll* y asegúrate de que el **TCP Port** sea `1433` (y que TCP Dynamic Ports esté vacío).
    - Reinicia el servicio de SQL Server desde la pestaña *SQL Server Services*.
-3. Asegúrate de que el servidor esté en modo mixto ("SQL Server and Windows Authentication mode") para poder ingresar con el usuario `sa` (o el que definas) y una contraseña.
+3. Asegúrate de que el servidor esté en modo mixto ("SQL Server and Windows Authentication mode") y crea un inicio de sesión propio para DataMET+. No uses `sa` ni un usuario `db_owner`: dale solo los permisos que necesita la aplicación.
 
 ## 2. Configurar el Firewall de Windows
 
@@ -38,39 +38,35 @@ El firewall de Windows bloquea conexiones externas por defecto. Debes abrir los 
 3. Selecciona **Port** -> Siguiente.
 4. Escribe el puerto donde correrá tu API: `3000` (según `PORT` de tu backend) -> Siguiente.
 5. Selecciona **Allow the connection** -> Siguiente -> Siguiente.
-6. Dale de nombre `API RimMET Nodejs` y finaliza.
+6. Dale de nombre `DataMET+ (Node.js)` y finaliza.
 7. *(Opcional)* Si tu BD debe verse desde fuera del servidor, repite el proceso para abrir el puerto `1433` de SQL Server.
 
 ## 3. Preparar el Proyecto (Código Backend)
 
-1. En el repositorio clonado o la carpeta copiada a tu servidor (ej. `C:\apps\RimMET\backend`), abre una terminal en esa ubicación.
-2. Instala todas las dependencias del proyecto:
+1. Compila la aplicación en tu equipo con `corepack pnpm build` en la raíz del repositorio: genera `backend/dist`.
+2. Copia el backend con su `dist` a la carpeta del servidor (en el servidor actual, `C:\Proyectos\CronoMET\backend`) y abre una terminal en esa ubicación.
+3. Instala las dependencias del backend:
    ```cmd
    corepack pnpm install --prod
    ```
 
-3. Crea el archivo de entorno `.env` basándote en `.env.example`.
-   **Archivo `.env` sugerido:**
+4. Crea el archivo de entorno `.env` basándote en `.env.example`, que describe todas las variables (IvMET, correo, Soporte técnico). Lo mínimo:
    ```env
-   # Port to run the Express server
    PORT=3000
-
-   # Database Configuration (Conexión al SQL Server Nativo)
-   DB_SERVER=localhost
-   DB_USER=sa
-   DB_PASSWORD=Tu_Contrasenia_Fuerte123
-   DB_DATABASE=rimmet_db
-
-   # JWT
-   JWT_SECRET=your_jwt_secret_key
-   JWT_EXPIRES_IN=1d
-
-   # Entorno
    NODE_ENV=production
-   ```
-   > **Nota:** Ya no necesitas usar la IP del contenedor Docker para el `DB_SERVER`. Si SQL Server corre en la misma máquina, usa `localhost` o `127.0.0.1`.
 
-4. Aplica las migraciones pendientes de la base de datos **antes** de levantar o reiniciar la API. Haz un respaldo primero; cada migración se aplica una sola vez.
+   # SQL Server: localhost o 127.0.0.1 si corre en la misma máquina.
+   DB_SERVER=localhost
+   DB_USER=datamet_plus_app
+   DB_PASSWORD=una-contraseña-segura
+   DB_DATABASE=DataMET
+
+   # Al menos 32 caracteres aleatorios.
+   JWT_SECRET=reemplazar-por-una-clave-aleatoria
+   JWT_EXPIRES_IN=8h
+   ```
+
+5. Aplica las migraciones pendientes de la base de datos **antes** de levantar o reiniciar la API. Haz un respaldo primero; cada migración se aplica una sola vez.
    ```cmd
    corepack pnpm migrate
    ```
@@ -92,11 +88,11 @@ En producción o en un servidor, no debes levantar tu app corriendo un simple `p
    ```
 4. Dirígete a la carpeta de tu backend:
    ```cmd
-   cd C:\Ruta\A\Tu\Proyecto\RimMET\backend
+   cd C:\Proyectos\CronoMET\backend
    ```
-5. Inicia tu API usando PM2 (reemplaza `src/server.js` con el archivo principal de tu API que figura en el tu package.json si es diferente):
+5. Inicia la API con PM2. El servidor actual usa el nombre `cronomet-api`; los demás procedimientos lo reinician con ese nombre:
    ```cmd
-   pm2 start src/server.js --name "rimmet-api"
+   pm2 start src/server.js --name "cronomet-api"
    ```
 6. Guarda la lista actual de procesos para que PM2 sepa qué encender si el servidor se reinicia accidentalmente:
    ```cmd
@@ -111,13 +107,10 @@ En producción o en un servidor, no debes levantar tu app corriendo un simple `p
   ```
 - **Ver los logs (errores/consolas):**
   ```cmd
-  pm2 logs rimmet-api
+  pm2 logs cronomet-api
   ```
-- **Prueba en navegador local:** Abre un navegador en el servidor y ve a `http://localhost:3000` (o la ruta a algún endpoint que tengas, por ejemplo `http://localhost:3000/api/status`). 
-- **Prueba desde tu laptop:** Entra a `http://[IP-DEL-SERVIDOR-WINDOWS]:3000` (así se conectará tu Frontend React).
-
----
-> **Importante acerca de Docker:** En tu Windows Server, puedes eliminar o ignorar completamente los archivos `Dockerfile` y `docker-compose.yml`. Todo tu código ahora corre directo nativo y se nutre del SQL Server y Node instalados en tu máquina.
+- **Prueba en el servidor:** abre `http://localhost:3000/api/health` (debe responder que la API está operativa y la base conectada) y luego `http://localhost:3000` para ver la aplicación.
+- **Prueba desde otro equipo:** entra a `http://[IP-DEL-SERVIDOR-WINDOWS]:3000`.
 
 ## PDF de soporte en OneDrive
 

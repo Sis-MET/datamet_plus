@@ -70,7 +70,7 @@ export function RestrictedArea({ view, onExit }) {
             <button
               type="button"
               onClick={onExit}
-              className="mt-6 inline-flex h-10 items-center gap-2 rounded-xl bg-fg px-4 text-sm font-semibold text-canvas transition-opacity hover:opacity-90"
+              className="mt-6 inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg transition-colors hover:bg-accent-hover"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Ir al RIM

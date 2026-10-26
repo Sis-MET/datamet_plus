@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const { getSupabaseAdminClient } = require('../config/supabase');
 const { unwrap } = require('./ivmet.admin-service');
+const { PREFIJO_ACTOR, actorIvmet, usuarioDeActor } = require('./ivmet.actor');
 const uuid = z.string().uuid();
 const text = (max) => z.string().trim().min(1).max(max);
 const version = z.string().regex(/^[1-9]\d*$/);
@@ -15,8 +16,8 @@ const schemas = {
   }),
   'staff.save': z.object({
     actor: text(107)
-      .regex(/^RIMMET:[^\s:]+$/)
-      .transform((value) => 'RIMMET:' + value.slice(7).toLowerCase()),
+      .regex(new RegExp(`^${PREFIJO_ACTOR}[^\\s:]+$`))
+      .transform((value) => actorIvmet(usuarioDeActor(value))),
     name: text(150),
     role: z.enum(['admin', 'commercial', 'support', 'metrologist']),
     active: z.boolean(),

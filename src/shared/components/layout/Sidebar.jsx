@@ -57,7 +57,7 @@ export function Sidebar({
       className={cn(
         'flex h-full w-[var(--sidebar-width)] flex-col',
         isDrawer && 'w-full',
-        isDesktop && 'transition-[opacity,transform] duration-200 ease-out',
+        isDesktop && 'transition-[opacity,transform] duration-300 ease-expo',
         isDesktop && !isOpen && '-translate-x-3 opacity-0'
       )}
     >
@@ -188,7 +188,7 @@ export function Sidebar({
         {currentUser && (
           <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-2.5 shadow-xs">
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-fg text-[12px] font-semibold tracking-wide text-canvas"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-[12px] font-semibold tracking-wide text-brand-fg"
               aria-hidden="true"
             >
               {getInitials(currentUser)}
@@ -232,7 +232,7 @@ export function Sidebar({
         aria-label="Barra lateral"
         inert={!isOpen}
         className={cn(
-          'sticky top-0 z-30 h-dvh shrink-0 overflow-hidden border-r bg-canvas transition-[width,border-color,visibility] duration-200 ease-out',
+          'theme-navy sticky top-0 z-30 h-dvh shrink-0 overflow-hidden border-r bg-canvas transition-[width,border-color,visibility] duration-300 ease-expo',
           isOpen ? 'visible w-[var(--sidebar-width)] border-line' : 'invisible w-0 border-transparent'
         )}
       >
@@ -259,8 +259,11 @@ export function Sidebar({
         aria-label="Menú de navegación"
         inert={!isOpen}
         className={cn(
-          'glass fixed inset-y-2 left-2 z-[61] w-[min(19rem,calc(100vw-1rem))] overflow-hidden rounded-[20px] border transition-[transform,opacity,visibility] duration-200 ease-out',
-          isOpen ? 'visible translate-x-0 opacity-100' : 'invisible -translate-x-[calc(100%+1rem)] opacity-0'
+          'theme-navy glass fixed inset-y-2 left-2 z-[61] w-[min(19rem,calc(100vw-1rem))] overflow-hidden rounded-[20px] border',
+          // Entra con la curva de Métrica; sale más rápido y sin rebote.
+          isOpen
+            ? 'visible translate-x-0 opacity-100 transition-[transform,opacity,visibility] duration-300 ease-expo'
+            : 'invisible -translate-x-[calc(100%+1rem)] opacity-0 transition-[transform,opacity,visibility] duration-200 ease-in'
         )}
       >
         {content}

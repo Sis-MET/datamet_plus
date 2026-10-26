@@ -28,9 +28,9 @@ export default {
         },
       },
       animation: {
-        'fade-in': 'fade-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both',
-        'fade-in-up': 'fade-in-up 220ms cubic-bezier(0.22, 1, 0.36, 1) both',
-        'pop-in': 'pop-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both',
+        'fade-in': 'fade-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'fade-in-up': 'fade-in-up 320ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'pop-in': 'pop-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
       },
       colors: {
         canvas: token('canvas'),
@@ -53,25 +53,16 @@ export default {
           hover: token('brand-hover'),
           fg: token('brand-fg'),
         },
+        accent: {
+          DEFAULT: token('accent'),
+          hover: token('accent-hover'),
+          fg: token('accent-fg'),
+        },
         focus: token('focus'),
         success: token('success'),
         warning: token('warning'),
         danger: token('danger'),
         info: token('info'),
-        // Paleta heredada: solo la usan componentes retirados y el PDF.
-        primary: {
-          50: '#f0f4f8',
-          100: '#d9e2ec',
-          200: '#bcccdc',
-          300: '#9fb3c8',
-          400: '#829ab1',
-          500: '#627d98',
-          600: '#1E3E70',
-          700: '#1a3560',
-          800: '#162c50',
-          900: '#0f1f38',
-          950: '#0a1628',
-        },
       },
       boxShadow: {
         xs: 'var(--shadow-xs)',
@@ -85,6 +76,7 @@ export default {
       },
       transitionTimingFunction: {
         out: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        expo: 'cubic-bezier(0.16, 1, 0.3, 1)',
       },
     },
   },

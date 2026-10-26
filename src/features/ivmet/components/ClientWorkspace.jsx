@@ -268,7 +268,7 @@ function EquipmentView({ clientId, workspace, revision, open, onSaved }) {
             {selected.estado_catalogo !== 'READY' && (
               <p className="iv-notice">
                 Corrige los datos técnicos en DataMET y ejecuta la
-                sincronización. RimMET no sobrescribe el catálogo maestro.
+                sincronización. DataMET+ no sobrescribe el catálogo maestro.
               </p>
             )}
             <p className="iv-notice">El cliente valida la ficha y gestiona áreas, patrones y planes desde la app. La habilitación comercial no depende de asignar un plan aquí.</p>
@@ -655,7 +655,7 @@ function CommercialView({ workspace, open }) {
 function PatternsView() {
   return <>
     <SectionTitle title="Configuración privada del cliente" description="El cliente organiza su operación desde la app IvMET." />
-    <p className="iv-notice">Las áreas, los patrones, sus certificados y los planes metrológicos ya no se registran desde RimMET. El jefe de calidad define y asigna los planes en la app; los usuarios del cliente validan las fichas y registran sus áreas y patrones.</p>
+    <p className="iv-notice">Las áreas, los patrones, sus certificados y los planes metrológicos ya no se registran desde DataMET+. El jefe de calidad define y asigna los planes en la app; los usuarios del cliente validan las fichas y registran sus áreas y patrones.</p>
     <p className="iv-notice">Ubicación permite sugerir áreas por planta. Las correcciones son privadas; solo las autorizadas expresamente aparecen en «Actualizaciones de balanzas».</p>
   </>;
 }

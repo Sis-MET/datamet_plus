@@ -4,7 +4,7 @@ import { safeStorage } from '../utils/storage';
 // La preferencia se guarda solo si la persona elige un tema; sin valor guardado
 // la aplicación sigue al sistema operativo. index.html aplica la misma regla
 // antes del primer pintado para evitar un destello del tema equivocado.
-export const THEME_STORAGE_KEY = 'rimmet_theme';
+export const THEME_STORAGE_KEY = 'datamet_theme';
 export const ThemeContext = createContext(null);
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';

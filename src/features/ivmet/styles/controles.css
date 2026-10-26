@@ -1,0 +1,186 @@
+/* Botones, pendientes y barra de filtros. */
+
+/* ── Botones ── */
+.iv-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.iv-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.iv-button.primary {
+  color: rgb(var(--c-brand-fg));
+  background: rgb(var(--c-brand));
+  box-shadow: var(--shadow-xs), inset 0 0 0 1px rgb(0 0 0 / 0.05);
+}
+.iv-button.primary:hover:not(:disabled) {
+  background: rgb(var(--c-brand-hover));
+}
+.iv-button.secondary {
+  background: var(--iv-surface);
+  border-color: var(--iv-border-strong);
+  color: var(--iv-text);
+  box-shadow: var(--shadow-xs);
+}
+.iv-button.secondary:hover:not(:disabled) {
+  background: var(--iv-surface-2);
+}
+.iv-button.subtle {
+  color: var(--iv-muted);
+  background: transparent;
+}
+.iv-button.subtle:hover:not(:disabled) {
+  color: var(--iv-text);
+  background: rgb(var(--c-fg) / 0.06);
+}
+.iv-button.danger {
+  color: #ffffff;
+  background: #dc2626;
+  box-shadow: var(--shadow-xs);
+}
+.iv-button.danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.iv-button.small {
+  min-height: 32px;
+  font-size: 12px;
+  padding: 6px 11px;
+  border-radius: 10px;
+}
+/* Pendientes junto a la acción que las resuelve. */
+.iv-button-count {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(var(--c-fg) / 0.12);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.iv-button.primary .iv-button-count {
+  background: rgb(0 0 0 / 0.12);
+}
+.iv-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 8px;
+  color: var(--iv-muted);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+}
+.iv-icon-button:hover:not(:disabled) {
+  color: var(--iv-text);
+  background: rgb(var(--c-fg) / 0.06);
+}
+.iv-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--iv-muted);
+  margin: 0 0 20px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 10px;
+}
+.iv-back:hover {
+  color: var(--iv-text);
+  background: rgb(var(--c-fg) / 0.05);
+}
+.iv-link {
+  color: var(--iv-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--c-fg) / 0.3);
+  text-underline-offset: 3px;
+}
+.iv-link:hover {
+  text-decoration-color: rgb(var(--c-fg));
+}
+.iv-development-bar .iv-link {
+  text-decoration: none;
+}
+.iv-subtle {
+  font-size: 12px;
+  color: var(--iv-muted);
+}
+.code {
+  font-family: theme('fontFamily.mono');
+  letter-spacing: 0;
+}
+
+/* ── Barra de filtros ── */
+.iv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.iv-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--iv-border-strong);
+  background: var(--iv-surface);
+  border-radius: 11px;
+  padding: 0 12px;
+  min-width: 220px;
+  flex: 1;
+  max-width: 420px;
+  color: var(--iv-subtle);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+.iv-search input {
+  background: transparent;
+  border: 0;
+  outline: 0;
+  width: 100%;
+  padding: 9px 0;
+  color: var(--iv-text);
+  font-size: 13px;
+}
+.iv-app .iv-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.iv-search:focus-within {
+  border-color: rgb(var(--c-focus));
+  box-shadow: 0 0 0 4px rgb(var(--c-focus) / 0.15);
+}
+.iv-search input::placeholder {
+  color: var(--iv-subtle);
+}
+.iv-toolbar select,
+.iv-toolbar > input {
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border-strong);
+  color: var(--iv-text);
+  padding: 9px 10px;
+  border-radius: 11px;
+  font-size: 13px;
+  max-width: 100%;
+}
+.iv-toolbar > .iv-subtle {
+  margin-left: auto;
+}

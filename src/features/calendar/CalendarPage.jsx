@@ -228,7 +228,7 @@ export function CalendarPage() {
 
       {isDragging && isCtrlPressed && (
          <div
-           className="pointer-events-none fixed z-[9999] flex items-center gap-1.5 rounded-lg bg-fg px-2.5 py-1.5 text-xs font-semibold text-canvas shadow-pop"
+           className="pointer-events-none fixed z-[9999] flex items-center gap-1.5 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-semibold text-accent-fg shadow-pop"
            style={{ left: dragPos.x + 15, top: dragPos.y + 15 }}
          >
            <ArrowRightLeft className="h-3.5 w-3.5" /> Mover Tarea

@@ -5,7 +5,7 @@ const ruta = (tipo, codigo) => `/soporte/informes/${encodeURIComponent(tipo)}/${
 
 // Avisa a quien muestre el contador de próximos servicios (barra lateral,
 // pestañas) que algo cambió: un seguimiento, los avisos o la fecha de un informe.
-export const SOPORTE_CHANGED_EVENT = 'rimmet:soporte-changed';
+export const SOPORTE_CHANGED_EVENT = 'datamet:soporte-changed';
 const avisar = (result) => {
   window.dispatchEvent(new Event(SOPORTE_CHANGED_EVENT));
   return result;

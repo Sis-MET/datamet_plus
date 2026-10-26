@@ -13,7 +13,7 @@ const checkHealth = async (_req, res, _next) => {
 
     res.status(200).json({
       success: true,
-      message: 'API RimMET operativa',
+      message: 'API DataMET+ operativa',
       timestamp: new Date().toISOString(),
       database: 'Conectada'
     });

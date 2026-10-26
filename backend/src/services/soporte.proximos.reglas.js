@@ -11,6 +11,7 @@
  */
 const { decideAlert } = require('./calibration.alerts');
 const { diffDays, isDate } = require('./calibration.schedule');
+const { enlaceApp } = require('../utils/app-url');
 
 /** Servicios que dejan (o quitan) la fecha del próximo servicio. */
 const TIPOS_CON_FECHA = new Set(['MPR', 'MPA', 'MCR', 'INT', 'IBM', 'VFI']);
@@ -477,6 +478,8 @@ const tipoTexto = (proximo) => (proximo.tipoSugerido && proximo.tipoSugerido !==
  * servicio anterior va como referencia de cada equipo.
  */
 const renderizarCorreo = ({ nombre, items, appUrl }) => {
+  // El enlace abre la pestaña Próximos servicios de Soporte técnico.
+  const destino = enlaceApp(appUrl, '/soporte/proximos');
   const vencidos = items.filter(item => item.motivo === 'VENCIDO').length;
   const proximos = items.length - vencidos;
   const partes = [];
@@ -515,8 +518,8 @@ const renderizarCorreo = ({ nombre, items, appUrl }) => {
       <tr><td colspan="2" style="padding:18px 0 4px;font-size:12px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#5c5c56;">${escapeHtml(cliente)} · ${escapeHtml(equiposTexto(lista))}</td></tr>
       ${lista.map(fila).join('')}`).join('');
 
-  const enlace = appUrl
-    ? `<p style="margin:24px 0 0;"><a href="${escapeHtml(appUrl)}" style="display:inline-block;background:#f9e300;color:#161614;font-weight:600;text-decoration:none;padding:10px 16px;border-radius:10px;">Abrir los próximos servicios</a></p>`
+  const enlace = destino
+    ? `<p style="margin:24px 0 0;"><a href="${escapeHtml(destino)}" style="display:inline-block;background:#f9e300;color:#161614;font-weight:600;text-decoration:none;padding:10px 16px;border-radius:10px;">Abrir los próximos servicios</a></p>`
     : '';
 
   const html = `<!doctype html>
@@ -547,7 +550,7 @@ const renderizarCorreo = ({ nombre, items, appUrl }) => {
       `${cliente} (${equiposTexto(lista)})`,
       ...lista.map(item => `- ${tituloEquipo(item.proximo)} (${[tipoTexto(item.proximo), referencia(item.proximo)].filter(Boolean).join(', ')}) — ${cuandoTexto(item)} (${formatoFecha(item.proximo.fecha)})`),
     ]),
-    ...(appUrl ? ['', appUrl] : []),
+    ...(destino ? ['', destino] : []),
   ].join('\n');
 
   return { subject, html, text };

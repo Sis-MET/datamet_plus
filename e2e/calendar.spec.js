@@ -23,9 +23,9 @@ const technicians = [
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(({ token }) => {
-    localStorage.setItem('rimmet_token', token);
-    localStorage.setItem('rimmet_user', JSON.stringify({ id: 1, nombre: 'Usuario QA', acceso_cron: 3, area: 'SERVICIO' }));
-    localStorage.setItem('rimmet_last_view', 'calendar');
+    localStorage.setItem('datamet_token', token);
+    localStorage.setItem('datamet_user', JSON.stringify({ id: 1, nombre: 'Usuario QA', acceso_cron: 3, area: 'SERVICIO' }));
+    localStorage.setItem('datamet_last_view', 'calendar');
   }, { token: `header.${tokenPayload}.signature` });
 
   // Sin backend real: lo no simulado responde como servidor no disponible. Va

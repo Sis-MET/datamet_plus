@@ -108,7 +108,7 @@ function MultiDatePicker({ selectedDates, onChange }) {
           return (
             <button key={i} type="button" onClick={() => toggleDay(day)} aria-pressed={sel}
               className={`mx-auto flex aspect-square w-full max-w-9 items-center justify-center rounded-full text-xs tabular-nums transition-colors ${
-                sel   ? 'bg-fg font-semibold text-canvas' :
+                sel   ? 'bg-accent font-semibold text-accent-fg' :
                 today ? 'bg-brand font-semibold text-brand-fg' :
                 other ? 'text-fg-subtle/60 hover:bg-fg/[0.05]' :
                 weekend ? 'text-danger/80 hover:bg-fg/[0.05]' :
@@ -209,7 +209,7 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
         const minDate = datesStr[0];
         const maxDate = datesStr[datesStr.length - 1];
 
-        const token = safeStorage.getItem('rimmet_token');
+        const token = safeStorage.getItem('datamet_token');
         const res = await fetch(`${API_BASE}/calendar/cronograma?start=${minDate}&end=${maxDate}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -358,7 +358,7 @@ export function DepartureSidebarForm({ tecnicos = [], onSaved, saving }) {
                       return (
                         <button type="button" key={t.id} onClick={() => toggleTecnico(t.id)} aria-pressed={isSelected}
                           className={`flex min-h-9 w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${isSelected ? 'bg-fg/[0.06]' : 'hover:bg-fg/[0.04]'}`}>
-                          <span className={`flex h-4 w-4 items-center justify-center rounded-[5px] border transition-colors ${isSelected ? 'border-fg bg-fg text-canvas' : 'border-line-strong bg-surface'}`}>
+                          <span className={`flex h-4 w-4 items-center justify-center rounded-[5px] border transition-colors ${isSelected ? 'border-accent bg-accent text-accent-fg' : 'border-line-strong bg-surface'}`}>
                             {isSelected && <Check size={10} strokeWidth={3} />}
                           </span>
                           <span className={`select-none truncate text-[13px] ${isSelected ? 'font-medium text-fg' : 'text-fg-muted'}`}>

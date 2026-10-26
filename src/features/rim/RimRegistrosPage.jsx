@@ -389,11 +389,11 @@ export function RimRegistrosPage() {
                 <th scope="col" className="px-4 py-2.5 text-right font-medium">Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="stagger-in divide-y divide-line">
               {items.map(rim => <RimRow key={rim.n} rim={rim} onOpen={(item) => setAbierto(item.n)} />)}
             </tbody>
           </table>
-          <ul className="divide-y divide-line md:hidden">
+          <ul className="stagger-in divide-y divide-line md:hidden">
             {items.map(rim => <RimCard key={rim.n} rim={rim} onOpen={(item) => setAbierto(item.n)} />)}
           </ul>
         </div>

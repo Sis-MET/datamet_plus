@@ -1,0 +1,268 @@
+/* Tokens del apartado, acceso de pruebas y aviso de módulo en desarrollo. */
+
+.iv-app,
+.iv-dialog,
+.iv-detail,
+.iv-select-menu {
+  --iv-text: rgb(var(--c-fg));
+  --iv-muted: rgb(var(--c-fg-muted));
+  --iv-subtle: rgb(var(--c-fg-subtle));
+  --iv-border: rgb(var(--c-line));
+  --iv-border-strong: rgb(var(--c-line-strong));
+  --iv-surface: rgb(var(--c-surface));
+  --iv-surface-2: rgb(var(--c-surface-2));
+  --iv-accent: rgb(var(--c-fg));
+}
+.iv-app {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 20px 24px 12px;
+  color: var(--iv-text);
+  font-size: 13px;
+}
+.iv-app *,
+.iv-dialog *,
+.iv-detail * {
+  box-sizing: border-box;
+}
+.iv-app button,
+.iv-dialog button,
+.iv-detail button {
+  transition:
+    background-color 0.15s ease-out,
+    color 0.15s ease-out,
+    border-color 0.15s ease-out,
+    box-shadow 0.15s ease-out,
+    transform 0.15s ease-out;
+}
+.iv-app button:disabled,
+.iv-dialog button:disabled,
+.iv-detail button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.iv-app button:focus-visible,
+.iv-dialog button:focus-visible,
+.iv-detail button:focus-visible,
+.iv-app input:focus-visible,
+.iv-dialog input:focus-visible,
+.iv-dialog select:focus-visible {
+  outline: 2px solid rgb(var(--c-focus));
+  outline-offset: 2px;
+}
+
+/* ── Acceso de pruebas ── */
+.iv-access-shell {
+  min-height: calc(100dvh - var(--topbar-height) - 120px);
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+.iv-access-card {
+  width: 100%;
+  max-width: 460px;
+  padding: 32px;
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+}
+.iv-access-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.iv-access-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  color: rgb(var(--c-brand-fg));
+  background: rgb(var(--c-brand));
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06);
+}
+.iv-development-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgb(var(--c-warning) / 0.28);
+  background: rgb(var(--c-warning) / 0.1);
+  color: rgb(var(--c-warning));
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.iv-access-card h1 {
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+  margin: 4px 0 10px;
+}
+.iv-access-description {
+  color: var(--iv-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.iv-access-note {
+  display: flex;
+  gap: 12px;
+  margin: 22px 0 26px;
+  padding: 14px;
+  border-radius: 12px;
+  color: var(--iv-muted);
+  background: var(--iv-surface-2);
+  line-height: 1.6;
+  font-size: 13px;
+}
+.iv-access-note > svg {
+  flex-shrink: 0;
+  color: var(--iv-text);
+  margin-top: 2px;
+}
+.iv-access-form > label {
+  display: block;
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.iv-access-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 14px;
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border-strong);
+  border-radius: 12px;
+  color: var(--iv-subtle);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color 150ms,
+    box-shadow 150ms;
+}
+.iv-access-input:focus-within {
+  border-color: rgb(var(--c-focus));
+  box-shadow: 0 0 0 4px rgb(var(--c-focus) / 0.15);
+}
+.iv-access-input > svg {
+  flex-shrink: 0;
+}
+.iv-access-input input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  font-size: 14px;
+  background: transparent;
+  border: none;
+  color: var(--iv-text);
+  box-shadow: none;
+}
+.iv-access-input input:focus,
+.iv-access-input input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.iv-access-input input::placeholder {
+  color: var(--iv-subtle);
+}
+.iv-access-help {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--iv-muted);
+}
+.iv-access-error {
+  color: rgb(var(--c-danger));
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 12px;
+}
+.iv-access-submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 20px;
+  min-height: 44px;
+}
+.iv-access-loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--iv-muted);
+  padding: 20px 0;
+}
+.iv-access-unavailable {
+  padding: 16px;
+  border: 1px solid var(--iv-border);
+  border-radius: 12px;
+  color: var(--iv-muted);
+  line-height: 1.6;
+}
+.iv-access-unavailable button {
+  margin-top: 12px;
+}
+.iv-access-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--iv-muted);
+  font-size: 13px;
+  margin: 20px auto 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+.iv-access-back:hover {
+  color: var(--iv-text);
+  background: rgb(var(--c-fg) / 0.05);
+}
+
+/* ── Aviso de módulo en desarrollo ── */
+.iv-development-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--iv-border);
+  border-radius: 14px;
+  background: var(--iv-surface);
+  color: var(--iv-muted);
+  font-size: 12px;
+}
+.iv-development-bar > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.iv-development-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+.iv-development-bar button:hover {
+  background: rgb(var(--c-fg) / 0.05);
+}
+@media (max-width: 640px) {
+  .iv-access-card {
+    padding: 24px 20px;
+  }
+  .iv-access-description {
+    font-size: 13px;
+  }
+  .iv-development-bar {
+    flex-wrap: wrap;
+    font-size: 11px;
+  }
+}

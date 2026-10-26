@@ -1,0 +1,94 @@
+/* Animaciones de navegación, apertura y cierre, con la curva y los tiempos de index.css. */
+
+/* ── Entrada con la curva de Métrica (unos 320 ms); salida en --motion-exit ── */
+.iv-content-enter {
+  animation: iv-content-in 320ms var(--ease-out-expo);
+}
+.iv-dialog[open] {
+  animation: iv-dialog-in 320ms var(--ease-out-expo) both;
+}
+.iv-detail[open] {
+  animation: iv-detail-in 340ms var(--ease-out-expo) both;
+}
+.iv-dialog[open]::backdrop,
+.iv-detail[open]::backdrop {
+  animation: iv-fade-in 220ms var(--ease-out-expo) both;
+}
+.iv-dialog[data-state='closing'] {
+  animation: iv-dialog-out var(--motion-exit) var(--ease-in-soft) both;
+  pointer-events: none;
+}
+.iv-detail[data-state='closing'] {
+  animation: iv-detail-out var(--motion-exit) var(--ease-in-soft) both;
+  pointer-events: none;
+}
+.iv-dialog[data-state='closing']::backdrop,
+.iv-detail[data-state='closing']::backdrop {
+  animation: iv-fade-out var(--motion-exit) var(--ease-in-soft) both;
+}
+@keyframes iv-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes iv-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes iv-dialog-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+@keyframes iv-detail-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes iv-detail-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+@keyframes iv-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes iv-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

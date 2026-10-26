@@ -69,7 +69,7 @@ export function VehiclePicker({
                 <span className={cn(
                   'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
                   isSelected
-                    ? isUnavailable ? 'border-danger bg-danger text-canvas' : 'border-fg bg-fg text-canvas'
+                    ? isUnavailable ? 'border-danger bg-danger text-canvas' : 'border-accent bg-accent text-accent-fg'
                     : isUnavailable ? 'border-danger/40' : 'border-line-strong'
                 )}>
                   {isSelected && <Check size={10} strokeWidth={3} />}

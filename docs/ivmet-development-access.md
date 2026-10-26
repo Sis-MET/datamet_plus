@@ -2,7 +2,7 @@
 
 Gestión IvMET muestra un aviso de **módulo en desarrollo** y solicita un código
 antes de cargar clientes, licencias, equipos o cualquier otra consulta del gestor.
-Cronograma y RimMET no utilizan esta barrera.
+Los demás apartados de DataMET+ no utilizan esta barrera.
 
 Para la entrega de privacidad y permisos personales del 28/08/2026, seguir
 [la guía actualizada de operaciones](ivmet-operations-release.md). Requiere
@@ -11,7 +11,7 @@ nivel 3 por sí solos ya no asignan permisos internos.
 
 ## Requisitos y funcionamiento
 
-- Se conserva el inicio de sesión de RimMET y el permiso administrativo de nivel
+- Se conserva el inicio de sesión de DataMET+ y el permiso administrativo de nivel
   **3**, revalidado contra DataMET. El código no concede ese permiso.
 - El backend compara el código mediante bcrypt. Solo guarda el hash en su `.env`
   privado: `IVMET_ACCESS_CODE_HASH`. Nunca usar una variable `VITE_*` para ello.
@@ -35,7 +35,7 @@ nivel 3 por sí solos ya no asignan permisos internos.
 
 ### 1. En el equipo de desarrollo
 
-Desde `C:\Users\jhona\RimMET`:
+Desde `C:\Users\jhona\DataMET_plus`:
 
 ```powershell
 pnpm lint
@@ -47,14 +47,14 @@ pnpm build
 Vite genera la aplicación en **`backend/dist`**, que sirve Express. Actualiza en
 el servidor ese contenido y el código del backend (`src`, `scripts`,
 `package.json`, `pnpm-lock.yaml` y `pnpm-workspace.yaml`), usando el procedimiento
-habitual de RimMET. Los tres archivos de instalación deben ser los de
+habitual de DataMET+. Los tres archivos de instalación deben ser los de
 **backend**, no los de la raíz. No copiar `node_modules` desde desarrollo.
 Conserva el `.env`, los certificados y la configuración propios del servidor.
 No reemplaces el `.env` del servidor por el de desarrollo.
 
 ### 2. Configurar el código en el servidor
 
-Entra en la carpeta **backend de RimMET** que ejecuta `cronomet-api`; en el
+Entra en la carpeta **backend de DataMET+** que ejecuta `cronomet-api`; en el
 servidor actual es `C:\Proyectos\CronoMET\backend`, no
 `C:\Proyectos\IvMET\worker`. Instala las dependencias después de actualizar los
 archivos de instalación y comprueba que Node pueda cargarlas antes de reiniciar:
@@ -80,19 +80,19 @@ como argumento, no publiques el hash y no lo añadas a Git.
 
 El `.env` del backend debe contener `SUPABASE_URL` y una clave administrativa:
 `SUPABASE_SECRET_KEY` o `SUPABASE_SERVICE_ROLE_KEY`. El `.env` del worker es
-independiente y no configura RimMET automáticamente. Si el worker usa el mismo
+independiente y no configura DataMET+ automáticamente. Si el worker usa el mismo
 proyecto y ya funciona, se pueden copiar **solo esas dos variables** a través
 del entorno privado del servidor. No copiar sus credenciales SQL ni reemplazar
 el `.env` completo. Nunca utilizar una clave pública `anon` para esta API.
 
 Solo después de configurar Supabase, dejar `IVMET_ENABLED=true` una sola vez en
 el `.env` del backend. Activarlo sin esas variables bloquea solo IvMET con un
-error de configuración; no impide arrancar Cronograma/RimMET.
+error de configuración; no impide arrancar el resto de DataMET+.
 El `JWT_SECRET` existente debe tener al menos 32 caracteres; no se cambia como
 parte de esta actualización: rotarlo invalida las sesiones existentes. El
 backend lee estas variables al arrancar.
 
-### 3. Reiniciar únicamente RimMET
+### 3. Reiniciar únicamente DataMET+
 
 Después de actualizar el frontend, el backend y la configuración:
 
@@ -107,8 +107,8 @@ de operaciones/privacidad sí requiere su actualización coordinada independient
 
 ### 4. Validación
 
-1. Comprueba que Cronograma y RimMET siguen disponibles.
-2. Entra con `acceso_cron = 3` en `dbo.DATA_USERS` de la base de login de RimMET
+1. Comprueba que los demás apartados de DataMET+ siguen disponibles.
+2. Entra con `acceso_cron = 3` en `dbo.DATA_USERS` de la base de login de DataMET+
    y abre Gestión IvMET: debe aparecer **En desarrollo**. Si cambiaste el nivel,
    cierra sesión y vuelve a ingresar. No confundir `acceso_cron` con `acceso`.
 3. Un código incorrecto no abre el gestor. El correcto permite comprobar el

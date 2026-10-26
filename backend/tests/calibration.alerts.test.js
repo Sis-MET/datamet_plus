@@ -82,4 +82,13 @@ test('el correo resume vencidas y próximas', () => {
   assert.equal(email.subject, 'Calibración: 1 vencida y 1 próxima');
   assert.match(email.html, /Vencida hace 4 días/);
   assert.match(email.text, /En 12 días/);
+  // El enlace abre directamente la pestaña Alertas de Calibración.
+  assert.match(email.html, /href="http:\/\/192\.168\.1\.5:3000\/calibracion\/alertas"/);
+  assert.match(email.text, /http:\/\/192\.168\.1\.5:3000\/calibracion\/alertas$/);
+});
+
+test('sin APP_URL el correo no lleva enlace; con barra final no la duplica', () => {
+  const items = [{ motivo: 'VENCIDO', occurrence: occurrence({ tipo: 'CALIBRACION', diasRestantes: -1 }) }];
+  assert.doesNotMatch(renderDigestEmail({ nombre: 'Ana', appUrl: '', items }).html, /<a /);
+  assert.match(renderDigestEmail({ nombre: 'Ana', appUrl: 'https://datamet.lenash.dev/', items }).text, /https:\/\/datamet\.lenash\.dev\/calibracion\/alertas$/);
 });

@@ -4,7 +4,7 @@ import { APP_VERSION } from '../../../shared/utils/appVersion';
 const BASE = '/calibracion';
 
 // Avisa a quien muestre contadores de alertas (barra lateral) que el plan cambió.
-export const CALIBRATION_CHANGED_EVENT = 'rimmet:calibration-changed';
+export const CALIBRATION_CHANGED_EVENT = 'datamet:calibration-changed';
 const notifyChange = (result) => {
   window.dispatchEvent(new Event(CALIBRATION_CHANGED_EVENT));
   return result;

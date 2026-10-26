@@ -43,7 +43,7 @@ export function LeftFilterSidebar({
     const outside = isSameMonth && currentDate && !isSameMonth(day, currentDate);
     return cn(
       'relative flex aspect-square w-full max-w-9 items-center justify-center rounded-full text-[13px] tabular-nums transition-colors duration-150',
-      selected && 'bg-fg font-semibold text-canvas',
+      selected && 'bg-accent font-semibold text-accent-fg',
       !selected && today && 'bg-brand font-semibold text-brand-fg',
       !selected && !today && outside && 'text-fg-subtle/70 hover:bg-fg/[0.05] hover:text-fg-muted',
       !selected && !today && !outside && 'text-fg hover:bg-fg/[0.06]'

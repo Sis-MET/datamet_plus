@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BellRing, CalendarRange, FileText, Settings } from 'lucide-react';
 import { cn } from '../../shared/utils/cn';
 import { safeStorage } from '../../shared/utils/storage';
+import { usePestanaRuta } from '../../shared/navigation/ruta';
 import { InformeEditor } from './components/InformeEditor';
 import { AprobadoresPanel } from './components/AprobadoresPanel';
 import { soporteApi } from './api/soporte';
@@ -15,17 +16,12 @@ import { useSoporteAlertCount } from './hooks/useSoporteAlertCount';
 import '../calibration/calibration.css';
 import './soporte.css';
 
-const ABIERTO = 'rimmet_soporte_informe';
-const AGRUPAR = 'rimmet_soporte_agrupar';
-const PESTANA = 'rimmet_soporte_pestana';
+const ABIERTO = 'datamet_soporte_informe';
+const AGRUPAR = 'datamet_soporte_agrupar';
+const PESTANA = 'datamet_soporte_pestana';
 const PESTANAS = ['informes', 'proximos', 'avisos', 'configuracion'];
 
-const leerPestana = () => {
-  const valor = safeStorage.getItem(PESTANA);
-  return PESTANAS.includes(valor) ? valor : 'informes';
-};
-
-/** Informe abierto al recargar la página, si sigue siendo válido. */
+/** Informe que quedó abierto, si sigue siendo válido: se reabre al volver a Soporte. */
 const leerAbierto = () => {
   try {
     const valor = JSON.parse(safeStorage.getItem(ABIERTO) || 'null');
@@ -73,14 +69,35 @@ function Pestanas({ pestana, onChange, alertas, configurar }) {
  * servicios que sugieren los técnicos con su seguimiento y avisos. Al volver
  * de un informe, la lista conserva filtros, página, agrupación y grupos
  * abiertos, y se vuelve a la pestaña de la que se salió.
+ *
+ * Direcciones: /soporte/<pestaña> y, con un informe abierto,
+ * /soporte/<pestaña>/<tipo>/<código> (la pestaña es desde la que se abrió).
  */
 export function SoportePage() {
-  const [pestanaGuardada, setPestanaState] = useState(leerPestana);
+  const { pestana: pestanaRuta, detalle, enRuta, cambiarPestana, irADetalle } = usePestanaRuta('soporte', PESTANAS, {
+    clave: PESTANA,
+    predeterminada: 'informes',
+    detalleGuardado: () => {
+      const guardado = leerAbierto();
+      return guardado ? [guardado.tipo, guardado.codigo] : [];
+    },
+  });
   const { data: permisos } = useResource(soporteApi.permisos);
   const configurar = permisos?.configurarAprobadores === true;
-  const pestana = pestanaGuardada === 'configuracion' && !configurar ? 'informes' : pestanaGuardada;
+  const pestana = pestanaRuta === 'configuracion' && !configurar ? 'informes' : pestanaRuta;
   const alertas = useSoporteAlertCount(true);
-  const [abierto, setAbierto] = useState(leerAbierto);
+  const [tipoAbierto, codigoAbierto] = detalle;
+  const abierto = detalle.length === 2 && PLANTILLAS[tipoAbierto] ? { tipo: tipoAbierto, codigo: codigoAbierto } : null;
+
+  // Lo guardado sigue a la dirección, también al volver con el botón Atrás.
+  useEffect(() => {
+    if (!enRuta) return;
+    if (tipoAbierto && codigoAbierto && PLANTILLAS[tipoAbierto]) {
+      safeStorage.setItem(ABIERTO, JSON.stringify({ tipo: tipoAbierto, codigo: codigoAbierto }));
+    } else {
+      safeStorage.removeItem(ABIERTO);
+    }
+  }, [codigoAbierto, enRuta, tipoAbierto]);
   const [filtros, setFiltros] = useState(filtrosVacios);
   const [page, setPage] = useState(1);
   const [agrupar, setAgrupar] = useState(leerAgrupar);
@@ -98,29 +115,16 @@ export function SoportePage() {
     setPage(1);
   }, []);
 
-  const setPestana = (valor) => {
-    safeStorage.setItem(PESTANA, valor);
-    setPestanaState(valor);
-  };
-
-  const abrir = (informe) => {
-    const valor = { tipo: informe.tipo, codigo: informe.codigo };
-    safeStorage.setItem(ABIERTO, JSON.stringify(valor));
-    setAbierto(valor);
-    window.scrollTo({ top: 0 });
-  };
-
-  const cerrar = () => {
-    safeStorage.removeItem(ABIERTO);
-    setAbierto(null);
-    window.scrollTo({ top: 0 });
-  };
+  const volverArriba = () => window.scrollTo({ top: 0 });
+  const abrir = (informe) => irADetalle([informe.tipo, informe.codigo], { alCambiar: volverArriba });
+  const cerrar = () => irADetalle([], { alCambiar: volverArriba });
 
   const ancho = abierto ? 'max-w-[1680px]' : pestana === 'informes' ? 'max-w-[1320px]' : 'max-w-[1600px]';
 
   return (
     <main className={`mx-auto flex w-full flex-col gap-4 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 ${ancho}`}>
-      {!abierto && <Pestanas pestana={pestana} onChange={setPestana} alertas={alertas} configurar={configurar} />}
+      {!abierto && <Pestanas pestana={pestana} onChange={cambiarPestana} alertas={alertas} configurar={configurar} />}
+      <div className="vt-panel flex flex-col gap-4">
       {!abierto && pestana === 'configuracion' && configurar && <AprobadoresPanel />}
       {abierto && (
         <InformeEditor key={`${abierto.tipo}:${abierto.codigo}`} tipo={abierto.tipo} codigo={abierto.codigo} onVolver={cerrar} />
@@ -141,6 +145,7 @@ export function SoportePage() {
           onOpen={abrir}
         />
       )}
+      </div>
     </main>
   );
 }

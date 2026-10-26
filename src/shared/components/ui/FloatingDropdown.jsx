@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { exitDelay } from '../../utils/motion';
 
 const VIEWPORT_PADDING = 8;
 const DROPDOWN_GAP = 6;
@@ -18,6 +19,16 @@ export function FloatingDropdown({
 }) {
   const layerRef = useRef(null);
   const [position, setPosition] = useState(null);
+  // Al cerrarse sigue montado mientras dura su salida (CSS: data-state).
+  const [mounted, setMounted] = useState(open);
+  if (open && !mounted) setMounted(true);
+  const closing = mounted && !open;
+
+  useEffect(() => {
+    if (!closing) return undefined;
+    const timer = setTimeout(() => setMounted(false), exitDelay());
+    return () => clearTimeout(timer);
+  }, [closing]);
 
   const updatePosition = useCallback(() => {
     const anchor = anchorRef.current;
@@ -54,10 +65,12 @@ export function FloatingDropdown({
   }, [align, anchorRef, maxHeight, preferredPlacement, width]);
 
   useLayoutEffect(() => {
-    if (!open) {
+    if (!mounted) {
       const resetFrameId = requestAnimationFrame(() => setPosition(null));
       return () => cancelAnimationFrame(resetFrameId);
     }
+    // Mientras sale conserva la última posición.
+    if (!open) return undefined;
 
     const frameId = requestAnimationFrame(updatePosition);
     window.addEventListener('resize', updatePosition);
@@ -68,7 +81,7 @@ export function FloatingDropdown({
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open, updatePosition]);
+  }, [mounted, open, updatePosition]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -93,12 +106,14 @@ export function FloatingDropdown({
     };
   }, [anchorRef, onClose, open]);
 
-  if (!open || typeof document === 'undefined') return null;
+  if (!mounted || typeof document === 'undefined') return null;
 
   return createPortal(
     <div
       ref={layerRef}
       aria-label={ariaLabel}
+      aria-hidden={closing || undefined}
+      data-state={closing ? 'closing' : 'open'}
       data-placement={position?.placement}
       className={`task-floating-menu fixed z-[9999] overflow-hidden ${className}`}
       style={{

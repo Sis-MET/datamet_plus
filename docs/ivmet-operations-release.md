@@ -1,6 +1,6 @@
 # Gestión IvMET: operación interna y privacidad
 
-Actualización del 31/08/2026. RimMET administra la relación comercial y el
+Actualización del 31/08/2026. DataMET+ administra la relación comercial y el
 alcance operativo de IvMET. El cliente administra desde la app sus áreas,
 patrones, certificados y planes metrológicos.
 
@@ -20,9 +20,9 @@ Además del código correcto, cada solicitud exige sesión vigente, nivel
 administrador se registra con `pnpm ivmet:admin-bootstrap`; los siguientes se
 gestionan en **Permisos internos**.
 
-## Responsabilidad de RimMET
+## Responsabilidad de DataMET+
 
-RimMET sí administra:
+DataMET+ sí administra:
 
 - incorporación selectiva de clientes, plantas y balanzas desde DataMET;
 - planes comerciales, tarifas, contratos, facturas, pagos y cupos;
@@ -32,7 +32,7 @@ RimMET sí administra:
 - fichas de balanza que el jefe haya autorizado específicamente;
 - preparación operativa, sincronización, privacidad, permisos y auditoría.
 
-RimMET no crea ni edita áreas, patrones, certificados o planes metrológicos del
+DataMET+ no crea ni edita áreas, patrones, certificados o planes metrológicos del
 cliente. Tampoco consulta su historial privado. **Casos compartidos** y
 **Actualizaciones de balanzas** son pestañas de la ficha de cada cliente: no hay
 bandejas generales que mezclen empresas. Las actualizaciones comparan el
@@ -84,7 +84,7 @@ Acciones `POST /ops/actions/:action` vigentes:
 
 - `case.update`: estado, responsable y comentario visible al cliente.
 - `equipment-update.review`: id, versión y comentario; no toca DataMET.
-- `staff.save`: permiso interno validado contra el usuario de RimMET.
+- `staff.save`: permiso interno validado contra el usuario de DataMET+.
 
 Acciones `POST /actions/:action` de balanzas, con permiso `commercial`:
 
@@ -100,11 +100,11 @@ antiguo intente invocarlas directamente.
 
 Esta UI requiere Supabase `202609160001` y worker contrato 4. Seguir primero
 `IvMET/docs/client-attention-bulk-equipment.md`: la migración va antes que
-RimMET. Después compilar y actualizar
-RimMET conservando `backend/.env`:
+DataMET+. Después compilar y actualizar
+DataMET+ conservando `backend/.env`:
 
 ```powershell
-Set-Location 'C:\Users\jhona\RimMET'
+Set-Location 'C:\Users\jhona\DataMET_plus'
 pnpm lint
 pnpm test
 pnpm --dir backend test

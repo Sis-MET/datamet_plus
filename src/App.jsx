@@ -11,28 +11,40 @@ import { useTheme } from './shared/context/ThemeContext';
 import { safeStorage } from './shared/utils/storage';
 import { decodeJwtPayload, isJwtExpired } from './shared/utils/jwt';
 import { SESSION_INVALID_EVENT } from './shared/api/client';
+import { leerRuta, navegar, rutaActual, rutaDe, useRuta } from './shared/navigation/ruta';
+import { conTransicion } from './shared/utils/viewTransition';
 import { useCalibrationAlertCount } from './features/calibration/hooks/useCalibrationAlertCount';
 import { useSoporteAlertCount } from './features/soporte/hooks/useSoporteAlertCount';
 import { useFailureSummary } from './features/system/hooks/useFailureSummary';
 
-const RimPage = lazy(() => import('./features/rim/RimPage')
-  .then(module => ({ default: module.RimPage })));
-const CalendarPage = lazy(() => import('./features/calendar/CalendarPage')
-  .then(module => ({ default: module.CalendarPage })));
-const DeparturesPage = lazy(() => import('./features/departures/DeparturesPage')
-  .then(module => ({ default: module.DeparturesPage })));
+// Cada apartado se descarga al abrirlo por primera vez. Tras iniciar sesión
+// se precargan en segundo plano para que cambiar de apartado no espere.
+const CARGAS = {
+  RimPage: () => import('./features/rim/RimPage'),
+  CalendarPage: () => import('./features/calendar/CalendarPage'),
+  DeparturesPage: () => import('./features/departures/DeparturesPage'),
+  CalibrationPage: () => import('./features/calibration/CalibrationPage'),
+  SoportePage: () => import('./features/soporte/SoportePage'),
+  IvmetManagementPage: () => import('./features/ivmet/IvmetManagementPage'),
+  ChangeControlPage: () => import('./features/system/ChangeControlPage'),
+  FailureLogPage: () => import('./features/system/FailureLogPage'),
+};
+const perezoso = (nombre) => lazy(() => CARGAS[nombre]().then(module => ({ default: module[nombre] })));
+
+const RimPage = perezoso('RimPage');
+const CalendarPage = perezoso('CalendarPage');
+const DeparturesPage = perezoso('DeparturesPage');
+const CalibrationPage = perezoso('CalibrationPage');
+const SoportePage = perezoso('SoportePage');
+const IvmetManagementPage = perezoso('IvmetManagementPage');
+const ChangeControlPage = perezoso('ChangeControlPage');
+const FailureLogPage = perezoso('FailureLogPage');
 const LoginPage = lazy(() => import('./features/auth/LoginPage')
   .then(module => ({ default: module.LoginPage })));
-const CalibrationPage = lazy(() => import('./features/calibration/CalibrationPage')
-  .then(module => ({ default: module.CalibrationPage })));
-const SoportePage = lazy(() => import('./features/soporte/SoportePage')
-  .then(module => ({ default: module.SoportePage })));
-const IvmetManagementPage = lazy(() => import('./features/ivmet/IvmetManagementPage')
-  .then(module => ({ default: module.IvmetManagementPage })));
-const ChangeControlPage = lazy(() => import('./features/system/ChangeControlPage')
-  .then(module => ({ default: module.ChangeControlPage })));
-const FailureLogPage = lazy(() => import('./features/system/FailureLogPage')
-  .then(module => ({ default: module.FailureLogPage })));
+
+const precargarApartados = () => {
+  for (const cargar of Object.values(CARGAS)) cargar().catch(() => {});
+};
 
 function ViewFallback() {
   return (
@@ -60,7 +72,7 @@ function AppToaster() {
   );
 }
 
-function AppContent({ activeView, setActiveView, currentUser, handleLogout, renderView }) {
+function AppContent({ activeView, currentUser, handleLogout, renderView }) {
   const sidebar = useSidebar();
   const { isDesktop, close: closeSidebar } = sidebar;
   const calibrationAlerts = useCalibrationAlertCount(managesCalibration(currentUser));
@@ -69,12 +81,24 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
   const failures = useFailureSummary(isSystemAdmin(currentUser));
   const pendingFailures = (failures?.abiertas || 0) + (failures?.enCurso || 0);
 
+  // Solo en producción: en desarrollo Vite compila cada módulo al pedirlo y
+  // precargar todo de golpe retrasaría el apartado que se está abriendo.
+  useEffect(() => {
+    if (!import.meta.env.PROD) return undefined;
+    const precarga = window.requestIdleCallback
+      ? window.requestIdleCallback(precargarApartados, { timeout: 4000 })
+      : window.setTimeout(precargarApartados, 1500);
+    return () => (window.cancelIdleCallback ? window.cancelIdleCallback(precarga) : window.clearTimeout(precarga));
+  }, []);
+
+  // Cada apartado tiene su dirección: el botón Atrás vuelve al anterior. Volver
+  // a pulsar el apartado en el que se está no lo reinicia.
   const handleNavigate = useCallback((view) => {
-    safeStorage.setItem('rimmet_last_view', view);
-    setActiveView(view);
     if (!isDesktop) closeSidebar();
-    window.scrollTo({ top: 0 });
-  }, [closeSidebar, isDesktop, setActiveView]);
+    if (view === activeView) return;
+    safeStorage.setItem('datamet_last_view', view);
+    navegar(rutaDe(view), { transicion: 'pagina', alCambiar: () => window.scrollTo({ top: 0 }) });
+  }, [activeView, closeSidebar, isDesktop]);
 
   return (
     <>
@@ -112,19 +136,22 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
           isDesktop={isDesktop}
           onClose={closeSidebar}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="blueprint flex min-w-0 flex-1 flex-col">
           <Topbar
+            className="vt-barra"
             view={APP_VIEWS[activeView] || APP_VIEWS.rim}
             isSidebarOpen={sidebar.isOpen}
             isDesktop={isDesktop}
             onToggleSidebar={sidebar.toggle}
           />
-          <div className="flex-1">
-            <Suspense fallback={<ViewFallback />}>
-              {renderView()}
-            </Suspense>
+          <div className="vt-pagina flex flex-1 flex-col">
+            <div className="flex-1">
+              <Suspense fallback={<ViewFallback />}>
+                {renderView()}
+              </Suspense>
+            </div>
+            <Footer />
           </div>
-          <Footer />
         </div>
       </div>
     </>
@@ -133,7 +160,7 @@ function AppContent({ activeView, setActiveView, currentUser, handleLogout, rend
 
 function App() {
   const checkTokenValidity = () => {
-    const payload = decodeJwtPayload(safeStorage.getItem('rimmet_token'));
+    const payload = decodeJwtPayload(safeStorage.getItem('datamet_token'));
     // Sin payload legible no hay sesión; si lo hay, vale mientras no caduque.
     return Boolean(payload) && !isJwtExpired(payload);
   };
@@ -141,48 +168,72 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     const isValid = checkTokenValidity();
     if (!isValid) {
-      safeStorage.removeItem('rimmet_token');
-      safeStorage.removeItem('rimmet_user');
+      safeStorage.removeItem('datamet_token');
+      safeStorage.removeItem('datamet_user');
     }
     return isValid;
   });
   const [currentUser, setCurrentUser] = useState(() => {
-    const token = safeStorage.getItem('rimmet_token');
+    const token = safeStorage.getItem('datamet_token');
     if (!token) return null;
     try {
-      const saved = safeStorage.getItem('rimmet_user');
+      const saved = safeStorage.getItem('datamet_user');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
 
-  const [activeView, setActiveView] = useState(() => {
-    return allowedView(safeStorage.getItem('rimmet_last_view') || 'rim', currentUser);
-  });
+  // El apartado sale de la dirección (/cronograma, /soporte/…). En la raíz o
+  // en una dirección desconocida vale el último que se usó.
+  const ruta = useRuta();
+  const vistaRuta = leerRuta(ruta).vista;
+  const activeView = allowedView(vistaRuta || safeStorage.getItem('datamet_last_view') || 'rim', currentUser);
+
+  useEffect(() => {
+    if (!isAuthenticated || vistaRuta === activeView) return;
+    // Si la dirección ya cambió (por ejemplo, con Atrás), no se toca la nueva.
+    if (rutaActual() !== ruta) return;
+    navegar(rutaDe(activeView), { reemplazar: true });
+  }, [activeView, isAuthenticated, ruta, vistaRuta]);
+
+  useEffect(() => {
+    if (isAuthenticated && vistaRuta === activeView) safeStorage.setItem('datamet_last_view', activeView);
+  }, [activeView, isAuthenticated, vistaRuta]);
   // Por qué el servidor cerró la sesión; se muestra en el inicio de sesión.
   const [sessionNotice, setSessionNotice] = useState('');
 
+  // Si se llegó con una dirección (un enlace o la sesión vencida a mitad de
+  // trabajo), al entrar se vuelve a ella; si no, al apartado indicado.
   const handleLogin = (user, selectedView) => {
-    setSessionNotice('');
-    setCurrentUser(user);
-    if (selectedView) setActiveView(selectedView);
-    setIsAuthenticated(true);
+    conTransicion(() => {
+      setSessionNotice('');
+      setCurrentUser(user);
+      if (selectedView && !leerRuta().vista) navegar(rutaDe(selectedView), { reemplazar: true });
+      setIsAuthenticated(true);
+    }, 'app');
   };
 
-  const handleLogout = () => {
-    safeStorage.removeItem('rimmet_token');
-    safeStorage.removeItem('rimmet_user');
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-  };
+  const closeSession = useCallback(({ notice = '', keepRoute = false } = {}) => {
+    conTransicion(() => {
+      safeStorage.removeItem('datamet_token');
+      safeStorage.removeItem('datamet_user');
+      setSessionNotice(notice);
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      if (!keepRoute) navegar('/', { reemplazar: true });
+    }, 'app');
+  }, []);
+
+  const handleLogout = useCallback(() => closeSession(), [closeSession]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    // La sesión vencida conserva la dirección: al volver a entrar se sigue ahí.
     const verifyToken = () => {
       if (!checkTokenValidity()) {
-        handleLogout();
+        closeSession({ notice: 'Tu sesión venció. Inicia sesión de nuevo para continuar.', keepRoute: true });
       }
     };
 
@@ -195,8 +246,10 @@ function App() {
     // El servidor rechazó la sesión (token vencido, usuario desactivado o sin
     // acceso): de vuelta al inicio de sesión, con el motivo.
     const handleSessionInvalid = (event) => {
-      setSessionNotice(event.detail?.message || 'Tu sesión ya no es válida. Inicia sesión de nuevo.');
-      handleLogout();
+      closeSession({
+        notice: event.detail?.message || 'Tu sesión ya no es válida. Inicia sesión de nuevo.',
+        keepRoute: true,
+      });
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -209,7 +262,7 @@ function App() {
       window.removeEventListener(SESSION_INVALID_EVENT, handleSessionInvalid);
       clearInterval(intervalId);
     };
-  }, [isAuthenticated]);
+  }, [closeSession, isAuthenticated]);
 
   if (!isAuthenticated) {
     return (
@@ -229,15 +282,15 @@ function App() {
         <RestrictedArea
           view={APP_VIEWS[activeView]}
           onExit={() => {
-            safeStorage.setItem('rimmet_last_view', 'rim');
-            setActiveView('rim');
+            safeStorage.setItem('datamet_last_view', 'rim');
+            navegar(rutaDe('rim'), { transicion: 'pagina' });
           }}
         />
       );
     }
     switch (activeView) {
       case 'ivmet':
-        return <IvmetManagementPage onExit={() => setActiveView('calendar')} />;
+        return <IvmetManagementPage onExit={() => navegar(rutaDe('calendar'), { transicion: 'pagina' })} />;
       case 'calendar':
         return <CalendarPage />;
       case 'calibration':
@@ -259,7 +312,6 @@ function App() {
   return (
     <AppContent
       activeView={activeView}
-      setActiveView={setActiveView}
       currentUser={currentUser}
       handleLogout={handleLogout}
       renderView={renderView}

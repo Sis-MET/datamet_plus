@@ -12,9 +12,9 @@ test.beforeEach(async ({ page }) => {
     if (sessionStorage.getItem('shell-spec-ready')) return;
     sessionStorage.setItem('shell-spec-ready', '1');
     localStorage.clear();
-    localStorage.setItem('rimmet_token', token);
-    localStorage.setItem('rimmet_user', JSON.stringify({ id: 1, usuario: 'qa', nombre: 'Usuario', apellido: 'QA', cargo: 'Técnico', acceso_cron: 3 }));
-    localStorage.setItem('rimmet_last_view', 'rim');
+    localStorage.setItem('datamet_token', token);
+    localStorage.setItem('datamet_user', JSON.stringify({ id: 1, usuario: 'qa', nombre: 'Usuario', apellido: 'QA', cargo: 'Técnico', acceso_cron: 3 }));
+    localStorage.setItem('datamet_last_view', 'rim');
   }, { token: `header.${tokenPayload}.signature` });
 
   // Sin backend real: la API responde como servidor no disponible, aunque haya
@@ -41,6 +41,31 @@ test('Ctrl+B oculta y muestra la barra lateral y recuerda la preferencia', async
   await page.keyboard.press('Control+b');
   await expect.poll(async () => (await sidebar.boundingBox())?.width ?? 0).toBeGreaterThan(200);
   await expect(nav.getByRole('button', { name: 'Cronograma' })).toBeVisible();
+});
+
+test('cada apartado tiene su dirección y el botón Atrás vuelve al anterior', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/');
+  // En la raíz se abre el último apartado y la dirección se completa con su pestaña.
+  await expect(page).toHaveURL(/\/rim\/registros$/);
+
+  const nav = page.getByRole('navigation', { name: 'Módulos' });
+  await nav.getByRole('button', { name: 'Cronograma' }).click();
+  await expect(page).toHaveURL(/\/cronograma$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Cronograma Métrica' })).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/rim\/registros$/);
+  await expect(page.getByRole('heading', { level: 1, name: /Recepción de instrumentos/ })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Numeración' }).click();
+  await expect(page).toHaveURL(/\/rim\/numeracion$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/rim\/registros$/);
+
+  // Una dirección se puede abrir directamente (por ejemplo, desde un correo).
+  await page.goto('/sistema/fallas');
+  await expect(page.getByRole('heading', { level: 1, name: 'Registro de fallas' })).toBeVisible();
 });
 
 test('en móvil Ctrl+B abre el menú como panel y Escape lo cierra', async ({ page }) => {
