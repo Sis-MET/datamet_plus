@@ -1,18 +1,24 @@
 const env = require('../config/env');
 const { recordFailure } = require('../services/system.failures');
 
+const MENSAJE_INTERNO = 'Error interno del servidor';
+
 const errorHandler = (err, req, res, _next) => {
   console.error('🔥 Error Handler Capturado:', err);
 
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Error interno del servidor';
+  // Solo los errores lanzados a propósito traen statusCode, y su mensaje es
+  // para el usuario. Los demás (SQL, programación) se registran completos en
+  // el registro de fallas, pero no se le muestran al cliente fuera de
+  // desarrollo: pueden revelar tablas, columnas o consultas.
+  const intencional = Number.isInteger(err.statusCode) && err.statusCode >= 400 && err.statusCode < 600;
+  const statusCode = intencional ? err.statusCode : 500;
+  const desarrollo = env.nodeEnv === 'development';
   if (statusCode >= 500) recordFailure({ origen: 'SERVIDOR', error: err, req });
 
-  // Si estamos en desarrollo, enviamos la traza (stack) para depurar, de lo contrario lo ocultamos
   res.status(statusCode).json({
     success: false,
-    message,
-    stack: env.nodeEnv === 'development' ? err.stack : undefined
+    message: (intencional || desarrollo) && err.message ? err.message : MENSAJE_INTERNO,
+    stack: desarrollo ? err.stack : undefined
   });
 };
 

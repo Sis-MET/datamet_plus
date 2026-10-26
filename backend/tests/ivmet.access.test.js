@@ -217,7 +217,8 @@ test('HTTP: toda la API IvMET exige login, nivel actual 3 y código; no afecta o
           input() {
             return this;
           },
-          query: async () => ({ recordset: [{ acceso_cron: currentRole }] }),
+          // Sirve a la sesión (`protect`) y al nivel actual de IvMET.
+          query: async () => ({ recordset: [{ id: 1, usuario: user.usuario, estado: 'ACTIVO', acceso_cron: currentRole }] }),
         }),
       }),
     },
@@ -297,10 +298,12 @@ test('HTTP: toda la API IvMET exige login, nivel actual 3 y código; no afecta o
     (await request('/api/ivmet/overview', { token: null })).status,
     401,
   );
+  // El nivel que cuenta es el de DATA_USERS, no el que dice el token.
   const lowRoleToken = jwt.sign(
     { usuario: user.usuario, acceso_cron: '2' },
     secret,
   );
+  currentRole = '2';
   assert.equal(
     (
       await request('/api/ivmet/access/unlock', {
@@ -310,6 +313,16 @@ test('HTTP: toda la API IvMET exige login, nivel actual 3 y código; no afecta o
     ).status,
     403,
   );
+  assert.equal(
+    (
+      await request('/api/ivmet/access/unlock', {
+        body: { code },
+      })
+    ).status,
+    403,
+    'un token de nivel 3 no basta si el usuario ya no es nivel 3',
+  );
+  currentRole = '3';
   const status = await request('/api/ivmet/access');
   assert.equal(status.headers.get('cache-control'), 'no-store');
   assert.deepEqual((await status.json()).data, {

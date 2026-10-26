@@ -16,6 +16,11 @@ test.beforeEach(async ({ page }) => {
     localStorage.setItem('rimmet_user', JSON.stringify({ id: 1, usuario: 'qa', nombre: 'Usuario', apellido: 'QA', cargo: 'Técnico', acceso_cron: 3 }));
     localStorage.setItem('rimmet_last_view', 'rim');
   }, { token: `header.${tokenPayload}.signature` });
+
+  // Sin backend real: la API responde como servidor no disponible, aunque haya
+  // una API levantada en el puerto del proxy (su 401 cerraría la sesión).
+  // (Por ruta: `**/api/**` también atraparía módulos de Vite como /src/shared/api/.)
+  await page.route(url => url.pathname.startsWith('/api/'), route => route.fulfill({ status: 503, json: { success: false, message: 'Sin simular en la prueba' } }));
 });
 
 test('Ctrl+B oculta y muestra la barra lateral y recuerda la preferencia', async ({ page }) => {

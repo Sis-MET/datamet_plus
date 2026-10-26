@@ -6,8 +6,10 @@ const path = require('node:path');
 const express = require('express');
 const db = require('../src/config/db');
 
-// Solo la comprobación de área usa este doble; no se abre una conexión SQL.
-db.getPool = () => ({ request: () => ({ input() { return this; }, async query() { return { recordset: [{ area: 'Soporte Técnico' }] }; } }) });
+// La sesión vigente y la comprobación de área usan este doble; no se abre una
+// conexión SQL.
+const tecnico = { id: 1, usuario: 'tecnico', estado: 'ACTIVO', acceso_cron: 1, area: 'Soporte Técnico' };
+db.getPool = () => ({ request: () => ({ input() { return this; }, async query() { return { recordset: [tecnico] }; } }) });
 const { generateToken } = require('../src/utils/jwt.utils');
 const documentos = require('../src/services/soporte.documentos');
 const router = require('../src/routes/soporte.routes');

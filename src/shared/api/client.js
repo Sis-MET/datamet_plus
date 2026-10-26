@@ -22,6 +22,11 @@ function getAuthHeaders() {
 
 const REQUEST_TIMEOUT_MS = 15000;
 
+// El backend responde 401 con este código cuando el token venció o el usuario
+// ya no está activo. La app escucha el evento y vuelve al inicio de sesión.
+// Otras respuestas 401 (como el código de acceso de IvMET) no lo disparan.
+const SESSION_INVALID_EVENT = 'rimmet:session-invalid';
+
 async function request(endpoint, { method = 'GET', body, params, headers = {}, retry = method === 'GET' ? 1 : 0, timeout = REQUEST_TIMEOUT_MS, responseType } = {}) {
   let url = `${API_BASE}${endpoint}`;
 
@@ -81,6 +86,9 @@ async function request(endpoint, { method = 'GET', body, params, headers = {}, r
   }
 
   if (!res.ok) {
+    if (res.status === 401 && data?.code === 'SESSION_INVALID') {
+      globalThis.dispatchEvent?.(new CustomEvent(SESSION_INVALID_EVENT, { detail: { message: data.message } }));
+    }
     throw new ApiError(
       data.message || data.error || `Error ${res.status}`,
       res.status,
@@ -109,4 +117,4 @@ export const api = {
     request(endpoint, { method: 'POST', body: formData, ...options }),
 };
 
-export { ApiError, parseToken };
+export { ApiError, parseToken, SESSION_INVALID_EVENT };

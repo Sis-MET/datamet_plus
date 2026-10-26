@@ -8,6 +8,11 @@ const indexRoutes = require('./routes/index');
 
 const app = express();
 
+// Caddy atiende el HTTPS y reenvía desde 127.0.0.1: solo a él se le cree la
+// IP del cliente (X-Forwarded-For). Las conexiones directas al puerto usan su
+// propia IP. La usa el freno de intentos de inicio de sesión.
+app.set('trust proxy', 'loopback');
+
 // CORS debe ir PRIMERO para responder preflight OPTIONS antes de cualquier otro middleware
 app.use(cors({
   origin: env.corsOrigin,
@@ -41,17 +46,16 @@ const path = require('path');
 // Rutas de la API
 app.use('/api', indexRoutes);
 
-// Opción 1: Servir la aplicación React compilada (carpeta dist)
-// Todos los archivos estáticos de React
+// Ruta de la API inexistente: 404 en JSON, antes de servir el frontend.
+app.use('/api', notFoundHandler);
+
+// Servir la aplicación React compilada (carpeta dist)
 app.use(express.static(path.join(__dirname, '../dist')));
 
-// Cualquiera llamada que NO sea a la API, devuelve el Frontend
+// Cualquier otra ruta devuelve el frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
-
-// Manejo de Rutas de la API No Encontradas (404)
-app.use('/api/*', notFoundHandler);
 
 // Middleware centralizado de manejo de errores
 app.use(errorHandler);

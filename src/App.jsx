@@ -10,6 +10,7 @@ import { useSidebar } from './shared/hooks/useSidebar';
 import { useTheme } from './shared/context/ThemeContext';
 import { safeStorage } from './shared/utils/storage';
 import { decodeJwtPayload, isJwtExpired } from './shared/utils/jwt';
+import { SESSION_INVALID_EVENT } from './shared/api/client';
 import { useCalibrationAlertCount } from './features/calibration/hooks/useCalibrationAlertCount';
 import { useSoporteAlertCount } from './features/soporte/hooks/useSoporteAlertCount';
 import { useFailureSummary } from './features/system/hooks/useFailureSummary';
@@ -159,8 +160,11 @@ function App() {
   const [activeView, setActiveView] = useState(() => {
     return allowedView(safeStorage.getItem('rimmet_last_view') || 'rim', currentUser);
   });
+  // Por qué el servidor cerró la sesión; se muestra en el inicio de sesión.
+  const [sessionNotice, setSessionNotice] = useState('');
 
   const handleLogin = (user, selectedView) => {
+    setSessionNotice('');
     setCurrentUser(user);
     if (selectedView) setActiveView(selectedView);
     setIsAuthenticated(true);
@@ -188,12 +192,21 @@ function App() {
       }
     };
 
+    // El servidor rechazó la sesión (token vencido, usuario desactivado o sin
+    // acceso): de vuelta al inicio de sesión, con el motivo.
+    const handleSessionInvalid = (event) => {
+      setSessionNotice(event.detail?.message || 'Tu sesión ya no es válida. Inicia sesión de nuevo.');
+      handleLogout();
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener(SESSION_INVALID_EVENT, handleSessionInvalid);
     // Revisar la validez del token periódicamente
     const intervalId = setInterval(verifyToken, 60000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener(SESSION_INVALID_EVENT, handleSessionInvalid);
       clearInterval(intervalId);
     };
   }, [isAuthenticated]);
@@ -203,7 +216,7 @@ function App() {
       <>
         <AppToaster />
         <Suspense fallback={<ViewFallback />}>
-          <LoginPage onLogin={handleLogin} />
+          <LoginPage onLogin={handleLogin} notice={sessionNotice} />
         </Suspense>
       </>
     );

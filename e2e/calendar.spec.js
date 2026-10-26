@@ -28,6 +28,10 @@ test.beforeEach(async ({ page }) => {
     localStorage.setItem('rimmet_last_view', 'calendar');
   }, { token: `header.${tokenPayload}.signature` });
 
+  // Sin backend real: lo no simulado responde como servidor no disponible. Va
+  // primero porque las rutas registradas después tienen prioridad. (Por ruta:
+  // `**/api/**` también atraparía módulos de Vite como /src/shared/api/.)
+  await page.route(url => url.pathname.startsWith('/api/'), route => route.fulfill({ status: 503, json: { success: false, message: 'Sin simular en la prueba' } }));
   await page.route('**/api/calendar/tecnicos', route => route.fulfill({
     json: { success: true, data: technicians },
   }));

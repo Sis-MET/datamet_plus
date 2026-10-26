@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const clientesController = require('../controllers/clientes.controller');
+const { protect } = require('../middleware/auth.middleware');
+
+// Datos de clientes y sus contactos (NB/ISO/IEC 17025, 4.2): solo con sesión.
+router.use(protect);
 
 // GET /api/clientes - Obtener todos los clientes
 router.get('/', clientesController.getAllClientes);

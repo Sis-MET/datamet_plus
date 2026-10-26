@@ -523,6 +523,32 @@ validado en el backend. No carga datos antes de desbloquearlo. Configura
 El frontend y el backend se deben actualizar juntos. Consulta la
 [guía de configuración y despliegue](docs/ivmet-development-access.md).
 
+## Sesión y seguridad
+
+- **Inicio de sesión:** con el usuario y la contraseña de `DATA_USERS` (los
+  mismos del DataMET de escritorio). Entra solo quien está `ACTIVO` y no tiene
+  `acceso_cron = 0`; un usuario desactivado ve el motivo aunque su contraseña
+  sea correcta. La contraseña sigue guardada sin cifrar porque el DataMET de
+  escritorio la valida así; el backend la compara en tiempo constante.
+- **Sesión vigente:** el token (JWT, `JWT_EXPIRES_IN`) solo prueba quién es el
+  usuario. En cada petición el backend lee de `DATA_USERS` su estado, nivel,
+  cargo y área (`backend/src/services/auth.session.js`), así que una baja o un
+  cambio de nivel rige de inmediato. Si el usuario ya no puede entrar, la API
+  responde 401 con `code: 'SESSION_INVALID'` y la aplicación vuelve al inicio
+  de sesión con el motivo.
+- **Intentos fallidos** (`backend/src/services/auth.attempts.js`, en memoria):
+  3 fallos seguidos bloquean ese usuario **desde ese equipo** durante 60 s, y
+  20 fallos en 15 min desde un mismo equipo, con cualquier usuario, bloquean el
+  equipo 15 min. Detrás de Caddy, la IP del equipo sale de `X-Forwarded-For`
+  (`trust proxy` solo para 127.0.0.1).
+- **Rutas con sesión:** toda la API exige sesión salvo `POST /api/auth/login` y
+  `GET /api/health`. Clientes y equipos (`/api/clientes`, `/api/equipos`)
+  tienen datos de contacto de los clientes (NB/ISO/IEC 17025, 4.2).
+- **Errores:** una ruta de la API inexistente responde 404 en JSON. Los errores
+  inesperados (SQL, de programación) quedan completos en el registro de
+  fallas, pero fuera de `NODE_ENV=development` el usuario solo ve «Error
+  interno del servidor».
+
 ## Tecnologías
 
 - React 19

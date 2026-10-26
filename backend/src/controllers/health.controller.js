@@ -18,10 +18,11 @@ const checkHealth = async (_req, res, _next) => {
       database: 'Conectada'
     });
   } catch (error) {
+    // Ruta pública: el detalle queda en el registro del servidor.
+    console.error('Health: la base de datos no responde:', error.message);
     res.status(503).json({
       success: false,
-      message: 'Servicio degradado. La API está arriba pero la Base de Datos falló.',
-      error: error.message
+      message: 'Servicio degradado. La API está arriba pero la Base de Datos falló.'
     });
   }
 };

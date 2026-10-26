@@ -1,94 +1,74 @@
+const crypto = require('node:crypto');
 const { getPool, sql } = require('../config/db');
 const { generateToken } = require('../utils/jwt.utils');
+const { crearLimitador } = require('./auth.attempts');
+const { motivoSinAcceso } = require('./auth.session');
 
-// In-memory store para trackear intentos fallidos (usuario -> { attempts: number, lockUntil: timestamp })
-const loginAttemptsMap = new Map();
-const MAX_ATTEMPTS = 3;
-const LOCK_TIME_MS = 60 * 1000; // 60 segundos
+const limitador = crearLimitador();
+
+const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
 /**
- * Autentica un usuario contra la tabla DATA_USERS
- * @param {string} usuario - Nombre de usuario
- * @param {string} pass - Contraseña en texto plano
+ * Compara la contraseña sin que el tiempo de respuesta delate cuántos
+ * caracteres coinciden. DATA_USERS guarda la contraseña sin cifrar porque la
+ * app de escritorio DataMET la valida así.
  */
-const loginUser = async (usuario, pass) => {
-    // 1. Check Rate Limit en Memoria
-    const record = loginAttemptsMap.get(usuario);
-    if (record) {
-      if (record.lockUntil && Date.now() < record.lockUntil) {
-        const remainingSecs = Math.ceil((record.lockUntil - Date.now()) / 1000);
-        const error = new Error(`Cuenta bloqueada. Intente nuevamente en ${remainingSecs} segundos`);
-        error.isLocked = true;
-        error.remainingSecs = remainingSecs;
-        throw error;
-      }
-      // Si ya pasó el tiempo de bloqueo, limpiar el registro
-      if (record.lockUntil && Date.now() >= record.lockUntil) {
-        loginAttemptsMap.delete(usuario);
-      }
-    }
+const mismaClave = (guardada, ingresada) => {
+  if (typeof guardada !== 'string' || typeof ingresada !== 'string') return false;
+  const huella = texto => crypto.createHash('sha256').update(texto, 'utf8').digest();
+  return crypto.timingSafeEqual(huella(guardada), huella(ingresada));
+};
 
-    const pool = getPool();
+/**
+ * Autentica un usuario contra la tabla DATA_USERS.
+ * @param {{ usuario: string, pass: string, ip?: string }} datos
+ */
+const loginUser = async ({ usuario, pass, ip }) => {
+  limitador.verificar({ usuario, ip });
 
-    const result = await pool.request()
-      .input('usuario', sql.VarChar, usuario)
-      .query('SELECT * FROM DATA_USERS WHERE usuario = @usuario');
+  const result = await getPool().request()
+    .input('usuario', sql.NVarChar, usuario)
+    .query(`
+      SELECT TOP (1) id, usuario, pass, nombre1, apellido1, cargo, area, acceso, acceso_cron, estado
+      FROM DATA_USERS
+      WHERE usuario = @usuario
+    `);
+  const user = result.recordset[0];
 
-    const user = result.recordset[0];
+  if (!user || !mismaClave(user.pass, pass)) {
+    limitador.fallo({ usuario, ip });
+    throw httpError(401, 'Credenciales inválidas');
+  }
 
-    // Función auxiliar para registrar fallo
-    const handleFailedAttempt = () => {
-      const currentRecord = loginAttemptsMap.get(usuario) || { attempts: 0, lockUntil: null };
-      currentRecord.attempts += 1;
-      
-      if (currentRecord.attempts >= MAX_ATTEMPTS) {
-        currentRecord.lockUntil = Date.now() + LOCK_TIME_MS;
-      }
-      loginAttemptsMap.set(usuario, currentRecord);
-    };
+  // Contraseña correcta, pero dado de baja o sin acceso a la aplicación.
+  const motivo = motivoSinAcceso(user);
+  if (motivo) throw httpError(403, motivo);
 
-    if (!user) {
-      handleFailedAttempt();
-      throw new Error('Credenciales inválidas');
-    }
+  limitador.exito({ usuario, ip });
 
-    if (user.pass !== pass) {
-      handleFailedAttempt();
-      throw new Error('Credenciales inválidas');
-    }
+  const token = generateToken({
+    id: user.id || user.usuario,
+    usuario: user.usuario,
+    acceso: user.acceso,
+    acceso_cron: user.acceso_cron,
+    cargo: user.cargo || ''
+  });
 
-    // Validación estricta a nivel backend para perfiles sin acceso
-    if (String(user.acceso_cron) === "0") {
-      throw new Error('Tu perfil no tiene los permisos habilitados para acceder a esta aplicación.');
-    }
-
-    // Login exitoso -> limpiar intentos previos
-    loginAttemptsMap.delete(usuario);
-
-    // Inyectar "acceso" y "acceso_cron" en el payload del token y en la respuesta
-    const token = generateToken({ 
-      id: user.id || user.usuario, 
+  return {
+    user: {
       usuario: user.usuario,
-      acceso: user.acceso,
-      acceso_cron: user.acceso_cron,
-      cargo: user.cargo || ''
-    });
-
-    return {
-      user: {
-        usuario: user.usuario,
-        nombre: user.nombre1 || '',
-        apellido: user.apellido1 || '',
-        cargo: user.cargo || '',
-        area: user.area || '',
-        acceso: user.acceso || '',
-        acceso_cron: user.acceso_cron || ''
-      },
-      token
-    };
-
+      nombre: user.nombre1 || '',
+      apellido: user.apellido1 || '',
+      cargo: user.cargo || '',
+      area: user.area || '',
+      acceso: user.acceso || '',
+      acceso_cron: user.acceso_cron || ''
+    },
+    token
+  };
 };
 
 module.exports = {
-  loginUser
+  loginUser,
+  mismaClave,
 };

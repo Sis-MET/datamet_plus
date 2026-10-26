@@ -4,8 +4,14 @@ import logoMetrica from '../../assets/logo_metrica.svg';
 import { safeStorage } from '../../shared/utils/storage';
 import { api, ApiError } from '../../shared/api/client';
 import { ThemeToggle } from '../../shared/components/layout/ThemeToggle';
+// Igual que el backend: 3 fallos del mismo usuario en este equipo, 60 s.
 const MAX_ATTEMPTS = 3;
 const LOCK_TIME_MS = 60 * 1000;
+
+/** 45 → «45s»; 900 → «15:00». */
+const formatRemaining = (secs) => (secs < 60
+  ? `${secs}s`
+  : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`);
 
 function FieldIcon({ icon }) {
   const Icon = icon;
@@ -16,12 +22,13 @@ function FieldIcon({ icon }) {
   );
 }
 
-export function LoginPage({ onLogin }) {
+export function LoginPage({ onLogin, notice = '' }) {
   const [usuario, setUsuario] = useState('');
   const [pass, setPass]       = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  // `notice`: por qué se cerró la sesión (p. ej., el usuario fue desactivado).
+  const [error, setError]       = useState(notice);
 
   // Estados para bloqueo
   const [attempts, setAttempts] = useState(() => {
@@ -32,6 +39,7 @@ export function LoginPage({ onLogin }) {
     return saved ? parseInt(saved, 10) : null;
   });
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [lockTotalSecs, setLockTotalSecs] = useState(LOCK_TIME_MS / 1000);
 
   // Efecto para el temporizador de bloqueo
   useEffect(() => {
@@ -69,6 +77,7 @@ export function LoginPage({ onLogin }) {
   // Bloquear manualmente (llamado tras 3 fallos o si el backend manda 429)
   const lockAccount = (lockTimeMs = LOCK_TIME_MS) => {
     const until = Date.now() + lockTimeMs;
+    setLockTotalSecs(Math.max(1, Math.ceil(lockTimeMs / 1000)));
     setLockUntil(until);
     safeStorage.setItem('rimmet_login_lock_until', until.toString());
   };
@@ -87,15 +96,8 @@ export function LoginPage({ onLogin }) {
     setError('');
     setLoading(true);
     try {
+      // Las respuestas de error (401, 403, 429) llegan como ApiError al catch.
       const data = await api.post('/auth/login', { usuario, pass });
-
-      if (!data.success) {
-        handleFailedAttempt();
-        const remAttempts = Math.max(0, MAX_ATTEMPTS - (attempts + 1));
-        const remMsg = remAttempts > 0 ? ` (Intentos restantes: ${remAttempts})` : '';
-        setError((data.message || 'Credenciales inválidas') + remMsg);
-        return;
-      }
 
       const loggedUser = data.data.user;
 
@@ -114,10 +116,20 @@ export function LoginPage({ onLogin }) {
       safeStorage.setItem('rimmet_last_view', 'calendar');
       onLogin(loggedUser, 'calendar');
     } catch (err) {
-      if (err instanceof ApiError && err.status === 429) {
+      const status = err instanceof ApiError ? err.status : 0;
+      if (status === 429) {
         const remainingMs = (err.data?.remainingSecs || 60) * 1000;
         lockAccount(remainingMs);
         setError(err.data?.message || 'Cuenta bloqueada.');
+      } else if (status === 401) {
+        // Usuario o contraseña incorrectos.
+        const remAttempts = Math.max(0, MAX_ATTEMPTS - (attempts + 1));
+        handleFailedAttempt();
+        const remMsg = remAttempts > 0 ? ` (Intentos restantes: ${remAttempts})` : '';
+        setError((err.message || 'Credenciales inválidas') + remMsg);
+      } else if (status > 0) {
+        // Desactivado, sin acceso o error del servidor: el mensaje lo explica.
+        setError(err.message || 'No se pudo iniciar sesión. Intente nuevamente.');
       } else {
         setError('No se pudo conectar al servidor. Intente nuevamente.');
       }
@@ -126,7 +138,7 @@ export function LoginPage({ onLogin }) {
     }
   };
 
-  const lockProgress = Math.max(0, Math.min(100, (timeRemaining / 60) * 100));
+  const lockProgress = Math.max(0, Math.min(100, (timeRemaining / Math.max(lockTotalSecs, timeRemaining, 1)) * 100));
 
   return (
     <div className="relative flex min-h-dvh flex-col bg-canvas text-fg lg:flex-row">
@@ -180,7 +192,7 @@ export function LoginPage({ onLogin }) {
                 <LockKeyhole className="h-6 w-6" strokeWidth={1.9} aria-hidden="true" />
               </span>
               <p className="mt-4 text-4xl font-semibold tabular-nums tracking-[-0.02em] text-fg">
-                {timeRemaining}s
+                {formatRemaining(timeRemaining)}
               </p>
               <p className="mt-2 text-sm leading-relaxed text-fg-muted">
                 Demasiados intentos fallidos. Intenta nuevamente cuando el contador termine.
