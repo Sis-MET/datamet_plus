@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { Lock, LogOut, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronRight, Lock, LogOut, X } from 'lucide-react';
 import logoMetrica from '../../../assets/logo_metrica.svg';
 import { cn } from '../../utils/cn';
 import { usePageScrollLock } from '../../hooks/usePageScrollLock';
+import { leerRuta, rutaDe, useRuta } from '../../navigation/ruta';
 import { getNavigation } from './navigation';
 import { ShortcutKeys } from './ShortcutKeys';
 
@@ -13,6 +14,155 @@ function getInitials(user) {
     .join('');
   return (fromName || String(user?.usuario || '?').slice(0, 2)).toUpperCase();
 }
+
+const itemBase = 'group relative flex w-full items-center gap-3 rounded-xl px-3 text-left font-medium outline-offset-0 transition-colors duration-150';
+const itemActive = 'bg-surface text-fg shadow-xs ring-1 ring-line';
+const itemIdle = 'text-fg-muted hover:bg-fg/[0.05] hover:text-fg';
+
+function Badge({ badge }) {
+  return (
+    <span
+      className={cn(
+        'min-w-5 shrink-0 rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold leading-tight tabular-nums',
+        badge.urgent ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
+      )}
+      title={badge.label}
+    >
+      {badge.count}
+      <span className="sr-only"> {badge.label}</span>
+    </span>
+  );
+}
+
+const ActiveDot = () => (
+  <span className="h-2 w-2 shrink-0 rounded-full bg-brand ring-2 ring-brand/25" aria-hidden="true" />
+);
+
+// Ctrl, Cmd, Shift o clic central abren la sección en otra pestaña, como
+// cualquier enlace; el clic normal navega dentro de la aplicación.
+const abreAparte = (event) => event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+
+/** Apartado con sub-lista: el botón la despliega y cada sección es un enlace a su pestaña. */
+function ModuleGroup({ view, open, onToggle, activeView, activeSection, badge, onNavigate }) {
+  const Icon = view.icon;
+  const inModule = activeView === view.id;
+  const listId = `nav-${view.id}`;
+  // Cerrado, el apartado muestra que se está en él y lleva el contador.
+  const showActive = inModule && !open;
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={listId}
+        className={cn(itemBase, 'h-10 text-sm', showActive ? itemActive : inModule ? 'text-fg hover:bg-fg/[0.05]' : itemIdle)}
+      >
+        <Icon
+          className={cn('h-[18px] w-[18px] shrink-0 transition-colors', inModule ? 'text-fg' : 'text-fg-subtle group-hover:text-fg')}
+          strokeWidth={1.9}
+          aria-hidden="true"
+        />
+        <span className="truncate">{view.label}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          {badge && !open && <Badge badge={badge} />}
+          <ChevronRight
+            className={cn(
+              'h-4 w-4 text-fg-subtle transition-transform duration-300 ease-expo motion-reduce:transition-none',
+              open && 'rotate-90'
+            )}
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+        </span>
+      </button>
+
+      {/* La fila de la cuadrícula pasa de 0 a su alto natural: se despliega sin
+          medir nada. Abierta hereda la visibilidad: con la barra oculta, también
+          se oculta. */}
+      <div
+        id={listId}
+        className={cn(
+          'grid transition-[grid-template-rows,visibility] duration-300 ease-expo motion-reduce:transition-none',
+          open ? 'grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <ul className="ml-[20px] mt-0.5 flex flex-col gap-0.5 border-l border-line-strong py-1 pl-2" aria-label={view.label}>
+            {view.sections.map((section) => {
+              const active = inModule && activeSection === section.id;
+              const sectionBadge = view.badgeSection === section.id ? badge : null;
+              return (
+                <li key={section.id}>
+                  <a
+                    href={rutaDe(view.id, section.id)}
+                    onClick={(event) => {
+                      if (abreAparte(event)) return;
+                      event.preventDefault();
+                      onNavigate(view.id, section.id);
+                    }}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] font-medium outline-offset-0 transition-colors duration-150',
+                      active ? itemActive : itemIdle
+                    )}
+                  >
+                    <span className="truncate">{section.label}</span>
+                    {(sectionBadge || active) && (
+                      <span className="ml-auto flex shrink-0 items-center gap-2">
+                        {sectionBadge && <Badge badge={sectionBadge} />}
+                        {active && <ActiveDot />}
+                      </span>
+                    )}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/** Apartado sin secciones (o con candado): un solo acceso. */
+function ModuleLink({ view, active, badge, onNavigate, compact = false }) {
+  const Icon = view.icon;
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate(view.id)}
+      aria-current={active ? 'page' : undefined}
+      className={cn(itemBase, compact ? 'h-9 text-[13px]' : 'h-10 text-sm', active ? itemActive : itemIdle)}
+    >
+      <Icon
+        className={cn(
+          compact ? 'h-4 w-4' : 'h-[18px] w-[18px]',
+          'shrink-0 transition-colors',
+          active ? 'text-fg' : 'text-fg-subtle group-hover:text-fg'
+        )}
+        strokeWidth={1.9}
+        aria-hidden="true"
+      />
+      <span className="truncate">{view.label}</span>
+      {(view.locked || badge || active) && (
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          {view.locked && (
+            <>
+              <Lock className="h-3.5 w-3.5 text-fg-subtle" strokeWidth={2} aria-hidden="true" />
+              <span className="sr-only"> (sin acceso)</span>
+            </>
+          )}
+          {badge && <Badge badge={badge} />}
+          {active && <ActiveDot />}
+        </span>
+      )}
+    </button>
+  );
+}
+
+const hasSections = (view) => view?.sections?.length > 0;
 
 export function Sidebar({
   activeView,
@@ -31,10 +181,23 @@ export function Sidebar({
   const isDrawer = !isDesktop;
   const fullName = [currentUser?.nombre, currentUser?.apellido].filter(Boolean).join(' ').trim();
 
+  // Sección abierta según la dirección: /soporte/proximos → «proximos».
+  const ruta = leerRuta(useRuta());
+  const activeSection = ruta.vista === activeView ? ruta.resto[0] : null;
+
+  // Una sola sub-lista abierta a la vez; al cambiar de apartado se abre la suya.
+  const groupFor = (view) => (hasSections(modules.find(item => item.id === view)) ? view : null);
+  const [openGroup, setOpenGroup] = useState(() => groupFor(activeView));
+  const [shownView, setShownView] = useState(activeView);
+  if (shownView !== activeView) {
+    setShownView(activeView);
+    setOpenGroup(groupFor(activeView));
+  }
+
   usePageScrollLock(isDrawer && isOpen);
 
   // En móvil el panel se comporta como un diálogo: Escape lo cierra y el foco
-  // entra al primer módulo al abrirlo.
+  // entra a la sección actual (o al primer módulo) al abrirlo.
   useEffect(() => {
     if (!isDrawer || !isOpen) return undefined;
     const handleKeyDown = (event) => {
@@ -43,8 +206,9 @@ export function Sidebar({
     document.addEventListener('keydown', handleKeyDown);
     const frame = requestAnimationFrame(() => {
       const panel = panelRef.current;
-      (panel?.querySelector('nav [aria-current="page"]') || panel?.querySelector('nav button'))
-        ?.focus({ preventScroll: true });
+      const current = [...(panel?.querySelectorAll('nav [aria-current="page"]') || [])]
+        .find(element => element.checkVisibility?.({ visibilityProperty: true }) ?? true);
+      (current || panel?.querySelector('nav button'))?.focus({ preventScroll: true });
     });
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
@@ -82,107 +246,44 @@ export function Sidebar({
         )}
       </div>
 
-      <nav aria-label="Módulos" className="flex flex-col gap-1 px-3 pt-4">
-        {modules.map((view) => {
-          const Icon = view.icon;
-          const active = activeView === view.id;
-          const badge = badges?.[view.id];
-          return (
-            <button
-              key={view.id}
-              type="button"
-              onClick={() => onNavigate(view.id)}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'group relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium outline-offset-0 transition-colors duration-150',
-                active
-                  ? 'bg-surface text-fg shadow-xs ring-1 ring-line'
-                  : 'text-fg-muted hover:bg-fg/[0.05] hover:text-fg'
-              )}
-            >
-              <Icon
-                className={cn(
-                  'h-[18px] w-[18px] shrink-0 transition-colors',
-                  active ? 'text-fg' : 'text-fg-subtle group-hover:text-fg'
-                )}
-                strokeWidth={1.9}
-                aria-hidden="true"
+      {/* Con una sub-lista abierta la lista puede no caber en pantallas bajas: se desplaza sola. */}
+      <nav aria-label="Módulos" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-2 pt-4">
+        <ul className="flex flex-col gap-1">
+          {modules.map((view) => (
+            hasSections(view) ? (
+              <ModuleGroup
+                key={view.id}
+                view={view}
+                open={openGroup === view.id}
+                onToggle={() => setOpenGroup(current => (current === view.id ? null : view.id))}
+                activeView={activeView}
+                activeSection={activeSection}
+                badge={badges?.[view.id]}
+                onNavigate={onNavigate}
               />
-              <span className="truncate">{view.label}</span>
-              {view.locked && (
-                <>
-                  <Lock className="ml-auto h-3.5 w-3.5 shrink-0 text-fg-subtle" strokeWidth={2} aria-hidden="true" />
-                  <span className="sr-only"> (sin acceso)</span>
-                </>
-              )}
-              {badge && (
-                <span
-                  className={cn(
-                    'ml-auto min-w-5 shrink-0 rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold leading-tight tabular-nums',
-                    badge.urgent ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
-                  )}
-                  title={badge.label}
-                >
-                  {badge.count}
-                  <span className="sr-only"> {badge.label}</span>
-                </span>
-              )}
-              {active && (
-                <span
-                  className={cn('h-2 w-2 shrink-0 rounded-full bg-brand ring-2 ring-brand/25', !badge && !view.locked && 'ml-auto')}
-                  aria-hidden="true"
-                />
-              )}
-            </button>
-          );
-        })}
+            ) : (
+              <li key={view.id}>
+                <ModuleLink view={view} active={activeView === view.id} badge={badges?.[view.id]} onNavigate={onNavigate} />
+              </li>
+            )
+          ))}
+        </ul>
       </nav>
 
-      <div className="mt-auto flex flex-col gap-2 p-3">
+      <div className="flex shrink-0 flex-col gap-2 p-3">
         {system.length > 0 && (
           <nav aria-label="Sistema" className="mb-1 flex flex-col gap-1">
             <p className="px-3 pb-0.5 text-xs font-medium text-fg-subtle">Sistema</p>
-            {system.map((view) => {
-              const Icon = view.icon;
-              const active = activeView === view.id;
-              const badge = badges?.[view.id];
-              return (
-                <button
-                  key={view.id}
-                  type="button"
-                  onClick={() => onNavigate(view.id)}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'group relative flex h-9 w-full items-center gap-3 rounded-xl px-3 text-left text-[13px] font-medium outline-offset-0 transition-colors duration-150',
-                    active
-                      ? 'bg-surface text-fg shadow-xs ring-1 ring-line'
-                      : 'text-fg-muted hover:bg-fg/[0.05] hover:text-fg'
-                  )}
-                >
-                  <Icon
-                    className={cn('h-4 w-4 shrink-0 transition-colors', active ? 'text-fg' : 'text-fg-subtle group-hover:text-fg')}
-                    strokeWidth={1.9}
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{view.label}</span>
-                  {badge && (
-                    <span
-                      className={cn(
-                        'ml-auto min-w-5 shrink-0 rounded-full px-1.5 py-0.5 text-center text-[11px] font-semibold leading-tight tabular-nums',
-                        badge.urgent ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
-                      )}
-                      title={badge.label}
-                    >
-                      {badge.count}
-                      <span className="sr-only"> {badge.label}</span>
-                    </span>
-                  )}
-                  {active && (
-                    <span className={cn('h-2 w-2 shrink-0 rounded-full bg-brand ring-2 ring-brand/25', !badge && 'ml-auto')} aria-hidden="true" />
-                  )}
-                </button>
-              );
-            })}
+            {system.map((view) => (
+              <ModuleLink
+                key={view.id}
+                view={view}
+                active={activeView === view.id}
+                badge={badges?.[view.id]}
+                onNavigate={onNavigate}
+                compact
+              />
+            ))}
           </nav>
         )}
         {currentUser && (

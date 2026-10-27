@@ -5,7 +5,7 @@ const REFRESH_MS = 10 * 60 * 1000;
 
 /**
  * Próximos servicios que requieren atención (vencidos o dentro del aviso).
- * Alimenta el contador de la barra lateral y de la pestaña.
+ * Alimenta el contador de la barra lateral.
  */
 export function useSoporteAlertCount(enabled = true) {
   const [summary, setSummary] = useState(null);

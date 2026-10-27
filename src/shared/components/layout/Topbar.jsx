@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronRight, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import logoMetrica from '../../../assets/logo_metrica.svg';
 import { cn } from '../../utils/cn';
 import { SIDEBAR_SHORTCUT_LABEL } from './shortcuts';
 import { ThemeToggle } from './ThemeToggle';
 
-export function Topbar({ view, isSidebarOpen, isDesktop, onToggleSidebar, className }) {
+export function Topbar({ view, section, isSidebarOpen, isDesktop, onToggleSidebar, className }) {
   const [scrolled, setScrolled] = useState(false);
 
   // El borde inferior solo aparece cuando hay contenido desplazándose debajo
@@ -64,8 +64,19 @@ export function Topbar({ view, isSidebarOpen, isDesktop, onToggleSidebar, classN
       <span className="hidden h-5 w-px shrink-0 bg-line-strong sm:block" aria-hidden="true" />
 
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-[15px] font-semibold leading-tight tracking-[-0.01em] text-fg">
-          {view?.title || view?.label}
+        {/* Con una sección abierta, el título dice dónde se está: «Calibración › Equipos».
+            En el teléfono no cabe todo: se ve la sección y el apartado queda para lectores de pantalla. */}
+        <h1 className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold leading-tight tracking-[-0.01em] text-fg">
+          {section ? (
+            <>
+              <span className="sr-only text-fg-muted sm:not-sr-only sm:min-w-0 sm:shrink-[3] sm:truncate">{view.label}</span>
+              <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-fg-subtle sm:block" strokeWidth={2.2} aria-hidden="true" />
+              <span className="sr-only">: </span>
+              <span className="min-w-0 truncate">{section.label}</span>
+            </>
+          ) : (
+            <span className="truncate">{view?.title || view?.label}</span>
+          )}
         </h1>
         {view?.description && (
           <p className="hidden truncate text-xs leading-tight text-fg-muted sm:block">{view.description}</p>

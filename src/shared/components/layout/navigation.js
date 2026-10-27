@@ -1,7 +1,23 @@
 import { CalendarRange, ClipboardCheck, Gauge, History, MapPinned, ServerCrash, ShieldCheck, Wrench } from 'lucide-react';
 
+const normalizeArea = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
+
+/**
+ * Jefe de Soporte Técnico: el único que ve la configuración de aprobadores.
+ * Es solo para el menú; la página y el backend lo vuelven a comprobar.
+ */
+const esJefeSoporte = (user) => normalizeArea(user?.area) === 'soporte tecnico'
+  && normalizeArea(user?.cargo).replace(/\s+/g, ' ') === 'jefe de area';
+
 // Módulos de la aplicación. `inNav` refleja los accesos visibles en la barra
 // lateral: Salidas del personal solo se abre desde una vista guardada.
+// `sections` son las pestañas del apartado (/<apartado>/<sección>): en la
+// barra lateral se despliegan como sub-lista. `badgeSection` es la sección que
+// lleva el contador del apartado cuando la sub-lista está abierta.
 export const APP_VIEWS = {
   rim: {
     id: 'rim',
@@ -10,6 +26,11 @@ export const APP_VIEWS = {
     description: 'Registros, numeración y formulario de recepción de instrumentos',
     icon: ClipboardCheck,
     inNav: true,
+    sections: [
+      { id: 'registros', label: 'Registros' },
+      { id: 'numeracion', label: 'Numeración' },
+      { id: 'nuevo', label: 'Nuevo RIM' },
+    ],
   },
   calendar: {
     id: 'calendar',
@@ -27,6 +48,14 @@ export const APP_VIEWS = {
     icon: Gauge,
     inNav: true,
     area: { id: 'calibracion', nombre: 'Calibración' },
+    sections: [
+      { id: 'cronograma', label: 'Cronograma' },
+      { id: 'equipos', label: 'Equipos' },
+      { id: 'actividades', label: 'Actividades' },
+      { id: 'alertas', label: 'Alertas' },
+      { id: 'cumplimiento', label: 'Cumplimiento' },
+    ],
+    badgeSection: 'alertas',
   },
   soporte: {
     id: 'soporte',
@@ -36,6 +65,13 @@ export const APP_VIEWS = {
     icon: Wrench,
     inNav: true,
     area: { id: 'soporte tecnico', nombre: 'Soporte Técnico' },
+    sections: [
+      { id: 'informes', label: 'Informes' },
+      { id: 'proximos', label: 'Próximos servicios' },
+      { id: 'avisos', label: 'Avisos' },
+      { id: 'configuracion', label: 'Configuración', visible: esJefeSoporte },
+    ],
+    badgeSection: 'proximos',
   },
   ivmet: {
     id: 'ivmet',
@@ -83,12 +119,6 @@ export const isSystemAdmin = (user) => String(user?.acceso_cron) === '3';
 
 export const canManageIvmet = isSystemAdmin;
 
-const normalizeArea = (value) => String(value || '')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .trim()
-  .toLowerCase();
-
 /**
  * Los apartados de un área (`area`) los ve todo el personal, pero solo los
  * usan esa área y Sistemas; los demás ven el aviso de acceso restringido. El
@@ -115,8 +145,25 @@ export const allowedView = (view, user) => {
 // Quien usa el plan de calibración ve su contador de alertas.
 export const managesCalibration = (user) => canUseView('calibration', user);
 
+/**
+ * Accesos de la barra lateral. Un apartado con candado no despliega sus
+ * secciones: al pulsarlo se abre directamente el aviso de acceso restringido.
+ */
 export function getNavigation(user) {
   return Object.values(APP_VIEWS)
     .filter(view => view.inNav && (!view.requiresAdmin || isSystemAdmin(user)))
-    .map(view => ({ ...view, locked: !canUseView(view.id, user) }));
+    .map((view) => {
+      const locked = !canUseView(view.id, user);
+      const sections = locked
+        ? []
+        : (view.sections || []).filter(section => !section.visible || section.visible(user));
+      return { ...view, locked, sections };
+    });
+}
+
+/** Sección abierta de un apartado (la de la dirección), si el usuario la ve en el menú. */
+export function findSection(viewId, sectionId, user) {
+  if (!sectionId) return null;
+  const view = getNavigation(user).find(item => item.id === viewId);
+  return view?.sections.find(section => section.id === sectionId) || null;
 }

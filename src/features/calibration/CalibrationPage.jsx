@@ -2,20 +2,15 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   AlertCircle,
   Archive,
-  BellRing,
   CalendarDays,
-  CalendarRange,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Filter,
   GanttChart,
   ListChecks,
   Plus,
   RefreshCw,
   Search,
-  ShieldCheck,
-  Weight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../shared/components/ui/Button';
@@ -89,8 +84,9 @@ function PlanSkeleton() {
 }
 
 export function CalibrationPage() {
-  // La pestaña va en la dirección (/calibracion/equipos, /calibracion/alertas…).
-  const { pestana: storedTab, cambiarPestana: setTab } = usePestanaRuta('calibration', TABS, {
+  // La pestaña va en la dirección (/calibracion/equipos, /calibracion/alertas…)
+  // y se elige desde la barra lateral.
+  const { pestana: storedTab } = usePestanaRuta('calibration', TABS, {
     clave: TAB_KEY,
     predeterminada: 'cronograma',
   });
@@ -220,9 +216,6 @@ export function CalibrationPage() {
   }, [reload]);
   const openSub = useCallback((type, equipo, extra = {}) => setSub({ type, equipoId: equipo.id, ...extra }), []);
 
-  const alertCount = data?.alertas?.length || 0;
-  const vencidas = (data?.alertas || []).filter(alerta => alerta.situacion === 'VENCIDO').length;
-
   const fichaEquipo = ficha?.type === 'equipo' ? data?.equipos.find(equipo => equipo.id === ficha.id) : null;
   const subEquipo = sub
     ? (data?.equipos.find(equipo => equipo.id === sub.equipoId) || data?.bajas?.find(equipo => equipo.id === sub.equipoId))
@@ -274,43 +267,17 @@ export function CalibrationPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-3 py-3 sm:px-5 sm:py-5 xl:px-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <nav aria-label="Secciones de Calibración" className="cal-segmented cal-tabs">
-          {[
-            { id: 'cronograma', label: 'Cronograma', icon: CalendarRange },
-            { id: 'equipos', label: 'Equipos', icon: Weight, count: data?.equipos.length },
-            { id: 'actividades', label: 'Actividades', icon: ClipboardList, count: data?.actividades.length },
-            { id: 'alertas', label: 'Alertas', icon: BellRing, count: alertCount || null, alert: vencidas > 0 },
-            canEdit && { id: 'cumplimiento', label: 'Cumplimiento', icon: ShieldCheck },
-          ].filter(Boolean).map((section) => {
-            const Icon = section.icon;
-            return (
-              <button
-                key={section.id}
-                type="button"
-                aria-current={tab === section.id ? 'page' : undefined}
-                onClick={() => setTab(section.id)}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                {section.label}
-                {section.count != null && (
-                  <span className={cn('cal-count', section.alert && 'cal-count-alert')}>{section.count}</span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-        {canEdit && (tab === 'cronograma' || tab === 'actividades') && (
-          <Button className="ml-auto" onClick={() => openActividad(null)}>
-            <Plus className="h-4 w-4" /> Nueva actividad
-          </Button>
-        )}
-        {canEdit && tab === 'equipos' && (
-          <Button className="ml-auto" onClick={() => setFicha({ type: 'nuevoEquipo' })}>
-            <Plus className="h-4 w-4" /> Nuevo equipo
-          </Button>
-        )}
-      </div>
+      {/* Las secciones se eligen en la barra lateral; aquí queda la acción principal de cada una. */}
+      {canEdit && (tab === 'cronograma' || tab === 'actividades') && (
+        <Button className="self-end" onClick={() => openActividad(null)}>
+          <Plus className="h-4 w-4" /> Nueva actividad
+        </Button>
+      )}
+      {canEdit && tab === 'equipos' && (
+        <Button className="self-end" onClick={() => setFicha({ type: 'nuevoEquipo' })}>
+          <Plus className="h-4 w-4" /> Nuevo equipo
+        </Button>
+      )}
 
       <div className="vt-panel flex flex-col gap-4">
       {error && (

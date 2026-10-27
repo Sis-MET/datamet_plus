@@ -4,7 +4,7 @@ import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-
 import { Sidebar } from './shared/components/layout/Sidebar';
 import { Topbar } from './shared/components/layout/Topbar';
 import { Footer } from './shared/components/layout/Footer';
-import { APP_VIEWS, allowedView, canUseView, isSystemAdmin, managesCalibration } from './shared/components/layout/navigation';
+import { APP_VIEWS, allowedView, canUseView, findSection, isSystemAdmin, managesCalibration } from './shared/components/layout/navigation';
 import { RestrictedArea } from './shared/components/layout/RestrictedArea';
 import { useSidebar } from './shared/hooks/useSidebar';
 import { useTheme } from './shared/context/ThemeContext';
@@ -80,6 +80,9 @@ function AppContent({ activeView, currentUser, handleLogout, renderView }) {
   const soporteAlerts = useSoporteAlertCount(canUseView('soporte', currentUser));
   const failures = useFailureSummary(isSystemAdmin(currentUser));
   const pendingFailures = (failures?.abiertas || 0) + (failures?.enCurso || 0);
+  // Sección abierta (/calibracion/equipos → Equipos): la barra superior la nombra.
+  const ruta = leerRuta(useRuta());
+  const section = ruta.vista === activeView ? findSection(activeView, ruta.resto[0], currentUser) : null;
 
   // Solo en producción: en desarrollo Vite compila cada módulo al pedirlo y
   // precargar todo de golpe retrasaría el apartado que se está abriendo.
@@ -92,12 +95,18 @@ function AppContent({ activeView, currentUser, handleLogout, renderView }) {
   }, []);
 
   // Cada apartado tiene su dirección: el botón Atrás vuelve al anterior. Volver
-  // a pulsar el apartado en el que se está no lo reinicia.
-  const handleNavigate = useCallback((view) => {
+  // a pulsar el apartado en el que se está no lo reinicia. Una sección de la
+  // barra lateral abre esa pestaña (/soporte/proximos); dentro del mismo
+  // apartado cambia solo el panel, como las pestañas de la página.
+  const handleNavigate = useCallback((view, section) => {
     if (!isDesktop) closeSidebar();
-    if (view === activeView) return;
+    const destino = rutaDe(view, section);
+    if (section ? destino === rutaActual() : view === activeView) return;
     safeStorage.setItem('datamet_last_view', view);
-    navegar(rutaDe(view), { transicion: 'pagina', alCambiar: () => window.scrollTo({ top: 0 }) });
+    navegar(destino, {
+      transicion: view === activeView ? 'panel' : 'pagina',
+      alCambiar: () => window.scrollTo({ top: 0 }),
+    });
   }, [activeView, closeSidebar, isDesktop]);
 
   return (
@@ -140,6 +149,7 @@ function AppContent({ activeView, currentUser, handleLogout, renderView }) {
           <Topbar
             className="vt-barra"
             view={APP_VIEWS[activeView] || APP_VIEWS.rim}
+            section={section}
             isSidebarOpen={sidebar.isOpen}
             isDesktop={isDesktop}
             onToggleSidebar={sidebar.toggle}

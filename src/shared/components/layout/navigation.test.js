@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowedView, canUseView, getNavigation, managesCalibration } from './navigation';
+import { allowedView, canUseView, findSection, getNavigation, managesCalibration } from './navigation';
 
 const calibracion = { area: 'Calibración', acceso_cron: '2' };
 const soporte = { area: 'Soporte Técnico', acceso_cron: 2 };
@@ -40,6 +40,36 @@ describe('acceso a los apartados por área', () => {
     expect(allowedView('changes', comercial)).toBe('rim');
     expect(allowedView('changes', sistemas)).toBe('changes');
     expect(allowedView('inexistente', sistemas)).toBe('rim');
+  });
+
+  it('cada apartado despliega sus secciones, que son las pestañas de su página', () => {
+    const secciones = (user, id) => getNavigation(user).find(view => view.id === id).sections.map(section => section.id);
+    expect(secciones(soporte, 'rim')).toEqual(['registros', 'numeracion', 'nuevo']);
+    expect(secciones(calibracion, 'calibration')).toEqual(['cronograma', 'equipos', 'actividades', 'alertas', 'cumplimiento']);
+    expect(secciones(soporte, 'soporte')).toEqual(['informes', 'proximos', 'avisos']);
+    // Sin secciones: Cronograma e IvMET (este tiene su propio menú).
+    expect(secciones(sistemas, 'calendar')).toEqual([]);
+    expect(secciones(sistemas, 'ivmet')).toEqual([]);
+  });
+
+  it('un apartado con candado no despliega secciones', () => {
+    expect(getNavigation(comercial).filter(view => view.sections.length).map(view => view.id)).toEqual(['rim']);
+  });
+
+  it('la configuración de Soporte técnico solo la ve su jefe de área', () => {
+    const secciones = (user) => getNavigation(user).find(view => view.id === 'soporte').sections.map(section => section.id);
+    expect(secciones({ ...soporte, cargo: 'Jefe de  Área' })).toContain('configuracion');
+    expect(secciones({ ...soporte, cargo: 'Técnico' })).not.toContain('configuracion');
+    expect(secciones({ ...sistemas, area: 'Sistemas' })).not.toContain('configuracion');
+  });
+
+  it('la sección abierta solo se nombra si el usuario la ve en el menú', () => {
+    expect(findSection('calibration', 'equipos', calibracion)?.label).toBe('Equipos');
+    expect(findSection('soporte', 'proximos', soporte)?.label).toBe('Próximos servicios');
+    expect(findSection('soporte', 'configuracion', soporte)).toBeNull();
+    expect(findSection('calibration', 'equipos', soporte)).toBeNull();
+    expect(findSection('calendar', 'hoy', soporte)).toBeNull();
+    expect(findSection('rim', undefined, soporte)).toBeNull();
   });
 
   it('el contador de alertas de calibración es para quien usa el plan', () => {

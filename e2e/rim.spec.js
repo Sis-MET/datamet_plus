@@ -308,7 +308,7 @@ test('la numeración explica qué pasó con cada número del talonario', async (
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/');
 
-  await page.getByRole('group', { name: 'Apartado RIM' }).getByRole('button', { name: 'Numeración' }).click();
+  await page.getByRole('navigation', { name: 'Módulos' }).getByRole('link', { name: 'Numeración' }).click();
   await expect(page.getByText('RIM-26-0041 a RIM-26-0050')).toBeVisible();
   await expect(page.getByText('emitidos y por subir')).toBeVisible();
   await expect(page.getByText('0044–0050')).toBeVisible();

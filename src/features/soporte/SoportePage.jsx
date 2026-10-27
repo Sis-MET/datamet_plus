@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BellRing, CalendarRange, FileText, Settings } from 'lucide-react';
-import { cn } from '../../shared/utils/cn';
 import { safeStorage } from '../../shared/utils/storage';
 import { usePestanaRuta } from '../../shared/navigation/ruta';
 import { InformeEditor } from './components/InformeEditor';
@@ -12,7 +10,6 @@ import { AvisosPanel } from './components/proximos/AvisosPanel';
 import { ProximosPanel } from './components/proximos/ProximosPanel';
 import { AGRUPACIONES, filtrosVacios } from './domain/informe';
 import { PLANTILLAS } from './domain/plantillas';
-import { useSoporteAlertCount } from './hooks/useSoporteAlertCount';
 import '../calibration/calibration.css';
 import './soporte.css';
 
@@ -37,30 +34,6 @@ const leerAgrupar = () => {
   return AGRUPACIONES.includes(valor) ? valor : 'otst';
 };
 
-/** Pestañas del apartado; «Próximos servicios» lleva el contador de lo que requiere atención. */
-function Pestanas({ pestana, onChange, alertas, configurar }) {
-  const secciones = [
-    { id: 'informes', label: 'Informes', icon: FileText },
-    { id: 'proximos', label: 'Próximos servicios', icon: CalendarRange, count: alertas?.total || null, alert: alertas?.vencidas > 0 },
-    { id: 'avisos', label: 'Avisos', icon: BellRing },
-    ...(configurar ? [{ id: 'configuracion', label: 'Configuración', icon: Settings }] : []),
-  ];
-  return (
-    <nav aria-label="Secciones de Soporte técnico" className="cal-segmented cal-tabs flex-wrap self-start">
-      {secciones.map((seccion) => {
-        const Icon = seccion.icon;
-        return (
-          <button key={seccion.id} type="button" aria-current={pestana === seccion.id ? 'page' : undefined} onClick={() => onChange(seccion.id)}>
-            <Icon className="h-4 w-4" aria-hidden="true" />
-            {seccion.label}
-            {seccion.count != null && <span className={cn('cal-count', seccion.alert && 'cal-count-alert')}>{seccion.count}</span>}
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
-
 /**
  * Soporte técnico: los informes de los 8 servicios del área (preventivo
  * regular y avanzado, correctivo, diagnóstico, instalación, verificación con
@@ -74,7 +47,7 @@ function Pestanas({ pestana, onChange, alertas, configurar }) {
  * /soporte/<pestaña>/<tipo>/<código> (la pestaña es desde la que se abrió).
  */
 export function SoportePage() {
-  const { pestana: pestanaRuta, detalle, enRuta, cambiarPestana, irADetalle } = usePestanaRuta('soporte', PESTANAS, {
+  const { pestana: pestanaRuta, detalle, enRuta, irADetalle } = usePestanaRuta('soporte', PESTANAS, {
     clave: PESTANA,
     predeterminada: 'informes',
     detalleGuardado: () => {
@@ -85,7 +58,6 @@ export function SoportePage() {
   const { data: permisos } = useResource(soporteApi.permisos);
   const configurar = permisos?.configurarAprobadores === true;
   const pestana = pestanaRuta === 'configuracion' && !configurar ? 'informes' : pestanaRuta;
-  const alertas = useSoporteAlertCount(true);
   const [tipoAbierto, codigoAbierto] = detalle;
   const abierto = detalle.length === 2 && PLANTILLAS[tipoAbierto] ? { tipo: tipoAbierto, codigo: codigoAbierto } : null;
 
@@ -123,7 +95,6 @@ export function SoportePage() {
 
   return (
     <main className={`mx-auto flex w-full flex-col gap-4 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 ${ancho}`}>
-      {!abierto && <Pestanas pestana={pestana} onChange={cambiarPestana} alertas={alertas} configurar={configurar} />}
       <div className="vt-panel flex flex-col gap-4">
       {!abierto && pestana === 'configuracion' && configurar && <AprobadoresPanel />}
       {abierto && (

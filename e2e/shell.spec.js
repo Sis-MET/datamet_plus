@@ -56,16 +56,44 @@ test('cada apartado tiene su dirección y el botón Atrás vuelve al anterior', 
 
   await page.goBack();
   await expect(page).toHaveURL(/\/rim\/registros$/);
-  await expect(page.getByRole('heading', { level: 1, name: /Recepción de instrumentos/ })).toBeVisible();
+  // La barra superior nombra el apartado y la sección abierta.
+  await expect(page.getByRole('heading', { level: 1, name: /^RIM ?: Registros$/ })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Numeración' }).click();
+  await nav.getByRole('link', { name: 'Numeración' }).click();
   await expect(page).toHaveURL(/\/rim\/numeracion$/);
+  await expect(page.getByRole('heading', { level: 1, name: /^RIM ?: Numeración$/ })).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/\/rim\/registros$/);
 
   // Una dirección se puede abrir directamente (por ejemplo, desde un correo).
   await page.goto('/sistema/fallas');
   await expect(page.getByRole('heading', { level: 1, name: 'Registro de fallas' })).toBeVisible();
+});
+
+test('cada área despliega sus secciones y cada una abre su pestaña', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/rim/numeracion');
+
+  const nav = page.getByRole('navigation', { name: 'Módulos' });
+  // El apartado actual llega abierto, con su sección marcada.
+  const rim = nav.getByRole('button', { name: 'RIM', exact: true });
+  await expect(rim).toHaveAttribute('aria-expanded', 'true');
+  await expect(nav.getByRole('link', { name: 'Numeración' })).toHaveAttribute('aria-current', 'page');
+
+  // Una sola sub-lista abierta: desplegar Calibración cierra la de RIM.
+  const calibracion = nav.getByRole('button', { name: 'Calibración' });
+  await calibracion.click();
+  await expect(calibracion).toHaveAttribute('aria-expanded', 'true');
+  await expect(rim).toHaveAttribute('aria-expanded', 'false');
+  await expect(nav.getByRole('link', { name: 'Numeración' })).toBeHidden();
+
+  await nav.getByRole('link', { name: 'Equipos' }).click();
+  await expect(page).toHaveURL(/\/calibracion\/equipos$/);
+  await expect(nav.getByRole('link', { name: 'Equipos' })).toHaveAttribute('aria-current', 'page');
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/rim\/numeracion$/);
+  await expect(rim).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('en móvil Ctrl+B abre el menú como panel y Escape lo cierra', async ({ page }) => {
