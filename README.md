@@ -184,6 +184,36 @@ Migración `006`:
 La ficha de cada equipo une en su actividad los cambios del equipo, de su plan
 y de sus fechas; la de cada actividad, los de su configuración y sus fechas.
 
+### Versiones de ServiceMET (NB/ISO/IEC 17025, 7.11.2)
+
+Sección **Versiones ServiceMET** (migración `014`, rutas
+`/api/calibracion/servicemet*`): el registro de cambios de la app de los
+técnicos. Cada versión de ServiceMET se valida y la aprueba el jefe de
+Calibración antes de usarse en los servicios.
+
+- **Registrar** (Sistemas, nivel 3): versión con su build tal como figura en
+  `pubspec.yaml` (`6.4.1+19`), fecha, commit, clase (A crítico, B
+  funcional, C menor), resumen, lo nuevo, lo corregido y el impacto en los
+  registros. Se copia de `lib/screens/calidad/data/historial_versiones.dart`
+  de ServiceMET.
+- **Validar** (Sistemas): cómo se comprobó, el resultado y el registro de
+  validación (`VAL-6.4.1+19` en `docs/iso17025/validaciones` de ServiceMET).
+  Editar una versión validada anula su validación.
+- **Aprobar o no aprobar** (solo el jefe de área de Calibración, nunca quien
+  validó): aprobar exige una validación conforme. Una versión aprobada o no
+  aprobada ya no se edita; se guarda el nombre y el cargo de quien decidió.
+- **Puesta en uso** (Sistemas o el jefe): desde cuándo y en qué teléfonos.
+  No puede ser anterior a la aprobación, salvo en las versiones registradas a
+  posteriori.
+- **Teléfonos:** la última versión que informó cada instalación en 180 días,
+  según `form_rim` y `rim_talonarios` (solo lectura), con aviso si alguna
+  no está aprobada.
+
+Cada paso queda en `CAL_SERVICEMET_HISTORIAL`. La migración siembra las 9
+versiones del historial de ServiceMET (6.1.0+8 a 6.4.1+19) como registradas a
+posteriori: les falta la validación y la decisión del jefe. La pestaña
+Cumplimiento las evalúa en 7.11.2.
+
 ### Cumplimiento NB/ISO/IEC 17025
 
 La pestaña **Cumplimiento** (área Calibración y Sistemas) evalúa el módulo frente

@@ -56,6 +56,10 @@ const facts = (overrides = {}) => ({
   },
   cambios: { total: 18, enUsoSinAprobar: 0, pendientes: 0, deVersion: 5, deVersionAprobados: 5 },
   fallasSistema: { abiertas: 0, sinAtender: 0, ultimos90: 2, cerradas: 2 },
+  servicemet: {
+    instalada: true, total: 9, ultima: { version: '6.4.1+19', estado: 'EN_USO' }, aprobadas: 9,
+    anterioresSinDecidir: 0, telefonos: 4, telefonosSinAprobar: 0, versionesSinAprobarEnTelefonos: [],
+  },
   ...overrides,
 });
 
@@ -77,7 +81,7 @@ test('cubre 7.5, 7.11 y 8.4 con requisitos únicos y un resumen que cuadra', () 
 test('con las migraciones 006 y 007 los controles de 7.5 y 7.11 se cumplen', () => {
   const report = evaluateCompliance(facts());
   for (const id of ['7.5.1-certificados', '7.5.1-verificaciones', '7.5.1-responsables', '7.5.2-equipos',
-    '7.5.2-verificaciones', '7.5.2-plan', '7.11.2-validacion', '7.11.2-cambios', '7.11.3-e', '7.11.6']) {
+    '7.5.2-verificaciones', '7.5.2-plan', '7.11.2-validacion', '7.11.2-cambios', '7.11.2-servicemet', '7.11.3-e', '7.11.6']) {
     assert.equal(find(report, id).estado, 'CUMPLE', id);
   }
   assert.equal(find(report, '8.4.2-respaldo').estado, 'LABORATORIO');
@@ -159,7 +163,7 @@ test('si fallan todas las consultas evalúa igual sin romperse', () => {
   const report = evaluateCompliance(facts({
     version: null, baseDatos: null, respaldos: null, migraciones: { archivos: ['001'], registradas: null },
     equipos: null, certificados: null, historial: null, eventos: null, programas: null, fallas: null, accesos: null,
-    revisiones: null, cambios: null, fallasSistema: null,
+    revisiones: null, cambios: null, fallasSistema: null, servicemet: null,
   }));
   const requisitos = report.clausulas.flatMap(clausula => clausula.requisitos);
   assert.equal(requisitos.length, REQUISITOS.length);
@@ -174,6 +178,33 @@ test('el plan de acción ordena por prioridad y deja fuera lo que cumple', () =>
   assert.ok(acciones.every(accion => accion.estado !== 'CUMPLE' && PRIORIDADES.includes(accion.prioridad)));
   const orden = acciones.map(accion => PRIORIDADES.indexOf(accion.prioridad));
   assert.deepEqual(orden, [...orden].sort((a, b) => a - b));
+});
+
+test('las versiones de ServiceMET sin aprobar se señalan, y con más urgencia si ya están en los teléfonos', () => {
+  const servicemet = facts().servicemet;
+  const sinMigracion = find(evaluateCompliance(facts({ servicemet: { instalada: false } })), '7.11.2-servicemet');
+  assert.equal(sinMigracion.estado, 'NO_CUMPLE');
+  assert.match(sinMigracion.accion, /migración 014/);
+
+  const enTelefonos = find(evaluateCompliance(facts({
+    servicemet: {
+      ...servicemet, ultima: { version: '6.4.1+19', estado: 'VALIDADA' }, aprobadas: 8,
+      telefonosSinAprobar: 2, versionesSinAprobarEnTelefonos: ['6.4.1+19'],
+    },
+  })), '7.11.2-servicemet');
+  assert.equal(enTelefonos.estado, 'PARCIAL');
+  assert.equal(enTelefonos.prioridad, 'ALTA');
+  assert.match(enTelefonos.brechas.join(' '), /2 teléfonos usan una versión sin aprobar \(6\.4\.1\+19\)/);
+  assert.match(enTelefonos.brechas.join(' '), /6\.4\.1\+19, la más reciente, aún no tiene la aprobación del jefe de Calibración/);
+
+  // Solo faltan las anteriores a este control: pendiente, pero sin urgencia.
+  const anteriores = find(evaluateCompliance(facts({ servicemet: { ...servicemet, aprobadas: 1, anterioresSinDecidir: 8 } })), '7.11.2-servicemet');
+  assert.equal(anteriores.estado, 'PARCIAL');
+  assert.equal(anteriores.prioridad, 'BAJA');
+
+  const sinTelefonos = find(evaluateCompliance(facts({ servicemet: { ...servicemet, telefonos: null, telefonosSinAprobar: null } })), '7.11.2-servicemet');
+  assert.equal(sinTelefonos.estado, 'CUMPLE');
+  assert.match(sinTelefonos.notas.join(' '), /qué versión usa cada teléfono/);
 });
 
 test('describe el vencimiento de la sesión en palabras', () => {

@@ -1,6 +1,7 @@
 const calibrationService = require('../services/calibration.service');
 const equipmentService = require('../services/calibration.equipment');
 const complianceService = require('../services/calibration.compliance');
+const servicemetService = require('../services/calibration.servicemet');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -104,4 +105,29 @@ module.exports = {
 
   // Cumplimiento NB/ISO/IEC 17025 (7.5, 7.11 y 8.4), evaluado con los datos actuales.
   getCompliance: handle(req => complianceService.getCompliance({ version: String(req.query.version || '').slice(0, 20) || null })),
+
+  // Versiones de ServiceMET: Sistemas las registra y valida; el jefe de Calibración las aprueba.
+  listServicemet: handle(req => servicemetService.listVersiones(req.user)),
+  getServicemet: handle(req => servicemetService.getVersion(readId(req.params.id), req.user)),
+  createServicemet: handle(req => servicemetService.createVersion(parse('servicemetVersion', req.body), req.user)),
+  updateServicemet: handle(req => servicemetService.updateVersion(
+    readId(req.params.id),
+    parse('servicemetVersion', req.body),
+    req.user
+  )),
+  validarServicemet: handle(req => servicemetService.validarVersion(
+    readId(req.params.id),
+    parse('servicemetValidacion', req.body),
+    req.user
+  )),
+  decidirServicemet: handle(req => servicemetService.decidirVersion(
+    readId(req.params.id),
+    parse('servicemetDecision', req.body),
+    req.user
+  )),
+  ponerServicemetEnUso: handle(req => servicemetService.ponerEnUso(
+    readId(req.params.id),
+    parse('servicemetPuesta', req.body),
+    req.user
+  )),
 };

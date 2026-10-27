@@ -43,4 +43,15 @@ router.post('/alertas/prueba', controller.sendTestEmail);
 router.post('/alertas/ejecutar', controller.runAlerts);
 router.get('/cumplimiento', controller.getCompliance);
 
+// Versiones de ServiceMET (NB/ISO/IEC 17025, 7.11.2). Cada acción comprueba
+// además quién la hace: Sistemas registra y valida; el jefe de Calibración
+// aprueba o rechaza.
+router.get('/servicemet', controller.listServicemet);
+router.post('/servicemet', controller.createServicemet);
+router.get('/servicemet/:id', controller.getServicemet);
+router.put('/servicemet/:id', controller.updateServicemet);
+router.post('/servicemet/:id/validacion', controller.validarServicemet);
+router.post('/servicemet/:id/decision', controller.decidirServicemet);
+router.post('/servicemet/:id/puesta-en-uso', controller.ponerServicemetEnUso);
+
 module.exports = router;

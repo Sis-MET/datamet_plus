@@ -45,7 +45,7 @@ describe('acceso a los apartados por área', () => {
   it('cada apartado despliega sus secciones, que son las pestañas de su página', () => {
     const secciones = (user, id) => getNavigation(user).find(view => view.id === id).sections.map(section => section.id);
     expect(secciones(soporte, 'rim')).toEqual(['registros', 'numeracion', 'nuevo']);
-    expect(secciones(calibracion, 'calibration')).toEqual(['cronograma', 'equipos', 'actividades', 'alertas', 'cumplimiento']);
+    expect(secciones(calibracion, 'calibration')).toEqual(['cronograma', 'equipos', 'actividades', 'alertas', 'cumplimiento', 'servicemet']);
     expect(secciones(soporte, 'soporte')).toEqual(['informes', 'proximos', 'avisos']);
     // Sin secciones: Cronograma e IvMET (este tiene su propio menú).
     expect(secciones(sistemas, 'calendar')).toEqual([]);

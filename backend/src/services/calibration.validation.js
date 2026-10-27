@@ -128,6 +128,35 @@ const schemas = {
   prueba: z.object({
     email: z.string().trim().toLowerCase().max(150).pipe(z.email('Correo no válido.')),
   }),
+
+  // Versiones de ServiceMET (NB/ISO/IEC 17025, 7.11.2).
+  servicemetVersion: z.object({
+    version: z.string({ error: 'Escribe la versión con su build, por ejemplo 6.4.1+19.' })
+      .trim()
+      .regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\+\d{1,6}$/, 'Escribe la versión con su build, como figura en pubspec.yaml: 6.4.1+19.'),
+    fecha: date,
+    commit: z.string().trim().regex(/^[0-9a-f]{7,40}$/i, 'El commit son de 7 a 40 caracteres hexadecimales.')
+      .nullish().or(z.literal('')).transform(value => (value ? value.toLowerCase() : null)),
+    clase: z.enum(['A', 'B', 'C'], { error: 'Elige la clase del cambio.' }),
+    resumen: requiredText(1000, 'Resume qué cambia en esta versión.'),
+    nuevo: z.array(requiredText(1000, 'Una línea de «Nuevo» está vacía.')).max(40).default([]),
+    corregido: z.array(requiredText(1000, 'Una línea de «Corregido» está vacía.')).max(40).default([]),
+    impacto: optionalText(2000),
+  }).refine(data => data.nuevo.length + data.corregido.length > 0, 'Indica al menos un cambio nuevo o una corrección.'),
+  servicemetValidacion: z.object({
+    validacion: requiredText(2000, 'Describe cómo se validó: pruebas automáticas, casos funcionales y resultado.'),
+    resultado: z.enum(['CONFORME', 'NO_CONFORME']),
+    registro: optionalText(60),
+  }),
+  servicemetDecision: z.object({
+    decision: z.enum(['APROBAR', 'RECHAZAR']),
+    observaciones: optionalText(500),
+  }).refine(data => data.decision === 'APROBAR' || data.observaciones, 'Escribe por qué no se aprueba.'),
+  servicemetPuesta: z.object({
+    fecha: date,
+    dispositivos: optionalText(500),
+    observaciones: optionalText(500),
+  }),
 };
 
 /** Valida y normaliza; ante un error responde 400 con el primer mensaje. */

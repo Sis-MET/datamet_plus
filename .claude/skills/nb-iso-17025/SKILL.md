@@ -139,6 +139,12 @@ Revisa la pestaña Cumplimiento para el estado actual. Resumen de lo hecho:
   los valida y los aprueba antes de desplegarse; la versión en uso sale de
   `package.json`. Al terminar un cambio, regístralo ahí (o en la siembra de
   la migración que lo acompañe).
+- **7.11.2 ServiceMET (migración 014):** Calibración › Versiones ServiceMET
+  (`CAL_SERVICEMET_VERSIONES`). Cada versión de la app de los técnicos la
+  registra y valida Sistemas, y la aprueba solo el jefe de área de
+  Calibración antes de usarse; muestra qué versión usa cada teléfono según
+  `form_rim` y `rim_talonarios`. Al liberar una versión de ServiceMET,
+  regístrala ahí.
 - **7.11.3 e (migración 007):** Registro de fallas (`APP_FALLAS`): los errores
   5xx, de tareas y del proceso se guardan solos (`system.failures.js`); nunca
   guardes el cuerpo de la petición.

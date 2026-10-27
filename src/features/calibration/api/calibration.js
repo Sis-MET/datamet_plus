@@ -20,6 +20,15 @@ export const calibrationApi = {
   // Evaluación NB/ISO/IEC 17025 (7.5, 7.11 y 8.4) con los datos actuales.
   cumplimiento: () => unwrap(api.get(`${BASE}/cumplimiento`, { version: APP_VERSION })),
 
+  // Versiones de ServiceMET: Sistemas las registra y valida; el jefe de Calibración las aprueba.
+  servicemet: () => unwrap(api.get(`${BASE}/servicemet`)),
+  servicemetVersion: (id) => unwrap(api.get(`${BASE}/servicemet/${id}`)),
+  createServicemet: (body) => unwrap(api.post(`${BASE}/servicemet`, body)),
+  updateServicemet: (id, body) => unwrap(api.put(`${BASE}/servicemet/${id}`, body)),
+  validarServicemet: (id, body) => unwrap(api.post(`${BASE}/servicemet/${id}/validacion`, body)),
+  decidirServicemet: (id, body) => unwrap(api.post(`${BASE}/servicemet/${id}/decision`, body)),
+  ponerServicemetEnUso: (id, body) => unwrap(api.post(`${BASE}/servicemet/${id}/puesta-en-uso`, body)),
+
   saveEquipo: (id, body) => write(api.put(`${BASE}/equipos/${id}`, body)),
   saveEquipos: (body) => write(api.put(`${BASE}/equipos`, body)),
 

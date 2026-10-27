@@ -12,6 +12,7 @@ const path = require('node:path');
 const { getPool, sql } = require('../config/db');
 const env = require('../config/env');
 const { IS_ACTIVE } = require('./calibration.db');
+const { resumenCumplimiento: readServicemet } = require('./calibration.servicemet');
 
 const MIGRATIONS_DIRECTORY = path.join(__dirname, '../config/migrations');
 
@@ -227,7 +228,7 @@ const counts = (row) => (row
 const gatherFacts = async ({ version = null } = {}) => {
   const [
     baseDatos, respaldos, migraciones, equipos, certificados, historial, eventos, programas, fallas, accesos,
-    revisiones, cambios, fallasSistema,
+    revisiones, cambios, fallasSistema, servicemet,
   ] = await Promise.all([
     safe(readBaseDatos),
     safe(readRespaldos),
@@ -242,6 +243,7 @@ const gatherFacts = async ({ version = null } = {}) => {
     safe(readRevisiones),
     safe(() => readCambios(version)),
     safe(readFallasSistema),
+    safe(readServicemet),
   ]);
   return {
     evaluadoEn: new Date().toISOString(),
@@ -270,6 +272,7 @@ const gatherFacts = async ({ version = null } = {}) => {
     revisiones: counts(revisiones),
     cambios: counts(cambios),
     fallasSistema: counts(fallasSistema),
+    servicemet,
   };
 };
 
@@ -561,6 +564,48 @@ const REQUISITOS = [
           cambios && { etiqueta: 'Cambios registrados', valor: String(cambios.total), tono: 'neutral' },
           cambios && { etiqueta: 'En uso sin aprobar', valor: String(enUso), tono: tone(enUso > 0, 'warning') },
           { etiqueta: 'Migraciones registradas', valor: ratio(archivos.length - sinRegistrar.length, archivos.length), tono: tone(sinRegistrar.length > 0, 'warning') },
+        ],
+      };
+    },
+  },
+  {
+    id: '7.11.2-servicemet',
+    clausula: '7.11.2',
+    titulo: 'Versiones de ServiceMET',
+    requisito: 'Cada versión de la app de los técnicos (ServiceMET) se valida y la aprueba el laboratorio antes de usarse en los servicios.',
+    evaluar: ({ servicemet }) => {
+      if (!servicemet) return noData('las versiones de ServiceMET');
+      if (!servicemet.instalada) return missingMigration('014', 'se registra la aprobación de las versiones de ServiceMET');
+      const { ultima, telefonosSinAprobar, anterioresSinDecidir } = servicemet;
+      const ultimaPendiente = Boolean(ultima) && ['REGISTRADA', 'VALIDADA'].includes(ultima.estado);
+      const enTelefonos = telefonosSinAprobar || 0;
+      const brechas = [
+        enTelefonos > 0 && `${plural(enTelefonos, 'teléfono usa', 'teléfonos usan')} una versión sin aprobar (${servicemet.versionesSinAprobarEnTelefonos.join(', ')}).`,
+        ultimaPendiente && `La versión ${ultima.version}, la más reciente, aún no tiene la aprobación del jefe de Calibración.`,
+        anterioresSinDecidir > 0 && `${plural(anterioresSinDecidir, 'versión anterior se registró', 'versiones anteriores se registraron')} a posteriori sin decisión del jefe de Calibración.`,
+      ];
+      const urgente = enTelefonos > 0 || ultimaPendiente;
+      const pendiente = brechas.some(Boolean);
+      return {
+        estado: pendiente ? 'PARCIAL' : 'CUMPLE',
+        origen: 'DATOS',
+        evidencias: [
+          'Calibración › Versiones ServiceMET registra cada versión con sus cambios, su clase e impacto en los registros, y su paso por validación, aprobación y puesta en uso; cada paso queda en su historial.',
+          'Registra y valida Sistemas; aprueba o rechaza solo el jefe de área de Calibración, nunca quien validó, y solo aprueba una versión con validación conforme. Una versión aprobada o rechazada ya no se edita.',
+          'Qué versión usa cada teléfono sale de los RIM y talonarios que envía ServiceMET.',
+        ],
+        brechas,
+        notas: [servicemet.telefonos == null && 'No se pudo comprobar qué versión usa cada teléfono: esta base no tiene los RIM ni los talonarios de ServiceMET.'],
+        accion: pendiente
+          ? (urgente
+            ? 'Validar la versión más reciente, que el jefe de Calibración la apruebe y actualizar los teléfonos que usan una versión sin aprobar.'
+            : 'Que el jefe de Calibración apruebe a posteriori o marque como no aprobadas las versiones anteriores a este control.')
+          : null,
+        prioridad: pendiente ? (urgente ? 'ALTA' : 'BAJA') : null,
+        datos: [
+          { etiqueta: 'Versiones aprobadas', valor: ratio(servicemet.aprobadas, servicemet.total), tono: tone(servicemet.aprobadas < servicemet.total, 'warning') },
+          ultima && { etiqueta: 'Más reciente', valor: ultima.version, tono: tone(ultimaPendiente, 'warning') },
+          servicemet.telefonos != null && { etiqueta: 'Teléfonos con versión sin aprobar', valor: ratio(enTelefonos, servicemet.telefonos), tono: tone(enTelefonos > 0) },
         ],
       };
     },
