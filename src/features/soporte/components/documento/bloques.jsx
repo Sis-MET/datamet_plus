@@ -9,7 +9,6 @@ import { calcularPruebas, conUnidad, formatoNumero } from '../../domain/calculos
 import { formatoFecha } from '../../domain/informe';
 import { filasConDatos } from '../../domain/plantillas';
 import { leerPlataforma } from '../../domain/plataforma';
-import { claseValoracion } from '../../domain/valoraciones';
 import { DiagramaCamion, DiagramaPlataforma } from './diagramas';
 import { Simbolo, Valoracion } from './Simbolo';
 
@@ -398,12 +397,13 @@ function BloqueRetorno({ bloque, valores }) {
 // ─── Tablas de estado ──────────────────────────────────────────────────────
 
 /**
- * Ajuste de una fila. «No aplica» (o nada) queda en blanco: casi todas las
- * filas lo tienen y el ⊘ repetido no aporta.
+ * Ajuste de una fila. «No aplica» sale con su símbolo ⊘ (el de la leyenda)
+ * para que se vea que se evaluó; sin dato, una raya. En Instalación, sin
+ * comentario vale «No aplica», como en la plantilla INST.
  */
 const ajusteDe = (item, valores) => {
   const valor = valores[item.ajuste];
-  return vacio(valor) || claseValoracion(valor) === 'noaplica' ? null : valor;
+  return vacio(valor) ? (item.ajustePorDefecto ?? null) : valor;
 };
 
 function BloqueChecklist({ bloque, valores }) {
@@ -428,10 +428,10 @@ function BloqueChecklist({ bloque, valores }) {
         return [
           <C key={`${izq.estado}-l`} r="A:F" f={fila} tipo="etq" izq>{izq.label}</C>,
           <C key={`${izq.estado}-e`} r="G:K" f={fila}><Valoracion valor={valores[izq.estado]} /></C>,
-          <C key={`${izq.estado}-a`} r="L:P" f={fila}>{ajusteDe(izq, valores) && <Valoracion valor={ajusteDe(izq, valores)} />}</C>,
+          <C key={`${izq.estado}-a`} r="L:P" f={fila}><Valoracion valor={ajusteDe(izq, valores)} /></C>,
           der && <C key={`${der.estado}-l`} r="R:W" f={fila} tipo="etq" izq>{der.label}</C>,
           der && <C key={`${der.estado}-e`} r="X:AB" f={fila}><Valoracion valor={valores[der.estado]} /></C>,
-          der && <C key={`${der.estado}-a`} r="AC:AG" f={fila}>{ajusteDe(der, valores) && <Valoracion valor={ajusteDe(der, valores)} />}</C>,
+          der && <C key={`${der.estado}-a`} r="AC:AG" f={fila}><Valoracion valor={ajusteDe(der, valores)} /></C>,
         ];
       })}
     </Grid>

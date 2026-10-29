@@ -40,6 +40,20 @@ const obtener = user => withTransaction(async request => {
   return publica(await leer(request, true));
 });
 
+/**
+ * Deja en ST_APROBADORES exactamente estos ids. Un parámetro por persona (la
+ * lista ya viene validada: enteros, máximo 500) en vez de OPENJSON, que no
+ * existe con el nivel de compatibilidad de la base (110).
+ */
+const reemplazarAprobadores = (request, ids, usuario) => {
+  const consulta = request().input('usuario', sql.NVarChar(50), usuario);
+  ids.forEach((id, index) => consulta.input(`id${index}`, sql.Int, id));
+  const filas = ids.map((_, index) => `(@id${index}, @usuario)`).join(', ');
+  return consulta.query(`
+    DELETE FROM dbo.ST_APROBADORES;
+    ${ids.length ? `INSERT INTO dbo.ST_APROBADORES (usuario_id, autorizado_por) VALUES ${filas};` : ''}`);
+};
+
 const guardar = (body, user) => withTransaction(async request => {
   const actor = await exigirJefe(request, user);
   const actual = await leer(request, true);
@@ -52,11 +66,7 @@ const guardar = (body, user) => withTransaction(async request => {
   const anteriores = [...actual.idsGuardados].sort((a, b) => a - b);
   if (JSON.stringify(nuevos) === JSON.stringify(anteriores)) return publica(actual);
   const usuario = String(actor.usuario || user.usuario).slice(0, 50);
-  await request().input('ids', sql.NVarChar(sql.MAX), JSON.stringify(nuevos))
-    .input('usuario', sql.NVarChar(50), usuario).query(`
-      DELETE FROM dbo.ST_APROBADORES;
-      INSERT INTO dbo.ST_APROBADORES (usuario_id, autorizado_por)
-        SELECT CONVERT(INT, value), @usuario FROM OPENJSON(@ids);`);
+  await reemplazarAprobadores(request, nuevos, usuario);
   await request().input('usuario', sql.NVarChar(50), usuario)
     .input('version', sql.Int, actual.version + 1)
     .input('anteriores', sql.NVarChar(sql.MAX), JSON.stringify(anteriores))

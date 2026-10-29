@@ -11,7 +11,12 @@ class Request {
   async query(query) {
     const result = rows => ({ recordset: structuredClone(rows) });
     if (query.includes('FROM DATA_USERS')) return result(datos.personal.filter(row => row.estado === 'ACTIVO' && (!query.includes('WHERE id =') || row.id === this.p.id)));
-    if (query.includes('DELETE FROM dbo.ST_APROBADORES')) { datos.ids = JSON.parse(this.p.ids); return result([]); }
+    if (query.includes('DELETE FROM dbo.ST_APROBADORES')) {
+      // Sin OPENJSON: la base trabaja con nivel de compatibilidad 110.
+      assert.doesNotMatch(query, /OPENJSON/);
+      const ids = [...query.matchAll(/\(@(id\d+), @usuario\)/g)].map(([, nombre]) => this.p[nombre]);
+      datos.ids = ids; return result([]);
+    }
     if (query.includes('UPDATE dbo.ST_APROBADORES_AJUSTES')) {
       datos.ajustes = { version: this.p.version, actualizado_por: this.p.usuario, actualizado_en: '2026-10-23T12:00:00Z' };
       datos.historial.push({ ...this.p }); return result([]);

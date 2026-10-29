@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 test.setTimeout(60000);
 test.use({ actionTimeout: 30000 });
 
-async function preparar(page, { proximos = false, jefe = false, configuracion = false } = {}) {
+async function preparar(page, { proximos = false, jefe = false, configuracion = false, fuenteExtra = {} } = {}) {
   const token = Buffer.from(JSON.stringify({ exp: 4102444800, id: 1, acceso_cron: 1 })).toString('base64url');
   await page.addInitScript(({ token, proximos, configuracion }) => {
     // Verifica la descarga en Chromium sin abrir el selector nativo del SO.
@@ -22,7 +22,8 @@ async function preparar(page, { proximos = false, jefe = false, configuracion = 
     documentos: [], fallarGuardado: 0, configVersion: 1, aprobadores: [] };
   const fuente = { otst: '26-0001-S01', cod_metrica: '0001-11-001', cliente: 'Cliente de prueba', planta: 'Planta de prueba',
     personal: 'Técnico QA', fecha_servicio: '2026-10-23', tipo_equipo: 'Balanza de plataforma', marca: 'Métrica', modelo: 'P300',
-    serie: 'QA-123', cap_max1: 150, cap_max2: 300, d1: 0.05, d2: 0.1, e1: 0.05, e2: 0.1, unidades: 'kg', comentario_general: 'se verifico la plataforma' };
+    serie: 'QA-123', cap_max1: 150, cap_max2: 300, d1: 0.05, d2: 0.1, e1: 0.05, e2: 0.1, unidades: 'kg', comentario_general: 'se verifico la plataforma',
+    ...fuenteExtra };
   const otst = () => estado.otst || fuente.otst;
   const informe = () => ({ tipo: 'MPR', codigo: 'ST-001', numero: `${otst()}-001`, tipoLabel: 'Mantenimiento preventivo regular',
     otst: otst(), otstOriginal: fuente.otst, fuente, datos: estado.otst ? { otst: estado.otst } : {}, estado: estado.estado, version: estado.version, revision: estado.revision,
@@ -363,4 +364,19 @@ test('la OTST se cambia con su motivo y el número del informe se recalcula', as
   expect(estado.otst).toBe('26-0002-S01');
   expect(estado.otstMotivo).toBe('ServiceMET registró la OTST de otra visita.');
   await page.locator('h2').first().locator('xpath=../..').screenshot({ path: '.impeccable/review/otst-encabezado.png' });
+});
+
+test('en la tabla de estado, el ajuste «No aplica» sale con su símbolo y el vacío con una raya', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await preparar(page, { fuenteExtra: {
+    limpieza_receptor_estado: '4 No aplica', limpieza_receptor_solucion: 'No aplica',
+    golpes_receptor_estado: 'Bueno', golpes_receptor_solucion: null,
+  } });
+  await page.goto('/');
+  const tabla = page.locator('aside .st-checklist:visible').filter({ hasText: 'Inspección al Receptor de carga' }).first();
+  await expect(tabla).toBeVisible({ timeout: 30000 });
+  await tabla.scrollIntoViewIfNeeded();
+  // Estado y ajuste «No aplica» → dos ⊘; el ajuste vacío → «-».
+  await expect(tabla.getByRole('img', { name: 'No aplica' })).toHaveCount(2);
+  await tabla.screenshot({ path: '.impeccable/review/no-aplica.png' });
 });
