@@ -20,6 +20,15 @@ test('un desarrollador puede intervenir cualquier reserva', () => {
   assert.equal(canManageVehicleReservation({ actor: { usuario: 'dev', acceso_cron: '3' }, creadoPor: 'mlopez' }), true);
 });
 
+test('un jefe de área edita libremente las reservas de otros', () => {
+  for (const cargo of ['Jefe de Area', ' Jefe de Área ', 'JEFE DE  AREA']) {
+    const jefe = { id: 3, usuario: 'jefe', acceso_cron: '2', cargo };
+    assert.equal(canManageVehicleReservation({ actor: jefe, creadoPor: 'mlopez' }), true);
+    assert.equal(canManageVehicleReservation({ actor: jefe, creadoPor: 'mlopez', creadorId: 7 }), true);
+  }
+  assert.equal(canManageVehicleReservation({ actor: { ...admin, cargo: 'Técnico' }, creadoPor: 'mlopez' }), false);
+});
+
 test('las reservas sin creador real quedan libres', () => {
   assert.equal(canManageVehicleReservation({ actor: admin, creadoPor: 'Sistema' }), true);
   assert.equal(canManageVehicleReservation({ actor: admin, creadoPor: null }), true);

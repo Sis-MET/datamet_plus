@@ -17,6 +17,9 @@ const MODULOS = {
 /** Sistemas: el nivel 3, la administración del sistema. */
 const esSistemas = (user) => String(user?.acceso_cron) === '3';
 
+/** Jefe de área por su cargo («Jefe de Area», sin importar tildes, mayúsculas ni espacios). */
+const esJefeDeArea = (user) => normalizeArea(user?.cargo).replace(/\s+/g, ' ') === 'jefe de area';
+
 /** ¿Puede usar el apartado quien tiene esta área y este nivel? */
 const permiteArea = (modulo, { area, acceso_cron: accesoCron } = {}) => {
   const definicion = MODULOS[modulo];
@@ -42,6 +45,7 @@ const mensajeSinAcceso = (modulo) => `Este apartado es del área de ${MODULOS[mo
 
 module.exports = {
   MODULOS,
+  esJefeDeArea,
   esSistemas,
   permiteArea,
   areaActiva,

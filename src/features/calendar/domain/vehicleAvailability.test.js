@@ -100,6 +100,14 @@ describe('canManageVehicleReservation', () => {
     expect(canManageVehicleReservation({ createdById: 7, createdBy: 'jperez' }, { ...admin, id: 9 })).toBe(false);
   });
 
+  it('deja a un jefe de área editar reservas ajenas', () => {
+    for (const cargo of ['Jefe de Area', ' Jefe de Área ', 'JEFE DE  AREA']) {
+      expect(canManageVehicleReservation({ createdBy: 'mlopez' }, { ...admin, cargo })).toBe(true);
+      expect(canManageVehicleReservation({ createdById: 7, createdBy: 'mlopez' }, { ...admin, id: 9, cargo })).toBe(true);
+    }
+    expect(canManageVehicleReservation({ createdBy: 'mlopez' }, { ...admin, cargo: 'Técnico' })).toBe(false);
+  });
+
   it('deja pasar a desarrolladores y reservas sin creador real', () => {
     expect(canManageVehicleReservation({ createdBy: 'mlopez' }, { usuario: 'dev', acceso_cron: '3' })).toBe(true);
     expect(canManageVehicleReservation({ createdBy: 'Sistema' }, admin)).toBe(true);

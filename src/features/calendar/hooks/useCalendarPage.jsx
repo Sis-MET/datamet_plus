@@ -6,7 +6,7 @@ import { safeStorage } from '../../../shared/utils/storage';
 import { decodeJwtPayload } from '../../../shared/utils/jwt';
 import { useGantt } from './useGantt';
 import { useCalendar } from './useCalendar';
-import { canManageVehicleReservation, isVehicleResource } from '../domain/vehicleAvailability';
+import { canManageVehicleReservation, isAreaChief, isVehicleResource } from '../domain/vehicleAvailability';
 import {
   clearPayload,
   createGroupId,
@@ -72,19 +72,13 @@ export function useCalendarPage() {
     usuario: user?.usuario,
     nombre: user?.nombre,
     acceso_cron: user?.acceso_cron,
-  }), [tokenUserId, user?.usuario, user?.nombre, user?.acceso_cron]);
+    cargo: user?.cargo,
+  }), [tokenUserId, user?.usuario, user?.nombre, user?.acceso_cron, user?.cargo]);
   const isAdmin = ['2', '3'].includes(String(user?.acceso_cron));
   const isDev = String(user?.acceso_cron) === '3';
-
-  const isJefeDeArea = useMemo(() => {
-    if (!user?.cargo) return false;
-    const normalized = String(user.cargo)
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim();
-    return normalized === 'jefe de area';
-  }, [user?.cargo]);
+  // Los jefes de \u00e1rea editan libremente todo el cronograma: fechas pasadas y
+  // reservas de veh\u00edculo de otras personas incluidas.
+  const isJefeDeArea = isAreaChief(user);
 
   // Gantt hook
   const {
@@ -139,7 +133,7 @@ export function useCalendarPage() {
     if (!task || !isVehicleId(vehicleId)) return null;
     if (canManageVehicleReservation(task, actor)) return null;
     const vehicleName = tecnicos.find(t => t.id === vehicleId)?.nombre || 'Este vehículo';
-    return `${vehicleName} está reservado por ${task.createdBy}. Solo esa persona puede modificar o eliminar la reserva.`;
+    return `${vehicleName} está reservado por ${task.createdBy}. Solo esa persona o un jefe de área pueden modificar o eliminar la reserva.`;
   }, [actor, isVehicleId, tecnicos]);
 
   /**
@@ -153,7 +147,7 @@ export function useCalendarPage() {
       .find(linked => getVehicleLockMessage(linked, linked.Tecnico));
     if (!lockedLink) return null;
     const vehicleName = tecnicos.find(t => t.id === lockedLink.Tecnico)?.nombre || 'un vehículo';
-    return `Esta ficha usa ${vehicleName}, reservado por ${lockedLink.createdBy}. Solo esa persona puede modificarla.`;
+    return `Esta ficha usa ${vehicleName}, reservado por ${lockedLink.createdBy}. Solo esa persona o un jefe de área pueden modificarla.`;
   }, [getVehicleLockMessage, tasks, tecnicos]);
 
   const isPastDate = (date) => {
@@ -357,7 +351,7 @@ export function useCalendarPage() {
     const lockedLink = vehiclesToRelease.find(linked => getVehicleLockMessage(linked, linked.Tecnico));
     if (lockedLink) {
       const vehicleName = tecnicos.find(t => t.id === lockedLink.Tecnico)?.nombre || 'un vehículo';
-      toast.error(`Esta ficha reserva ${vehicleName} a nombre de ${lockedLink.createdBy}. Solo esa persona puede eliminarla.`, { duration: 6000 });
+      toast.error(`Esta ficha reserva ${vehicleName} a nombre de ${lockedLink.createdBy}. Solo esa persona o un jefe de área pueden eliminarla.`, { duration: 6000 });
       return;
     }
 

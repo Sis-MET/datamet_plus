@@ -1,5 +1,6 @@
 const { verifyToken } = require('../utils/jwt.utils');
 const { usuarioVigente: usuarioVigenteBase } = require('../services/auth.session');
+const { esJefeDeArea } = require('../services/access.areas');
 
 // `code` le indica al frontend que debe volver al inicio de sesión (otras
 // respuestas 401, como el código de acceso de IvMET, no cierran la sesión).
@@ -47,13 +48,7 @@ const isAdmin = (req, res, next) => {
 };
 
 const jefeAreaOrAdmin = (req, res, next) => {
-  const cargoNormalized = (req.user?.cargo || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-
-  if (cargoNormalized === 'jefe de area') {
+  if (esJefeDeArea(req.user)) {
     return next();
   }
 

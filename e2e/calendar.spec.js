@@ -196,3 +196,28 @@ test('confirma un guardado local sin descargar nuevamente todo el cronograma', a
   expect(scheduleWrites).toBe(1);
   expect(scheduleReads).toBe(readsBeforeSave);
 });
+
+test('un jefe de área edita la reserva de vehículo de otra persona; otro nivel 2 no', async ({ page }) => {
+  await page.unroute('**/api/calendar/cronograma**');
+  const taskDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/La_Paz' }).format(new Date());
+  await page.route('**/api/calendar/cronograma**', route => route.fulfill({ json: { success: true, data: [{
+    id: 81, id_usuario: 99, usuario: 'CAMIONETA LPZ', fecha: taskDate, tipo_tarea: 'Servicio',
+    descripcion: 'Reserva de otra persona', color: '#2563EB', estado: 'Pendiente',
+    hora_inicio: '08:30:00', hora_fin: '09:30:00', creado_por: 'mlopez', id_creador: 7,
+  }] } }));
+  const comoUsuario = (cargo) => page.addInitScript(({ cargo }) => {
+    localStorage.setItem('datamet_user', JSON.stringify({ id: 1, nombre: 'Usuario QA', acceso_cron: 2, area: 'SERVICIO', cargo }));
+  }, { cargo });
+
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await comoUsuario('Técnico');
+  await page.goto('/');
+  await page.locator('[data-task-id="task_81"]').click();
+  await expect(page.getByText(/reservado por mlopez/)).toBeVisible();
+  await expect(page.getByRole('dialog', { name: /Editar tarea/i })).toHaveCount(0);
+
+  await comoUsuario('Jefe de Área');
+  await page.reload();
+  await page.locator('[data-task-id="task_81"]').click();
+  await expect(page.getByRole('dialog', { name: /Editar tarea/i })).toBeVisible();
+});

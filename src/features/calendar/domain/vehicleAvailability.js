@@ -25,14 +25,18 @@ const toUserId = (value) => {
   return Number.isInteger(id) && id > 0 ? id : null;
 };
 
+/** Jefe de área por su cargo («Jefe de Area», sin importar tildes, mayúsculas ni espacios). */
+export const isAreaChief = (user) => normalizeName(user?.cargo).replace(/\s+/g, ' ') === 'jefe de area';
+
 /**
  * Una reserva en la fila de un vehículo pertenece a quien la creó. Espejo de
  * backend/src/services/vehicleReservation.policy.js: la UI avisa antes de
  * intentar y el servidor es quien realmente lo impide. Las filas nuevas se
- * comparan por id de creador; las antiguas, por nombre.
+ * comparan por id de creador; las antiguas, por nombre. Los jefes de área y
+ * Sistemas (nivel 3) editan libremente todas las actividades.
  */
 export function canManageVehicleReservation(task, user) {
-  if (String(user?.acceso_cron) === '3') return true;
+  if (String(user?.acceso_cron) === '3' || isAreaChief(user)) return true;
 
   const ownerId = toUserId(task?.createdById);
   if (ownerId) return toUserId(user?.id) === ownerId;
