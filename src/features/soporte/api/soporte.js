@@ -34,6 +34,8 @@ export const soporteApi = {
   enviarValidacion: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/validacion`, body, { timeout: 30000 })),
   resolverValidacion: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/validacion/resolver`, body, { timeout: 30000 })),
   retirarValidacion: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/validacion/retirar`, body, { timeout: 30000 })),
+  // Cambio de OTST con su motivo: recalcula el número del informe.
+  cambiarOtst: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/otst`, body, { timeout: 30000 })),
   // Reemisión: abrir una revisión (con motivo), reemitirla o cancelarla.
   abrirRevision: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/revision`, body, { timeout: 30000 })),
   reemitir: (tipo, codigo, body) => unwrap(api.post(`${ruta(tipo, codigo)}/reemision`, body, { timeout: 30000 })).then(avisar),

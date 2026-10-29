@@ -49,18 +49,23 @@ const fuenteDe = (tipo) => `
   ) x${claveTecnicoSql('x.personal')}
   WHERE x.rn = 1`;
 
-const NUMERO_SQL = `f.otst + N'-' + CASE WHEN LEN(f.cod_metrica) >= 3 THEN RIGHT(f.cod_metrica, 3) ELSE f.cod_metrica END`;
+const NUMERO_SQL = `o.otst + N'-' + CASE WHEN LEN(f.cod_metrica) >= 3 THEN RIGHT(f.cod_metrica, 3) ELSE f.cod_metrica END`;
 const ESTADO_SQL = `CASE WHEN i.id IS NULL THEN 'PENDIENTE' ELSE i.estado END`;
 
 /** Agrupaciones de la lista: por OTST o por técnico. Sin dato, clave ''. */
 const CLAVE_GRUPO_SQL = {
-  otst: `ISNULL(LTRIM(RTRIM(f.otst)), N'')`,
+  otst: `ISNULL(LTRIM(RTRIM(o.otst)), N'')`,
   tecnico: `ISNULL(f.tecnico_clave, N'')`,
 };
 
+/**
+ * Servicios con su informe. `o.otst` es la OTST vigente: la que corrigió el
+ * área (ST_INFORMES.datos.otst) o, si no, la de ServiceMET (`f.otst`).
+ */
 const fromInformes = (tipos) => `
   FROM (${tipos.map(fuenteDe).join('\n  UNION ALL')}) f
-  LEFT JOIN dbo.ST_INFORMES i ON i.tipo = f.tipo AND i.codigo_registro = f.codigo_registro`;
+  LEFT JOIN dbo.ST_INFORMES i ON i.tipo = f.tipo AND i.codigo_registro = f.codigo_registro
+  CROSS APPLY (SELECT COALESCE(NULLIF(LTRIM(RTRIM(JSON_VALUE(i.datos, '$.otst'))), N''), f.otst) AS otst) o`;
 
 /**
  * WHERE de la lista. Con `conTipo` / `conEstado` en false omite ese filtro
@@ -73,7 +78,8 @@ const buildWhere = (filtros, { conTipo = true, conEstado = true } = {}) => {
 
   if (filtros.q) {
     add('q', sql.NVarChar(200), `%${escapeLike(filtros.q)}%`);
-    const columnas = ['f.codigo_registro', 'f.otst', 'f.cliente', 'f.planta', 'f.cod_metrica', 'f.serie',
+    // La OTST anterior también encuentra el informe.
+    const columnas = ['f.codigo_registro', 'o.otst', 'f.otst', 'f.cliente', 'f.planta', 'f.cod_metrica', 'f.serie',
       'f.personal', 'f.tipo_equipo', 'f.marca', 'f.modelo', `(${NUMERO_SQL})`];
     where.push(`(${columnas.map(columna => `${columna} LIKE @q ESCAPE '\\'`).join(' OR ')})`);
   }
@@ -122,7 +128,7 @@ const buildListQuery = (filtros) => {
   return {
     rows: {
       text: `
-        SELECT f.tipo, f.codigo_registro, f.otst, f.fecha_servicio, f.personal, f.cliente, f.planta,
+        SELECT f.tipo, f.codigo_registro, o.otst, f.fecha_servicio, f.personal, f.cliente, f.planta,
           f.cod_metrica, f.tipo_equipo, f.marca, f.modelo, f.serie,
           ${NUMERO_SQL} AS numero,
           ${ESTADO_SQL} AS estado,
@@ -134,7 +140,7 @@ const buildListQuery = (filtros) => {
         ORDER BY ${filtros.por === 'otst'
           // Dentro de una OTST, en el orden de los instrumentos (001, 002…).
           ? 'f.cod_metrica, f.tipo, f.fecha_servicio DESC'
-          : 'f.fecha_servicio DESC, f.otst DESC, f.cod_metrica, f.tipo'}
+          : 'f.fecha_servicio DESC, o.otst DESC, f.cod_metrica, f.tipo'}
         OFFSET ${offset} ROWS FETCH NEXT ${filtros.pageSize} ROWS ONLY;`,
       params,
     },
@@ -160,7 +166,7 @@ const buildGroupsQuery = (filtros) => {
   const clave = CLAVE_GRUPO_SQL[filtros.por];
   const base = `
     WITH base AS (
-      SELECT f.tipo, f.otst, f.tecnico_clave, f.cliente, f.planta, f.fecha_servicio,
+      SELECT f.tipo, o.otst, f.tecnico_clave, f.cliente, f.planta, f.fecha_servicio,
         ${clave} AS clave, ${ESTADO_SQL} AS estado
       ${fromInformes(filtros.tipo ? [filtros.tipo] : CLAVES_TIPO)}
       ${where}

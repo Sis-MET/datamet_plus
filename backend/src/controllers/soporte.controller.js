@@ -23,7 +23,8 @@ const handle = (action, status = 200) => async (req, res, next) => {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
     // Tablas o columnas ausentes: indicar la migración del proceso afectado.
-    const faltante = /Invalid object name 'dbo\.ST_APROBADORES/i.test(error.message || '') ? '013 (aprobadores de soporte)'
+    const faltante = /Invalid column name 'numero'|CK_ST_INFORMES_HISTORIAL_ACCION/i.test(error.message || '') ? '015 (cambio de OTST)'
+      : /Invalid object name 'dbo\.ST_APROBADORES/i.test(error.message || '') ? '013 (aprobadores de soporte)'
       : /Invalid object name 'dbo\.ST_INFORMES_DOCUMENTOS/i.test(error.message || '') ? '012 (archivo PDF de soporte)'
       : /Invalid column name 'validacion_/i.test(error.message || '') ? '011 (validación de informes)'
       : /Invalid object name 'dbo\.ST_(PROXIMOS|AVISOS)_/i.test(error.message || '') ? '009 (próximos servicios)'
@@ -103,6 +104,10 @@ module.exports = {
   abrirRevision: handle((req) => {
     const { tipo, codigo } = clave(req);
     return informes.abrirRevision(tipo, codigo, parse('abrirRevision', req.body), req.user);
+  }),
+  cambiarOtst: handle((req) => {
+    const { tipo, codigo } = clave(req);
+    return informes.cambiarOtst(tipo, codigo, parse('cambioOtst', req.body), req.user);
   }),
   reemitir: handle((req) => {
     const { tipo, codigo } = clave(req);

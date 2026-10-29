@@ -39,6 +39,15 @@ const version = z.preprocess(
 
 const fecha = z.iso.date({ error: 'Fecha inválida.' });
 
+/** OTST como la usa ServiceMET: «26-0285-51-S01» (las antiguas, «0000-S16-1-25»). */
+const OTST = /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/;
+const otst = z.string({ error: 'Escriba la nueva OTST.' })
+  .transform(value => text(value).toUpperCase().replace(/\s+/g, ''))
+  .pipe(z.string()
+    .min(1, 'Escriba la nueva OTST.')
+    .max(50, 'La OTST admite como máximo 50 caracteres.')
+    .regex(OTST, 'La OTST lleva letras, números y guiones, por ejemplo 26-0285-51-S01.'));
+
 /** Código Métrica del equipo ("0058-11-001"); se compara en mayúsculas. */
 const COD_METRICA = /^[A-Z0-9][A-Z0-9_.\-/ ]{1,49}$/;
 const codMetrica = z.string({ error: 'Falta el equipo.' })
@@ -103,6 +112,12 @@ const schemas = {
     motivo: motivo.refine(value => value !== null, 'Indique el motivo de la revisión.'),
   }),
   reemision: z.object({ version }),
+  // Cambiar la OTST exige su motivo (queda en el historial del informe).
+  cambioOtst: z.object({
+    version,
+    otst,
+    motivo: motivo.refine(value => value !== null, 'Indique el motivo del cambio de OTST.'),
+  }),
   cancelarRevision: z.object({ version }),
 
   redaccion: z.object({

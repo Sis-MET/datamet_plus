@@ -27,6 +27,7 @@ export const ACCIONES_HISTORIAL = {
   VALIDACION_APROBADA: 'Aprobado para emitir',
   VALIDACION_OBSERVADA: 'Devuelto con observaciones',
   VALIDACION_RETIRADA: 'Validación retirada',
+  OTST_CAMBIADA: 'Cambio de OTST',
 };
 
 export const ESTADOS_VALIDACION = {
@@ -69,6 +70,19 @@ export function mismoValor(a, b, tipo) {
 }
 
 /**
+ * ¿Lo escrito deja el campo como está guardado? En un número que se está
+ * escribiendo cuenta el texto, no su valor: «50.» y «50,0» valen 50, pero son
+ * pasos para llegar a 50.01 y no deben borrarse mientras se escribe. Al
+ * guardar, `cambiosParaGuardar` sí los compara como número.
+ */
+export function sinCambios(valor, guardado, tipo) {
+  const escribiendoNumero = typeof valor === 'string' && valor.trim() !== ''
+    && (NUMERICOS.has(tipo) || typeof guardado === 'number');
+  if (!escribiendoNumero) return mismoValor(valor, guardado, tipo);
+  return guardado !== null && guardado !== undefined && valor === String(guardado);
+}
+
+/**
  * Cambios por guardar: solo los que difieren del valor guardado. Los
  * números se envían como número; el texto, recortado.
  */
@@ -86,6 +100,27 @@ export function cambiosParaGuardar(informe, pendientes, tipos = {}) {
     }
   }
   return salida;
+}
+
+// ─── OTST y número ─────────────────────────────────────────────────────────
+
+/** OTST como la usa ServiceMET: «26-0285-51-S01» (las antiguas, «0000-S16-1-25»). */
+export const FORMATO_OTST = /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/;
+
+/** Lo escrito como OTST: en mayúsculas y sin espacios. */
+export const normalizarOtst = (valor) => String(valor ?? '').toUpperCase().replace(/\s+/g, '');
+
+/**
+ * Número del informe, igual que el servidor (soporte.tipos.js): la OTST y
+ * los 3 últimos dígitos del código Métrica («26-0285-51-S01» + «0285-51-002»
+ * → «26-0285-51-S01-002»).
+ */
+export function numeroInforme(otst, codMetrica) {
+  const ot = String(otst ?? '').trim();
+  const cod = String(codMetrica ?? '').trim();
+  if (!ot) return cod || null;
+  if (!cod) return ot;
+  return `${ot}-${cod.length >= 3 ? cod.slice(-3) : cod}`;
 }
 
 /** Agrupaciones de la lista; por omisión, por OTST (como se elegía en el Excel). */

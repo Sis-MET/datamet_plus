@@ -18,7 +18,7 @@
  */
 const { getPool, sql } = require('../config/db');
 const { withTransaction } = require('./calibration.db');
-const { TIPOS } = require('./soporte.tipos');
+const { TIPOS, numeroInforme, otstDe } = require('./soporte.tipos');
 const { httpError } = require('./soporte.validation');
 const redaccion = require('./soporte.redaccion');
 const revisiones = require('./soporte.revisiones');
@@ -140,6 +140,7 @@ const emitirInforme = async (tipo, codigo, body, user) => {
     await revisiones.guardarCopia(newRequest(), {
       informeId: id,
       revision: informe?.revision ?? 0,
+      numero: informe.numero,
       fuente,
       datos: informe ? leerDatos(informe.datos) : {},
       fotos,
@@ -228,6 +229,7 @@ const reemitirInforme = async (tipo, codigo, body, user) => {
     await revisiones.guardarCopia(newRequest(), {
       informeId: informe.id,
       revision: nueva,
+      numero: informe.numero,
       ...actual,
       motivo: informe.revision_motivo,
       emitidoPor: actor.usuario,
@@ -258,13 +260,17 @@ const cancelarRevision = async (tipo, codigo, body, user) => {
     const vigente = await revisiones.leerCopia(newRequest(), informe.id, informe.revision ?? 0);
     if (!vigente) throw httpError(409, 'No se encontró la copia de la revisión vigente.');
     const fotos = await revisiones.restaurarFotos(newRequest, { informeId: informe.id, copia: vigente.fotos, actor });
+    // Si la revisión cambió la OTST, vuelve también el número de la vigente.
+    const numero = vigente.numero || numeroInforme(otstDe(vigente.fuente, vigente.datos), vigente.fuente?.cod_metrica) || informe.numero;
     await newRequest()
       .input('id', sql.Int, informe.id)
       .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(vigente.datos))
+      .input('numero', sql.NVarChar(80), numero)
       .input('usuario', sql.NVarChar(50), actor.usuario)
       .query(`
         UPDATE dbo.ST_INFORMES
-        SET estado = 'EMITIDO', datos = @datos, revision_motivo = NULL, revision_abierta_por = NULL,
+        SET estado = 'EMITIDO', datos = @datos, numero = @numero,
+          revision_motivo = NULL, revision_abierta_por = NULL,
           ${LIMPIAR_VALIDACION},
           revision_abierta_en = NULL, version = version + 1,
           actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME()
@@ -282,6 +288,87 @@ const cancelarRevision = async (tipo, codigo, body, user) => {
     });
   });
 
+  return getInforme(tipo, codigo, user);
+};
+
+// ─── OTST ──────────────────────────────────────────────────────────────────
+
+/**
+ * ¿Otro servicio del mismo tipo ya usa ese número? Se revisan los informes
+ * guardados y los servicios de ServiceMET con esa OTST y ese instrumento
+ * (salvo los que ya cambiaron su OTST, que cuentan por su informe).
+ */
+const exigirNumeroLibre = async (newRequest, { tipo, codigo, otst, codMetrica, numero }) => {
+  const result = await newRequest()
+    .input('tipoOt', sql.VarChar(10), tipo)
+    .input('codigoOt', sql.NVarChar(100), codigo)
+    .input('otstOt', sql.NVarChar(50), otst)
+    .input('codOt', sql.NVarChar(50), String(codMetrica ?? '').trim())
+    .input('numeroOt', sql.NVarChar(80), numero)
+    .query(`
+      SELECT TOP (1) codigo_registro FROM (
+        SELECT i.codigo_registro FROM dbo.ST_INFORMES i
+        WHERE i.tipo = @tipoOt AND i.codigo_registro <> @codigoOt AND i.numero = @numeroOt
+        UNION ALL
+        SELECT t.codigo_registro FROM dbo.[${TIPOS[tipo].tabla}] t
+        WHERE t.codigo_registro IS NOT NULL AND t.codigo_registro <> @codigoOt
+          AND ISNULL(t.estado_servicio_csv, N'') <> N'ANULADO'
+          AND LTRIM(RTRIM(t.otst)) = @otstOt AND LTRIM(RTRIM(t.cod_metrica)) = @codOt
+          AND NOT EXISTS (
+            SELECT 1 FROM dbo.ST_INFORMES x
+            WHERE x.tipo = @tipoOt AND x.codigo_registro = t.codigo_registro AND JSON_VALUE(x.datos, '$.otst') IS NOT NULL)
+      ) usados;`);
+  const otro = result.recordset[0];
+  if (otro) {
+    throw httpError(400, `Ya hay un informe de ${TIPOS[tipo].etiqueta.toLowerCase()} N° ${numero} (servicio ${otro.codigo_registro}). Revise la OTST.`);
+  }
+};
+
+/**
+ * Cambia la OTST del informe (ServiceMET la registró mal o la orden se
+ * reasignó). La fila de ServiceMET no se toca: la OTST nueva se guarda en
+ * ST_INFORMES.datos como las demás correcciones, el número del informe se
+ * recalcula con ella y el historial conserva la anterior, la nueva, quién,
+ * cuándo y el motivo (NB/ISO/IEC 17025, 7.5.2). Un informe emitido se cambia
+ * abriendo antes una revisión: la OTST nueva sale en la reemisión y la
+ * revisión anterior conserva su número.
+ */
+const cambiarOtst = async (tipo, codigo, body, user) => {
+  const actor = await exigirEditor(user);
+  const fuente = await leerFuente(tipo, codigo, await columnasDe(tipo));
+  await conInforme({ tipo, codigo, fuente, actor }, async ({ informe, nuevo, newRequest }) => {
+    verificarVersion(nuevo ? null : informe, body.version);
+    exigirBorradorEditable(informe);
+    const datos = leerDatos(informe.datos);
+    const anterior = otstDe(fuente, datos);
+    if (anterior === body.otst) throw httpError(400, `La OTST del informe ya es ${body.otst}.`);
+    const numero = numeroInforme(body.otst, fuente.cod_metrica);
+    await exigirNumeroLibre(newRequest, { tipo, codigo, otst: body.otst, codMetrica: fuente.cod_metrica, numero });
+
+    // Volver a la OTST de ServiceMET deja de ser una corrección.
+    const nuevos = { ...datos, otst: body.otst };
+    if (body.otst === otstDe(fuente)) delete nuevos.otst;
+    const ordenados = Object.fromEntries(Object.keys(nuevos).sort().map(clave => [clave, nuevos[clave]]));
+    await newRequest()
+      .input('id', sql.Int, informe.id)
+      .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(ordenados))
+      .input('numero', sql.NVarChar(80), numero)
+      .input('usuario', sql.NVarChar(50), actor.usuario)
+      .query(`
+        UPDATE dbo.ST_INFORMES
+        SET datos = @datos, numero = @numero, version = version + 1,
+          actualizado_por = @usuario, actualizado_en = SYSUTCDATETIME()
+        WHERE id = @id;`);
+    await registrarHistorial(newRequest, {
+      informeId: informe.id,
+      accion: 'OTST_CAMBIADA',
+      detalle: `OTST ${anterior || 'sin OTST'} → ${body.otst}; informe N° ${informe.numero} → ${numero}`,
+      motivo: body.motivo,
+      cambios: [{ campo: 'otst', antes: anterior, despues: body.otst }],
+      revision: revisiones.revisionDeCambio(informe),
+      actor,
+    });
+  });
   return getInforme(tipo, codigo, user);
 };
 
@@ -409,6 +496,7 @@ const contextoArchivo = async (tipo, codigo, user, meta, newRequest) => {
 module.exports = {
   // Flujos de este archivo.
   abrirRevision,
+  cambiarOtst,
   cancelarRevision,
   contextoArchivo,
   emitirInforme,

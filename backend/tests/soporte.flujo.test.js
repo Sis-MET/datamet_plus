@@ -20,10 +20,11 @@ class Request {
     })));
     if (sql.includes('FROM DATA_USERS')) return result(sql.includes('WHERE id =')
       ? (personal.activo ? [personal] : []) : [{ usuario: 'tecnico', nombre: 'Técnico' }, { usuario: 'jefe', nombre: 'Jefe' }]);
+    if (sql.includes(') usados;')) return result(almacen.ocupados || []);
     if (sql.includes('DATA_SERVICIOS_DATOS_')) return result([fuente]);
     if (sql.includes('INSERT INTO dbo.ST_INFORMES_HISTORIAL')) { almacen.historial.push({ ...p, accion: p.accion }); return result([]); }
     if (sql.includes('INSERT INTO dbo.ST_INFORMES_REVISIONES')) {
-      almacen.copias.push({ revision: p.revision, fuente: p.fuente, datos: p.datos, fotos: p.fotos,
+      almacen.copias.push({ revision: p.revision, numero: p.numero, fuente: p.fuente, datos: p.datos, fotos: p.fotos,
         motivo: p.motivo, emitido_por: p.por, emitido_en: new Date() });
       return result([]);
     }
@@ -39,7 +40,7 @@ class Request {
       const informe = almacen.informe;
       const campos = ['estado', 'validacion_estado', 'validacion_huella', 'validacion_enviada_por', 'validacion_enviada_en',
         'validacion_resuelta_por', 'validacion_resuelta_en', 'validacion_observacion', 'revision_motivo', 'revision_abierta_por',
-        'revision_abierta_en', 'revision', 'datos', 'emitido_por', 'emitido_en'];
+        'revision_abierta_en', 'revision', 'datos', 'numero', 'emitido_por', 'emitido_en'];
       for (const campo of campos) {
         const valor = new RegExp(`\\b${campo} = (NULL|'[^']*'|@\\w+|SYSUTCDATETIME\\(\\))`).exec(sql)?.[1];
         if (valor) informe[campo] = valor === 'NULL' ? null : valor.startsWith('@') ? p[valor.slice(1)]
@@ -132,6 +133,54 @@ test('flujo real de servicios: envío, observaciones, aprobación, emisión y nu
   assert.equal(almacen.copias.length, 2);
   assert.ok(almacen.historial.some(h => h.accion === 'VALIDACION_OBSERVADA'));
   assert.equal(almacen.historial.filter(h => h.accion === 'VALIDACION_APROBADA').length, 2);
+});
+
+test('cambiar la OTST exige motivo, recalcula el número y cada revisión conserva el suyo', async () => {
+  reset();
+  const { parse } = require('../src/services/soporte.validation');
+  const motivo = 'ServiceMET registró la OTST de otra visita.';
+  assert.throws(() => parse('cambioOtst', { version: null, otst: 'OT-002', motivo: 'corto' }), /10 caracteres/);
+  assert.throws(() => parse('cambioOtst', { version: null, otst: 'OT-002' }), /motivo del cambio/);
+  assert.throws(() => parse('cambioOtst', { version: null, otst: '26 0001', motivo }), /guiones/);
+  assert.equal(parse('cambioOtst', { version: null, otst: ' 26-0001-11-s01 ', motivo }).otst, '26-0001-11-S01');
+
+  // Pendiente: el cambio crea el informe con la OTST nueva; ServiceMET no se toca.
+  await informes.cambiarOtst('MPR', 'ST-001', { version: null, otst: 'OT-002', motivo }, usuario);
+  assert.equal(fuente.otst, 'OT-001');
+  assert.equal(almacen.informe.numero, 'OT-002-001');
+  assert.equal(JSON.parse(almacen.informe.datos).otst, 'OT-002');
+  const cambio = almacen.historial.at(-1);
+  assert.equal(cambio.accion, 'OTST_CAMBIADA');
+  assert.equal(cambio.motivo, motivo);
+  assert.deepEqual(JSON.parse(cambio.cambios), [{ campo: 'otst', antes: 'OT-001', despues: 'OT-002' }]);
+  const detalle = await informes.getInforme('MPR', 'ST-001', usuario);
+  assert.deepEqual([detalle.otst, detalle.otstOriginal, detalle.numero], ['OT-002', 'OT-001', 'OT-002-001']);
+  await assert.rejects(informes.cambiarOtst('MPR', 'ST-001', { ...version(), otst: 'OT-002', motivo }, usuario), /ya es OT-002/);
+  await assert.rejects(informes.cambiarOtst('MPR', 'ST-001', { version: 999, otst: 'OT-003', motivo }, usuario), e => e.statusCode === 409);
+  almacen.ocupados = [{ codigo_registro: 'ST-009' }];
+  await assert.rejects(informes.cambiarOtst('MPR', 'ST-001', { ...version(), otst: 'OT-003', motivo }, usuario),
+    e => e.statusCode === 400 && /ST-009/.test(e.message));
+  almacen.ocupados = [];
+
+  // Emitido: se cambia dentro de una revisión y la Rev. 0 conserva su número.
+  await informes.enviarValidacion('MPR', 'ST-001', version(), usuario);
+  await assert.rejects(informes.cambiarOtst('MPR', 'ST-001', { ...version(), otst: 'OT-003', motivo }, usuario), /Retire la validación/);
+  await aprobar();
+  await informes.emitirInforme('MPR', 'ST-001', version(), usuario);
+  assert.equal(almacen.copias[0].numero, 'OT-002-001');
+  await assert.rejects(informes.cambiarOtst('MPR', 'ST-001', { ...version(), otst: 'OT-003', motivo }, usuario), /abra una revisión/);
+  await informes.abrirRevision('MPR', 'ST-001', { ...version(), motivo: 'Cambio de OTST pedido por el cliente' }, usuario);
+  // Volver a la OTST de ServiceMET deja de ser una corrección.
+  await informes.cambiarOtst('MPR', 'ST-001', { ...version(), otst: 'OT-001', motivo }, usuario);
+  assert.equal(JSON.parse(almacen.informe.datos).otst, undefined);
+  assert.equal(almacen.informe.numero, 'OT-001-001');
+  assert.equal(almacen.historial.at(-1).revision, 1);
+  assert.equal((await informes.getRevision('MPR', 'ST-001', 0)).numero, 'OT-002-001');
+
+  // Cancelar la revisión devuelve la OTST y el número de la vigente.
+  await informes.cancelarRevision('MPR', 'ST-001', version(), usuario);
+  assert.equal(almacen.informe.numero, 'OT-002-001');
+  assert.equal(JSON.parse(almacen.informe.datos).otst, 'OT-002');
 });
 
 test('un delegado aprueba y su revocación, baja o cambio de área se aplican en la siguiente solicitud', async () => {

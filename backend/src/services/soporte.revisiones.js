@@ -3,8 +3,9 @@
  *
  * Cada revisión emitida (la emisión original es la Rev. 0) guarda una copia
  * completa en ST_INFORMES_REVISIONES: la fila del servicio tal como estaba,
- * las correcciones del área y las fotos (id, orden y descripción; las fotos
- * nunca se borran). Con ella se vuelve a imprimir la revisión tal como se
+ * las correcciones del área, las fotos (id, orden y descripción; las fotos
+ * nunca se borran) y el número con que se emitió (cambia con la OTST,
+ * migración 015). Con ella se vuelve a imprimir la revisión tal como se
  * entregó y se vuelve a la vigente si se cancela una revisión abierta.
  *
  * Este módulo no depende de soporte.informes.js: lo usa.
@@ -98,11 +99,12 @@ const planFotos = ({ copia, todas }) => {
 // ─── Base de datos ─────────────────────────────────────────────────────────
 
 const COPIA_SELECT = `
-  SELECT revision, motivo, emitido_por, emitido_nombre, emitido_en, posterior
+  SELECT revision, numero, motivo, emitido_por, emitido_nombre, emitido_en, posterior
   FROM dbo.ST_INFORMES_REVISIONES`;
 
 const mapCopia = (row) => ({
   revision: row.revision,
+  numero: row.numero || null,
   motivo: row.motivo || null,
   emitidoPor: row.emitido_por ? { usuario: row.emitido_por, nombre: row.emitido_nombre || null } : null,
   emitidoEn: iso(row.emitido_en),
@@ -123,7 +125,7 @@ const leerCopia = async (request, informeId, revision) => {
     .input('informeCopia', sql.Int, informeId)
     .input('revisionCopia', sql.Int, revision)
     .query(`
-      SELECT revision, fuente, datos, fotos, motivo, emitido_por, emitido_nombre, emitido_en, posterior
+      SELECT revision, numero, fuente, datos, fotos, motivo, emitido_por, emitido_nombre, emitido_en, posterior
       FROM dbo.ST_INFORMES_REVISIONES WHERE informe_id = @informeCopia AND revision = @revisionCopia;`);
   const row = result.recordset[0];
   if (!row) return null;
@@ -146,14 +148,15 @@ const fotosVigentes = async (request, informeId) => {
 };
 
 /**
- * Guarda la copia de una revisión emitida. `emitidoEn` nulo = ahora (hora
- * del servidor).
+ * Guarda la copia de una revisión emitida con el número con que se emite.
+ * `emitidoEn` nulo = ahora (hora del servidor).
  */
 const guardarCopia = (request, {
-  informeId, revision, fuente, datos, fotos, motivo = null, emitidoPor, emitidoNombre = null, emitidoEn = null, posterior = false,
+  informeId, revision, numero, fuente, datos, fotos, motivo = null, emitidoPor, emitidoNombre = null, emitidoEn = null, posterior = false,
 }) => request
   .input('informe', sql.Int, informeId)
   .input('revision', sql.Int, revision)
+  .input('numero', sql.NVarChar(80), numero || null)
   .input('fuente', sql.NVarChar(sql.MAX), JSON.stringify(fuente || {}))
   .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(ordenarClaves(datos)))
   .input('fotos', sql.NVarChar(sql.MAX), JSON.stringify(copiaFotos(fotos || [])))
@@ -164,8 +167,8 @@ const guardarCopia = (request, {
   .input('posterior', sql.Bit, posterior)
   .query(`
     INSERT INTO dbo.ST_INFORMES_REVISIONES
-      (informe_id, revision, fuente, datos, fotos, motivo, emitido_por, emitido_nombre, emitido_en, posterior)
-    VALUES (@informe, @revision, @fuente, @datos, @fotos, @motivo, @por, @nombre, ISNULL(@en, SYSUTCDATETIME()), @posterior);`);
+      (informe_id, revision, numero, fuente, datos, fotos, motivo, emitido_por, emitido_nombre, emitido_en, posterior)
+    VALUES (@informe, @revision, @numero, @fuente, @datos, @fotos, @motivo, @por, @nombre, ISNULL(@en, SYSUTCDATETIME()), @posterior);`);
 
 /** Deja las fotos del informe como en la copia. Devuelve cuántas cambió. */
 const restaurarFotos = async (newRequest, { informeId, copia, actor }) => {

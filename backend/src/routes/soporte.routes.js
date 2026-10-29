@@ -25,6 +25,8 @@ router.get('/informes/grupos', controller.listGrupos);
 router.post('/redaccion', controller.redaccion);
 router.get('/informes/:tipo/:codigo', controller.getInforme);
 router.post('/informes/:tipo/:codigo/cambios', controller.guardarCambios);
+// Cambio de OTST con su motivo (cambia el número del informe).
+router.post('/informes/:tipo/:codigo/otst', controller.cambiarOtst);
 router.post('/informes/:tipo/:codigo/emision', controller.emitir);
 router.post('/informes/:tipo/:codigo/validacion', controller.enviarValidacion);
 router.post('/informes/:tipo/:codigo/validacion/resolver', controller.resolverValidacion);

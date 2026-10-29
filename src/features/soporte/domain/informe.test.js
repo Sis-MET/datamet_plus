@@ -10,6 +10,10 @@ import {
   pieDeInforme,
   pieDeRevision,
   prepararPdfEmitido,
+  FORMATO_OTST,
+  normalizarOtst,
+  numeroInforme,
+  sinCambios,
   textoPie,
   valorGuardado,
   valoresInforme,
@@ -49,6 +53,20 @@ describe('valores del informe', () => {
     expect(mismoValor('Bueno', 'Regular')).toBe(false);
   });
 
+  it('conserva el punto o la coma mientras se escribe un número', () => {
+    // Guardado 50: «50.» y «50,0» son pasos para llegar a 50.01.
+    for (const texto of ['50.', '50,', '50.0', '50,0', '050']) expect(sinCambios(texto, 50, 'numero')).toBe(false);
+    expect(sinCambios('50.0', 50)).toBe(false);
+    expect(sinCambios('50', 50, 'numero')).toBe(true);
+    expect(sinCambios('0.05', 0.05, 'numero')).toBe(true);
+    expect(sinCambios('', null, 'numero')).toBe(true);
+    expect(sinCambios(0.05, 0.05, 'numero')).toBe(true);
+    expect(sinCambios(' Bueno ', 'Bueno')).toBe(true);
+    // Al guardar se comparan como número: «50.0» no envía nada.
+    expect(cambiosParaGuardar({ fuente: { d1: 50 }, datos: {} }, { d1: '50.0' }, { d1: 'numero' })).toEqual({});
+    expect(cambiosParaGuardar({ fuente: { d1: 50 }, datos: {} }, { d1: '50,01' }, { d1: 'numero' })).toEqual({ d1: 50.01 });
+  });
+
   it('solo envía lo que cambió, con números como número', () => {
     expect(cambiosParaGuardar(informe, {
       comentario_general: 'Corregido',
@@ -56,6 +74,20 @@ describe('valores del informe', () => {
       cliente: '  ',
       fecha_servicio: '2026-08-13',
     }, { d1: 'numero' })).toEqual({ d1: 0.1, cliente: null });
+  });
+});
+
+describe('OTST y número del informe', () => {
+  it('arma el número como el servidor', () => {
+    expect(numeroInforme('26-0285-51-S01', '0285-51-002')).toBe('26-0285-51-S01-002');
+    expect(numeroInforme(' 26-0285-51-S01 ', '12')).toBe('26-0285-51-S01-12');
+    expect(numeroInforme(null, '0285-51-002')).toBe('0285-51-002');
+  });
+
+  it('acepta las OTST actuales y las antiguas, en mayúsculas y sin espacios', () => {
+    expect(normalizarOtst(' 26-0285-51-s01 ')).toBe('26-0285-51-S01');
+    for (const otst of ['26-0285-51-S01', '0000-S16-1-25']) expect(FORMATO_OTST.test(otst)).toBe(true);
+    for (const otst of ['260285', '26--0285', '-26-0285', '26/0285']) expect(FORMATO_OTST.test(otst)).toBe(false);
   });
 });
 

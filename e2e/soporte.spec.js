@@ -23,8 +23,9 @@ async function preparar(page, { proximos = false, jefe = false, configuracion = 
   const fuente = { otst: '26-0001-S01', cod_metrica: '0001-11-001', cliente: 'Cliente de prueba', planta: 'Planta de prueba',
     personal: 'Técnico QA', fecha_servicio: '2026-10-23', tipo_equipo: 'Balanza de plataforma', marca: 'Métrica', modelo: 'P300',
     serie: 'QA-123', cap_max1: 150, cap_max2: 300, d1: 0.05, d2: 0.1, e1: 0.05, e2: 0.1, unidades: 'kg', comentario_general: 'se verifico la plataforma' };
-  const informe = () => ({ tipo: 'MPR', codigo: 'ST-001', numero: '26-0001-S01-001', tipoLabel: 'Mantenimiento preventivo regular',
-    fuente, datos: {}, estado: estado.estado, version: estado.version, revision: estado.revision,
+  const otst = () => estado.otst || fuente.otst;
+  const informe = () => ({ tipo: 'MPR', codigo: 'ST-001', numero: `${otst()}-001`, tipoLabel: 'Mantenimiento preventivo regular',
+    otst: otst(), otstOriginal: fuente.otst, fuente, datos: estado.otst ? { otst: estado.otst } : {}, estado: estado.estado, version: estado.version, revision: estado.revision,
     columnas: Object.fromEntries(Object.entries(fuente).map(([k, v]) => [k, { tipo: typeof v === 'number' ? 'decimal' : 'texto', max: 4000 }])),
     acciones: { editar: true, aprobar: estado.jefe, redaccion: true }, fotos: [], historial: [], revisiones: [], trazabilidad: {},
     validacion: { estado: estado.validacion, observacion: estado.observacion, resueltaPor: estado.validacion === 'APROBADO' ? { nombre: 'Jefe QA' } : null },
@@ -94,7 +95,8 @@ async function preparar(page, { proximos = false, jefe = false, configuracion = 
     else if (path.endsWith('/validacion/retirar')) estado.validacion = 'BORRADOR';
     else if (path.endsWith('/ST-001/emision')) estado.estado = 'EMITIDO';
     else if (path.endsWith('/ST-001/reemision')) { estado.estado = 'EMITIDO'; estado.revision++; }
-    else if (path.endsWith('/ST-001/cambios')) Object.assign(fuente, body.cambios);
+    else if (path.endsWith('/ST-001/cambios')) { estado.cambios = body.cambios; Object.assign(fuente, body.cambios); }
+    else if (path.endsWith('/ST-001/otst')) { estado.otst = body.otst; estado.otstMotivo = body.motivo; }
     else return json({ total: 0, items: [] });
     estado.version++;
     return json(informe());
@@ -322,4 +324,43 @@ test('el plan exporta un mes, varios meses y 2027 completo; la ficha muestra dob
   await page.getByRole('dialog').getByText('Capacidad máxima', { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: '.impeccable/review/soporte-mobile-rangos.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+});
+
+test('al corregir un número se puede escribir el punto decimal', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const estado = await preparar(page);
+  await page.goto('/');
+  // Guardado 150: «150.» vale lo mismo, pero no debe borrarse mientras se escribe.
+  const capacidad = page.getByRole('textbox', { name: 'Capacidad máxima del rango 1', exact: true });
+  await capacidad.click();
+  await capacidad.press('End');
+  await capacidad.pressSequentially('.01');
+  await expect(capacidad).toHaveValue('150.01');
+  await capacidad.fill('150');
+  await capacidad.press('End');
+  await capacidad.pressSequentially(',5');
+  await expect(capacidad).toHaveValue('150,5');
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect.poll(() => estado.cambios?.cap_max1).toBe(150.5);
+});
+
+test('la OTST se cambia con su motivo y el número del informe se recalcula', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const estado = await preparar(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '26-0001-S01-001' })).toBeVisible({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Cambiar OTST', exact: true }).click();
+  const dialogo = page.getByRole('dialog');
+  await dialogo.getByLabel('Nueva OTST').fill('26-0002-s01');
+  await expect(dialogo).toContainText('26-0002-S01-001');
+  await dialogo.getByRole('button', { name: 'Cambiar OTST', exact: true }).click();
+  await expect(dialogo.getByRole('alert')).toContainText('motivo');
+  await dialogo.getByLabel('Motivo del cambio').fill('ServiceMET registró la OTST de otra visita.');
+  await dialogo.screenshot({ path: '.impeccable/review/otst-modal.png' });
+  await dialogo.getByRole('button', { name: 'Cambiar OTST', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '26-0002-S01-001' })).toBeVisible();
+  await expect(page.getByTitle(/La OTST se cambió en el informe/)).toContainText('ServiceMET: 26-0001-S01');
+  expect(estado.otst).toBe('26-0002-S01');
+  expect(estado.otstMotivo).toBe('ServiceMET registró la OTST de otra visita.');
+  await page.locator('h2').first().locator('xpath=../..').screenshot({ path: '.impeccable/review/otst-encabezado.png' });
 });

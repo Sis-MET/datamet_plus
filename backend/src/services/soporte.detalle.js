@@ -3,7 +3,7 @@
  * ST_INFORMES, sus fotos, su historial y las revisiones emitidas.
  */
 const { getPool, sql } = require('../config/db');
-const { TIPOS, numeroInforme } = require('./soporte.tipos');
+const { TIPOS, numeroInforme, otstDe } = require('./soporte.tipos');
 const { httpError } = require('./soporte.validation');
 const redaccion = require('./soporte.redaccion');
 const revisiones = require('./soporte.revisiones');
@@ -75,13 +75,17 @@ const mapHistorial = (row) => ({
 
 const mapDetalle = ({ tipo, codigo, fuente, informe, fotos, historial, columnas, nombres, editar, aprobar = false, copias = [] }) => {
   const nombre = (usuario) => (usuario ? { usuario, nombre: nombres.get(usuario) || null } : null);
+  const datos = informe ? leerDatos(informe.datos) : {};
   return {
     tipo,
     tipoLabel: TIPOS[tipo].etiqueta,
     codigo,
     numero: informe?.numero || numeroInforme(fuente.otst, fuente.cod_metrica),
+    // OTST vigente del informe y la que subió ServiceMET (difieren si se cambió).
+    otst: otstDe(fuente, datos),
+    otstOriginal: otstDe(fuente),
     fuente,
-    datos: informe ? leerDatos(informe.datos) : {},
+    datos,
     columnas: columnasEditables(columnas),
     estado: informe ? informe.estado : 'PENDIENTE',
     revision: informe?.revision ?? 0,
@@ -182,7 +186,8 @@ const getRevision = async (tipo, codigo, revision) => {
   return {
     tipo,
     codigo,
-    numero: informe.numero,
+    // Cada revisión conserva el número con que se emitió (la OTST pudo cambiar después).
+    numero: copia.numero || numeroInforme(otstDe(copia.fuente, copia.datos), copia.fuente.cod_metrica) || informe.numero,
     revision: copia.revision,
     fuente: copia.fuente,
     datos: copia.datos,

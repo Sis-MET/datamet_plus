@@ -31,4 +31,13 @@ const numeroInforme = (otst, codMetrica) => {
   return `${ot}-${cod.length >= 3 ? cod.slice(-3) : cod}`;
 };
 
-module.exports = { CLAVES_TIPO, ESTADOS, TIPOS, numeroInforme };
+/**
+ * OTST del informe: la que corrigió el área (ST_INFORMES.datos.otst) o, si
+ * no se cambió, la que subió ServiceMET.
+ */
+const otstDe = (fuente = {}, datos = {}) => {
+  const valor = Object.prototype.hasOwnProperty.call(datos || {}, 'otst') ? datos.otst : fuente?.otst;
+  return String(valor ?? '').trim() || null;
+};
+
+module.exports = { CLAVES_TIPO, ESTADOS, TIPOS, numeroInforme, otstDe };

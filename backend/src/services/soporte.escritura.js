@@ -111,6 +111,7 @@ const asegurarCopiaVigente = async (newRequest, { informe, fuente }) => {
   await revisiones.guardarCopia(newRequest(), {
     informeId: informe.id,
     revision: informe.revision ?? 0,
+    numero: informe.numero,
     fuente,
     datos: leerDatos(informe.datos),
     fotos: await revisiones.fotosVigentes(newRequest(), informe.id),

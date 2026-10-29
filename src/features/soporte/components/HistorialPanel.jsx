@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BadgeCheck, Camera, FilePenLine, History, PencilLine, Undo2 } from 'lucide-react';
+import { BadgeCheck, Camera, FilePenLine, Hash, History, PencilLine, Undo2 } from 'lucide-react';
 import { EmptyState } from '../../calibration/components/primitives';
 import { ACCIONES_HISTORIAL, fechaHora, formatoFecha } from '../domain/informe';
 import { etiquetasCampos } from '../domain/plantillas';
@@ -16,6 +16,7 @@ const ICONOS = {
   REVISION_ABIERTA: FilePenLine,
   REEMISION: BadgeCheck,
   REVISION_CANCELADA: Undo2,
+  OTST_CAMBIADA: Hash,
 };
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
@@ -65,6 +66,7 @@ export function HistorialPanel({ informe, plantilla }) {
   const etiquetas = useMemo(() => {
     const mapa = etiquetasCampos(plantilla);
     mapa.set('descripcion', 'Descripción');
+    mapa.set('otst', 'OTST');
     return mapa;
   }, [plantilla]);
   const { trazabilidad } = informe;

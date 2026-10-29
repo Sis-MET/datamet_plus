@@ -294,7 +294,8 @@ la aplicación (migración `008`, rutas `/api/soporte/*`).
   registra con variantes («Aux. Elvis Villca .» y «Tec. Elvis Villca .»,
   «Tec. Jhonatan Barrau» y «Tec. Jhonatan Barrau F.»).
 - **Número de informe:** como en las macros, la OTST y los 3 últimos dígitos
-  del código Métrica (`26-0285-51-S01-002`).
+  del código Métrica (`26-0285-51-S01-002`). Si la OTST se cambió en el
+  informe (ver «Cambio de OTST»), vale la nueva.
 - **Editor:** formulario por secciones, en el orden del informe, con vista
   previa al lado (debajo de 1280 px, en su pestaña). Los estados se marcan con
   los mismos símbolos del informe; cada dato corregido muestra el valor que
@@ -399,9 +400,21 @@ usuario de la sesión y la hora del servidor.
 - Una foto no se borra: se quita con usuario y fecha.
 - Dos personas no se pisan: cada informe lleva una versión y el segundo en
   guardar recibe un aviso y la versión vigente (409).
-- No se editan la identidad del servicio (OTST, código de registro, código
-  Métrica) ni las columnas de sistema; el backend valida cada valor contra el
-  tipo y el largo de su columna.
+- No se editan el código de registro, el código Métrica ni las columnas de
+  sistema; el backend valida cada valor contra el tipo y el largo de su
+  columna. Los números aceptan punto o coma decimal, y la carga de
+  repetibilidad admite decimales aunque ServiceMET la guarde como entero.
+- **Cambio de OTST** (migración `015`): «Cambiar OTST», junto a la OTST del
+  encabezado, pide la nueva OTST y el motivo, y muestra cómo queda el número.
+  La fila de ServiceMET no se toca: la OTST nueva va en `ST_INFORMES.datos`,
+  el número del informe se recalcula, la lista, los grupos por OTST y los
+  próximos servicios usan la nueva (buscar por la anterior también lo
+  encuentra), y el historial guarda la anterior, la nueva, quién, cuándo y el
+  motivo (acción `OTST_CAMBIADA`). Volver a la OTST de ServiceMET deja de ser
+  una corrección. No se admite un número que ya use otro servicio del mismo
+  tipo. En un informe emitido se cambia dentro de una revisión: cada revisión
+  emitida guarda su número en `ST_INFORMES_REVISIONES.numero` y se reimprime
+  con él, y cancelar la revisión devuelve la OTST y el número de la vigente.
 
 - Un texto redactado con la sugerencia de Gemini queda marcado como tal en
   su cambio del historial; el autor sigue siendo el usuario que lo guardó.
@@ -412,7 +425,11 @@ cambio CC-2026-019 en el Control de cambios) y después backend y frontend.
 Las fotos se guardan en la base (unos 150–300 KB cada una): en SQL Server
 Express cuentan para el límite de 10 GB. La reemisión necesita además la
 migración `010` (estado «En revisión», nuevas acciones del historial y
-`ST_INFORMES_REVISIONES`; registra el cambio CC-2026-021).
+`ST_INFORMES_REVISIONES`; registra el cambio CC-2026-021). El cambio de OTST
+necesita la migración `015` (acción `OTST_CAMBIADA` y número de cada
+revisión; las copias existentes toman el número actual) antes de desplegar
+el backend: sin ella, los informes emitidos no abren y el apartado avisa
+que falta la migración 015.
 
 Para «Mejorar redacción», en `backend/.env`:
 

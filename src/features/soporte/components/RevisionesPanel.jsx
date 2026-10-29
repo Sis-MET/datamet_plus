@@ -36,6 +36,9 @@ export function RevisionesPanel({ informe, cargando, onImprimir, onPdf }) {
                     Rev. {copia.revision}
                     {vigente && <ToneBadge tone="success">Vigente</ToneBadge>}
                   </p>
+                  {copia.numero && copia.numero !== informe.numero && (
+                    <p className="mt-0.5 font-mono text-[12.5px] text-fg">N° {copia.numero}</p>
+                  )}
                   <p className="mt-0.5 text-[12.5px] text-fg-muted">
                     {copia.revision === 0 ? 'Emitida' : 'Reemitida'} por {persona(copia.emitidoPor) || 'sin dato'} · {fechaHora(copia.emitidoEn)}
                   </p>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, AlertTriangle, ArrowLeft, BadgeCheck, Camera, ChevronRight, Download, Eye, FilePenLine, FileText, History, Info, Loader2,
-  FolderOpen, Printer, Undo2,
+  FolderOpen, PencilLine, Printer, Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
@@ -15,12 +15,13 @@ import { avisosEmision } from '../domain/avisos';
 import { aNumero } from '../domain/calculos';
 import {
   ESTADOS_INFORME, cambiosParaGuardar, fechaHora, formatoFecha, mismoValor, nombreArchivo, notasRevision, pieDeInforme,
-  pieDeRevision, prepararPdfEmitido, valorGuardado, valoresInforme,
+  pieDeRevision, prepararPdfEmitido, sinCambios, valorGuardado, valoresInforme,
 } from '../domain/informe';
 import { PLANTILLAS, seccionesEditor, tipoServicio } from '../domain/plantillas';
 import { FotosPanel } from './FotosPanel';
 import { HistorialPanel } from './HistorialPanel';
 import { MotivoModal } from './MotivoModal';
+import { OtstModal } from './OtstModal';
 import { RevisionesPanel } from './RevisionesPanel';
 import { SeccionEditor } from './secciones';
 import { Impresion, VistaPrevia } from './VistaPrevia';
@@ -240,6 +241,7 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   // que se está imprimiendo o guardando en PDF.
   const [abriendo, setAbriendo] = useState(false);
   const [cancelando, setCancelando] = useState(false);
+  const [cambiandoOtst, setCambiandoOtst] = useState(false);
   const [revisionDoc, setRevisionDoc] = useState(null);
   const [cargandoRevision, setCargandoRevision] = useState(null);
   // Campos cuyo texto se reemplazó con la sugerencia de Gemini.
@@ -293,7 +295,7 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   const cambiar = useCallback((campo, valor) => {
     setPendientes((actual) => {
       const siguiente = { ...actual };
-      if (mismoValor(valor, valorGuardado(informeRef.current, campo), tiposNumericos[campo])) delete siguiente[campo];
+      if (sinCambios(valor, valorGuardado(informeRef.current, campo), tiposNumericos[campo])) delete siguiente[campo];
       else siguiente[campo] = valor;
       return siguiente;
     });
@@ -453,16 +455,18 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
     try {
       const copia = await soporteApi.revision(tipo, codigo, revision);
       const valoresCopia = { ...copia.fuente, ...copia.datos };
+      // Cada revisión se imprime con el número con que se emitió (la OTST pudo cambiar después).
+      const numeroCopia = copia.numero || informe.numero;
       const copiaDoc = {
         modo,
-        titulo: nombreArchivo(plantilla, informe.numero, valoresCopia, revision),
+        titulo: nombreArchivo(plantilla, numeroCopia, valoresCopia, revision),
         documento: {
           plantilla,
-          numero: informe.numero,
+          numero: numeroCopia,
           valores: valoresCopia,
           fotos: copia.fotos,
           borrador: false,
-          pie: pieDeRevision(copia, informe.numero),
+          pie: pieDeRevision(copia, numeroCopia),
           notas: notasRevision(copia.revisiones),
         },
       };
@@ -530,6 +534,26 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
             </div>
             <p className="mt-1 text-[13px] text-fg-muted">
               {[servicio.label, valores.cliente, valores.personal, formatoFecha(valores.fecha_servicio)].filter(Boolean).join(' · ')}
+            </p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-fg-muted">
+              <span>OTST <span className="font-mono font-medium text-fg">{informe.otst || 'sin OTST'}</span></span>
+              {informe.otstOriginal && informe.otstOriginal !== informe.otst && (
+                <span title="La OTST se cambió en el informe; el registro de ServiceMET conserva la original">
+                  · ServiceMET: <span className="font-mono">{informe.otstOriginal}</span>
+                </span>
+              )}
+              {editable && (
+                <button
+                  type="button"
+                  onClick={() => setCambiandoOtst(true)}
+                  disabled={!editableDatos}
+                  title={emitido ? 'Abra una revisión para cambiar la OTST de un informe emitido'
+                    : !editableDatos ? 'Retire la validación para cambiar la OTST' : 'Cambiar la OTST con su motivo'}
+                  className="inline-flex min-h-8 items-center gap-1 font-medium text-info underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:text-fg-subtle disabled:no-underline"
+                >
+                  <PencilLine className="h-3.5 w-3.5" aria-hidden="true" /> Cambiar OTST
+                </button>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -728,6 +752,17 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           onConfirm={async (motivo) => {
             await aplicar(soporteApi.abrirRevision(tipo, codigo, { version: informe.version, motivo }));
             toast.success(`Revisión ${informe.revision + 1} abierta: los cambios se guardan como borrador.`);
+          }}
+        />
+      )}
+
+      {cambiandoOtst && (
+        <OtstModal
+          informe={informe}
+          onClose={() => setCambiandoOtst(false)}
+          onConfirm={async ({ otst, motivo }) => {
+            const nuevo = await aplicar(soporteApi.cambiarOtst(tipo, codigo, { version: informe.version, otst, motivo }));
+            toast.success(`OTST cambiada: el informe ahora es N° ${nuevo.numero}.`);
           }}
         />
       )}

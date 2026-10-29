@@ -72,6 +72,18 @@ test('tipo de columna de SQL Server', () => {
   assert.equal(mapColumna({ DATA_TYPE: 'datetimeoffset' }).tipo, 'fechahora');
 });
 
+test('las cargas de repetibilidad guardadas como entero admiten decimales', () => {
+  for (const nombre of ['repetibilidad1_inicial', 'repetibilidad1_final', 'repetibilidad1']) {
+    const meta = mapColumna({ COLUMN_NAME: nombre, DATA_TYPE: 'int' });
+    assert.equal(meta.tipo, 'decimal');
+    assert.equal(coercer(nombre, meta, '50,01'), 50.01);
+  }
+  // Las posiciones y cantidades siguen siendo enteras.
+  for (const nombre of ['posicion_inicial_1', 'num_celdas', 'repetibilidad_inicial_cantidad_pruebas']) {
+    assert.equal(mapColumna({ COLUMN_NAME: nombre, DATA_TYPE: 'int' }).tipo, 'entero');
+  }
+});
+
 test('la identidad del servicio, las fotos y los datos de sistema no se editan', () => {
   assert.equal(esEditable('comentario_general', columnas.get('comentario_general')), true);
   assert.equal(esEditable('d1', columnas.get('d1')), true);
@@ -265,7 +277,9 @@ test('la agrupación se valida y un grupo pide su agrupación', () => {
 test('los informes de un grupo se filtran por su clave y una OTST va en orden de instrumentos', () => {
   const query = buildListQuery(filtros({ por: 'otst', grupo: '26-0285-51-S01' }));
   assert.equal(params(query.rows).grupo, '26-0285-51-S01');
-  assert.match(query.rows.text, /ISNULL\(LTRIM\(RTRIM\(f\.otst\)\), N''\) = @grupo/);
+  // La clave es la OTST vigente: la corregida en el informe o la de ServiceMET.
+  assert.match(query.rows.text, /ISNULL\(LTRIM\(RTRIM\(o\.otst\)\), N''\) = @grupo/);
+  assert.match(query.rows.text, /COALESCE\(NULLIF\(LTRIM\(RTRIM\(JSON_VALUE\(i\.datos, '\$\.otst'\)\)\), N''\), f\.otst\) AS otst\) o/);
   assert.match(query.rows.text, /ORDER BY f\.cod_metrica/);
   // Los conteos de los chips no se limitan al grupo.
   assert.equal(params(buildListQuery(filtros({ por: 'otst' })).counts).grupo, undefined);

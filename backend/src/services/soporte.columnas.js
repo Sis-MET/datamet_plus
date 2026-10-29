@@ -31,9 +31,17 @@ const TIPO_COLUMNA = {
   datetime: 'fechahora', datetime2: 'fechahora', smalldatetime: 'fechahora', datetimeoffset: 'fechahora',
 };
 
+/**
+ * Cargas de repetibilidad: algunas tablas de ServiceMET las crearon como
+ * entero, pero son una medición (525.5 kg) y la corrección admite decimales
+ * (se guarda en ST_INFORMES.datos, no en esa columna).
+ */
+const MEDICION_EN_ENTERO = /^repetibilidad1(_(inicial|final))?$/i;
+
 /** Fila de INFORMATION_SCHEMA.COLUMNS → { tipo, max }. */
 const mapColumna = (row) => {
-  const tipo = TIPO_COLUMNA[String(row.DATA_TYPE).toLowerCase()] || 'otro';
+  const declarado = TIPO_COLUMNA[String(row.DATA_TYPE).toLowerCase()] || 'otro';
+  const tipo = declarado === 'entero' && MEDICION_EN_ENTERO.test(String(row.COLUMN_NAME || '')) ? 'decimal' : declarado;
   const largo = Number(row.CHARACTER_MAXIMUM_LENGTH);
   return {
     tipo,

@@ -100,8 +100,8 @@ const mapServicio = (row) => {
   return {
     tipo: row.tipo,
     codigo: row.codigo_registro,
-    otst: limpio(row.otst),
-    numero: row.numero_informe || numeroInforme(row.otst, row.cod_metrica),
+    otst: limpio(valor('otst')),
+    numero: row.numero_informe || numeroInforme(valor('otst'), row.cod_metrica),
     estadoInforme: row.estado_informe || 'PENDIENTE',
     fecha: fechaIso(valor('fecha_servicio')),
     fechaProx: fechaIso(valor('fecha_prox_servicio')),
