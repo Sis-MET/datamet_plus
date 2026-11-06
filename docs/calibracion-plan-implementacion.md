@@ -335,6 +335,70 @@ guardar; el editor la llama al cambiar datos.
 **Hecho cuando** pasan todos los vectores de EURAMET y la Guía SIM y el
 laboratorio revisó el presupuesto de un caso real.
 
+**Avance (2026-11-06):** núcleo del motor en
+`backend/src/services/calibracion/motor/` (puro, sin base):
+
+- `estadistica.js`: t de Student al 95,45 % calculada (coincide con la Tabla
+  G.2 de la GUM a dos decimales; ν no entero se trunca, G.6.4), νeff por
+  Welch-Satterthwaite (B3-1), U con dos cifras hacia arriba y el error al mismo
+  decimal.
+- `aire.js`: CIPM-2007 con R = 8,314 462 618 (coincide con la fórmula
+  aproximada dentro de 2,4×10⁻⁴ en todo su rango; La Paz ≈ 0,782 kg/m³) y
+  u(ρa) con la U del termohigrómetro más la variación inicio-fin (decisión 5).
+- `referencia.js`: δmc con u = U/k (o emp/√3 sin certificado), δmB con 5a/5b
+  (y las cotas 5c/5d/5e solo para validar), deriva D = kD·U, convección por la
+  Tabla F2.1; las incertidumbres de las pesas de una carga se suman
+  linealmente.
+- `indicacion.js`: s y su ν, s por intervalo (el mayor de los dos ensayos que
+  encierran la carga), excentricidad por el método 3 y u(I) (7.1.1-12; sin
+  carga solo d0 y s).
+- `error.js`: E, u(E), νeff, k y U por punto con el presupuesto completo.
+- `tolerancia.js`: emp NB 23001 (R76 Tabla 6 × 2 en servicio), tolerancia en
+  %, rango que corresponde a una carga, conformidad simple o conservadora y
+  riesgo bilateral con u = U/k.
+- `CONFIGURACION_V1` con los valores de «Configuración inicial».
+
+Validación (`tests/motor.euramet.test.js`): el ejemplo H1 de EURAMET punto por
+punto (u(I), u(E), νeff, k y U sin redondear dentro del 1 %; en 150 g la guía
+da u(E) 0,5 % menor por la cota 5d de la carga combinada). Con la decisión 3
+la U impresa queda en dos cifras hacia arriba (0,001 80 → 0,0019 g), más
+estricta que la de la guía, que imprime tres cifras.
+
+Segunda entrega (2026-11-06):
+
+- `cargas.js`: cada carga se arma con las piezas de los juegos elegidos, con
+  la combinación de **menos piezas**; desempates propuestos: piezas grandes
+  primero y, en un mismo valor, sin marca, «*», «**» (falta que el laboratorio
+  los confirme). Si un juego no tiene piezas registradas se supone la serie
+  5-2-2-1 de su clase con valores nominales (u = emp/√3, 7.1.2-3) y el cálculo
+  queda **provisional**.
+- `sustitucion.js`: LTn y LTn,k con 7.1.2-15a/b.
+- `aire.js`: corrección de las lecturas con los puntos del certificado del
+  termohigrómetro (interpolación lineal; fuera del rango, el punto más cercano
+  con aviso).
+- `servicio.js`: cálculo completo de un servicio desde su modelo: aire, ρa1
+  de cada juego (con las condiciones transcritas de su certificado → 5b; si no,
+  5a), repetibilidad por intervalo, excentricidad por método 3 (con la mediana
+  de las indicaciones si la carga de ServiceMET perdió los decimales),
+  I = IL − (I0 + I0i)/2 con «ascenso evaluando ceros», composición, mref,
+  E, U, k, tolerancia (emp NB 23001 con la clase, o % del cliente) y
+  conformidad; avisos de RECA (error > 4d, U > 3d, excentricidad > 2d).
+- `calibration.calculo.js` y `GET /calibracion/servicios/:codigo/calculo`:
+  vista previa con los datos de los patrones vigentes en la fecha del servicio.
+  En el detalle del servicio, «Resultados (vista previa)» con la tabla por punto
+  y el presupuesto desplegable (componente, u, ν, aporte y ecuación).
+
+Contra `DataMET_prueba`: el motor calcula 823 de los 844 servicios de 2026
+(9 506 de 9 640 puntos); todos provisionales mientras no estén registradas las
+piezas de los juegos y transcritos los certificados de pesas y termohigrómetros
+(fase 1).
+
+Falta: interpretar la **sustitución** como la registra ServiceMET (métodos 1
+y 2: los puntos llegan con carga y sin indicación; hace falta que el
+laboratorio explique el procedimiento), convección (falta la diferencia de
+temperatura pesas–aire), la incertidumbre en uso y la pesada mínima (anexo del
+certificado) y los ejemplos H2/H3 y de la Guía SIM.
+
 ## Fase 4 — Registro de calibración: lista, editor y revisión
 
 **Base de datos** (migración `018_calibracion_registros.sql` o la que siga, prefijo a
