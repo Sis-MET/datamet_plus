@@ -337,7 +337,7 @@ laboratorio revisó el presupuesto de un caso real.
 
 ## Fase 4 — Registro de calibración: lista, editor y revisión
 
-**Base de datos** (migración `017_calibracion_registros.sql`, prefijo a
+**Base de datos** (migración `018_calibracion_registros.sql` o la que siga, prefijo a
 confirmar; no usar `CAL_CERTIFICADOS`, que ya es de los equipos):
 
 - `CB_REGISTROS`: uno por servicio (código de ServiceMET), correcciones
@@ -371,6 +371,18 @@ el nivel de Sistemas conceden aprobar, como en Soporte).
 
 **Hecho cuando** un ingeniero puede elaborar el registro de un servicio real y
 otro revisarlo y aprobarlo, con todo el historial.
+
+**Avance (2026-11-06):** Calibración › Certificados (`ServiciosPanel`,
+`ServicioModal`, `domain/servicios.js`). Lista de los servicios de ServiceMET
+del período (por defecto, el año en curso) agrupada por SECA del libro, con
+búsqueda, técnico, fechas y filtros por calidad de los datos (con errores, con
+avisos, técnico sin identificar, sin observaciones). Cada servicio abre su
+detalle de solo lectura en el orden de RECA, con los avisos en la sección a la
+que pertenecen, el estado de cada patrón en la fecha del servicio y los puntos
+acordados del instrumento, que Calibración edita ahí mismo
+(`PuntosAcordadosModal`, con motivo e historial). Falta lo que convierte la
+lista en registro: correcciones, composición de cargas, cálculo, revisión y
+aprobación (`CB_REGISTROS`, que irá en una migración posterior a la 017).
 
 ## Fase 5 — Certificado, autorización, firma y reemisión
 
