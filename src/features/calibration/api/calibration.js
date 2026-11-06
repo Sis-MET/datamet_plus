@@ -57,6 +57,9 @@ export const calibrationApi = {
   retirarRegistro: (codigo) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/retiro`, {})),
   revisarRegistro: (codigo, body) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/revision`, body)),
   reabrirRegistro: (codigo, body) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/reapertura`, body)),
+  // Aprobadores de los registros: los designa el jefe de Calibración (migración 019).
+  aprobadores: () => unwrap(api.get(`${BASE}/configuracion/aprobadores`)),
+  guardarAprobadores: (body) => write(api.put(`${BASE}/configuracion/aprobadores`, body)).then(response => response.data),
   // Puntos de ensayo acordados de un instrumento de cliente (migración 017).
   puntosAcordados: (codMetrica) => unwrap(api.get(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`)),
   savePuntosAcordados: (codMetrica, body) => unwrap(api.put(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`, body)),

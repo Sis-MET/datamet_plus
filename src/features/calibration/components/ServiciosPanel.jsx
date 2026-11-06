@@ -1,5 +1,5 @@
 import { useCallback, useId, useMemo, useState } from 'react';
-import { AlertCircle, ChevronDown, FileText, RefreshCw, Search, UserRound } from 'lucide-react';
+import { AlertCircle, ChevronDown, FileText, RefreshCw, Search, ShieldCheck, UserRound } from 'lucide-react';
 import { Button } from '../../../shared/components/ui/Button';
 import { cn } from '../../../shared/utils/cn';
 import { useResource } from '../../system/hooks/useResource';
@@ -9,6 +9,7 @@ import {
   CALIDADES, agruparPorSeca, conUnidad, contarCalidades, filtrarServicios, instrumentoTexto, tecnicosDe,
 } from '../domain/servicios';
 import { ESTADOS_REGISTRO } from '../domain/registro';
+import { AprobadoresModal } from './AprobadoresModal';
 import { Dropdown } from './Dropdown';
 import { EmptyState, ToneBadge } from './primitives';
 import { ServicioModal } from './ServicioModal';
@@ -246,6 +247,7 @@ export function ServiciosPanel({ canEdit }) {
   // salvo que se cierren a mano.
   const [cerrados, setCerrados] = useState(() => new Set());
   const [seleccionado, setSeleccionado] = useState(null);
+  const [aprobadores, setAprobadores] = useState(false);
 
   const load = useCallback(() => calibrationApi.servicios({ desde: desde || undefined, hasta: hasta || undefined }), [desde, hasta]);
   const { data, error, loading, reload } = useResource(load);
@@ -315,6 +317,16 @@ export function ServiciosPanel({ canEdit }) {
           >
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin text-fg-muted')} />
           </button>
+          {data?.permisos?.configurarAprobadores && (
+            <button
+              type="button"
+              onClick={() => setAprobadores(true)}
+              className={cn(CONTROL, 'ml-auto gap-1.5 px-3 font-semibold hover:bg-surface-2')}
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              Aprobadores
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
@@ -411,6 +423,7 @@ export function ServiciosPanel({ canEdit }) {
           onChanged={reload}
         />
       )}
+      {aprobadores && <AprobadoresModal onClose={() => setAprobadores(false)} />}
     </div>
   );
 }
