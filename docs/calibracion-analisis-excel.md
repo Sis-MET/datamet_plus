@@ -468,6 +468,10 @@ que el Excel tenía en EQUI_VIGENTE y VALORES:
 - Declarar la clase y la aprobación del instrumento si las tiene.
 - Registrar la versión de ServiceMET en la fila (ya se controla en
   `CAL_SERVICEMET_VERSIONES`) para elegir el mapeo del adaptador.
+- Guardar la carga de excentricidad con decimales (hoy `carga` es entera) y
+  el número del certificado de cada patrón además de su fecha (hoy
+  `certificado1..7` solo trae la fecha). Hallado al leer los servicios en la
+  fase 2.
 
 ## Apéndice: columnas de ServiceMET usadas por el Excel
 

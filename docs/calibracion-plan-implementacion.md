@@ -228,6 +228,73 @@ casos de multirango, 13+ puntos, 6 posiciones, sustitución, textos dañados.
 **Hecho cuando** todos los servicios de 2026 se leen sin errores y los avisos
 de calidad de datos se pueden revisar.
 
+**Estado (2026-11-06):** adaptador y lectura construidos (sin pantalla: la
+lista llega en la fase 4).
+
+- `calibration.fuente.js`: `modeloDeFila(fila, contexto)` → `{ modelo, avisos }`,
+  función pura con las secciones de arriba. Avisos con nivel `error` (no se
+  podría calcular), `aviso` (revisar) o `info` (corregido solo o nota).
+- `calibration.servicios.js`: fila vigente, contexto (usuarios sin contraseñas,
+  patrones del gestor con su historial de certificados y el estado de sus
+  valores de la fase 1), `GET /calibracion/servicios` (filtros `desde`,
+  `hasta`, `q`, `tecnico`) y `GET /calibracion/servicios/:codigo`.
+- `npm run servicios:revisar -- --anio 2026` (en `backend`): lee todos los
+  servicios del período y resume los avisos. Solo lee.
+- Pruebas: `calibration.fuente.test.js` (filas sintéticas: multirango, 13+ y
+  60 puntos, 6 posiciones, sustitución, textos dañados, patrones).
+
+Resultado contra `DataMET_prueba`: los 1 658 servicios se leen sin fallar
+(844 de 2026); 108 tienen errores que impedirían calcular (sin fecha, sin
+ensayos, sin pesas, sin unidad). Los avisos más frecuentes son de patrones:
+códigos que el gestor de prueba no tiene y valores de certificados aún sin
+transcribir (fase 1), y 257 servicios con el técnico sin identificar
+(«Usuario», «Usuario sin datos»).
+
+Lo que mostraron los datos reales (para la fase 3 y para ServiceMET):
+
+- **SECA** tuvo tres formatos: `3001-C01-25`, `25-0095-32-C08` y
+  `0090-11-C08-26`. La fórmula «SECA MOD» del libro solo arma bien el último;
+  el adaptador reconoce los tres.
+- **Rangos:** ServiceMET pone primero el rango mayor (Max total). El modelo
+  los ordena de menor a mayor (OIML R76, EURAMET) y conserva la columna de
+  origen.
+- **`certificado1..7` guarda la fecha** de emisión del certificado del patrón,
+  no su número. Se compara con el certificado que regía en DataMET+ ese día.
+- **Carga de excentricidad sin decimales:** la columna `carga` es entera (2,5
+  kg se guarda como 2). El adaptador avisa cuando no coincide con sus
+  indicaciones; la fase 3 debe tomar la carga de las indicaciones o de las
+  pesas, no de esa columna.
+- **Sustitución:** los puntos de sustitución llegan con carga y sin indicación
+  (p. ej. punto 13 = 523 con «Método 2»). El modelo los conserva tal cual; su
+  interpretación (EURAMET 7.1.2-15a/b) es de la fase 3.
+- `metodo_carga` trae además `cargas_validadas:N` y
+  `validacion_pesas_pendiente` (validación de cargas de versiones recientes de
+  ServiceMET).
+- Códigos de patrones que el gestor no tiene o escribe distinto (`M1-05XX`,
+  `M1-055X`, `M1-20XX`, `E2-104 (g)`): se avisan; no se inventan
+  equivalencias. `M1-05XX` y los demás códigos viejos solo existen en
+  `DataMET_prueba`; la base oficial ya no los tiene (confirmado el
+  2026-11-06).
+
+**Puntos de ensayo acordados (decidido el 2026-11-06):** todo pasa a SQL,
+nada queda en Excel ni en Access. Las cargas acordadas de cada balanza del
+cliente (excentricidad, repetibilidad y error) estaban en Access (ICLI) y en
+`DATA_SERVICIOS_LEC`; ahora están en `CAL_PUNTOS_ACORDADOS` (migración 017),
+las mantiene Calibración con historial y motivo, y son una **referencia**:
+DataMET+ avisa si el técnico usó otras cargas; el certificado usa lo medido.
+
+- `calibration.puntos.js`, `GET/PUT /calibracion/puntos-acordados/:codMetrica`
+  (la pantalla para editarlos llega con la fase 4).
+- Avisos del adaptador: `PUNTOS_ACORDADOS_FALTAN` (error y repetibilidad),
+  `EXCENTRICIDAD_DISTINTA` y, como nota, `SIN_PUNTOS_ACORDADOS`.
+- Carga inicial: `npm run puntos:importar -- "<libro .xlsm>"` lee ICLI del
+  libro y `DATA_SERVICIOS_LEC` de SQL; para cada instrumento gana la más
+  reciente (ICLI no tiene fecha: se toma la del libro o `--fecha-icli`). Con
+  el libro MGC y `DataMET_prueba`: 1 906 instrumentos (ICLI gana en los 1 215
+  que están en ambas; LEC aporta 104), 600 filas de ICLI sin código Métrica
+  que no se pueden asociar y 96 repetidas. Cubre 503 de los 844 servicios de
+  2026.
+
 ## Fase 3 — Motor de cálculo y configuración del método
 
 **Módulo** `backend/src/services/calibracion/motor/` sin acceso a la base:
