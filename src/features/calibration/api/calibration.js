@@ -45,6 +45,13 @@ export const calibrationApi = {
   patron: (id) => unwrap(api.get(`${BASE}/equipos/${id}/patron`)),
   savePatron: (id, body) => write(api.put(`${BASE}/equipos/${id}/patron`, body)).then(response => response.data),
 
+  // Servicios de calibración que subió ServiceMET, con su modelo y avisos (fase 2).
+  servicios: (params) => unwrap(api.get(`${BASE}/servicios`, params)),
+  servicio: (codigo) => unwrap(api.get(`${BASE}/servicios/${encodeURIComponent(codigo)}`)),
+  // Puntos de ensayo acordados de un instrumento de cliente (migración 017).
+  puntosAcordados: (codMetrica) => unwrap(api.get(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`)),
+  savePuntosAcordados: (codMetrica, body) => unwrap(api.put(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`, body)),
+
   createActividad: (body) => write(api.post(`${BASE}/actividades`, body)),
   updateActividad: (id, body) => write(api.put(`${BASE}/actividades/${id}`, body)),
   deleteActividad: (id) => write(api.delete(`${BASE}/actividades/${id}`)),

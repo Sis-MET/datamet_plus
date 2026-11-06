@@ -41,6 +41,7 @@ import { EquipmentTable, InactiveEquipmentList } from './components/EquipmentTab
 import { EditEquipmentModal, NewEquipmentModal } from './components/EquipmentFormModal';
 import { CertificateModal } from './components/CertificateModal';
 import { PatronModal } from './components/PatronModal';
+import { ServiciosPanel } from './components/ServiciosPanel';
 import { tipoPatronSugerido } from './domain/patrones';
 import { ReasonModal } from './components/ReasonModal';
 import { ActivitiesList } from './components/ActivitiesList';
@@ -51,7 +52,9 @@ import './calibration.css';
 
 const TAB_KEY = 'datamet_cal_tab';
 const VIEW_KEY = 'datamet_cal_view';
-const TABS = ['cronograma', 'equipos', 'actividades', 'alertas', 'cumplimiento', 'servicemet'];
+const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'alertas', 'cumplimiento', 'servicemet'];
+// Secciones que no muestran el plan anual.
+const SIN_PLAN = new Set(['servicemet', 'certificados']);
 const VIEWS = ['anio', 'mes', 'agenda'];
 
 const STATUS_FILTERS = [
@@ -283,10 +286,11 @@ export function CalibrationPage() {
       )}
 
       <div className="vt-panel flex flex-col gap-4">
-      {/* Versiones de ServiceMET: no depende del plan anual. */}
+      {/* Versiones de ServiceMET y servicios de calibración: no dependen del plan anual. */}
       {tab === 'servicemet' && <ServiceMetPanel />}
+      {tab === 'certificados' && <ServiciosPanel canEdit={canEdit} />}
 
-      {error && tab !== 'servicemet' && (
+      {error && !SIN_PLAN.has(tab) && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-danger/30 bg-danger/5 px-4 py-3" role="alert">
           <AlertCircle className="h-[18px] w-[18px] flex-none text-danger" aria-hidden="true" />
           <p className="min-w-0 flex-1 text-[13px] text-fg">
@@ -297,7 +301,7 @@ export function CalibrationPage() {
         </div>
       )}
 
-      {!data && !error && tab !== 'servicemet' && <PlanSkeleton />}
+      {!data && !error && !SIN_PLAN.has(tab) && <PlanSkeleton />}
 
       {data && tab === 'cronograma' && (
         <>

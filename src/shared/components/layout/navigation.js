@@ -52,6 +52,8 @@ export const APP_VIEWS = {
       { id: 'cronograma', label: 'Cronograma' },
       { id: 'equipos', label: 'Equipos' },
       { id: 'actividades', label: 'Actividades' },
+      // Servicios de calibración de ServiceMET y, después, sus certificados.
+      { id: 'certificados', label: 'Certificados' },
       { id: 'alertas', label: 'Alertas' },
       { id: 'cumplimiento', label: 'Cumplimiento' },
       // Versiones de la app de los técnicos y su aprobación (17025, 7.11.2).
