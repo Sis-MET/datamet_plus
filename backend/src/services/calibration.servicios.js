@@ -193,8 +193,8 @@ const listarServicios = async ({ desde = null, hasta = null, q = null, tecnico =
   };
 };
 
-/** Un servicio con su modelo completo y los avisos de calidad de datos. */
-const getServicio = async (codigo) => {
+/** Fila vigente de un servicio y su modelo. */
+const leerServicio = async (codigo) => {
   const result = await getPool().request()
     .input('codigo', sql.NVarChar(100), codigo)
     .query(`${VIGENTES} SELECT * FROM vigentes WHERE rn = 1 AND codigo_registro = @codigo`);
@@ -202,6 +202,12 @@ const getServicio = async (codigo) => {
   if (!fila) throw httpError(404, 'El servicio no existe o fue anulado en ServiceMET.');
   const contexto = await cargarContexto();
   const { modelo, avisos } = modeloDeFila(fila, contexto);
+  return { fila, modelo, avisos };
+};
+
+/** Un servicio con su modelo completo y los avisos de calidad de datos. */
+const getServicio = async (codigo) => {
+  const { fila, modelo, avisos } = await leerServicio(codigo);
   return { modelo, avisos, versiones: fila.versiones };
 };
 
@@ -255,6 +261,7 @@ module.exports = {
   cargarContexto,
   resumenDe,
   getServicio,
+  leerServicio,
   listarServicios,
   revisarServicios,
 };

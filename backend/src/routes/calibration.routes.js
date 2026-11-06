@@ -21,6 +21,7 @@ router.get('/eventos/historial', controller.getEventoHistorial);
 // Servicios de calibración que subió ServiceMET, con su modelo y avisos.
 router.get('/servicios', controller.listServicios);
 router.get('/servicios/:codigo', controller.getServicio);
+router.get('/servicios/:codigo/calculo', controller.getCalculoServicio);
 // Puntos de ensayo acordados de cada instrumento de cliente (los mantiene Calibración).
 router.get('/puntos-acordados/:codMetrica', controller.getPuntosAcordados);
 
