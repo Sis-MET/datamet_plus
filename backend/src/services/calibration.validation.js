@@ -113,6 +113,9 @@ const patron = z.object({
 const serie = z.string().regex(/^(CAL|VER|ACT)-\d{1,9}$/);
 const eventoClave = z.object({ serie, fechaProgramada: date });
 
+const cargaAcordada = z.number({ error: 'Cada carga acordada debe ser un número.' })
+  .positive('Las cargas acordadas deben ser mayores que cero.').max(1e9).transform(roundTo(8));
+
 const schemas = {
   equipoDatos,
   equipoAlta: equipoDatos.extend({ certificado: certificado.nullable().default(null) }),
@@ -232,6 +235,17 @@ const schemas = {
     dispositivos: optionalText(500),
     observaciones: optionalText(500),
   }),
+
+  // Puntos de ensayo acordados de un instrumento de cliente (migración 017).
+  puntosAcordados: z.object({
+    version: z.number().int().positive().nullable().default(null),
+    unidad: z.enum(['mg', 'g', 'kg', 't'], { error: 'Elige la unidad de las cargas.' }),
+    excentricidad: cargaAcordada.nullable().default(null),
+    repetibilidad: z.array(cargaAcordada).max(3, 'La repetibilidad admite hasta 3 cargas.').default([]),
+    errores: z.array(cargaAcordada).max(60, 'El error de indicación admite hasta 60 cargas.').default([]),
+    observaciones: optionalText(500),
+    motivo: optionalText(500),
+  }).refine(data => data.excentricidad || data.repetibilidad.length || data.errores.length, 'Indica al menos una carga acordada.'),
 
   // Servicios de calibración que subió ServiceMET (fase 2).
   serviciosFiltro: z.object({

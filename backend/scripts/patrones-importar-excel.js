@@ -368,4 +368,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { columnaDe, identificacionDe, planDeJuego, leerLibro, datosDelLibro };
+module.exports = { columnaDe, identificacionDe, planDeJuego, leerLibro, leerZip, datosDelLibro };

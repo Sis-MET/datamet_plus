@@ -77,6 +77,7 @@ const cert = (extra) => ({ id: 1, numero: '0000-C02-P3-26', fecha: '2026-02-04',
 
 const contexto = (patrones = {}) => ({
   usuarios: USUARIOS,
+  puntosAcordados: new Map([['0103-31-006', { origen: 'ICLI', unidad: 'kg', excentricidad: 500, repetibilidad: [500], errores: [5, 100, 500, 1000] }]]),
   patrones: new Map(Object.entries({
     'M1-3-05XX': { id: 10, codigo: 'M1-3-05XX', estado: 'ACTIVO', certificados: [cert()] },
     'TH-04': { id: 20, codigo: 'TH-04', estado: 'ACTIVO', certificados: [cert({ id: 2, numero: 'LP-CC-H-1', fecha: '2025-10-30', vence: '2026-10-30' })] },
@@ -248,4 +249,40 @@ test('normalizarCodigo da al código Métrica la forma de ServiceMET', () => {
   assert.equal(normalizarCodigo(' 0066-31-001 '), '0066-31-001');
   assert.equal(normalizarCodigo('0032-11-130826143831'), null);
   assert.equal(normalizarCodigo('0114-C02-24'), null);
+});
+
+test('puntos acordados: avisa las cargas acordadas que no se usaron, con su unidad', () => {
+  const acordados = new Map([['0103-31-006', {
+    origen: 'ICLI', unidad: 'kg', excentricidad: 500, repetibilidad: [5, 500, 1000], errores: [5, 100, 500, 1000, 1500, 1500],
+  }]]);
+  const { modelo, avisos } = modeloDeFila(base(), { ...contexto(), puntosAcordados: acordados });
+  assert.equal(modelo.acordado.origen, 'ICLI');
+  const faltan = avisos.filter(a => a.codigo === 'PUNTOS_ACORDADOS_FALTAN');
+  assert.deepEqual(faltan.map(a => a.seccion), ['errores', 'repetibilidad']);
+  assert.match(faltan[0].mensaje, /cargas acordadas 1500 kg\.$/);
+  assert.match(faltan[1].mensaje, /5, 1000 kg/);
+  assert.ok(!avisos.some(a => a.codigo === 'EXCENTRICIDAD_DISTINTA'));
+
+  // Acordados en g para un instrumento en kg; la excentricidad se compara también con la indicación.
+  const enGramos = new Map([['0103-31-006', { origen: 'DATAMET', unidad: 'g', excentricidad: 250000, repetibilidad: [], errores: [5000, 100000] }]]);
+  const otro = modeloDeFila(base(), { ...contexto(), puntosAcordados: enGramos });
+  assert.deepEqual(otro.modelo.acordado.errores, [5, 100]);
+  assert.ok(!otro.avisos.some(a => a.codigo === 'PUNTOS_ACORDADOS_FALTAN'));
+  assert.match(otro.avisos.find(a => a.codigo === 'EXCENTRICIDAD_DISTINTA').mensaje, /250 kg y se hizo con ≈ 500/);
+
+  const sin = modeloDeFila(base(), { ...contexto(), puntosAcordados: new Map() });
+  assert.equal(sin.modelo.acordado, null);
+  assert.ok(sin.avisos.some(a => a.codigo === 'SIN_PUNTOS_ACORDADOS' && a.nivel === 'info'));
+});
+
+test('los puntos acordados se validan antes de guardarse', () => {
+  const { parse } = require('../src/services/calibration.validation');
+  const datos = parse('puntosAcordados', { unidad: 'kg', excentricidad: 500, repetibilidad: [5, 500], errores: [5, 100], motivo: ' Acordado con el cliente ' });
+  assert.deepEqual(datos, {
+    version: null, unidad: 'kg', excentricidad: 500, repetibilidad: [5, 500], errores: [5, 100], observaciones: null, motivo: 'Acordado con el cliente',
+  });
+  assert.throws(() => parse('puntosAcordados', { unidad: 'kg' }), /al menos una carga/);
+  assert.throws(() => parse('puntosAcordados', { unidad: 'lb', errores: [1] }), /unidad/);
+  assert.throws(() => parse('puntosAcordados', { unidad: 'kg', errores: [0] }), /mayores que cero/);
+  assert.throws(() => parse('puntosAcordados', { unidad: 'kg', repetibilidad: [1, 2, 3, 4] }), /hasta 3/);
 });

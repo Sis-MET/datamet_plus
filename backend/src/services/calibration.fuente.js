@@ -535,11 +535,64 @@ const leerErrores = (fila, rangos, avisos) => {
   };
 };
 
+// ─── Puntos acordados ──────────────────────────────────────────────────────
+
+const FACTOR_UNIDAD = { mg: 1e-3, g: 1, kg: 1e3, t: 1e6 };
+
+const formatoCarga = (valor) => String(Number(valor.toPrecision(10)));
+
+/**
+ * Compara las cargas usadas con las acordadas para el instrumento (migración
+ * 017). Son una referencia: solo avisan.
+ */
+const compararAcordados = (modelo, acordado, avisos) => {
+  if (!acordado) {
+    avisos.info('acordado', 'SIN_PUNTOS_ACORDADOS', 'El instrumento no tiene puntos de ensayo acordados en DataMET+.');
+    return null;
+  }
+  const unidad = modelo.instrumento.unidad;
+  const factor = acordado.unidad && unidad && FACTOR_UNIDAD[acordado.unidad] && FACTOR_UNIDAD[unidad]
+    ? FACTOR_UNIDAD[acordado.unidad] / FACTOR_UNIDAD[unidad]
+    : 1;
+  const enUnidad = (carga) => (carga == null ? null : Number((carga * factor).toPrecision(12)));
+  const d = Math.min(...modelo.instrumento.rangos.map(r => r.d).filter(v => v > 0), Infinity);
+  const tolerancia = (carga) => Math.max(Number.isFinite(d) ? d : 0, Math.abs(carga) * 0.005);
+  const usada = (carga, usadas) => usadas.some(valor => valor != null && Math.abs(valor - carga) <= tolerancia(carga));
+
+  const resultado = {
+    origen: acordado.origen,
+    unidad: unidad || acordado.unidad,
+    excentricidad: enUnidad(acordado.excentricidad),
+    repetibilidad: acordado.repetibilidad.map(enUnidad),
+    errores: acordado.errores.map(enUnidad),
+  };
+
+  const faltan = (acordadas, usadas, seccion, nombre) => {
+    const pendientes = [...new Set(acordadas)].filter(carga => !usada(carga, usadas));
+    if (pendientes.length) {
+      avisos.aviso(seccion, 'PUNTOS_ACORDADOS_FALTAN',
+        `${nombre}: no se usaron las cargas acordadas ${pendientes.map(formatoCarga).join(', ')} ${resultado.unidad || ''}.`.replace(' .', '.'));
+    }
+  };
+  faltan(resultado.errores, modelo.errores.puntos.map(p => p.carga), 'errores', 'Error de indicación');
+  faltan(resultado.repetibilidad, modelo.repetibilidad.ensayos.map(e => e.carga), 'repetibilidad', 'Repetibilidad');
+  if (resultado.excentricidad && modelo.excentricidad.posiciones.length) {
+    // La columna «carga» de ServiceMET no tiene decimales: vale también la indicación.
+    const centro = mediana(modelo.excentricidad.posiciones.map(p => p.indicacion));
+    if (!usada(resultado.excentricidad, [modelo.excentricidad.carga, centro])) {
+      avisos.aviso('excentricidad', 'EXCENTRICIDAD_DISTINTA',
+        `Se acordó la excentricidad con ${formatoCarga(resultado.excentricidad)} ${resultado.unidad || ''} y se hizo con ≈ ${formatoCarga(centro)}.`);
+    }
+  }
+  return resultado;
+};
+
 // ─── Modelo ────────────────────────────────────────────────────────────────
 
 /**
  * Fila de DATA_SERVICIOS_DATOS_CALIBRACION → { modelo, avisos }.
- * contexto: { usuarios: [DATA_USERS sin contraseña], patrones: Map(código → { id, codigo, estado, certificados }) }.
+ * contexto: { usuarios: [DATA_USERS sin contraseña], patrones: Map(código → { id, codigo, estado, certificados }),
+ *   puntosAcordados: Map(código Métrica → { unidad, origen, excentricidad, repetibilidad, errores }) }.
  */
 const modeloDeFila = (fila, contexto = {}) => {
   const avisos = crearAvisos();
@@ -654,6 +707,8 @@ const modeloDeFila = (fila, contexto = {}) => {
     origen: { fila: numero(fila.n) },
   };
 
+  modelo.acordado = compararAcordados(modelo, contexto.puntosAcordados?.get(normalizarCodigo(codMetrica)), avisos);
+
   if (modelo.criterio.regla == null) avisos.aviso('criterio', 'SIN_REGLA', 'No se indicó la regla de decisión.');
   if (modelo.ajuste.realizado === true && !modelo.precarga.length) {
     avisos.aviso('ajuste', 'AJUSTE_SIN_PRECARGA', 'Hubo ajuste pero no hay lecturas antes del ajuste (precarga).');
@@ -666,6 +721,7 @@ module.exports = {
   CLASES_PESAS,
   LIMITES,
   certificadoEn,
+  compararAcordados,
   clave,
   codigoPatron,
   identificarTecnico,

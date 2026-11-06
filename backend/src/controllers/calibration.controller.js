@@ -4,6 +4,7 @@ const complianceService = require('../services/calibration.compliance');
 const servicemetService = require('../services/calibration.servicemet');
 const patronesService = require('../services/calibration.patrones');
 const serviciosService = require('../services/calibration.servicios');
+const puntosService = require('../services/calibration.puntos');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -99,6 +100,8 @@ module.exports = {
   // Servicios de calibración que subió ServiceMET (fase 2).
   listServicios: handle(req => serviciosService.listarServicios(parse('serviciosFiltro', queryParams(req.query)))),
   getServicio: handle(req => serviciosService.getServicio(readCodigo(req.params.codigo))),
+  getPuntosAcordados: handle(req => puntosService.getPuntos(req.params.codMetrica)),
+  savePuntosAcordados: handle(req => puntosService.savePuntos(req.params.codMetrica, parse('puntosAcordados', req.body), req.user)),
 
   getPatron: handle(req => patronesService.getPatron(readId(req.params.id), req.user)),
   savePatron: handle(req => patronesService.savePatron(

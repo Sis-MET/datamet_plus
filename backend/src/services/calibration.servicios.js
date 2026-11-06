@@ -10,6 +10,7 @@ const { getPool, sql } = require('../config/db');
 const { EQUIPO_SELECT, clean, httpError, mapEquipo } = require('./calibration.db');
 const { expiryDate } = require('./calibration.equipment');
 const { clave, identificarTecnico, leerReca, leerSeca, modeloDeFila } = require('./calibration.fuente');
+const { cargarTodos } = require('./calibration.puntos');
 
 const TABLA = 'dbo.DATA_SERVICIOS_DATOS_CALIBRACION';
 
@@ -96,8 +97,8 @@ const cargarPatrones = async () => {
 };
 
 const cargarContexto = async () => {
-  const [usuarios, patrones] = await Promise.all([cargarUsuarios(), cargarPatrones()]);
-  return { usuarios, patrones };
+  const [usuarios, patrones, puntosAcordados] = await Promise.all([cargarUsuarios(), cargarPatrones(), cargarTodos()]);
+  return { usuarios, patrones, puntosAcordados };
 };
 
 // ─── Consultas ─────────────────────────────────────────────────────────────

@@ -21,6 +21,8 @@ router.get('/eventos/historial', controller.getEventoHistorial);
 // Servicios de calibración que subió ServiceMET, con su modelo y avisos.
 router.get('/servicios', controller.listServicios);
 router.get('/servicios/:codigo', controller.getServicio);
+// Puntos de ensayo acordados de cada instrumento de cliente (los mantiene Calibración).
+router.get('/puntos-acordados/:codMetrica', controller.getPuntosAcordados);
 
 // Escritura.
 router.put('/equipos', controller.updateEquipos);
@@ -34,6 +36,7 @@ router.post('/equipos/:id/certificados/vigente/anular', controller.anularCertifi
 router.post('/equipos/:id/certificados/vigente/revision', controller.revisarCertificado);
 // Tipo, clase, piezas y valores del certificado vigente de un patrón.
 router.put('/equipos/:id/patron', controller.savePatron);
+router.put('/puntos-acordados/:codMetrica', controller.savePuntosAcordados);
 router.post('/actividades', controller.createActividad);
 router.put('/actividades/:id', controller.updateActividad);
 router.delete('/actividades/:id', controller.deleteActividad);
