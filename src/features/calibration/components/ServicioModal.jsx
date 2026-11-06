@@ -13,8 +13,12 @@ import {
   ACCIONES_REGISTRO, ESTADOS_REGISTRO, aTexto, camposDeSeccion, etiquetaColumna,
 } from '../domain/registro';
 import { CancelButton, Modal, ModalSection, PrimaryButton, ToneBadge } from './primitives';
+import { diferenciasExcentricidad, esquemaExcentricidad } from '../domain/excentricidad';
 import { CalculoServicio } from './CalculoServicio';
+import { ComposicionModal } from './ComposicionModal';
 import { CorreccionesModal } from './CorreccionesModal';
+import { DiagramaExcentricidad } from './DiagramaExcentricidad';
+import { EnviarRegistroModal } from './EnviarRegistroModal';
 import { PuntosAcordadosModal } from './PuntosAcordadosModal';
 import { ReasonModal } from './ReasonModal';
 
@@ -121,7 +125,8 @@ function CargasAcordadas({ titulo, cargas, usadas, d, unidad }) {
  * Registro de calibración de un servicio, ordenado como RECA: los datos de
  * ServiceMET con sus correcciones, los avisos de cada sección, el cálculo y
  * el historial. Lo elabora el personal de Calibración (corrige por sección y
- * lo envía a revisión) y lo revisa el jefe de Calibración.
+ * lo envía a revisión) y lo revisa el jefe de Calibración o un aprobador que
+ * él designó.
  */
 export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
   const load = useCallback(() => calibrationApi.registro(codigo), [codigo]);
@@ -129,6 +134,7 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
   const [editarPuntos, setEditarPuntos] = useState(false);
   const [corrigiendo, setCorrigiendo] = useState(null);
   const [confirmar, setConfirmar] = useState(null);
+  const [componiendo, setComponiendo] = useState(null);
   const [ocupado, setOcupado] = useState(false);
 
   const porSeccion = useMemo(() => {
@@ -184,12 +190,26 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
     reload();
     onChanged?.();
   };
+  // Desde un aviso de la confirmación del envío: cierra y lleva a la sección.
+  const irA = (id) => {
+    setConfirmar(null);
+    window.setTimeout(() => document.getElementById(`registro-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 260);
+  };
+  const restaurar = (correccion) => (correccion.tipo === 'composicion'
+    ? { composiciones: { [correccion.n]: null } }
+    : { columnas: { [correccion.columna]: correccion.original } });
+
+  const dMax = Math.max(0, ...m.instrumento.rangos.map(r => r.d || 0));
+  const esquema = esquemaExcentricidad(m.excentricidad.plataforma, m.excentricidad.indicador, m.excentricidad.posiciones.length);
+  const diferencias = diferenciasExcentricidad(m.excentricidad.posiciones, 2 * dMax);
+  const puntoComponiendo = componiendo != null ? data.calculo?.puntos.find(p => p.n === componiendo) : null;
 
   const seccion = (id, contenido, extra = {}) => {
     const meta = SECCIONES.find(item => item.id === id);
     const corregir = permisos.editar;
     return (
       <ModalSection
+        id={`registro-${id}`}
         title={meta.label}
         description={extra.descripcion}
         action={(extra.action || corregir) && (
@@ -244,7 +264,7 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
               </>
             )}
             {permisos.enviar && (
-              <PrimaryButton busy={ocupado} busyLabel="Enviando" onClick={() => ejecutar(() => calibrationApi.enviarRegistro(codigo), 'Registro enviado a revisión')}>
+              <PrimaryButton busy={ocupado} onClick={() => setConfirmar('enviar')}>
                 Enviar a revisión
               </PrimaryButton>
             )}
@@ -266,7 +286,7 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
           </div>
           {registro?.observacion && ['OBSERVADO', 'BORRADOR'].includes(data.estado) && (
             <p className="rounded-xl border border-danger/35 bg-danger/[0.06] px-3.5 py-2.5 text-[12.5px] text-fg">
-              <span className="font-semibold">Observación del jefe de Calibración:</span> {registro.observacion}
+              <span className="font-semibold">Observación{registro.revisadoPor ? ` de ${registro.revisadoPor}` : ''}:</span> {registro.observacion}
             </p>
           )}
           {data.cambioDesdeEnvio && (
@@ -290,7 +310,10 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
                     key="r"
                     type="button"
                     disabled={ocupado}
-                    onClick={() => ejecutar(() => calibrationApi.guardarRegistro(codigo, { version: registro?.version ?? null, columnas: { [c.columna]: c.original } }), 'Valor de ServiceMET restaurado')}
+                    onClick={() => ejecutar(
+                      () => calibrationApi.guardarRegistro(codigo, { version: registro?.version ?? null, ...restaurar(c) }),
+                      c.tipo === 'composicion' ? 'Se vuelve a la regla automática' : 'Valor de ServiceMET restaurado',
+                    )}
                     className="text-[12.5px] font-medium text-fg-muted underline decoration-fg/30 underline-offset-4 hover:text-fg"
                   >
                     Restaurar
@@ -413,13 +436,29 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
               m.excentricidad.comentario && ['Comentario', m.excentricidad.comentario],
             ]}
             />
-            <div className="mt-4">
+            <div className={cn('mt-4 grid items-start gap-4', esquema && m.excentricidad.posiciones.length > 0 && 'sm:grid-cols-[minmax(0,1fr)_220px]')}>
               <Tabla
-                columnas={[['Posición', 'r'], ['Indicación', 'r'], ['Retorno', 'r']]}
-                filas={m.excentricidad.posiciones.map(p => [p.posicion, conUnidad(p.indicacion, unidad), numero(p.retorno)])}
+                columnas={[['Posición', 'r'], ['Indicación', 'r'], ['Retorno', 'r'], ['Diferencia', 'r']]}
+                filas={m.excentricidad.posiciones.map((p, index) => {
+                  const fila = diferencias[index];
+                  return [
+                    p.posicion,
+                    conUnidad(p.indicacion, unidad),
+                    numero(p.retorno),
+                    !fila ? '—' : fila.referencia ? 'ref.' : (
+                      <span key="d" className={cn(fila.excede && 'font-semibold text-danger')}>{numero(Number(fila.diferencia.toPrecision(6)))}</span>
+                    ),
+                  ];
+                })}
                 vacio="Sin lecturas de excentricidad."
               />
+              {esquema && m.excentricidad.posiciones.length > 0 && (
+                <DiagramaExcentricidad esquema={esquema} diferencias={diferencias} unidad={unidad} />
+              )}
             </div>
+            {diferencias.some(f => f.excede) && (
+              <p className="mt-2 text-[12px] text-fg-muted">En rojo, las diferencias mayores que 2·d ({numero(2 * dMax)} {unidad}).</p>
+            )}
           </>
         ))}
 
@@ -498,10 +537,11 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
         })}
 
         <ModalSection
+          id="registro-resultados"
           title="Resultados (vista previa)"
           description="Calculados con el motor de DataMET+ (EURAMET cg-18 v4.0) con los datos corregidos. Al aprobar, el resultado queda guardado."
         >
-          <CalculoServicio data={data.calculo} />
+          <CalculoServicio data={data.calculo} onElegirPiezas={permisos.editar ? (punto) => setComponiendo(punto.n) : null} />
         </ModalSection>
 
         {seccion('criterio', (
@@ -548,6 +588,31 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
           origenesClase={data.origenesClase}
           onClose={() => setCorrigiendo(null)}
           onGuardar={guardar}
+        />
+      )}
+      {puntoComponiendo && (
+        <ComposicionModal
+          punto={puntoComponiendo}
+          disponibles={data.calculo.piezasDisponibles}
+          unidad={data.calculo.unidad || unidad}
+          elegida={puntoComponiendo.composicion === 'ELEGIDA'}
+          onClose={() => setComponiendo(null)}
+          onGuardar={guardar}
+        />
+      )}
+      {confirmar === 'enviar' && (
+        <EnviarRegistroModal
+          titulo={etiquetaRegistro}
+          avisos={avisos}
+          calculo={data.calculo}
+          onIr={irA}
+          onClose={() => setConfirmar(null)}
+          onConfirm={async () => {
+            await calibrationApi.enviarRegistro(codigo);
+            toast.success('Registro enviado a revisión');
+            reload();
+            onChanged?.();
+          }}
         />
       )}
       {confirmar === 'observar' && (

@@ -226,11 +226,12 @@ export function ModalColumns({ children }) {
   return <div className="grid lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">{children}</div>;
 }
 
-export function ModalSection({ title, description, aside = false, action, children }) {
+export function ModalSection({ id, title, description, aside = false, action, children }) {
   const headingId = useId();
   const Tag = aside ? 'aside' : 'section';
   return (
     <Tag
+      id={id}
       aria-labelledby={headingId}
       className={aside
         ? 'border-t border-line bg-surface-2/50 px-5 py-6 sm:px-6 lg:border-l lg:border-t-0'

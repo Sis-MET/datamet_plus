@@ -1,11 +1,12 @@
 // Registro de calibración (fase 4): estados, etiquetas de las columnas de
 // ServiceMET y qué columnas corrige cada sección del detalle.
+import { SECCIONES, ordenarAvisos, seccionDeAviso } from './servicios';
 
 export const ESTADOS_REGISTRO = {
   PENDIENTE: { label: 'Pendiente', tone: 'muted', descripcion: 'Aún no se elaboró el registro.' },
   BORRADOR: { label: 'Borrador', tone: 'warning', descripcion: 'En elaboración.' },
-  EN_REVISION: { label: 'En revisión', tone: 'info', descripcion: 'Espera la revisión del jefe de Calibración.' },
-  OBSERVADO: { label: 'Observado', tone: 'danger', descripcion: 'El jefe de Calibración lo devolvió con una observación.' },
+  EN_REVISION: { label: 'En revisión', tone: 'info', descripcion: 'Espera la revisión del jefe de Calibración o de un aprobador.' },
+  OBSERVADO: { label: 'Observado', tone: 'danger', descripcion: 'Quien lo revisó lo devolvió con una observación.' },
   APROBADO: { label: 'Aprobado', tone: 'success', descripcion: 'Revisado y aprobado.' },
 };
 
@@ -54,6 +55,7 @@ export const etiquetaColumna = (columna) => {
   if ((m = columna.match(/^lin(\d+)$/))) return `Error, punto ${m[1]}: carga`;
   if ((m = columna.match(/^ind(\d+)$/))) return `Error, punto ${m[1]}: indicación`;
   if ((m = columna.match(/^retorno_lin(\d+)$/))) return `Error, punto ${m[1]}: retorno`;
+  if ((m = columna.match(/^composicion(\d+)$/))) return `Error, punto ${m[1]}: piezas de la carga`;
   if (columna === 'clase') return 'Clase del instrumento';
   return columna;
 };
@@ -191,6 +193,28 @@ export const columnasDeSeccion = (campos) => [
   ...campos.tablas.flatMap(t => [...(t.cabecera ? [t.cabecera] : []), ...t.filas.flatMap(f => f.celdas)]),
 ];
 
+/** Valor nominal de una pesa con coma decimal, sin ceros de redondeo binario. */
+export const textoNominal = (valor) => String(Number(Number(valor).toPrecision(10))).replace('.', ',');
+
+/** Piezas disponibles por juego, de mayor a menor y, en un mismo valor, por su marca. */
+export const agruparPiezas = (disponibles) => {
+  const grupos = new Map();
+  for (const pieza of disponibles || []) {
+    if (!grupos.has(pieza.juego)) grupos.set(pieza.juego, []);
+    grupos.get(pieza.juego).push(pieza);
+  }
+  return [...grupos].map(([juego, piezas]) => ({
+    juego,
+    piezas: [...piezas].sort((a, b) => b.nominal - a.nominal || (a.identificacion || '').localeCompare(b.identificacion || '')),
+  }));
+};
+
+/** Suma de los valores nominales de las piezas elegidas. */
+export const sumaPiezas = (disponibles, claves) => {
+  const porClave = new Map((disponibles || []).map(p => [p.clave, p]));
+  return claves.reduce((total, clave) => total + (porClave.get(clave)?.nominal || 0), 0);
+};
+
 /** Valor como se muestra en un campo de texto (coma decimal). */
 export const aTexto = (valor) => (valor == null ? '' : typeof valor === 'number' ? String(valor).replace('.', ',') : String(valor));
 
@@ -203,3 +227,21 @@ export const columnasCambiadas = (efectivos, escritos) => Object.fromEntries(
     .filter(([columna, texto]) => aTexto(efectivos[columna]).replace(',', '.') !== String(texto ?? '').trim().replace(',', '.'))
     .map(([columna, texto]) => [columna, String(texto ?? '').trim() === '' ? null : String(texto).trim()]),
 );
+
+export const ETIQUETAS_SECCION = Object.fromEntries([...SECCIONES.map(s => [s.id, s.label]), ['resultados', 'Resultados']]);
+
+/**
+ * Avisos que conviene revisar antes de enviar a revisión: los de los datos
+ * (adaptador) y los del cálculo (motor), sin repetir el mismo código ni el
+ * mismo mensaje. Las notas solo se cuentan.
+ */
+export const avisosParaEnvio = (avisos, calculo) => {
+  const datos = avisos.map(a => ({ ...a, seccion: seccionDeAviso(a) }));
+  const codigos = new Set(datos.map(a => a.codigo));
+  const mensajes = new Set(datos.map(a => a.mensaje));
+  const delCalculo = (calculo?.avisos || [])
+    .filter(a => !codigos.has(a.codigo) && !mensajes.has(a.mensaje))
+    .map(a => ({ ...a, seccion: 'resultados' }));
+  const todos = ordenarAvisos([...datos, ...delCalculo]);
+  return { revisar: todos.filter(a => a.nivel !== 'info'), notas: todos.filter(a => a.nivel === 'info').length };
+};

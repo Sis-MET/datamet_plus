@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { aTexto, camposDeSeccion, columnasCambiadas, columnasDeSeccion, etiquetaColumna, opcionesDeColumna } from './registro';
+import {
+  aTexto, agruparPiezas, avisosParaEnvio, camposDeSeccion, columnasCambiadas, columnasDeSeccion, etiquetaColumna, opcionesDeColumna, sumaPiezas, textoNominal,
+} from './registro';
 
 describe('registro de calibración', () => {
   it('nombra cada columna de ServiceMET', () => {
@@ -10,6 +12,7 @@ describe('registro de calibración', () => {
     expect(etiquetaColumna('cap_max2')).toBe('Rango 2: Max');
     expect(etiquetaColumna('hri_fin')).toBe('Humedad (fin)');
     expect(etiquetaColumna('equipo6')).toBe('Patrón 6');
+    expect(etiquetaColumna('composicion3')).toBe('Error, punto 3: piezas de la carga');
     expect(etiquetaColumna('desconocida')).toBe('desconocida');
   });
 
@@ -34,10 +37,44 @@ describe('registro de calibración', () => {
     expect(opcionesDeColumna('ajuste', null)).toHaveLength(3);
   });
 
+  it('piezas para elegir la composición: por juego, de mayor a menor, y su suma', () => {
+    const disponibles = [
+      { clave: 'A|1|', juego: 'E2-005', nominal: 0.001, identificacion: '' },
+      { clave: 'A|2|*', juego: 'E2-005', nominal: 0.002, identificacion: '*' },
+      { clave: 'A|2|', juego: 'E2-005', nominal: 0.002, identificacion: '' },
+      { clave: 'B|5|', juego: 'M1-02', nominal: 5, identificacion: '' },
+    ];
+    const grupos = agruparPiezas(disponibles);
+    expect(grupos.map(g => g.juego)).toEqual(['E2-005', 'M1-02']);
+    expect(grupos[0].piezas.map(p => p.clave)).toEqual(['A|2|', 'A|2|*', 'A|1|']);
+    expect(sumaPiezas(disponibles, ['A|2|', 'A|1|', 'X'])).toBeCloseTo(0.003, 12);
+    expect(textoNominal(0.1 + 0.2)).toBe('0,3');
+  });
+
   it('detecta solo lo que cambió, con coma o punto decimal', () => {
     const efectivos = { ind1: 100.5, lin1: 100, personal: 'Usuario' };
     expect(aTexto(100.5)).toBe('100,5');
     expect(columnasCambiadas(efectivos, { ind1: '100,5', lin1: '100.0', personal: 'Usuario' })).toEqual({ lin1: '100.0' });
     expect(columnasCambiadas(efectivos, { ind1: '100,4', personal: '' })).toEqual({ ind1: '100,4', personal: null });
+  });
+
+  it('avisos antes de enviar: los de los datos y los del cálculo, sin repetir; las notas se cuentan', () => {
+    const avisos = [
+      { nivel: 'aviso', codigo: 'TECNICO_APROXIMADO', seccion: 'servicio', mensaje: 'a' },
+      { nivel: 'error', codigo: 'SIN_REPETIBILIDAD', seccion: 'repetibilidad', mensaje: 'b' },
+      { nivel: 'info', codigo: 'TEXTO_REPARADO', seccion: 'cliente', mensaje: 'c' },
+    ];
+    const calculo = { avisos: [
+      { nivel: 'error', codigo: 'SIN_REPETIBILIDAD', mensaje: 'b2' },
+      { nivel: 'aviso', codigo: 'LECTURA_LEJOS_DE_CARGA', mensaje: 'd' },
+      { nivel: 'info', codigo: 'U_MAYOR_QUE_3D', mensaje: 'e' },
+      { nivel: 'aviso', codigo: 'PESAS_SIN_VERIFICAR', mensaje: 'a' },
+    ] };
+    const { revisar, notas } = avisosParaEnvio(avisos, calculo);
+    expect(revisar.map(a => [a.codigo, a.seccion])).toEqual([
+      ['SIN_REPETIBILIDAD', 'repetibilidad'], ['TECNICO_APROXIMADO', 'servicio'], ['LECTURA_LEJOS_DE_CARGA', 'resultados'],
+    ]);
+    expect(notas).toBe(2);
+    expect(avisosParaEnvio([], null)).toEqual({ revisar: [], notas: 0 });
   });
 });

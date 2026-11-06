@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { AlertTriangle, ChevronRight, Info } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Info, Layers } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
 import { ToneBadge } from './primitives';
 
@@ -22,7 +22,7 @@ const fijo = (valor, decimales) => (valor == null ? '—' : coma(Number(valor).t
 const cientifico = (valor) => (valor == null ? '—' : coma(Number(valor).toExponential(2)));
 const grados = (nu) => (!Number.isFinite(nu) ? '∞' : nu > 9999 ? '> 9 999' : String(Math.floor(nu)));
 
-function Presupuesto({ punto, unidad }) {
+function Presupuesto({ punto, unidad, onElegirPiezas }) {
   return (
     <div className="bg-surface-2/40 px-3 py-3">
       <table className="w-full text-[12.5px]">
@@ -60,10 +60,23 @@ function Presupuesto({ punto, unidad }) {
         </p>
       )}
       {!punto.sustitucion && (
-        <p className="mt-2 text-[12px] text-fg-muted">
-          Carga: {punto.piezas.map(p => `${coma(String(p.nominal))}${p.identificacion ? ` ${p.identificacion}` : ''}`).join(' + ')} {unidad}
-          {punto.supuestas ? ' (piezas supuestas: el juego no tiene sus piezas registradas)' : ` · ${[...new Set(punto.piezas.map(p => p.juego))].join(', ')}`}
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <p className="text-[12px] text-fg-muted">
+            Carga: {punto.piezas.map(p => `${coma(String(p.nominal))}${p.identificacion ? ` ${p.identificacion}` : ''}`).join(' + ')} {unidad}
+            {punto.supuestas ? ' (piezas supuestas: el juego no tiene sus piezas registradas)' : ` · ${[...new Set(punto.piezas.map(p => p.juego))].join(', ')}`}
+            {punto.composicion === 'ELEGIDA' ? ' · elegidas a mano' : punto.composicion === 'REGLA' ? ' · regla: menos piezas' : ''}
+          </p>
+          {onElegirPiezas && punto.composicion !== 'SUPUESTA' && (
+            <button
+              type="button"
+              onClick={() => onElegirPiezas(punto)}
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12.5px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2"
+            >
+              <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+              Elegir piezas
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -82,9 +95,10 @@ function Conformidad({ conformidad }) {
 /**
  * Resultado del cálculo de un servicio con el motor (fase 3): error, U y k
  * por punto, conformidad y el presupuesto de incertidumbre desplegable.
- * `data` es el cálculo que devuelve el registro.
+ * `data` es el cálculo que devuelve el registro. Con `onElegirPiezas`, cada
+ * punto permite elegir a mano las piezas de su carga.
  */
-export function CalculoServicio({ data }) {
+export function CalculoServicio({ data, onElegirPiezas = null }) {
   const [abierto, setAbierto] = useState(null);
 
   if (!data) return <p className="text-[13px] text-fg-muted">Sin cálculo.</p>;
@@ -151,6 +165,7 @@ export function CalculoServicio({ data }) {
                         <span className="inline-flex items-center gap-1">
                           {punto.calculado && <ChevronRight className={cn('h-3.5 w-3.5 text-fg-subtle transition-transform', expandido && 'rotate-90')} aria-hidden="true" />}
                           {punto.n}
+                          {punto.composicion === 'ELEGIDA' && <Layers className="h-3 w-3 text-info" aria-label="Piezas elegidas a mano" />}
                         </span>
                       </td>
                       <td className="px-3 py-1.5 text-right tabular-nums">{coma(String(punto.carga))} {unidad}</td>
@@ -170,7 +185,9 @@ export function CalculoServicio({ data }) {
                     </tr>
                     {expandido && (
                       <tr className="border-t border-line">
-                        <td colSpan={9} className="p-0"><Presupuesto punto={punto} unidad={unidad} /></td>
+                        <td colSpan={9} className="p-0">
+                          <Presupuesto punto={punto} unidad={unidad} onElegirPiezas={data.piezasDisponibles?.length ? onElegirPiezas : null} />
+                        </td>
                       </tr>
                     )}
                   </Fragment>
