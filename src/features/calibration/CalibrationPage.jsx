@@ -40,6 +40,8 @@ import { ActivityModal } from './components/ActivityModal';
 import { EquipmentTable, InactiveEquipmentList } from './components/EquipmentTable';
 import { EditEquipmentModal, NewEquipmentModal } from './components/EquipmentFormModal';
 import { CertificateModal } from './components/CertificateModal';
+import { PatronModal } from './components/PatronModal';
+import { tipoPatronSugerido } from './domain/patrones';
 import { ReasonModal } from './components/ReasonModal';
 import { ActivitiesList } from './components/ActivitiesList';
 import { AlertSettings } from './components/AlertSettings';
@@ -529,6 +531,7 @@ export function CalibrationPage() {
           onAnularCertificado={(anterior) => openSub('anular', fichaEquipo, { anterior })}
           onEditarDatos={() => openSub('datos', fichaEquipo)}
           onDarDeBaja={() => openSub('baja', fichaEquipo)}
+          onAbrirPatron={() => openSub('patron', fichaEquipo)}
         />
       )}
       {ficha?.type === 'nuevoEquipo' && (
@@ -574,12 +577,29 @@ export function CalibrationPage() {
           entes={data.catalogos.entes}
           hoy={hoy}
           alertaDias={subEquipo.calibracion?.alertaDias ?? ajustes.alertaDias}
-          onClose={closeSub}
+          // Un certificado nuevo de un juego de pesas o termohigrómetro sigue
+          // con la transcripción de sus valores.
+          onClose={() => setSub(current => (current?.siguiente
+            ? { type: 'patron', equipoId: current.equipoId, desdeCertificado: true }
+            : null))}
           onSaved={() => {
             // Desde la ficha de una fecha, esa fecha deja de existir al recalcularse el plan.
             if (sub.closeParent) setFicha(null);
+            if (sub.mode === 'nuevo' && tipoPatronSugerido(subEquipo.instrumento)) {
+              setSub(current => ({ ...current, siguiente: 'patron' }));
+            }
             equipmentChanged();
           }}
+        />
+      )}
+      {sub?.type === 'patron' && subEquipo && (
+        <PatronModal
+          key={`patron-${subEquipo.id}`}
+          equipo={subEquipo}
+          desdeCertificado={Boolean(sub.desdeCertificado)}
+          canEdit={canEdit}
+          onClose={closeSub}
+          onSaved={equipmentChanged}
         />
       )}
       {sub?.type === 'datos' && subEquipo && (

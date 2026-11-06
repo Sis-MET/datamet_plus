@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { FilePlus2, Pencil, PowerOff, ShieldCheck } from 'lucide-react';
+import { FilePlus2, Pencil, PowerOff, ShieldCheck, Weight } from 'lucide-react';
 import { toast } from 'sonner';
 import { calibrationApi } from '../api/calibration';
 import {
@@ -161,6 +161,7 @@ export function EquipmentModal({
   onAnularCertificado,
   onEditarDatos,
   onDarDeBaja,
+  onAbrirPatron,
 }) {
   const baseId = useId();
   const [calibracion, setCalibracion] = useState(() => ({
@@ -347,12 +348,20 @@ export function EquipmentModal({
           {equipo.certFecha && (
             <CertificateReview revision={history.data?.revision} canEdit={canEdit} onRevisar={onRevisarCertificado} />
           )}
-          {canEdit && (
+          {(canEdit || onAbrirPatron) && (
             <div className="mt-5 flex flex-wrap gap-2">
-              <button type="button" onClick={onRegistrarCertificado} className={secondaryButton}>
-                <FilePlus2 className="h-4 w-4" aria-hidden="true" />
-                {equipo.certFecha ? 'Registrar certificado nuevo' : 'Registrar primer certificado'}
-              </button>
+              {canEdit && (
+                <button type="button" onClick={onRegistrarCertificado} className={secondaryButton}>
+                  <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+                  {equipo.certFecha ? 'Registrar certificado nuevo' : 'Registrar primer certificado'}
+                </button>
+              )}
+              {onAbrirPatron && (
+                <button type="button" onClick={onAbrirPatron} className={secondaryButton}>
+                  <Weight className="h-4 w-4" aria-hidden="true" />
+                  Piezas y valores
+                </button>
+              )}
             </div>
           )}
           <p className="cal-hint mt-4">

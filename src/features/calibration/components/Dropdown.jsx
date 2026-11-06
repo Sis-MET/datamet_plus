@@ -5,8 +5,13 @@ import { FloatingDropdown } from '../../../shared/components/ui/FloatingDropdown
 
 // Mismo vocabulario que las fichas del Cronograma: en escritorio un menú de
 // vidrio; en pantallas angostas el selector nativo del sistema.
-const TRIGGER = 'field hidden h-11 cursor-pointer items-center justify-between gap-2 text-left font-medium sm:flex';
-const NATIVE = 'field h-11 cursor-pointer font-medium sm:hidden';
+const TRIGGER = 'field hidden cursor-pointer items-center justify-between gap-2 text-left font-medium sm:flex';
+const NATIVE = 'field cursor-pointer font-medium sm:hidden';
+// `sm` es para celdas de tablas, a la altura de sus campos de texto.
+const SIZES = {
+  md: 'h-11',
+  sm: 'h-9 gap-1 rounded-lg px-2.5 text-[13px] font-normal',
+};
 const MENU = 'glass rounded-xl border p-1';
 const GROUP_LABEL = 'px-2.5 pb-1 pt-2 text-[11px] font-medium text-fg-subtle first:pt-1';
 
@@ -27,6 +32,7 @@ const groupOptions = (options) => {
 /**
  * Lista desplegable de una sola opción.
  * options: [{ value, label, hint?, group? }]; `group` agrupa bajo un subtítulo.
+ * size: 'md' (formularios) o 'sm' (celdas de tablas).
  */
 export function Dropdown({
   id,
@@ -37,6 +43,7 @@ export function Dropdown({
   ariaLabel,
   disabled,
   maxHeight = 264,
+  size = 'md',
   className,
 }) {
   const generatedId = useId();
@@ -103,7 +110,7 @@ export function Dropdown({
         }}
         disabled={disabled}
         aria-label={ariaLabel}
-        className={NATIVE}
+        className={cn(NATIVE, SIZES[size])}
       >
         {!selected && <option value="" disabled>{placeholder}</option>}
         {hasGroups
@@ -128,12 +135,12 @@ export function Dropdown({
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={handleKeyDown}
-        className={cn(TRIGGER, disabled && 'cursor-not-allowed')}
+        className={cn(TRIGGER, SIZES[size], disabled && 'cursor-not-allowed')}
       >
         <span className={cn('truncate', !selected && 'font-normal text-fg-subtle')}>
           {selected?.label || placeholder}
         </span>
-        <ChevronDown className={cn('h-4 w-4 shrink-0 text-fg-subtle transition-transform duration-150', open && 'rotate-180')} aria-hidden="true" />
+        <ChevronDown className={cn('shrink-0 text-fg-subtle transition-transform duration-150', size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4', open && 'rotate-180')} aria-hidden="true" />
       </button>
 
       <FloatingDropdown

@@ -2,6 +2,7 @@ const calibrationService = require('../services/calibration.service');
 const equipmentService = require('../services/calibration.equipment');
 const complianceService = require('../services/calibration.compliance');
 const servicemetService = require('../services/calibration.servicemet');
+const patronesService = require('../services/calibration.patrones');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -78,6 +79,14 @@ module.exports = {
   cambiarEstadoEquipo: handle(req => equipmentService.cambiarEstado(
     readId(req.params.id),
     parse('estadoEquipo', req.body),
+    req.user
+  )),
+
+  // Patrones: tipo, clase, piezas y valores del certificado vigente (migración 016).
+  getPatron: handle(req => patronesService.getPatron(readId(req.params.id), req.user)),
+  savePatron: handle(req => patronesService.savePatron(
+    readId(req.params.id),
+    parse('patron', req.body),
     req.user
   )),
 

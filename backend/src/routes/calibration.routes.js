@@ -15,6 +15,7 @@ router.get('/alertas/resumen', controller.getAlertSummary);
 router.get('/personal', controller.getPersonal);
 router.post('/vista-previa', controller.previewDates);
 router.get('/equipos/:id/historial', controller.getEquipoHistorial);
+router.get('/equipos/:id/patron', controller.getPatron);
 router.get('/actividades/:id/historial', controller.getActividadHistorial);
 router.get('/eventos/historial', controller.getEventoHistorial);
 
@@ -28,6 +29,8 @@ router.post('/equipos/:id/certificados', controller.registrarCertificado);
 router.put('/equipos/:id/certificados/vigente', controller.corregirCertificado);
 router.post('/equipos/:id/certificados/vigente/anular', controller.anularCertificado);
 router.post('/equipos/:id/certificados/vigente/revision', controller.revisarCertificado);
+// Tipo, clase, piezas y valores del certificado vigente de un patrón.
+router.put('/equipos/:id/patron', controller.savePatron);
 router.post('/actividades', controller.createActividad);
 router.put('/actividades/:id', controller.updateActividad);
 router.delete('/actividades/:id', controller.deleteActividad);

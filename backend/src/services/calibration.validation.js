@@ -37,6 +37,79 @@ const certificado = z.object({
   observaciones: optionalText(300),
 });
 
+// ─── Patrones (migración 016) ──────────────────────────────────────────────
+// Los números se redondean a la escala de su columna: así un valor que no
+// cambió no aparece como cambiado al compararlo con lo guardado.
+const CLASES_PESAS = ['E1', 'E2', 'F1', 'F2', 'M1', 'M1-2', 'M2', 'M2-3', 'M3'];
+const roundTo = (digits) => (value) => (value == null ? value : Number(value.toFixed(digits)));
+const numero = (message) => z.number({ error: message }).finite(message);
+const identificacion = z.string().default('')
+  .transform(value => value.replace(/\u00a0/g, ' ').trim())
+  .pipe(z.string().max(20, 'La identificación de una pieza admite hasta 20 caracteres.'));
+const nominalMg = z.number({ error: 'Indica el valor nominal de cada pieza.' })
+  .positive('El valor nominal debe ser mayor que cero.')
+  .max(5e9, 'El valor nominal no puede superar 5 000 kg.')
+  .transform(roundTo(6));
+const clavePieza = ({ nominalMg: nominal, identificacion: ident }) => `${nominal}|${ident}`;
+const sinRepetidos = (items, key) => new Set(items.map(key)).size === items.length;
+
+const pieza = z.object({
+  id: id.nullable().default(null),
+  nominalMg,
+  identificacion,
+  material: optionalText(40),
+  densidad: z.number().positive('La densidad debe ser mayor que cero.').max(30000, 'Revisa la densidad: está en kg/m³.').nullable().default(null).transform(roundTo(2)),
+  densidadU: z.number().min(0).max(10000).nullable().default(null).transform(roundTo(2)),
+  densidadK: z.number().positive().max(10).nullable().default(null).transform(roundTo(2)),
+  densidadOrigen: z.enum(['MEDIDA', 'SUPUESTA']).nullable().default(null),
+  activa: z.boolean().default(true),
+})
+  .refine(item => item.densidadU == null || item.densidadK != null, 'Indica el k de la incertidumbre de la densidad.')
+  .refine(item => item.densidad != null || (item.densidadU == null && item.densidadOrigen == null), 'Indica la densidad o deja vacíos su incertidumbre y su origen.');
+
+const valorPieza = z.object({
+  nominalMg,
+  identificacion,
+  documento: optionalText(40),
+  correccionMg: numero('Indica la corrección de cada pieza.').min(-1e9).max(1e9).transform(roundTo(6)),
+  uMg: numero('Indica la U de cada pieza.').min(0, 'La U no puede ser negativa.').max(1e9).transform(roundTo(6)),
+  k: numero('Indica el k de cada pieza.').positive('El k debe ser mayor que cero.').max(10, 'Revisa el k: no puede superar 10.').transform(roundTo(2)),
+  conforme: z.boolean().nullable().default(null),
+});
+
+const puntoAmbiente = z.object({
+  magnitud: z.enum(['T', 'HR', 'P'], { error: 'Indica si el punto es de temperatura, humedad o presión.' }),
+  documento: optionalText(40),
+  punto: numero('Indica el valor de cada punto.').min(-100).max(2000).transform(roundTo(4)),
+  correccion: numero('Indica la corrección de cada punto.').min(-1000).max(1000).transform(roundTo(4)),
+  u: numero('Indica la U de cada punto.').min(0, 'La U no puede ser negativa.').max(1000).transform(roundTo(4)),
+  k: numero('Indica el k de cada punto.').positive('El k debe ser mayor que cero.').max(10, 'Revisa el k: no puede superar 10.').transform(roundTo(2)),
+});
+
+const patron = z.object({
+  tipo: z.enum(['PESAS', 'AMBIENTE'], { error: 'Elige el tipo de patrón.' }),
+  clase: z.enum(CLASES_PESAS, { error: 'Elige una clase de la OIML R111.' }).nullable().default(null),
+  piezas: z.array(pieza).max(300, 'Un juego admite hasta 300 piezas.').optional(),
+  certificado: z.object({
+    // Versión de la transcripción que se editó; null si aún no había.
+    version: z.number().int().min(1).nullable().default(null),
+    temperatura: z.number().min(-10).max(50, 'Revisa la temperatura: está en °C.').nullable().default(null).transform(roundTo(2)),
+    humedad: z.number().min(0).max(100, 'La humedad va de 0 a 100 %.').nullable().default(null).transform(roundTo(2)),
+    presion: z.number().gt(300, 'Revisa la presión: está en hPa.').lt(1200, 'Revisa la presión: está en hPa.').nullable().default(null).transform(roundTo(2)),
+    observaciones: optionalText(300),
+    valores: z.array(valorPieza).max(300).default([]),
+    puntos: z.array(puntoAmbiente).max(120).default([]),
+  }).optional(),
+  motivo: optionalText(300),
+})
+  .refine(data => data.tipo === 'PESAS' || data.clase == null, 'Solo un juego de pesas tiene clase.')
+  .refine(data => !data.piezas || sinRepetidos(data.piezas, clavePieza), 'Hay piezas repetidas: distínguelas con una identificación (por ejemplo, «*»).')
+  .refine(data => !data.certificado || sinRepetidos(data.certificado.valores, clavePieza), 'Una pieza tiene dos filas de valores.')
+  .refine(
+    data => !data.certificado || sinRepetidos(data.certificado.puntos, item => `${item.magnitud}|${item.punto}`),
+    'Hay un punto repetido en la misma magnitud.'
+  );
+
 const serie = z.string().regex(/^(CAL|VER|ACT)-\d{1,9}$/);
 const eventoClave = z.object({ serie, fechaProgramada: date });
 
@@ -49,6 +122,8 @@ const schemas = {
     motivo: requiredText(300, 'Escribe el motivo de la corrección.'),
   }),
   certificadoRevision: z.object({ observaciones: optionalText(300) }),
+  // Tipo, clase, piezas y valores del certificado vigente de un patrón.
+  patron,
   anulacion: z.object({ motivo: requiredText(300, 'Escribe el motivo de la anulación.') }),
   estadoEquipo: z.object({
     activo: z.boolean(),

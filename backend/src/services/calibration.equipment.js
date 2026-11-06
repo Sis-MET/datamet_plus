@@ -324,6 +324,21 @@ const registrarCertificado = async (id, data, actor) => withTransaction(async (c
   return { id, vence };
 });
 
+/**
+ * Quién transcribió los valores del certificado (migración 016); null si no
+ * hay valores o la migración aún no se aplicó.
+ */
+const findTranscriptor = async (createRequest, certificadoId) => {
+  if (!certificadoId) return null;
+  const result = await createRequest()
+    .input('cid', sql.Int, certificadoId)
+    .query(`
+      IF OBJECT_ID('dbo.CAL_CERT_TRANSCRIPCION', 'U') IS NOT NULL
+        SELECT transcrito_por FROM dbo.CAL_CERT_TRANSCRIPCION WHERE certificado_id = @cid
+    `);
+  return clean(result.recordset?.[0]?.transcrito_por);
+};
+
 /** Fila del historial con todos sus datos. */
 const loadCertificateRow = async (createRequest, certId) => {
   const result = await createRequest()
@@ -418,8 +433,9 @@ const revisarCertificado = async (id, { observaciones }, actor) => withTransacti
   const currentId = await archiveCurrentIfMissing(createRequest, equipo, null);
   const current = await loadCertificateRow(createRequest, currentId);
   if (current.revisadoPor) throw httpError(409, `Este certificado ya lo revisó ${current.revisadoPor}.`);
-  if (conflictingAuthor([who.usuario, who.registro], [current.registradoPor, current.corregidoPor])) {
-    throw httpError(409, 'La revisión la debe hacer otra persona: tú registraste o corregiste este certificado.');
+  const transcriptor = await findTranscriptor(createRequest, currentId);
+  if (conflictingAuthor([who.usuario, who.registro], [current.registradoPor, current.corregidoPor, transcriptor])) {
+    throw httpError(409, 'La revisión la debe hacer otra persona: tú registraste, corregiste o transcribiste los valores de este certificado.');
   }
 
   await createRequest()
@@ -522,11 +538,11 @@ const reviewState = (vigente, who) => {
   if (vigente.revisadoPor) {
     return { estado: 'REVISADO', revisadoPor: vigente.revisadoPor, revisadoEn: vigente.revisadoEn, observaciones: vigente.revisionObs };
   }
-  const autor = conflictingAuthor([who.usuario, who.registro], [vigente.registradoPor, vigente.corregidoPor]);
+  const autor = conflictingAuthor([who.usuario, who.registro], [vigente.registradoPor, vigente.corregidoPor, vigente.transcritoPor]);
   return {
     estado: 'PENDIENTE',
     puedeRevisar: !autor,
-    motivo: autor ? 'Lo registraste o corregiste tú: debe revisarlo otra persona.' : null,
+    motivo: autor ? 'Lo registraste, corregiste o transcribiste tú: debe revisarlo otra persona.' : null,
   };
 };
 
@@ -628,6 +644,7 @@ const getEquipoHistorial = async (id, user = null) => {
     }
   }
   const anteriores = lista.filter(item => !item.anulado && !item.vigente);
+  if (vigente?.id) vigente.transcritoPor = await findTranscriptor(createRequest, vigente.id);
 
   return {
     equipo,
@@ -665,6 +682,12 @@ module.exports = {
   checkNewCertificate,
   describeChanges,
   expiryDate,
+  // Para los patrones (calibration.patrones.js).
+  archiveCurrentIfMissing,
+  assertActive,
+  findActor,
+  loadEquipo,
+  logAction,
   createEquipo,
   updateEquipoDatos,
   registrarCertificado,

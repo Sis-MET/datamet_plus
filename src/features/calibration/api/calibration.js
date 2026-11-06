@@ -41,6 +41,9 @@ export const calibrationApi = {
   corregirCertificado: (id, body) => write(api.put(`${BASE}/equipos/${id}/certificados/vigente`, body)),
   anularCertificado: (id, body) => write(api.post(`${BASE}/equipos/${id}/certificados/vigente/anular`, body)),
   revisarCertificado: (id, body) => write(api.post(`${BASE}/equipos/${id}/certificados/vigente/revision`, body)),
+  // Patrón: tipo, clase, piezas y valores del certificado vigente (migración 016).
+  patron: (id) => unwrap(api.get(`${BASE}/equipos/${id}/patron`)),
+  savePatron: (id, body) => write(api.put(`${BASE}/equipos/${id}/patron`, body)).then(response => response.data),
 
   createActividad: (body) => write(api.post(`${BASE}/actividades`, body)),
   updateActividad: (id, body) => write(api.put(`${BASE}/actividades/${id}`, body)),

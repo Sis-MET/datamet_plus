@@ -85,6 +85,7 @@ export function Segmented({ value, onChange, options, label, className, disabled
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const MODAL_SIZES = {
+  xl: 'max-w-6xl',
   lg: 'max-w-4xl',
   md: 'max-w-2xl',
 };

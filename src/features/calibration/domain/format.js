@@ -188,6 +188,9 @@ export const ACCIONES_EQUIPO = {
   BAJA: 'Dado de baja',
   REACTIVACION: 'Reactivado',
   REVISION: 'Certificado revisado',
+  PATRON: 'Tipo de patrón',
+  PIEZAS: 'Piezas del juego',
+  VALORES: 'Valores del certificado',
 };
 
 // Cada versión de una fecha del plan (CAL_EVENTOS_HISTORIAL).
