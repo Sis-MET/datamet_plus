@@ -1,8 +1,6 @@
-import { Fragment, useCallback, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { AlertTriangle, ChevronRight, Info } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn';
-import { useResource } from '../../system/hooks/useResource';
-import { calibrationApi } from '../api/calibration';
 import { ToneBadge } from './primitives';
 
 // Componentes del presupuesto (EURAMET cg-18 7.1.1 y 7.1.2).
@@ -82,17 +80,14 @@ function Conformidad({ conformidad }) {
 }
 
 /**
- * Vista previa del cálculo de un servicio con el motor (fase 3): error, U y k
- * por punto, conformidad y el presupuesto de incertidumbre desplegable. No
- * guarda nada.
+ * Resultado del cálculo de un servicio con el motor (fase 3): error, U y k
+ * por punto, conformidad y el presupuesto de incertidumbre desplegable.
+ * `data` es el cálculo que devuelve el registro.
  */
-export function CalculoServicio({ codigo }) {
-  const load = useCallback(() => calibrationApi.calculoServicio(codigo), [codigo]);
-  const { data, error } = useResource(load);
+export function CalculoServicio({ data }) {
   const [abierto, setAbierto] = useState(null);
 
-  if (error) return <p className="text-[13px] text-danger">{error.message}</p>;
-  if (!data) return <p className="text-[13px] text-fg-muted">Calculando…</p>;
+  if (!data) return <p className="text-[13px] text-fg-muted">Sin cálculo.</p>;
 
   const unidad = data.unidad || '';
   const errores = data.avisos.filter(a => a.nivel === 'error');

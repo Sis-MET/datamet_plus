@@ -8,6 +8,7 @@ import { formatDate } from '../domain/format';
 import {
   CALIDADES, agruparPorSeca, conUnidad, contarCalidades, filtrarServicios, instrumentoTexto, tecnicosDe,
 } from '../domain/servicios';
+import { ESTADOS_REGISTRO } from '../domain/registro';
 import { Dropdown } from './Dropdown';
 import { EmptyState, ToneBadge } from './primitives';
 import { ServicioModal } from './ServicioModal';
@@ -65,6 +66,13 @@ function Avisos({ avisos }) {
   );
 }
 
+function EstadoRegistro({ estado }) {
+  const meta = ESTADOS_REGISTRO[estado] || ESTADOS_REGISTRO.PENDIENTE;
+  return estado === 'PENDIENTE' || !estado
+    ? <span className="text-[11.5px] text-fg-subtle">{meta.label}</span>
+    : <ToneBadge tone={meta.tone}>{meta.label}</ToneBadge>;
+}
+
 function Tecnico({ tecnico }) {
   if (tecnico.usuario) {
     return (
@@ -112,7 +120,7 @@ function Fila({ servicio, onOpen }) {
       <td className="px-4 py-3 text-right">
         <span className="flex flex-col items-end gap-1">
           <Avisos avisos={servicio.avisos} />
-          <span className="text-[11.5px] text-fg-subtle">Pendiente</span>
+          <EstadoRegistro estado={servicio.estado} />
         </span>
       </td>
     </tr>
@@ -129,7 +137,10 @@ function Tarjeta({ servicio, onOpen }) {
       >
         <span className="flex items-start justify-between gap-3">
           <span className="font-mono text-[13.5px] font-semibold text-fg">RECA {servicio.reca || '—'}</span>
-          <Avisos avisos={servicio.avisos} />
+          <span className="flex flex-col items-end gap-1">
+            <Avisos avisos={servicio.avisos} />
+            <EstadoRegistro estado={servicio.estado} />
+          </span>
         </span>
         <span className="text-[12.5px] text-fg-muted">
           {[servicio.instrumento.codigoMetrica, instrumentoTexto(servicio.instrumento)].filter(Boolean).join(' · ')}
@@ -187,7 +198,7 @@ function Grupo({ grupo, abierto, onToggle, onOpen }) {
                 <th scope="col" className="px-3 py-2.5 font-medium">Fecha</th>
                 <th scope="col" className="px-3 py-2.5 font-medium">Instrumento</th>
                 <th scope="col" className="px-3 py-2.5 font-medium">Técnico</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Datos de ServiceMET</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-medium">Datos y registro</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -367,7 +378,7 @@ export function ServiciosPanel({ canEdit }) {
           <div className="-mb-1 flex items-center justify-between gap-3">
             <p className="flex items-center gap-1.5 text-[12.5px] text-fg-muted">
               <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
-              Los datos son los que subió el técnico; nada se modifica aquí.
+              Los datos de ServiceMET no se modifican: las correcciones quedan en el registro, con su historial.
             </p>
             <button
               type="button"

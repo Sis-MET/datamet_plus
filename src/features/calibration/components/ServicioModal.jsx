@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import { AlertOctagon, AlertTriangle, Info, Pencil } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Info, Pencil, Undo2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
 import { useResource } from '../../system/hooks/useResource';
 import { calibrationApi } from '../api/calibration';
@@ -8,11 +9,20 @@ import {
   ESTADO_PATRON, METODOS, METODOS_CARGA, NIVELES, ORIGENES_ACORDADOS, REGLAS, SECCIONES, TIPOS_AJUSTE, VALORES_PATRON,
   conUnidad, instrumentoTexto, numero, ordenarAvisos, seccionDeAviso,
 } from '../domain/servicios';
-import { CancelButton, Modal, ModalSection, ToneBadge } from './primitives';
+import {
+  ACCIONES_REGISTRO, ESTADOS_REGISTRO, aTexto, camposDeSeccion, etiquetaColumna,
+} from '../domain/registro';
+import { CancelButton, Modal, ModalSection, PrimaryButton, ToneBadge } from './primitives';
 import { CalculoServicio } from './CalculoServicio';
+import { CorreccionesModal } from './CorreccionesModal';
 import { PuntosAcordadosModal } from './PuntosAcordadosModal';
+import { ReasonModal } from './ReasonModal';
+
+const BOTON = 'flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-[13px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2 disabled:opacity-50';
 
 const ICONOS = { error: AlertOctagon, aviso: AlertTriangle, info: Info };
+
+const fechaHora = (iso) => new Date(iso).toLocaleString('es-BO', { dateStyle: 'medium', timeStyle: 'short' });
 
 const siNo = (valor) => (valor == null ? '—' : valor ? 'Sí' : 'No');
 
@@ -108,15 +118,18 @@ function CargasAcordadas({ titulo, cargas, usadas, d, unidad }) {
 }
 
 /**
- * Detalle de un servicio tal como lo subió ServiceMET, ordenado como el
- * registro de calibración (RECA), con los avisos de cada sección. Solo lectura:
- * lo único que se edita aquí son los puntos acordados del instrumento.
+ * Registro de calibración de un servicio, ordenado como RECA: los datos de
+ * ServiceMET con sus correcciones, los avisos de cada sección, el cálculo y
+ * el historial. Lo elabora el personal de Calibración (corrige por sección y
+ * lo envía a revisión) y lo revisa el jefe de Calibración.
  */
 export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
-  const load = useCallback(() => calibrationApi.servicio(codigo), [codigo]);
+  const load = useCallback(() => calibrationApi.registro(codigo), [codigo]);
   const { data, error, reload } = useResource(load);
   const [editarPuntos, setEditarPuntos] = useState(false);
-  const [calculoVersion, setCalculoVersion] = useState(0);
+  const [corrigiendo, setCorrigiendo] = useState(null);
+  const [confirmar, setConfirmar] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
 
   const porSeccion = useMemo(() => {
     const mapa = new Map(SECCIONES.map(seccion => [seccion.id, []]));
@@ -146,10 +159,51 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
     ...m.patrones.ambiente.map(p => ({ ...p, tipo: 'Ambiente' })),
   ];
 
+  const permisos = data.permisos;
+  const estado = ESTADOS_REGISTRO[data.estado] || ESTADOS_REGISTRO.PENDIENTE;
+  const registro = data.registro;
+  const efectivos = { ...data.fuente, ...data.datos.columnas };
+  const etiquetaRegistro = `SECA ${m.servicio.seca?.libro || '—'} · RECA ${m.servicio.reca?.texto || '—'}`;
+
+  const ejecutar = async (accion, mensaje) => {
+    setOcupado(true);
+    try {
+      await accion();
+      toast.success(mensaje);
+      reload();
+      onChanged?.();
+    } catch (err) {
+      toast.error(err.message || 'No se pudo completar la acción.');
+    } finally {
+      setOcupado(false);
+    }
+  };
+  const guardar = async (cambios) => {
+    await calibrationApi.guardarRegistro(codigo, { version: registro?.version ?? null, ...cambios });
+    toast.success('Correcciones guardadas');
+    reload();
+    onChanged?.();
+  };
+
   const seccion = (id, contenido, extra = {}) => {
     const meta = SECCIONES.find(item => item.id === id);
+    const corregir = permisos.editar;
     return (
-      <ModalSection title={meta.label} description={extra.descripcion} action={extra.action}>
+      <ModalSection
+        title={meta.label}
+        description={extra.descripcion}
+        action={(extra.action || corregir) && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {extra.action}
+            {corregir && (
+              <button type="button" onClick={() => setCorrigiendo(id)} className={BOTON}>
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                Corregir
+              </button>
+            )}
+          </div>
+        )}
+      >
         <ListaAvisos avisos={porSeccion.get(id) || []} />
         {contenido}
       </ModalSection>
@@ -170,12 +224,83 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
       )}
       footer={(close) => (
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
-          <p className="text-[12.5px] text-fg-muted">Datos tal como los subió ServiceMET. El registro de calibración se elabora en la siguiente etapa.</p>
-          <CancelButton onClick={close}>Cerrar</CancelButton>
+          <p className="text-[12.5px] text-fg-muted">{estado.descripcion} Los datos de ServiceMET no se modifican.</p>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <CancelButton onClick={close} disabled={ocupado}>Cerrar</CancelButton>
+            {permisos.retirar && (
+              <button type="button" disabled={ocupado} className={BOTON} onClick={() => ejecutar(() => calibrationApi.retirarRegistro(codigo), 'Registro retirado de revisión')}>
+                <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Retirar de revisión
+              </button>
+            )}
+            {permisos.reabrir && (
+              <button type="button" disabled={ocupado} className={BOTON} onClick={() => setConfirmar('reabrir')}>Reabrir</button>
+            )}
+            {permisos.revisar && (
+              <>
+                <button type="button" disabled={ocupado} className={BOTON} onClick={() => setConfirmar('observar')}>Observar</button>
+                <PrimaryButton busy={ocupado} busyLabel="Aprobando" onClick={() => ejecutar(() => calibrationApi.revisarRegistro(codigo, { decision: 'APROBAR' }), 'Registro aprobado')}>
+                  Aprobar
+                </PrimaryButton>
+              </>
+            )}
+            {permisos.enviar && (
+              <PrimaryButton busy={ocupado} busyLabel="Enviando" onClick={() => ejecutar(() => calibrationApi.enviarRegistro(codigo), 'Registro enviado a revisión')}>
+                Enviar a revisión
+              </PrimaryButton>
+            )}
+          </div>
         </div>
       )}
     >
       <div className="divide-y divide-line">
+        <div className="flex flex-col gap-3 px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[13px] text-fg-muted">Registro:</span>
+            <ToneBadge tone={estado.tone}>{estado.label}</ToneBadge>
+            {registro?.enviadoPor && data.estado !== 'BORRADOR' && (
+              <span className="text-[12.5px] text-fg-muted">Enviado por {registro.enviadoPor} el {formatDate(registro.enviadoEn?.slice(0, 10))}</span>
+            )}
+            {registro?.revisadoPor && ['APROBADO', 'OBSERVADO'].includes(data.estado) && (
+              <span className="text-[12.5px] text-fg-muted">· {data.estado === 'APROBADO' ? 'Aprobado' : 'Observado'} por {registro.revisadoPor} el {formatDate(registro.revisadoEn?.slice(0, 10))}</span>
+            )}
+          </div>
+          {registro?.observacion && ['OBSERVADO', 'BORRADOR'].includes(data.estado) && (
+            <p className="rounded-xl border border-danger/35 bg-danger/[0.06] px-3.5 py-2.5 text-[12.5px] text-fg">
+              <span className="font-semibold">Observación del jefe de Calibración:</span> {registro.observacion}
+            </p>
+          )}
+          {data.cambioDesdeEnvio && (
+            <p className="rounded-xl border border-warning/35 bg-warning/[0.06] px-3.5 py-2.5 text-[12.5px] text-fg">
+              Los datos cambiaron en ServiceMET desde el envío: no se puede aprobar sin retirarlo y volver a enviarlo.
+            </p>
+          )}
+          {permisos.motivoRevisar && <p className="text-[12.5px] text-fg-muted">{permisos.motivoRevisar}</p>}
+        </div>
+
+        {data.correcciones.length > 0 && (
+          <ModalSection title={`Correcciones (${data.correcciones.length})`} description="Datos de ServiceMET corregidos en este registro.">
+            <Tabla
+              columnas={[['Dato'], ['ServiceMET', 'r'], ['Corregido', 'r'], ...(permisos.editar ? [['']] : [])]}
+              filas={data.correcciones.map(c => [
+                etiquetaColumna(c.columna),
+                aTexto(c.original) || 'vacío',
+                <span key="v" className="font-semibold">{aTexto(c.corregido) || 'vacío'}</span>,
+                ...(permisos.editar ? [(
+                  <button
+                    key="r"
+                    type="button"
+                    disabled={ocupado}
+                    onClick={() => ejecutar(() => calibrationApi.guardarRegistro(codigo, { version: registro?.version ?? null, columnas: { [c.columna]: c.original } }), 'Valor de ServiceMET restaurado')}
+                    className="text-[12.5px] font-medium text-fg-muted underline decoration-fg/30 underline-offset-4 hover:text-fg"
+                  >
+                    Restaurar
+                  </button>
+                )] : []),
+              ])}
+            />
+          </ModalSection>
+        )}
+
         <div className="flex flex-wrap items-center gap-2 px-5 py-4 sm:px-6">
           <span className="text-[13px] text-fg-muted">Calidad de los datos:</span>
           {conteo('error') > 0 && <ToneBadge tone="danger">{conteo('error')} {conteo('error') === 1 ? 'error' : 'errores'}</ToneBadge>}
@@ -213,7 +338,9 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
               ['Código Métrica', m.instrumento.codigoMetrica],
               ['Código interno', m.instrumento.codigoInterno],
               ['Ubicación', m.instrumento.ubicacion],
-              ['Clase', m.instrumento.clase?.valor || 'No declarada: se usará la que pida el cliente'],
+              ['Clase', m.instrumento.clase?.valor
+                ? `${m.instrumento.clase.valor} (${data.origenesClase?.[m.instrumento.clase.origen] || m.instrumento.clase.origen})`
+                : 'No declarada: se usará la que pida el cliente'],
             ]}
             />
             <Subtitulo>{m.instrumento.multirango ? 'Rangos (de menor a mayor)' : 'Rango'}</Subtitulo>
@@ -372,9 +499,9 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
 
         <ModalSection
           title="Resultados (vista previa)"
-          description="Calculados con el motor de DataMET+ (EURAMET cg-18 v4.0) a partir de estos datos. No se guardan."
+          description="Calculados con el motor de DataMET+ (EURAMET cg-18 v4.0) con los datos corregidos. Al aprobar, el resultado queda guardado."
         >
-          <CalculoServicio key={calculoVersion} codigo={codigo} />
+          <CalculoServicio data={data.calculo} />
         </ModalSection>
 
         {seccion('criterio', (
@@ -390,7 +517,73 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
           ]}
           />
         ))}
+
+        {data.historial.length > 0 && (
+          <ModalSection title="Historial del registro">
+            <ul className="flex flex-col gap-2.5">
+              {data.historial.map(item => (
+                <li key={item.id} className="text-[12.5px]">
+                  <span className="font-medium text-fg">{ACCIONES_REGISTRO[item.accion] || item.accion}</span>
+                  <span className="text-fg-muted"> · {item.usuario} · {fechaHora(item.fecha)}</span>
+                  {item.motivo && <span className="block text-fg-muted">{item.motivo}</span>}
+                  {item.cambios.length > 0 && (
+                    <span className="block text-fg-muted">
+                      {item.cambios.map(c => `${etiquetaColumna(c.campo)}: ${aTexto(c.antes) || 'vacío'} → ${aTexto(c.despues) || 'vacío'}`).join(' · ')}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </ModalSection>
+        )}
       </div>
+
+      {corrigiendo && (
+        <CorreccionesModal
+          titulo={SECCIONES.find(item => item.id === corrigiendo)?.label}
+          campos={camposDeSeccion(corrigiendo, efectivos)}
+          fuente={data.fuente}
+          efectivos={efectivos}
+          clase={data.datos.clase}
+          origenesClase={data.origenesClase}
+          onClose={() => setCorrigiendo(null)}
+          onGuardar={guardar}
+        />
+      )}
+      {confirmar === 'observar' && (
+        <ReasonModal
+          title="Observar el registro"
+          subtitle={etiquetaRegistro}
+          heading="Devolver con una observación"
+          description="El registro vuelve a quien lo elaboró para que lo corrija y lo envíe de nuevo."
+          confirmLabel="Observar"
+          reasonLabel="Observación"
+          reasonPlaceholder="Qué debe revisar o corregir"
+          onConfirm={async (observacion) => {
+            await calibrationApi.revisarRegistro(codigo, { decision: 'OBSERVAR', observacion });
+            toast.success('Registro observado');
+            reload();
+            onChanged?.();
+          }}
+          onClose={() => setConfirmar(null)}
+        />
+      )}
+      {confirmar === 'reabrir' && (
+        <ReasonModal
+          title="Reabrir el registro aprobado"
+          subtitle={etiquetaRegistro}
+          heading="Volver a borrador"
+          description="Se podrá corregir y deberá enviarse y aprobarse de nuevo. El motivo queda en el historial."
+          confirmLabel="Reabrir"
+          onConfirm={async (motivo) => {
+            await calibrationApi.reabrirRegistro(codigo, { motivo });
+            toast.success('Registro reabierto');
+            reload();
+            onChanged?.();
+          }}
+          onClose={() => setConfirmar(null)}
+        />
+      )}
 
       {editarPuntos && (
         <PuntosAcordadosModal
@@ -400,7 +593,6 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
           onClose={() => setEditarPuntos(false)}
           onSaved={() => {
             reload();
-            setCalculoVersion(version => version + 1);
             onChanged?.();
           }}
         />

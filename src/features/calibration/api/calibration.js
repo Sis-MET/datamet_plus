@@ -50,6 +50,13 @@ export const calibrationApi = {
   servicio: (codigo) => unwrap(api.get(`${BASE}/servicios/${encodeURIComponent(codigo)}`)),
   // Vista previa del cálculo con el motor (fase 3): no guarda nada.
   calculoServicio: (codigo) => unwrap(api.get(`${BASE}/servicios/${encodeURIComponent(codigo)}/calculo`)),
+  // Registro de calibración de un servicio (fase 4, migración 018).
+  registro: (codigo) => unwrap(api.get(`${BASE}/registros/${encodeURIComponent(codigo)}`)),
+  guardarRegistro: (codigo, body) => write(api.put(`${BASE}/registros/${encodeURIComponent(codigo)}`, body)).then(response => response.data),
+  enviarRegistro: (codigo) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/envio`, {})),
+  retirarRegistro: (codigo) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/retiro`, {})),
+  revisarRegistro: (codigo, body) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/revision`, body)),
+  reabrirRegistro: (codigo, body) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/reapertura`, body)),
   // Puntos de ensayo acordados de un instrumento de cliente (migración 017).
   puntosAcordados: (codMetrica) => unwrap(api.get(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`)),
   savePuntosAcordados: (codMetrica, body) => unwrap(api.put(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`, body)),
