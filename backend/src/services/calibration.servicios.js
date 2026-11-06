@@ -9,7 +9,7 @@
 const { getPool, sql } = require('../config/db');
 const { EQUIPO_SELECT, clean, httpError, mapEquipo } = require('./calibration.db');
 const { expiryDate } = require('./calibration.equipment');
-const { clave, identificarTecnico, leerReca, leerSeca, modeloDeFila } = require('./calibration.fuente');
+const { clave, modeloDeFila } = require('./calibration.fuente');
 const { cargarTodos } = require('./calibration.puntos');
 
 const TABLA = 'dbo.DATA_SERVICIOS_DATOS_CALIBRACION';
@@ -103,8 +103,6 @@ const cargarContexto = async () => {
 
 // ─── Consultas ─────────────────────────────────────────────────────────────
 
-const fechaTexto = (valor) => (valor instanceof Date ? valor.toISOString().slice(0, 10) : (valor ? String(valor).slice(0, 10) : null));
-
 const filtrosSql = (request, { desde, hasta, q }) => {
   const condiciones = ['rn = 1'];
   if (desde) {
@@ -124,60 +122,70 @@ const filtrosSql = (request, { desde, hasta, q }) => {
 };
 
 /**
- * Lista de servicios (columnas livianas), del más reciente al más antiguo.
- * `tecnico` es el usuario de DATA_USERS: se compara con el técnico reconocido.
+ * Resumen de un servicio para la lista: identificación, cliente,
+ * instrumento, técnico reconocido y cuántos avisos tiene por nivel.
+ */
+const resumenDe = (modelo, avisos, versiones = 1) => {
+  const { servicio, cliente, instrumento } = modelo;
+  const cuenta = (nivel) => avisos.filter(aviso => aviso.nivel === nivel).length;
+  return {
+    codigo: servicio.codigo,
+    fecha: servicio.fecha,
+    seca: servicio.seca?.original || null,
+    secaLibro: servicio.seca?.libro || null,
+    negociacion: servicio.seca?.negociacion || null,
+    reca: servicio.reca?.texto || servicio.reca?.original || null,
+    sticker: servicio.sticker,
+    tipoServicio: servicio.tipo,
+    tecnico: {
+      original: servicio.tecnico.original,
+      usuario: servicio.tecnico.usuario || null,
+      iniciales: servicio.tecnico.iniciales || null,
+      nombre: servicio.tecnico.nombre || null,
+    },
+    cliente: cliente.nombre,
+    razonSocial: cliente.razonSocial,
+    planta: cliente.planta,
+    departamento: cliente.departamento,
+    instrumento: {
+      codigoMetrica: instrumento.codigoMetrica,
+      codigoInterno: instrumento.codigoInterno,
+      tipo: instrumento.tipo,
+      marca: instrumento.marca,
+      modelo: instrumento.modelo,
+      serie: instrumento.serie,
+      max: instrumento.rangos.length ? instrumento.rangos[instrumento.rangos.length - 1].max : null,
+      unidad: instrumento.unidad,
+      multirango: instrumento.multirango,
+    },
+    avisos: {
+      errores: cuenta('error'),
+      avisos: cuenta('aviso'),
+      notas: cuenta('info'),
+      codigos: [...new Set(avisos.filter(aviso => aviso.nivel !== 'info').map(aviso => aviso.codigo))],
+    },
+    // Aún no hay registro de calibración en DataMET+ (fase 4).
+    estado: 'PENDIENTE',
+    versiones,
+  };
+};
+
+/**
+ * Lista de servicios del período, del más reciente al más antiguo, con sus
+ * avisos (se leen completos: un año entero tarda menos de un segundo).
+ * `tecnico` es el usuario de DATA_USERS reconocido en el servicio.
  */
 const listarServicios = async ({ desde = null, hasta = null, q = null, tecnico = null } = {}) => {
   const request = getPool().request();
   const where = filtrosSql(request, { desde, hasta, q });
-  const [result, usuarios] = await Promise.all([
-    request.query(`${VIGENTES}
-      SELECT codigo_registro, seca, n_reca, sticker, fecha_servicio, personal, cliente, razon_social, planta,
-        dep_planta, cod_metrica, cod_int, tipo_equipo, marca, modelo, serie, unidades, cap_max1, cap_max2,
-        tipo_servicio, versiones
-      FROM vigentes WHERE ${where}
-      ORDER BY fecha_servicio DESC, seca, codigo_registro`),
-    cargarUsuarios(),
+  const [result, contexto] = await Promise.all([
+    request.query(`${VIGENTES} SELECT * FROM vigentes WHERE ${where} ORDER BY fecha_servicio DESC, seca, codigo_registro`),
+    cargarContexto(),
   ]);
-
-  const servicios = result.recordset.map((row) => {
-    const tecnicoReconocido = identificarTecnico(row.personal, usuarios);
-    const seca = leerSeca(row.seca);
-    return {
-      codigo: clean(row.codigo_registro),
-      fecha: fechaTexto(row.fecha_servicio),
-      seca: seca?.original || null,
-      negociacion: seca?.negociacion || null,
-      secaLibro: seca?.libro || null,
-      reca: leerReca(row.n_reca)?.texto || clean(row.n_reca),
-      sticker: clean(row.sticker),
-      tipoServicio: clean(row.tipo_servicio),
-      tecnico: {
-        original: tecnicoReconocido.original,
-        usuario: tecnicoReconocido.usuario || null,
-        iniciales: tecnicoReconocido.iniciales || null,
-      },
-      cliente: clean(row.cliente),
-      razonSocial: clean(row.razon_social),
-      planta: clean(row.planta),
-      departamento: clean(row.dep_planta),
-      instrumento: {
-        codigoMetrica: clean(row.cod_metrica),
-        codigoInterno: clean(row.cod_int),
-        tipo: clean(row.tipo_equipo),
-        marca: clean(row.marca),
-        modelo: clean(row.modelo),
-        serie: clean(row.serie),
-        max: row.cap_max1 == null ? null : Number(row.cap_max1),
-        multirango: Number(row.cap_max2) > 0,
-        unidad: clean(row.unidades),
-      },
-      // Aún no hay registro de calibración en DataMET+ (fase 4).
-      estado: 'PENDIENTE',
-      versiones: row.versiones,
-    };
+  const servicios = result.recordset.map((fila) => {
+    const { modelo, avisos } = modeloDeFila(fila, contexto);
+    return resumenDe(modelo, avisos, fila.versiones);
   });
-
   return {
     servicios: tecnico
       ? servicios.filter(servicio => servicio.tecnico.usuario && clave(servicio.tecnico.usuario) === clave(tecnico))
@@ -245,6 +253,7 @@ const revisarServicios = async ({ desde = null, hasta = null } = {}) => {
 
 module.exports = {
   cargarContexto,
+  resumenDe,
   getServicio,
   listarServicios,
   revisarServicios,

@@ -388,12 +388,17 @@ const leerAmbiente = (fila, avisos) => {
       hr: numero(fila[`hri${sufijo}`]),
       p: numero(fila[`patmi${sufijo}`]),
     };
+    const faltan = [];
     for (const [campo, etiqueta, min, max, unidad] of RANGOS_AMBIENTE) {
       const valor = lectura[campo];
-      if (valor == null) avisos.aviso('ambiente', 'AMBIENTE_FALTA', `Falta la ${etiqueta} ${nombre}.`);
+      if (valor == null) faltan.push(`la ${etiqueta}`);
       else if (valor < min || valor > max) {
         avisos.aviso('ambiente', 'AMBIENTE_FUERA_DE_RANGO', `La ${etiqueta} ${nombre} (${valor} ${unidad}) está fuera de ${min} a ${max} ${unidad}.`);
       }
+    }
+    if (faltan.length) {
+      const lista = faltan.length > 1 ? `${faltan.slice(0, -1).join(', ')} y ${faltan[faltan.length - 1]}` : faltan[0];
+      avisos.aviso('ambiente', 'AMBIENTE_FALTA', `Falta${faltan.length > 1 ? 'n' : ''} ${lista} ${nombre}.`);
     }
     return lectura;
   };

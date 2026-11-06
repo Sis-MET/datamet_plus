@@ -286,3 +286,26 @@ test('los puntos acordados se validan antes de guardarse', () => {
   assert.throws(() => parse('puntosAcordados', { unidad: 'kg', errores: [0] }), /mayores que cero/);
   assert.throws(() => parse('puntosAcordados', { unidad: 'kg', repetibilidad: [1, 2, 3, 4] }), /hasta 3/);
 });
+
+test('las condiciones ambientales que faltan se avisan juntas por momento', () => {
+  const { avisos } = modeloDeFila({ ...base(), ti: null, hri: null, patmi: null, ti_fin: null }, contexto());
+  const faltan = avisos.filter(a => a.codigo === 'AMBIENTE_FALTA').map(a => a.mensaje);
+  assert.deepEqual(faltan, [
+    'Faltan la temperatura, la humedad relativa y la presión al inicio.',
+    'Falta la temperatura al final.',
+  ]);
+});
+
+test('el resumen de la lista cuenta los avisos por nivel', () => {
+  const { resumenDe } = require('../src/services/calibration.servicios');
+  const { modelo, avisos } = modeloDeFila({ ...base(), personal: 'Usuario', equipo1: null }, contexto());
+  const resumen = resumenDe(modelo, avisos, 2);
+  assert.equal(resumen.secaLibro, '0103-C05-26');
+  assert.equal(resumen.reca, '05');
+  assert.equal(resumen.instrumento.max, 1500);
+  assert.equal(resumen.tecnico.usuario, null);
+  assert.equal(resumen.avisos.errores, 1);
+  assert.ok(resumen.avisos.codigos.includes('SIN_PESAS') && resumen.avisos.codigos.includes('TECNICO_SIN_IDENTIFICAR'));
+  assert.equal(resumen.versiones, 2);
+  assert.equal(resumen.estado, 'PENDIENTE');
+});
