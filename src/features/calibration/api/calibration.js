@@ -48,6 +48,8 @@ export const calibrationApi = {
   // Servicios de calibración que subió ServiceMET, con su modelo y avisos (fase 2).
   servicios: (params) => unwrap(api.get(`${BASE}/servicios`, params)),
   servicio: (codigo) => unwrap(api.get(`${BASE}/servicios/${encodeURIComponent(codigo)}`)),
+  // Vista previa del cálculo con el motor (fase 3): no guarda nada.
+  calculoServicio: (codigo) => unwrap(api.get(`${BASE}/servicios/${encodeURIComponent(codigo)}/calculo`)),
   // Puntos de ensayo acordados de un instrumento de cliente (migración 017).
   puntosAcordados: (codMetrica) => unwrap(api.get(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`)),
   savePuntosAcordados: (codMetrica, body) => unwrap(api.put(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`, body)),

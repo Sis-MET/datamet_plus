@@ -9,6 +9,7 @@ import {
   conUnidad, instrumentoTexto, numero, ordenarAvisos, seccionDeAviso,
 } from '../domain/servicios';
 import { CancelButton, Modal, ModalSection, ToneBadge } from './primitives';
+import { CalculoServicio } from './CalculoServicio';
 import { PuntosAcordadosModal } from './PuntosAcordadosModal';
 
 const ICONOS = { error: AlertOctagon, aviso: AlertTriangle, info: Info };
@@ -115,6 +116,7 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
   const load = useCallback(() => calibrationApi.servicio(codigo), [codigo]);
   const { data, error, reload } = useResource(load);
   const [editarPuntos, setEditarPuntos] = useState(false);
+  const [calculoVersion, setCalculoVersion] = useState(0);
 
   const porSeccion = useMemo(() => {
     const mapa = new Map(SECCIONES.map(seccion => [seccion.id, []]));
@@ -368,6 +370,13 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
           ),
         })}
 
+        <ModalSection
+          title="Resultados (vista previa)"
+          description="Calculados con el motor de DataMET+ (EURAMET cg-18 v4.0) a partir de estos datos. No se guardan."
+        >
+          <CalculoServicio key={calculoVersion} codigo={codigo} />
+        </ModalSection>
+
         {seccion('criterio', (
           <Datos filas={[
             ['emp según NB 23001', siNo(m.criterio.empNB23001)],
@@ -391,6 +400,7 @@ export function ServicioModal({ codigo, canEdit, onClose, onChanged }) {
           onClose={() => setEditarPuntos(false)}
           onSaved={() => {
             reload();
+            setCalculoVersion(version => version + 1);
             onChanged?.();
           }}
         />
