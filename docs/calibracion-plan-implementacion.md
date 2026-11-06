@@ -409,16 +409,19 @@ H2/H3 y de la Guía SIM.
 
 ## Fase 4 — Registro de calibración: lista, editor y revisión
 
-**Base de datos** (migración `018_calibracion_registros.sql` o la que siga, prefijo a
-confirmar; no usar `CAL_CERTIFICADOS`, que ya es de los equipos):
+**Base de datos** (migración `018_calibracion_registros.sql`; no usar
+`CAL_CERTIFICADOS`, que ya es de los equipos):
 
-- `CB_REGISTROS`: uno por servicio (código de ServiceMET), correcciones
-  superpuestas (JSON), composición de cargas, clase con origen, estado,
-  validación, número, revisión, versión del motor y de la configuración.
-- `CB_HISTORIAL`: cada guardado con valor anterior y nuevo por campo, usuario y
-  hora del servidor (7.5.2).
-- `CB_APROBADORES` (o reutilizar el patrón de `ST_APROBADORES`): a quién
-  delega el jefe de Calibración la revisión.
+- `CAL_REGISTROS`: uno por servicio (código de ServiceMET), correcciones
+  superpuestas por columna (JSON), clase con su origen, estado, huella del
+  envío, versión, observación y, al aprobar, la configuración del método y el
+  resultado del cálculo. Faltan la composición de cargas, el número y la
+  revisión (fase 5).
+- `CAL_REGISTROS_HISTORIAL`: cada creación, corrección, envío, retiro,
+  aprobación, observación y reapertura, con valor anterior y nuevo por campo,
+  usuario y hora del servidor (7.5.2).
+- Aprobadores delegados (como `ST_APROBADORES` de Soporte): pendiente; hoy
+  revisa solo el jefe de Calibración.
 
 **Backend:** lista, detalle, escritura con historial, enviar a revisión,
 aprobar o devolver con observación, permisos del área Calibración (el JWT ni
@@ -454,7 +457,31 @@ que pertenecen, el estado de cada patrón en la fecha del servicio y los puntos
 acordados del instrumento, que Calibración edita ahí mismo
 (`PuntosAcordadosModal`, con motivo e historial). Falta lo que convierte la
 lista en registro: correcciones, composición de cargas, cálculo, revisión y
-aprobación (`CB_REGISTROS`, que irá en una migración posterior a la 017).
+aprobación (ver el avance siguiente).
+
+**Avance (2026-11-06, registro):** cada servicio de la lista tiene su
+registro (`calibration.registros.js`, rutas `/calibration/registros/:codigo`).
+El detalle permite **corregir** cada sección (`CorreccionesModal`): los datos de
+ServiceMET no se tocan, la corrección se guarda aparte con motivo y queda en el
+historial; la sección «Correcciones» muestra el valor de ServiceMET junto al
+corregido y lo restaura. Los campos que en ServiceMET son una lista (método,
+regla, ajuste, Sí/No, unidad) se corrigen con la misma lista. La clase del
+instrumento se declara con su origen (placa, aprobación de modelo o pedida por
+el cliente). El servicio corregido vuelve a pasar por el adaptador y el motor,
+así que avisos y resultados se rehacen al guardar. Estados: Borrador → En
+revisión (requiere un cálculo; se guarda la huella de los datos) → Aprobado u
+Observado; el técnico puede retirarlo de revisión y el jefe de Calibración
+reabrir uno aprobado con motivo. Revisa el jefe de Calibración, que no puede
+aprobar lo que envió él mismo; para aprobar, el cálculo no puede ser
+provisional ni haber cambiado los datos desde el envío. La lista muestra el
+estado de cada registro. Probado en DataMET_prueba (migración 018 aplicada):
+corregir, enviar, retirar y restaurar. La aprobación no se pudo probar ahí
+porque todos los cálculos de prueba son provisionales (faltan piezas y valores
+de termohigrómetros).
+
+Falta en la fase 4: elegir la composición de cada carga, los avisos previos al
+envío que no vienen del adaptador (excentricidad > 2d, U > 3d…), el diagrama de
+excentricidad y los aprobadores delegados.
 
 ## Fase 5 — Certificado, autorización, firma y reemisión
 
