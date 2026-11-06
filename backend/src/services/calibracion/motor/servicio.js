@@ -1,0 +1,267 @@
+/**
+ * Cálculo de un servicio completo a partir de su modelo (calibration.fuente.js)
+ * y de los datos de sus patrones (fase 1). Puro: no lee la base.
+ *
+ * Pasos: densidad del aire con el termohigrómetro corregido por su
+ * certificado; ρa1 de cada juego de pesas; repetibilidad y excentricidad;
+ * y, por cada punto del ensayo de error, la composición de la carga, la masa
+ * de referencia, la indicación, E, U, k y la conformidad.
+ */
+const { aireDeCalibracion, corregirLectura, densidadCIPM2007 } = require('./aire');
+const { MG_POR, componerCarga, piezasSupuestas } = require('./cargas');
+const { errorEnPunto } = require('./error');
+const { componentesIndicacion, excentricidad, repetibilidad, repetibilidadPara } = require('./indicacion');
+const { densidadSupuesta, masaReferencia } = require('./referencia');
+const { conformidad, empEnServicio, rangoDeCarga, toleranciaPorcentaje } = require('./tolerancia');
+
+const MAGNITUDES = { t: 'T', hr: 'HR', p: 'P' };
+
+const crearAvisos = () => {
+  const lista = [];
+  const agregar = (nivel, codigo, mensaje) => {
+    if (!lista.some(a => a.codigo === codigo && a.mensaje === mensaje)) lista.push({ nivel, codigo, mensaje });
+  };
+  return { lista, error: (c, m) => agregar('error', c, m), aviso: (c, m) => agregar('aviso', c, m), info: (c, m) => agregar('info', c, m) };
+};
+
+const mediana = (valores) => {
+  const orden = [...valores].sort((a, b) => a - b);
+  const mitad = Math.floor(orden.length / 2);
+  return orden.length % 2 ? orden[mitad] : (orden[mitad - 1] + orden[mitad]) / 2;
+};
+
+/** Condiciones de inicio y fin corregidas con el certificado del termohigrómetro. */
+const ambienteCorregido = (ambiente, termohigrometro, avisos) => {
+  const puntos = termohigrometro?.puntos || {};
+  const certificado = {};
+  const corregir = (momento) => Object.fromEntries(Object.entries(MAGNITUDES).map(([campo, magnitud]) => {
+    const lectura = corregirLectura(momento?.[campo] ?? null, puntos[magnitud] || []);
+    if (lectura.fuera) avisos.aviso('THB_FUERA_DE_RANGO', `La lectura de ${campo === 't' ? 'temperatura' : campo === 'hr' ? 'humedad' : 'presión'} (${momento[campo]}) está fuera del rango calibrado del termohigrómetro.`);
+    if (lectura.U != null) {
+      const actual = certificado[campo];
+      if (!actual || lectura.U / lectura.k > actual.U / actual.k) certificado[campo] = { U: lectura.U, k: lectura.k };
+    }
+    return [campo, lectura.valor];
+  }));
+  const resultado = { inicio: corregir(ambiente.inicio), fin: corregir(ambiente.fin), certificado };
+  const NOMBRES = { t: 'la temperatura', hr: 'la humedad', p: 'la presión' };
+  const faltan = Object.keys(MAGNITUDES).filter(campo => !certificado[campo]).map(campo => NOMBRES[campo]);
+  if (faltan.length) {
+    const lista = faltan.length > 1 ? `${faltan.slice(0, -1).join(', ')} y ${faltan[faltan.length - 1]}` : faltan[0];
+    avisos.aviso('THB_SIN_VALORES', `El termohigrómetro${termohigrometro?.codigo ? ` ${termohigrometro.codigo}` : ''} no tiene valores transcritos para ${lista}: sin corrección y con solo la variación inicio-fin como incertidumbre.`);
+  }
+  return resultado;
+};
+
+/** Material habitual de una clase cuando no se conoce: fundición en M, acero inoxidable en E y F. */
+const materialPorClase = (clase) => (String(clase || '').startsWith('M') ? 'Fundición gris' : 'Acero inoxidable');
+
+/** Piezas de los juegos en la unidad del instrumento, con su ρa1 y sus valores. */
+const piezasDeJuegos = (juegos, unidad, empR111, avisos) => {
+  const mgPor = MG_POR[unidad];
+  const piezas = [];
+  const sinPiezas = [];
+  for (const juego of juegos) {
+    const rhoA1 = juego.condiciones?.temperatura != null && juego.condiciones?.humedad != null && juego.condiciones?.presion != null
+      ? densidadCIPM2007({ t: juego.condiciones.temperatura, hr: juego.condiciones.humedad, p: juego.condiciones.presion })
+      : null;
+    const activas = (juego.piezas || []).filter(p => p.activa !== false);
+    if (!activas.length) {
+      // Sin piezas tampoco hay material: el habitual de la clase (R111 B.7).
+      sinPiezas.push({ ...juego, rhoA1, material: juego.material || materialPorClase(juego.clase) });
+      continue;
+    }
+    let sinValores = 0;
+    for (const pieza of activas) {
+      const valor = juego.valores?.get(`${Number(pieza.nominalMg)}|${pieza.identificacion || ''}`);
+      if (!valor) sinValores += 1;
+      const supuesta = pieza.densidad == null ? densidadSupuesta(pieza.material || juego.material || materialPorClase(juego.clase)) : null;
+      piezas.push({
+        juego: juego.codigo,
+        identificacion: pieza.identificacion || '',
+        nominal: Number(pieza.nominalMg) / mgPor,
+        correccion: valor ? valor.correccionMg / mgPor : null,
+        U: valor ? valor.uMg / mgPor : null,
+        k: valor ? valor.k : 2,
+        emp: (empR111(juego.clase, Number(pieza.nominalMg)) || 0) / mgPor,
+        densidad: pieza.densidad ?? supuesta?.rho ?? null,
+        uDensidad: pieza.densidad != null && pieza.densidadU != null ? pieza.densidadU / (pieza.densidadK || 2) : supuesta?.u ?? null,
+        material: pieza.material || juego.material,
+        clase: juego.clase,
+        rhoA1,
+      });
+    }
+    if (sinValores) {
+      avisos.aviso('PESAS_SIN_VALORES', `${juego.codigo}: ${sinValores} pieza(s) sin valores de certificado; se usan con su valor nominal y u = emp/√3 (EURAMET 7.1.2-3).`);
+    } else if (!juego.verificado) {
+      avisos.aviso('PESAS_SIN_VERIFICAR', `${juego.codigo}: los valores de su certificado aún no están verificados.`);
+    }
+  }
+  return { piezas, sinPiezas };
+};
+
+/**
+ * Calcula un servicio.
+ * modelo: de modeloDeFila. datos: {
+ *   juegos: [{ codigo, clase, material, piezas, valores: Map(clave → {correccionMg, uMg, k}),
+ *              verificado, condiciones: {temperatura, humedad, presion} }],
+ *   termohigrometro: { codigo, puntos: { T: [...], HR: [...], P: [...] } } | null,
+ *   empR111: (clase, nominalMg) → emp en mg,
+ *   claseInstrumento: 'I'|'II'|'III'|'IIII'|null,
+ *   configuracion,
+ * }
+ */
+const calcularServicio = (modelo, datos) => {
+  const avisos = crearAvisos();
+  const config = datos.configuracion;
+  const unidad = modelo.instrumento.unidad;
+  const rangos = [...(modelo.instrumento.rangos || [])].sort((a, b) => a.max - b.max);
+  if (!unidad || !MG_POR[unidad]) avisos.error('SIN_UNIDAD', 'Sin la unidad del instrumento no se puede calcular.');
+  if (!rangos.length || !(rangos[0].d > 0)) avisos.error('SIN_RANGOS', 'Sin la división d del instrumento no se puede calcular.');
+  if (avisos.lista.some(a => a.nivel === 'error')) return { calculado: false, avisos: avisos.lista, puntos: [] };
+
+  // Aire.
+  let aire = null;
+  try {
+    const ambiente = ambienteCorregido(modelo.ambiente, datos.termohigrometro, avisos);
+    aire = aireDeCalibracion(ambiente);
+    // Condiciones imposibles (p. ej. presión de pocos hPa) no dan un aire válido.
+    const { t, hr, p } = aire.condiciones;
+    if (!(p > 300 && p < 1200) || !(t > -10 && t < 50) || !(hr >= 0 && hr <= 100) || !(aire.rho > 0.3 && aire.rho < 1.5)) {
+      throw new Error(`Condiciones ambientales fuera de rango (t = ${t} °C, HR = ${hr} %, p = ${p} hPa).`);
+    }
+  } catch (err) {
+    avisos.error('SIN_AIRE', `${err.message} Sin una densidad del aire válida el empuje no se puede corregir.`);
+    return { calculado: false, avisos: avisos.lista, puntos: [] };
+  }
+
+  // Repetibilidad.
+  const ensayos = modelo.repetibilidad.ensayos.map((ensayo) => {
+    const r = repetibilidad(ensayo.lecturas.map(l => l.indicacion));
+    return { carga: ensayo.carga, n: r.n, media: r.media, s: r.s, nu: r.nu };
+  });
+  if (!ensayos.some(e => e.s != null)) avisos.error('SIN_REPETIBILIDAD', 'Hace falta un ensayo de repetibilidad con al menos 2 lecturas.');
+
+  // Excentricidad (método 3). La carga de ServiceMET no tiene decimales: si no
+  // coincide con las indicaciones se toma la mediana de ellas.
+  const posiciones = modelo.excentricidad.posiciones || [];
+  let cargaEcc = modelo.excentricidad.carga;
+  if (posiciones.length) {
+    const centro = mediana(posiciones.map(p => p.indicacion));
+    const dMax = Math.max(...rangos.map(r => r.d));
+    if (!(cargaEcc > 0) || Math.abs(centro - cargaEcc) > Math.max(20 * dMax, 0.01 * Math.abs(centro))) cargaEcc = centro;
+  }
+  const ecc = excentricidad({ posiciones, carga: cargaEcc });
+  if (!posiciones.length) avisos.aviso('SIN_EXCENTRICIDAD', 'Sin ensayo de excentricidad: no se incluye su contribución.');
+
+  // Patrones.
+  const { piezas, sinPiezas } = piezasDeJuegos(datos.juegos || [], unidad, datos.empR111, avisos);
+  if (sinPiezas.length) {
+    avisos.aviso('PIEZAS_SUPUESTAS', `${sinPiezas.map(j => j.codigo).join(', ')} sin piezas registradas: cada carga se arma con la serie 5-2-2-1 de su clase, con valores nominales.`);
+  }
+  if (!piezas.length && !sinPiezas.length) avisos.error('SIN_PESAS', 'Sin juegos de pesas no se puede calcular la masa de referencia.');
+
+  const metodoCeros = modelo.errores.metodo === 'EVALUANDO_CEROS';
+  const claseInstrumento = datos.claseInstrumento || modelo.instrumento.clase?.valor || null;
+  const puntos = [];
+  let retornoAnterior = 0;
+  for (const punto of modelo.errores.puntos) {
+    const base = { n: punto.n, carga: punto.carga, indicacionLeida: punto.indicacion };
+    if (punto.indicacion == null) {
+      avisos.aviso('SUSTITUCION_PENDIENTE', `El punto ${punto.n} (${punto.carga}) no tiene indicación: se calculará como carga de sustitución cuando se defina cómo la registra ServiceMET.`);
+      puntos.push({ ...base, calculado: false, motivo: 'Sin indicación (sustitución)' });
+      continue;
+    }
+    // I = IL − (I0 + I0i)/2 con ceros evaluados (4.4.1-1b); si no, I = IL.
+    const I = metodoCeros ? punto.indicacion - (retornoAnterior + (punto.retorno ?? retornoAnterior)) / 2 : punto.indicacion;
+    retornoAnterior = punto.retorno ?? retornoAnterior;
+
+    let elegidas = componerCarga(punto.carga, piezas);
+    let supuestas = false;
+    if (!elegidas && sinPiezas.length) {
+      const juego = sinPiezas[0];
+      elegidas = (piezasSupuestas(punto.carga) || []).map(p => {
+        const densidad = densidadSupuesta(juego.material) || { rho: 8000, u: 0 };
+        const nominalMg = p.nominal * MG_POR[unidad];
+        return {
+          ...p,
+          juego: juego.codigo,
+          correccion: null,
+          U: null,
+          emp: (datos.empR111(juego.clase, nominalMg) || 0) / MG_POR[unidad],
+          densidad: densidad.rho,
+          uDensidad: densidad.u,
+          clase: juego.clase,
+          rhoA1: juego.rhoA1,
+        };
+      });
+      supuestas = elegidas.length > 0;
+      if (!supuestas) elegidas = null;
+    }
+    if (!elegidas) {
+      avisos.aviso('CARGA_NO_COMPUESTA', `La carga ${punto.carga} del punto ${punto.n} no se puede formar con las piezas de los juegos elegidos.`);
+      puntos.push({ ...base, calculado: false, motivo: 'La carga no se forma con las piezas' });
+      continue;
+    }
+    if (elegidas.some(p => !(p.emp > 0) && p.correccion == null)) {
+      avisos.aviso('PESA_SIN_EMP', `En el punto ${punto.n} hay piezas sin certificado ni emp de la R111 (valor nominal fuera de la Tabla 1): su u queda en cero.`);
+    }
+
+    const referencia = masaReferencia(elegidas, { unidad, aire, empuje: config.empuje, kD: config.kD });
+    const rango = rangoDeCarga(rangos, punto.carga);
+    const s = repetibilidadPara(I, ensayos);
+    const componentesI = componentesIndicacion(I, { d0: rangos[0].d, dI: rango.d, s: s?.s, nuS: s?.nu, uRelEcc: ecc.uRel });
+    const resultado = errorEnPunto({ indicacion: I, componentesI, referencia });
+
+    let tolerancia = null;
+    if (modelo.criterio.empNB23001) {
+      tolerancia = claseInstrumento ? empEnServicio({ carga: punto.carga, clase: claseInstrumento, e: rango.e || rango.d }) : null;
+    } else if (modelo.criterio.toleranciaCliente > 0) {
+      tolerancia = toleranciaPorcentaje(punto.carga, modelo.criterio.toleranciaCliente);
+    }
+    const conforme = conformidad({ error: resultado.error, U: resultado.U, k: resultado.k, tolerancia, regla: modelo.criterio.regla });
+
+    // Avisos de RECA (configurables).
+    const lim = config.avisos;
+    if (Math.abs(resultado.error) > lim.lecturaVsCargaEnD * rango.d) {
+      avisos.aviso('LECTURA_LEJOS_DE_CARGA', `Punto ${punto.n}: el error (${resultado.error.toPrecision(3)}) supera ${lim.lecturaVsCargaEnD}·d.`);
+    }
+    if (resultado.U > lim.uEnD * rango.d) {
+      avisos.info('U_MAYOR_QUE_3D', `Punto ${punto.n}: U (${resultado.presentacion.U}) es mayor que ${lim.uEnD}·d.`);
+    }
+
+    puntos.push({
+      ...base,
+      calculado: true,
+      indicacion: I,
+      rango: { max: rango.max, d: rango.d, e: rango.e },
+      piezas: elegidas.map(p => ({ juego: p.juego, nominal: p.nominal, identificacion: p.identificacion, supuesta: Boolean(p.supuesta || supuestas) })),
+      supuestas,
+      ...resultado,
+      tolerancia,
+      conformidad: conforme,
+    });
+  }
+
+  if (modelo.criterio.empNB23001 && !claseInstrumento) {
+    avisos.aviso('SIN_CLASE', 'Se pidió el emp NB 23001 pero el instrumento no tiene clase registrada ni pedida por el cliente: no se evalúa la conformidad.');
+  }
+  if (ecc.maxima > config.avisos.excentricidadEnD * Math.max(...rangos.map(r => r.d))) {
+    avisos.info('EXCENTRICIDAD_MAYOR_QUE_2D', `La diferencia máxima de excentricidad (${ecc.maxima.toPrecision(3)}) supera ${config.avisos.excentricidadEnD}·d.`);
+  }
+
+  const calculados = puntos.filter(p => p.calculado);
+  return {
+    calculado: calculados.length > 0,
+    provisional: avisos.lista.some(a => ['PESAS_SIN_VALORES', 'PESAS_SIN_VERIFICAR', 'PIEZAS_SUPUESTAS', 'THB_SIN_VALORES'].includes(a.codigo)),
+    unidad,
+    configuracion: config.version,
+    aire: { rho: aire.rho, u: aire.u, condiciones: aire.condiciones },
+    repetibilidad: ensayos,
+    excentricidad: { carga: cargaEcc, diferencias: ecc.diferencias, maxima: ecc.maxima, uRel: ecc.uRel },
+    puntos,
+    avisos: avisos.lista,
+  };
+};
+
+module.exports = { calcularServicio };
