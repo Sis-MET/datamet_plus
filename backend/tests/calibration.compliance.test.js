@@ -60,6 +60,7 @@ const facts = (overrides = {}) => ({
     instalada: true, total: 9, ultima: { version: '6.4.1+19', estado: 'EN_USO' }, aprobadas: 9,
     anterioresSinDecidir: 0, telefonos: 4, telefonosSinAprobar: 0, versionesSinAprobarEnTelefonos: [],
   },
+  patrones: { total: 12, conValores: 8, sinVerificar: 0 },
   ...overrides,
 });
 
@@ -163,7 +164,7 @@ test('si fallan todas las consultas evalúa igual sin romperse', () => {
   const report = evaluateCompliance(facts({
     version: null, baseDatos: null, respaldos: null, migraciones: { archivos: ['001'], registradas: null },
     equipos: null, certificados: null, historial: null, eventos: null, programas: null, fallas: null, accesos: null,
-    revisiones: null, cambios: null, fallasSistema: null, servicemet: null,
+    revisiones: null, cambios: null, fallasSistema: null, servicemet: null, patrones: null,
   }));
   const requisitos = report.clausulas.flatMap(clausula => clausula.requisitos);
   assert.equal(requisitos.length, REQUISITOS.length);
@@ -212,4 +213,23 @@ test('describe el vencimiento de la sesión en palabras', () => {
   assert.equal(formatDuration('1d'), '1 día');
   assert.equal(formatDuration('3600'), '3600');
   assert.equal(formatDuration(undefined), null);
+});
+
+test('7.11.6 muestra los valores de patrones sin verificar sin dejar de cumplir', () => {
+  const verificados = find(evaluateCompliance(facts()), '7.11.6');
+  assert.equal(verificados.estado, 'CUMPLE');
+  assert.match(verificados.evidencias.join(' '), /quien los transcribió/);
+  assert.deepEqual(verificados.datos.find(dato => /patrones/i.test(dato.etiqueta)), {
+    etiqueta: 'Patrones con valores sin verificar', valor: '0 de 8', tono: 'neutral',
+  });
+
+  const pendientes = find(evaluateCompliance(facts({ patrones: { total: 12, conValores: 8, sinVerificar: 3 } })), '7.11.6');
+  assert.equal(pendientes.estado, 'CUMPLE');
+  assert.match(pendientes.notas.join(' '), /3 patrones tienen valores del certificado sin verificar/);
+  assert.equal(pendientes.datos.find(dato => /patrones/i.test(dato.etiqueta)).tono, 'warning');
+
+  // Sin la migración 016 no se menciona.
+  const sinMigracion = find(evaluateCompliance(facts({ patrones: null })), '7.11.6');
+  assert.ok(!sinMigracion.evidencias.join(' ').includes('termohigrómetros'));
+  assert.ok(sinMigracion.datos.every(dato => !/patrones/i.test(dato.etiqueta)));
 });

@@ -169,6 +169,30 @@ const readRevisiones = () => first(`
   FROM vigentes
 `);
 
+// Patrones con valores transcritos de su certificado vigente (migración 016).
+// Sin la migración la consulta falla y queda en null.
+const readPatrones = () => first(`
+  WITH patrones AS (
+    SELECT p.tipo, actual.id AS certificado_id, actual.revisado_por
+    FROM dbo.CAL_PATRONES p
+    JOIN dbo.DATA_EQUIPOS_CAL e ON e.id = p.equipo_id
+    OUTER APPLY (
+      SELECT TOP 1 c.id, c.revisado_por
+      FROM dbo.CAL_CERTIFICADOS c
+      WHERE c.equipo_id = e.id AND c.anulado = 0 AND c.cert_fecha = e.cert_fecha
+        AND ${blank('c.certificado')} = ${blank('e.certificado')}
+      ORDER BY c.id DESC
+    ) actual
+    WHERE ${IS_ACTIVE.replace('estado', 'e.estado')}
+  )
+  SELECT
+    COUNT(*) AS total,
+    SUM(CASE WHEN t.certificado_id IS NOT NULL THEN 1 ELSE 0 END) AS conValores,
+    SUM(CASE WHEN t.certificado_id IS NOT NULL AND p.revisado_por IS NULL THEN 1 ELSE 0 END) AS sinVerificar
+  FROM patrones p
+  LEFT JOIN dbo.CAL_CERT_TRANSCRIPCION t ON t.certificado_id = p.certificado_id
+`);
+
 // Control de cambios (migración 007). `version` es la que usa quien consulta.
 const readCambios = async (version) => {
   const result = await getPool().request()
@@ -228,7 +252,7 @@ const counts = (row) => (row
 const gatherFacts = async ({ version = null } = {}) => {
   const [
     baseDatos, respaldos, migraciones, equipos, certificados, historial, eventos, programas, fallas, accesos,
-    revisiones, cambios, fallasSistema, servicemet,
+    revisiones, cambios, fallasSistema, servicemet, patrones,
   ] = await Promise.all([
     safe(readBaseDatos),
     safe(readRespaldos),
@@ -244,6 +268,7 @@ const gatherFacts = async ({ version = null } = {}) => {
     safe(() => readCambios(version)),
     safe(readFallasSistema),
     safe(readServicemet),
+    safe(readPatrones),
   ]);
   return {
     evaluadoEn: new Date().toISOString(),
@@ -273,6 +298,7 @@ const gatherFacts = async ({ version = null } = {}) => {
     cambios: counts(cambios),
     fallasSistema: counts(fallasSistema),
     servicemet,
+    patrones: counts(patrones),
   };
 };
 
@@ -328,7 +354,7 @@ const REQUISITOS = [
           equipos.incompletos > 0 && `${plural(equipos.incompletos, 'equipo activo tiene', 'equipos activos tienen')} el certificado incompleto (sin número, vigencia o ente).`,
         ],
         notas: [
-          'El resultado de la calibración y su incertidumbre están en el certificado del ente; el módulo guarda su referencia. El original se archiva según el procedimiento de registros.',
+          'El resultado de la calibración y su incertidumbre están en el certificado del ente; el módulo guarda su referencia y, para los juegos de pesas y los termohigrómetros, los valores que se usan al calibrar («Piezas y valores»). El original se archiva según el procedimiento de registros.',
           equipos.sinCertificado > 0 && `${plural(equipos.sinCertificado, 'equipo activo aún no tiene', 'equipos activos aún no tienen')} certificado: no deberían usarse hasta calibrarse.`,
         ],
         accion: equipos.incompletos > 0 ? 'Completar el número, la vigencia o el ente desde «Corregir» en la ficha de cada equipo.' : null,
@@ -802,7 +828,7 @@ const REQUISITOS = [
     clausula: '7.11.6',
     titulo: 'Verificación de cálculos y transferencias',
     requisito: 'Los cálculos y las transferencias de datos se verifican de forma apropiada y sistemática.',
-    evaluar: ({ baseDatos, equipos }) => {
+    evaluar: ({ baseDatos, equipos, patrones }) => {
       const revision = !baseDatos || baseDatos.revision;
       return {
         estado: revision ? 'CUMPLE' : 'PARCIAL',
@@ -810,17 +836,29 @@ const REQUISITOS = [
         evidencias: [
           'Las fechas de calibración, verificación y aviso se calculan con funciones cubiertas por pruebas automáticas.',
           revision && 'Los datos transcritos de cada certificado los verifica un segundo usuario contra el original.',
+          patrones && 'Los valores de los certificados de pesas y termohigrómetros (corrección, U, k, densidad) también los verifica otra persona, que no puede ser quien los transcribió; transcribirlos de nuevo exige motivo y deja la verificación pendiente.',
+          patrones && 'Al guardar valores de pesas el sistema avisa si no son coherentes con la OIML R111 (U mayor que un tercio del emp, corrección fuera del emp, densidad fuera de la Tabla 5).',
           'Esta evaluación compara en cada carga el vencimiento guardado con el calculado.',
           'Al pasar los certificados a su historial (migración 005) se limpiaron los espacios invisibles y se omitieron los duplicados.',
         ],
         brechas: [!revision && 'Los datos del certificado se transcriben a mano y nadie más los verifica (falta la migración 006).'],
+        notas: [
+          patrones?.sinVerificar > 0 && `${plural(patrones.sinVerificar, 'patrón tiene', 'patrones tienen')} valores del certificado sin verificar: no deberían usarse en una calibración hasta que otra persona los verifique.`,
+        ],
         accion: revision ? null : 'Aplicar la migración 006 para habilitar la revisión por un segundo usuario.',
         prioridad: revision ? null : 'MEDIA',
-        datos: equipos ? [{
-          etiqueta: 'Vencimientos guardados que no coinciden',
-          valor: ratio(equipos.vencimientoInconsistente, equipos.total),
-          tono: tone(equipos.vencimientoInconsistente > 0, 'warning'),
-        }] : [],
+        datos: [
+          equipos && {
+            etiqueta: 'Vencimientos guardados que no coinciden',
+            valor: ratio(equipos.vencimientoInconsistente, equipos.total),
+            tono: tone(equipos.vencimientoInconsistente > 0, 'warning'),
+          },
+          patrones?.conValores > 0 && {
+            etiqueta: 'Patrones con valores sin verificar',
+            valor: ratio(patrones.sinVerificar, patrones.conValores),
+            tono: patrones.sinVerificar > 0 ? 'warning' : 'neutral',
+          },
+        ],
       };
     },
   },

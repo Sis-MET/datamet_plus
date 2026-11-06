@@ -275,6 +275,13 @@ Revisa la pestaña Cumplimiento para el estado actual. Resumen de lo hecho:
   5xx, de tareas y del proceso se guardan solos (`system.failures.js`); nunca
   guardes el cuerpo de la petición.
 
+- **7.11.6 patrones (migración 016):** en la ficha de cada juego de pesas o
+  termohigrómetro, «Piezas y valores» guarda las piezas y los valores de su
+  certificado vigente (`calibration.patrones.js`). Los verifica otra persona
+  con la revisión de `CAL_CERTIFICADOS` (ni quien registró el certificado ni
+  quien transcribió); transcribir de nuevo exige motivo y deja la verificación
+  pendiente. La pestaña Cumplimiento cuenta los patrones sin verificar. Un
+  cálculo de calibración no debe usar valores sin verificar.
 - **7.8 (noviembre 2026):** DataMET+ todavía **no emite certificados de
   calibración** (el proyecto empezó el 5 de noviembre de 2026) y la pestaña
   Cumplimiento no incluye el 7.8. Cuando la emisión exista, agregar sus
