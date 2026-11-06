@@ -414,14 +414,14 @@ H2/H3 y de la Guía SIM.
 
 - `CAL_REGISTROS`: uno por servicio (código de ServiceMET), correcciones
   superpuestas por columna (JSON), clase con su origen, estado, huella del
-  envío, versión, observación y, al aprobar, la configuración del método y el
-  resultado del cálculo. Faltan la composición de cargas, el número y la
-  revisión (fase 5).
+  envío, versión, observación, la composición elegida a mano para cada carga
+  y, al aprobar, la configuración del método y el resultado del cálculo. El
+  número y la revisión del certificado llegan con la fase 5.
 - `CAL_REGISTROS_HISTORIAL`: cada creación, corrección, envío, retiro,
   aprobación, observación y reapertura, con valor anterior y nuevo por campo,
   usuario y hora del servidor (7.5.2).
-- Aprobadores delegados (como `ST_APROBADORES` de Soporte): pendiente; hoy
-  revisa solo el jefe de Calibración.
+- `CAL_APROBADORES` (migración 019, como `ST_APROBADORES` de Soporte): a
+  quién delega el jefe de Calibración la revisión, con versión e historial.
 
 **Backend:** lista, detalle, escritura con historial, enviar a revisión,
 aprobar o devolver con observación, permisos del área Calibración (el JWT ni
@@ -479,9 +479,40 @@ corregir, enviar, retirar y restaurar. La aprobación no se pudo probar ahí
 porque todos los cálculos de prueba son provisionales (faltan piezas y valores
 de termohigrómetros).
 
-Falta en la fase 4: elegir la composición de cada carga, los avisos previos al
-envío que no vienen del adaptador (excentricidad > 2d, U > 3d…), el diagrama de
-excentricidad y los aprobadores delegados.
+**Avance (2026-11-06, cierre de la fase 4):**
+
+- **Composición de cada carga:** en el presupuesto de cada punto, «Elegir
+  piezas» abre las piezas registradas de los juegos del servicio; se guarda
+  solo si suman exactamente la carga, con motivo e historial, y entra en la
+  huella del envío. El motor la usa en lugar de la regla; si deja de servir
+  (se corrigió la carga, cambió el juego) avisa y vuelve a la regla
+  (`COMPOSICION_INVALIDA`). «Volver a la regla» la quita. No se ofrece en
+  cargas de sustitución ni con piezas supuestas.
+- **Avisos antes de enviar:** «Enviar a revisión» abre una confirmación con
+  los errores y avisos de los datos y del cálculo (sin repetir), cada uno con
+  enlace a su sección, y advierte si el cálculo es provisional. Los avisos de
+  RECA ya los da el adaptador o el motor (excentricidad > 2d, lectura lejos de
+  la carga > 4d, U > 3d, patrones sin certificado o sin verificar, técnico sin
+  identificar, textos dañados, puntos sin indicación, carga de excentricidad).
+  El de rango reducido sin Min′ o Max′ queda para cuando ServiceMET registre
+  ese alcance.
+- **Diagrama de excentricidad:** la plataforma como la dibuja ServiceMET
+  (posiciones de `soporte/domain/plataforma.js`, esquema de calibración
+  «Rectangular 5F», «Cuadrada A», «5»), con la diferencia de cada posición
+  con el centro y en rojo las mayores que 2·d; la tabla suma esa columna.
+- **Aprobadores:** el jefe de Calibración los elige en Certificados ›
+  Aprobadores (migración 019). Revisan (aprobar u observar) el jefe y sus
+  aprobadores, nunca lo propio; reabrir un registro aprobado queda para el
+  jefe. Los permisos se leen de DATA_USERS en cada solicitud. La lógica es
+  común con Soporte (`services/aprobadores.js`).
+
+Probado en DataMET_prueba (migración 019 aplicada): diagrama, confirmación de
+envío con enlace a la sección, envío y retiro. La elección de piezas se vio
+con un juego simulado en el navegador, porque en la base de pruebas solo
+E2-005 tiene piezas (3, de 200 a 500 mg) y ningún servicio lo usa solo; el
+motor la cubre con pruebas. Los aprobadores no se pudieron ver en pantalla
+porque el usuario de prueba no es jefe de Calibración (la API responde 403,
+como corresponde); el servicio tiene sus pruebas.
 
 ## Fase 5 — Certificado, autorización, firma y reemisión
 
