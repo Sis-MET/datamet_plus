@@ -167,3 +167,27 @@ test('sustitución: la carga mayor que todas las pesas se calcula con 7.1.2-15b 
   assert.ok(p1600.componentes.some(c => c.fuente === 'sustitucionIndicaciones'));
   assert.ok(r.avisos.some(a => a.codigo === 'SUSTITUCION'));
 });
+
+test('composición elegida a mano: se usa si suma la carga; si no, avisa y vuelve a la regla', () => {
+  const { modelo } = modeloDeFila(fila());
+  const automatica = calcularServicio(modelo, datos());
+  assert.equal(automatica.puntos[1].composicion, 'REGLA');
+  assert.equal(automatica.piezasDisponibles.length, PIEZAS.length);
+  // 500 kg con 200 + 200* + 50 + 20 + 20* + 10 en vez de la pieza de 500 kg.
+  const claves = ['M1-TEST|200000000|', 'M1-TEST|200000000|*', 'M1-TEST|50000000|', 'M1-TEST|20000000|', 'M1-TEST|20000000|*', 'M1-TEST|10000000|'];
+  const elegida = calcularServicio(modelo, datos({ composiciones: { 2: claves } }));
+  const p500 = elegida.puntos[1];
+  assert.equal(p500.composicion, 'ELEGIDA');
+  assert.deepEqual(p500.piezas.map(p => p.clave), claves);
+  // Seis piezas con u = 1 g cada una: más incertidumbre que la de 500 kg sola.
+  assert.ok(p500.u > automatica.puntos[1].u);
+  assert.ok(!elegida.avisos.some(a => a.codigo === 'COMPOSICION_INVALIDA'));
+
+  const noSuma = calcularServicio(modelo, datos({ composiciones: { 2: claves.slice(1) } }));
+  assert.equal(noSuma.puntos[1].composicion, 'REGLA');
+  assert.match(noSuma.avisos.find(a => a.codigo === 'COMPOSICION_INVALIDA').mensaje, /Punto 2: .*suma 300, no 500/);
+  const ajena = calcularServicio(modelo, datos({ composiciones: { 2: ['OTRO|500000000|'] } }));
+  assert.match(ajena.avisos.find(a => a.codigo === 'COMPOSICION_INVALIDA').mensaje, /no están en los juegos/);
+  const repetida = calcularServicio(modelo, datos({ composiciones: { 1: ['M1-TEST|50000000|', 'M1-TEST|50000000|'] } }));
+  assert.match(repetida.avisos.find(a => a.codigo === 'COMPOSICION_INVALIDA').mensaje, /repite una pieza/);
+});

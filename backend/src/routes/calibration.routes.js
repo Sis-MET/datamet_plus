@@ -23,6 +23,8 @@ router.get('/servicios', controller.listServicios);
 router.get('/servicios/:codigo', controller.getServicio);
 router.get('/servicios/:codigo/calculo', controller.getCalculoServicio);
 router.get('/registros/:codigo', controller.getRegistro);
+// Aprobadores de los registros: los designa el jefe de Calibración (migración 019).
+router.get('/configuracion/aprobadores', controller.getAprobadores);
 // Puntos de ensayo acordados de cada instrumento de cliente (los mantiene Calibración).
 router.get('/puntos-acordados/:codMetrica', controller.getPuntosAcordados);
 
@@ -39,12 +41,13 @@ router.post('/equipos/:id/certificados/vigente/revision', controller.revisarCert
 // Tipo, clase, piezas y valores del certificado vigente de un patrón.
 router.put('/equipos/:id/patron', controller.savePatron);
 router.put('/puntos-acordados/:codMetrica', controller.savePuntosAcordados);
-// Registro de calibración: lo elabora el personal del área y lo revisa el jefe de Calibración.
+// Registro de calibración: lo elabora el personal del área y lo revisa el jefe de Calibración o un aprobador.
 router.put('/registros/:codigo', controller.guardarRegistro);
 router.post('/registros/:codigo/envio', controller.enviarRegistro);
 router.post('/registros/:codigo/retiro', controller.retirarRegistro);
 router.post('/registros/:codigo/revision', controller.revisarRegistro);
 router.post('/registros/:codigo/reapertura', controller.reabrirRegistro);
+router.put('/configuracion/aprobadores', controller.saveAprobadores);
 router.post('/actividades', controller.createActividad);
 router.put('/actividades/:id', controller.updateActividad);
 router.delete('/actividades/:id', controller.deleteActividad);

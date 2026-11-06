@@ -33,8 +33,11 @@ const datosDePatron = async (patron, fecha) => {
   };
 };
 
-/** Calcula un modelo de servicio (el de ServiceMET o el del registro, con sus correcciones). */
-const calcularModelo = async (modelo) => {
+/**
+ * Calcula un modelo de servicio (el de ServiceMET o el del registro, con sus
+ * correcciones). `composiciones`: las cargas armadas a mano en el registro.
+ */
+const calcularModelo = async (modelo, { composiciones = null } = {}) => {
   const fecha = modelo.servicio.fecha;
   const juegos = (await Promise.all(modelo.patrones.juegos.map(p => datosDePatron(p, fecha)))).filter(Boolean);
   // El termohigrómetro: el primero con puntos transcritos; si ninguno, el primero.
@@ -51,6 +54,7 @@ const calcularModelo = async (modelo) => {
     empR111,
     claseInstrumento: modelo.instrumento.clase?.valor || null,
     configuracion: motor.CONFIGURACION_V1,
+    composiciones,
   });
   return { termohigrometro: termohigrometro?.codigo || null, juegos: juegos.map(j => ({ codigo: j.codigo, clase: j.clase, piezas: j.piezas.length, certificado: j.certificado, verificado: j.verificado })), ...calculo };
 };

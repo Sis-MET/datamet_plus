@@ -248,6 +248,12 @@ const schemas = {
   }).refine(data => data.excentricidad || data.repetibilidad.length || data.errores.length, 'Indica al menos una carga acordada.'),
 
   // Registro de calibración de un servicio (fase 4, migración 018).
+  // Aprobadores de los registros (migración 019): ids de DATA_USERS.
+  aprobadores: z.object({
+    version: z.number().int().positive(),
+    aprobadores: z.array(z.number().int().positive()).max(500)
+      .refine(ids => new Set(ids).size === ids.length, 'Hay personas repetidas.'),
+  }).strict(),
   registroGuardar: z.object({
     version: z.number().int().positive().nullable().default(null),
     columnas: z.record(z.string().max(60), z.union([z.string().max(500), z.number(), z.null()])).default({}),
@@ -255,6 +261,8 @@ const schemas = {
       valor: z.enum(['I', 'II', 'III', 'IIII']).nullable(),
       origen: z.enum(['PLACA', 'APROBACION', 'CLIENTE']).nullable(),
     }).nullable().optional(),
+    // Carga armada a mano por punto: claves de las piezas; null vuelve a la regla.
+    composiciones: z.record(z.string().regex(/^\d{1,2}$/), z.array(z.string().min(3).max(120)).max(100).nullable()).optional(),
     motivo: optionalText(500),
   }).refine(data => Object.keys(data.columnas).length <= 300, 'Demasiadas correcciones en un solo guardado.'),
   registroRevision: z.object({

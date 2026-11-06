@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  esEditable, huellaDe, permisosDe, planClase, planCorrecciones,
+  esEditable, huellaDe, permisosDe, planClase, planComposiciones, planCorrecciones, textoComposicion,
 } = require('../src/services/calibration.registros');
 const { parse } = require('../src/services/calibration.validation');
 
@@ -85,4 +85,22 @@ test('validación de lo que llega al guardar y al revisar', () => {
   assert.throws(() => parse('registroRevision', { decision: 'OBSERVAR' }), /observación/);
   assert.equal(parse('registroRevision', { decision: 'APROBAR' }).decision, 'APROBAR');
   assert.throws(() => parse('registroReapertura', {}), /reabre/);
+});
+
+test('composición elegida a mano: legible en el historial y vuelta a la regla', () => {
+  const claves = ['E2-005|2000000|', 'E2-005|1000000|*', 'M1-02|500000|'];
+  assert.equal(textoComposicion(claves, 'kg'), 'E2-005: 2 + 1* · M1-02: 0,5 kg');
+  const primera = planComposiciones({}, { 3: claves }, 'kg');
+  assert.deepEqual(primera.composiciones, { 3: claves });
+  assert.deepEqual(primera.cambios, [{ campo: 'composicion3', antes: 'Regla automática', despues: 'E2-005: 2 + 1* · M1-02: 0,5 kg' }]);
+  // La misma composición no es un cambio; null vuelve a la regla.
+  assert.equal(planComposiciones(primera.composiciones, { 3: [...claves] }, 'kg').cambios.length, 0);
+  const vuelta = planComposiciones(primera.composiciones, { 3: null }, 'kg');
+  assert.deepEqual(vuelta.composiciones, {});
+  assert.equal(vuelta.cambios[0].despues, 'Regla automática');
+  assert.deepEqual(planComposiciones(primera.composiciones, undefined, 'kg').composiciones, { 3: claves });
+  assert.throws(() => planComposiciones({}, { 61: claves }, 'kg'), /no existe/);
+  assert.throws(() => planComposiciones({}, { 2: [claves[0], claves[0]] }, 'kg'), /repite/);
+  assert.equal(parse('registroGuardar', { composiciones: { 3: claves, 4: null } }).composiciones[4], null);
+  assert.throws(() => parse('registroGuardar', { composiciones: { x: claves } }));
 });

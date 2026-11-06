@@ -8,16 +8,18 @@
  * el historial con su valor anterior y nuevo (7.5.2).
  *
  * BORRADOR → EN_REVISION → APROBADO, u OBSERVADO (vuelve al borrador al
- * editarlo). Revisa solo el jefe de Calibración y nunca quien lo envió.
+ * editarlo). Revisa el jefe de Calibración o un aprobador que él designó
+ * (migración 019), nunca quien lo envió.
  */
 const { createHash } = require('node:crypto');
 const { getPool, sql } = require('../config/db');
-const { actorName, clean, httpError, normalizeArea, withTransaction } = require('./calibration.db');
+const { actorName, clean, httpError, withTransaction } = require('./calibration.db');
 const { PROTEGIDAS, coercer, iguales, leerDatos, mapColumna, normalizarFuente } = require('./soporte.columnas');
-const { tieneAcceso } = require('./access.areas');
+const { personaCalibracion } = require('./calibration.aprobadores');
 const { cargarContexto, filaVigente } = require('./calibration.servicios');
 const { modeloDeFila } = require('./calibration.fuente');
 const { calcularModelo } = require('./calibration.calculo');
+const { MG_POR } = require('./calibracion/motor/cargas');
 
 const TABLA_FUENTE = 'DATA_SERVICIOS_DATOS_CALIBRACION';
 const EDITABLES_EN = new Set(['BORRADOR', 'OBSERVADO']);
@@ -70,13 +72,57 @@ const ordenar = (valor) => {
 /** Huella de lo enviado a revisión: la fila de ServiceMET y las correcciones. */
 const huellaDe = ({ fuente, datos }) => createHash('sha256').update(JSON.stringify(ordenar({ fuente, datos }))).digest('hex');
 
-/** Datos del registro con su forma: { columnas, clase }. */
+const esComposicion = ([n, claves]) => /^\d{1,2}$/.test(n) && Array.isArray(claves) && claves.length > 0
+  && claves.every(c => typeof c === 'string');
+
+/** Datos del registro con su forma: { columnas, clase, composiciones }. */
 const datosDe = (json) => {
   const datos = leerDatos(json);
   return {
     columnas: datos.columnas && typeof datos.columnas === 'object' ? datos.columnas : {},
     clase: datos.clase && CLASES.includes(datos.clase.valor) ? datos.clase : null,
+    // Cargas armadas a mano: n.º de punto → claves de las piezas («juego|nominal en mg|marca»).
+    composiciones: datos.composiciones && typeof datos.composiciones === 'object'
+      ? Object.fromEntries(Object.entries(datos.composiciones).filter(esComposicion))
+      : {},
   };
+};
+
+const numeroComa = (valor) => String(Number(valor.toPrecision(10))).replace('.', ',');
+
+/** Composición legible para el historial: «E2-005: 2 + 1 + 1* kg». */
+const textoComposicion = (claves, unidad) => {
+  if (!claves || !claves.length) return null;
+  const mgPor = MG_POR[unidad] || 1;
+  const juegos = new Map();
+  for (const clave of claves) {
+    const [juego, nominalMg, marca] = String(clave).split('|');
+    if (!juegos.has(juego)) juegos.set(juego, []);
+    juegos.get(juego).push(`${numeroComa(Number(nominalMg) / mgPor)}${marca || ''}`);
+  }
+  return [...juegos].map(([juego, piezas]) => `${juego}: ${piezas.join(' + ')}`).join(' · ') + (MG_POR[unidad] ? ` ${unidad}` : ' mg');
+};
+
+/**
+ * Composiciones elegidas a mano que llegan sobre las del registro. null o una
+ * lista vacía vuelve a la regla automática. Devuelve las nuevas y los cambios.
+ */
+const planComposiciones = (actuales, entrantes, unidad) => {
+  if (!entrantes) return { composiciones: actuales, cambios: [] };
+  const nuevas = { ...actuales };
+  const cambios = [];
+  for (const [n, claves] of Object.entries(entrantes)) {
+    if (!/^\d{1,2}$/.test(n) || Number(n) < 1 || Number(n) > 60) throw httpError(400, `El punto ${n} no existe.`);
+    const antes = actuales[n] || null;
+    const despues = claves && claves.length ? [...claves] : null;
+    if (despues && new Set(despues).size !== despues.length) throw httpError(400, `El punto ${n} repite una pieza.`);
+    if (despues) nuevas[n] = despues;
+    else delete nuevas[n];
+    const [textoAntes, textoDespues] = [textoComposicion(antes, unidad), textoComposicion(despues, unidad)];
+    if (textoAntes !== textoDespues) cambios.push({ campo: `composicion${n}`, antes: textoAntes || 'Regla automática', despues: textoDespues || 'Regla automática' });
+  }
+  const orden = Object.keys(nuevas).sort((a, b) => Number(a) - Number(b));
+  return { composiciones: Object.fromEntries(orden.map(n => [n, nuevas[n]])), cambios };
 };
 
 /**
@@ -110,11 +156,11 @@ const planClase = (actual, entrante) => {
   return { clase: nueva, cambio: { campo: 'clase', antes: texto(actual), despues: texto(nueva) } };
 };
 
-const esJefeCalibracion = ({ area, cargo } = {}) => normalizeArea(area) === 'calibracion'
-  && normalizeArea(cargo).replace(/\s+/g, ' ') === 'jefe de area';
-
-/** Qué puede hacer el usuario con el registro en su estado actual. */
-const permisosDe = ({ usuario, jefe, editor }, registro) => {
+/**
+ * Qué puede hacer el usuario con el registro en su estado actual. revisor: el
+ * jefe o un aprobador designado; reabrir uno aprobado queda para el jefe.
+ */
+const permisosDe = ({ usuario, jefe, revisor = jefe, editor }, registro) => {
   const estado = registro?.estado || 'PENDIENTE';
   const editable = !registro || EDITABLES_EN.has(estado);
   const envio = registro?.enviado_por ? clean(registro.enviado_por) : null;
@@ -122,10 +168,10 @@ const permisosDe = ({ usuario, jefe, editor }, registro) => {
   return {
     editar: editor && editable,
     enviar: editor && editable,
-    retirar: estado === 'EN_REVISION' && (mismo || jefe),
-    revisar: estado === 'EN_REVISION' && jefe && !mismo,
+    retirar: estado === 'EN_REVISION' && (mismo || revisor),
+    revisar: estado === 'EN_REVISION' && revisor && !mismo,
     reabrir: estado === 'APROBADO' && jefe,
-    motivoRevisar: estado === 'EN_REVISION' && jefe && mismo ? 'Lo enviaste tú: debe revisarlo otra persona.' : null,
+    motivoRevisar: estado === 'EN_REVISION' && revisor && mismo ? 'Lo enviaste tú: debe revisarlo otra persona.' : null,
   };
 };
 
@@ -189,12 +235,6 @@ const modeloCorregido = async (fila, datos) => {
   return { modelo, avisos };
 };
 
-const quien = async (user) => ({
-  usuario: actorName(user),
-  jefe: esJefeCalibracion(user),
-  editor: await tieneAcceso(user, 'calibracion'),
-});
-
 const metaRegistro = (registro) => (registro ? {
   id: registro.id,
   estado: registro.estado,
@@ -216,12 +256,12 @@ const metaRegistro = (registro) => (registro ? {
 /** El registro de un servicio: sus correcciones, el modelo corregido, el cálculo y el historial. */
 const getRegistro = async (codigo, user) => {
   const [fila, columnas, registro, persona] = await Promise.all([
-    filaVigente(codigo), columnasCalibracion(), leerRegistro(() => getPool().request(), codigo), quien(user),
+    filaVigente(codigo), columnasCalibracion(), leerRegistro(() => getPool().request(), codigo), personaCalibracion(user),
   ]);
   const fuente = normalizarFuente(fila, columnas);
   const datos = datosDe(registro?.datos);
   const { modelo, avisos } = await modeloCorregido(fila, datos);
-  const calculo = await calcularModelo(modelo);
+  const calculo = await calcularModelo(modelo, datos);
   const editables = Object.fromEntries([...columnas.entries()].filter(([c, meta]) => esEditable(c, meta)).map(([c, meta]) => [c, meta]));
   const huellaActual = huellaDe({ fuente, datos });
   return {
@@ -230,7 +270,12 @@ const getRegistro = async (codigo, user) => {
     registro: metaRegistro(registro),
     cambioDesdeEnvio: Boolean(registro?.huella && ['EN_REVISION'].includes(registro.estado) && registro.huella !== huellaActual),
     datos,
-    correcciones: Object.entries(datos.columnas).map(([columna, valor]) => ({ columna, original: fuente[columna] ?? null, corregido: valor })),
+    correcciones: [
+      ...Object.entries(datos.columnas).map(([columna, valor]) => ({ tipo: 'columna', columna, original: fuente[columna] ?? null, corregido: valor })),
+      ...Object.entries(datos.composiciones).map(([n, claves]) => ({
+        tipo: 'composicion', n: Number(n), columna: `composicion${n}`, original: 'Regla automática', corregido: textoComposicion(claves, modelo.instrumento.unidad),
+      })),
+    ],
     fuente: Object.fromEntries(Object.keys(editables).map(c => [c, fuente[c] ?? null])),
     columnas: editables,
     origenesClase: ORIGENES_CLASE,
@@ -245,7 +290,7 @@ const getRegistro = async (codigo, user) => {
 
 /** Guarda correcciones y la clase. Solo en borrador u observado. */
 const guardarRegistro = async (codigo, data, user) => {
-  const persona = await quien(user);
+  const persona = await personaCalibracion(user);
   if (!persona.editor) throw httpError(403, 'Solo el personal de Calibración elabora los registros.');
   const columnas = await columnasCalibracion();
   return withTransaction(async (createRequest) => {
@@ -263,11 +308,13 @@ const guardarRegistro = async (codigo, data, user) => {
     const actuales = datosDe(registro?.datos);
     const correcciones = planCorrecciones({ fuente, columnas, actuales: actuales.columnas, entrantes: data.columnas || {} });
     const clase = planClase(actuales.clase, data.clase);
-    const cambios = [...correcciones.cambios, ...(clase.cambio ? [clase.cambio] : [])];
+    const unidad = String(correcciones.columnas.unidades ?? fuente.unidades ?? '').trim();
+    const composiciones = planComposiciones(actuales.composiciones, data.composiciones, unidad);
+    const cambios = [...correcciones.cambios, ...(clase.cambio ? [clase.cambio] : []), ...composiciones.cambios];
     if (!cambios.length) return { codigo, cambios: 0, version: registro?.version ?? null };
 
     if (!registro) registro = await crearRegistro(createRequest, codigo, user);
-    const datos = { columnas: correcciones.columnas, clase: clase.clase };
+    const datos = { columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones };
     await createRequest()
       .input('id', sql.Int, registro.id)
       .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datos))
@@ -286,7 +333,7 @@ const guardarRegistro = async (codigo, data, user) => {
 
 /** Envía a revisión: guarda la huella de lo enviado. Exige que se pueda calcular. */
 const enviarRegistro = async (codigo, user) => {
-  const persona = await quien(user);
+  const persona = await personaCalibracion(user);
   if (!persona.editor) throw httpError(403, 'Solo el personal de Calibración envía los registros a revisión.');
   const columnas = await columnasCalibracion();
   return withTransaction(async (createRequest) => {
@@ -295,7 +342,7 @@ const enviarRegistro = async (codigo, user) => {
     if (registro && !EDITABLES_EN.has(registro.estado)) throw httpError(409, 'El registro ya está en revisión o aprobado.');
     const datos = datosDe(registro?.datos);
     const { modelo } = await modeloCorregido(fila, datos);
-    const calculo = await calcularModelo(modelo);
+    const calculo = await calcularModelo(modelo, datos);
     if (!calculo.calculado) {
       const motivo = calculo.avisos.find(a => a.nivel === 'error')?.mensaje || 'No hay puntos calculados.';
       throw httpError(409, `No se puede enviar a revisión: ${motivo}`);
@@ -316,14 +363,14 @@ const enviarRegistro = async (codigo, user) => {
   });
 };
 
-/** Retira de revisión: lo puede hacer quien lo envió o el jefe. */
+/** Retira de revisión: lo puede hacer quien lo envió o quien revisa. */
 const retirarRegistro = async (codigo, user) => {
-  const persona = await quien(user);
+  const persona = await personaCalibracion(user);
   return withTransaction(async (createRequest) => {
     const registro = await leerRegistro(createRequest, codigo, { lock: true });
     if (!registro || !permisosDe(persona, registro).retirar) {
       throw httpError(registro?.estado === 'EN_REVISION' ? 403 : 409, registro?.estado === 'EN_REVISION'
-        ? 'Solo quien lo envió o el jefe de Calibración pueden retirarlo.'
+        ? 'Solo quien lo envió o quien revisa pueden retirarlo.'
         : 'El registro no está en revisión.');
     }
     await createRequest().input('id', sql.Int, registro.id)
@@ -334,19 +381,19 @@ const retirarRegistro = async (codigo, user) => {
 };
 
 /**
- * Revisión del jefe de Calibración: aprobar (exige que los datos no hayan
+ * Revisión del jefe de Calibración o de un aprobador designado: aprobar (exige que los datos no hayan
  * cambiado desde el envío y un cálculo completo, no provisional; guarda el
  * resultado) u observar (con la observación).
  */
 const revisarRegistro = async (codigo, { decision, observacion }, user) => {
-  const persona = await quien(user);
+  const persona = await personaCalibracion(user);
   const columnas = await columnasCalibracion();
   return withTransaction(async (createRequest) => {
     const fila = await filaVigente(codigo, createRequest);
     const registro = await leerRegistro(createRequest, codigo, { lock: true });
     if (!registro || registro.estado !== 'EN_REVISION') throw httpError(409, 'El registro no está en revisión.');
     const permisos = permisosDe(persona, registro);
-    if (!persona.jefe) throw httpError(403, 'Solo el jefe de Calibración revisa los registros.');
+    if (!persona.revisor) throw httpError(403, 'Solo el jefe de Calibración o un aprobador que él designó revisan los registros.');
     if (!permisos.revisar) throw httpError(403, permisos.motivoRevisar || 'No puedes revisar este registro.');
     const datos = datosDe(registro.datos);
     if (huellaDe({ fuente: normalizarFuente(fila, columnas), datos }) !== registro.huella) {
@@ -365,7 +412,7 @@ const revisarRegistro = async (codigo, { decision, observacion }, user) => {
     }
 
     const { modelo } = await modeloCorregido(fila, datos);
-    const calculo = await calcularModelo(modelo);
+    const calculo = await calcularModelo(modelo, datos);
     if (!calculo.calculado) throw httpError(409, 'No se puede aprobar: el registro no se puede calcular.');
     if (calculo.provisional) {
       const razon = calculo.avisos.find(a => ['PESAS_SIN_VALORES', 'PESAS_SIN_VERIFICAR', 'PIEZAS_SUPUESTAS', 'THB_SIN_VALORES'].includes(a.codigo));
@@ -386,7 +433,7 @@ const revisarRegistro = async (codigo, { decision, observacion }, user) => {
 
 /** El jefe reabre un registro aprobado (antes de emitir el certificado), con motivo. */
 const reabrirRegistro = async (codigo, { motivo }, user) => {
-  const persona = await quien(user);
+  const persona = await personaCalibracion(user);
   if (!persona.jefe) throw httpError(403, 'Solo el jefe de Calibración reabre un registro aprobado.');
   return withTransaction(async (createRequest) => {
     const registro = await leerRegistro(createRequest, codigo, { lock: true });
@@ -407,6 +454,8 @@ module.exports = {
   guardarRegistro,
   huellaDe,
   permisosDe,
+  planComposiciones,
+  textoComposicion,
   planClase,
   planCorrecciones,
   reabrirRegistro,

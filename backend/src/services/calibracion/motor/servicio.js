@@ -79,6 +79,8 @@ const piezasDeJuegos = (juegos, unidad, empR111, avisos) => {
       if (!valor) sinValores += 1;
       const supuesta = pieza.densidad == null ? densidadSupuesta(pieza.material || juego.material || materialPorClase(juego.clase)) : null;
       piezas.push({
+        // Identifica la pieza en una composición elegida a mano.
+        clave: `${juego.codigo}|${Number(pieza.nominalMg)}|${pieza.identificacion || ''}`,
         juego: juego.codigo,
         identificacion: pieza.identificacion || '',
         nominal: Number(pieza.nominalMg) / mgPor,
@@ -100,6 +102,30 @@ const piezasDeJuegos = (juegos, unidad, empR111, avisos) => {
     }
   }
   return { piezas, sinPiezas };
+};
+
+/**
+ * Composición elegida a mano para un punto (decisión 4: quien elabora el
+ * registro puede cambiar la que propone la regla). `claves` son las de las
+ * piezas («juego|nominal en mg|marca»). Si ya no sirve (piezas que no están
+ * en los juegos del servicio, repetidas, o que no suman la carga, p. ej.
+ * porque se corrigió la carga) avisa y devuelve null: se usa la regla.
+ */
+const composicionElegida = (claves, punto, piezas, avisos) => {
+  if (!Array.isArray(claves) || !claves.length) return null;
+  const porClave = new Map(piezas.map(p => [p.clave, p]));
+  const elegidas = claves.map(c => porClave.get(c));
+  const tolerancia = Math.max(1e-12, Math.abs(punto.carga) * 1e-9);
+  const suma = elegidas.reduce((total, p) => total + (p?.nominal || 0), 0);
+  let motivo = null;
+  if (elegidas.some(p => !p)) motivo = 'usa piezas que no están en los juegos del servicio';
+  else if (new Set(claves).size !== claves.length) motivo = 'repite una pieza';
+  else if (Math.abs(suma - punto.carga) > tolerancia) motivo = `suma ${Number(suma.toPrecision(10))}, no ${punto.carga}`;
+  if (motivo) {
+    avisos.aviso('COMPOSICION_INVALIDA', `Punto ${punto.n}: la composición elegida ${motivo}; se arma con la regla automática.`);
+    return null;
+  }
+  return elegidas;
 };
 
 /**
@@ -163,6 +189,7 @@ const referenciaSustitucion = ({ carga, piezas, opcionesReferencia, componentesE
  *   empR111: (clase, nominalMg) → emp en mg,
  *   claseInstrumento: 'I'|'II'|'III'|'IIII'|null,
  *   configuracion,
+ *   composiciones: { [n]: [clave de pieza] } elegidas a mano (opcional),
  * }
  */
 const calcularServicio = (modelo, datos) => {
@@ -230,7 +257,8 @@ const calcularServicio = (modelo, datos) => {
     const I = metodoCeros ? punto.indicacion - (retornoAnterior + (punto.retorno ?? retornoAnterior)) / 2 : punto.indicacion;
     retornoAnterior = punto.retorno ?? retornoAnterior;
 
-    let elegidas = componerCarga(punto.carga, piezas);
+    const elegida = composicionElegida(datos.composiciones?.[punto.n], punto, piezas, avisos);
+    let elegidas = elegida || componerCarga(punto.carga, piezas);
     let supuestas = false;
     let sustitucion = null;
     // Carga mayor que todas las pesas: sustitución (4.3.3; decisión 8).
@@ -307,8 +335,9 @@ const calcularServicio = (modelo, datos) => {
       calculado: true,
       indicacion: I,
       rango: { max: rango.max, d: rango.d, e: rango.e },
-      piezas: elegidas.map(p => ({ juego: p.juego, nominal: p.nominal, identificacion: p.identificacion, supuesta: Boolean(p.supuesta || supuestas) })),
+      piezas: elegidas.map(p => ({ clave: p.clave || null, juego: p.juego, nominal: p.nominal, identificacion: p.identificacion, supuesta: Boolean(p.supuesta || supuestas) })),
       supuestas,
+      composicion: elegida ? 'ELEGIDA' : sustitucion ? 'SUSTITUCION' : supuestas ? 'SUPUESTA' : 'REGLA',
       sustitucion: sustitucion ? { n: sustitucion.n, descripcion: sustitucion.descripcion, ecuacion: sustitucion.ecuacion } : null,
       ...resultado,
       tolerancia,
@@ -332,6 +361,8 @@ const calcularServicio = (modelo, datos) => {
     aire: { rho: aire.rho, u: aire.u, condiciones: aire.condiciones },
     repetibilidad: ensayos,
     excentricidad: { carga: cargaEcc, diferencias: ecc.diferencias, maxima: ecc.maxima, uRel: ecc.uRel },
+    // Piezas registradas de los juegos, para elegir a mano la composición de una carga.
+    piezasDisponibles: piezas.map(p => ({ clave: p.clave, juego: p.juego, nominal: p.nominal, identificacion: p.identificacion })),
     puntos,
     avisos: avisos.lista,
   };

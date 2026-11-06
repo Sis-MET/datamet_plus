@@ -7,6 +7,7 @@ const serviciosService = require('../services/calibration.servicios');
 const puntosService = require('../services/calibration.puntos');
 const calculoService = require('../services/calibration.calculo');
 const registrosService = require('../services/calibration.registros');
+const aprobadoresService = require('../services/calibration.aprobadores');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -100,7 +101,13 @@ module.exports = {
 
   // Patrones: tipo, clase, piezas y valores del certificado vigente (migración 016).
   // Servicios de calibración que subió ServiceMET (fase 2).
-  listServicios: handle(req => serviciosService.listarServicios(parse('serviciosFiltro', queryParams(req.query)))),
+  listServicios: handle(async (req) => {
+    const [lista, persona] = await Promise.all([
+      serviciosService.listarServicios(parse('serviciosFiltro', queryParams(req.query))),
+      aprobadoresService.personaCalibracion(req.user),
+    ]);
+    return { ...lista, permisos: { configurarAprobadores: persona.jefe } };
+  }),
   getServicio: handle(req => serviciosService.getServicio(readCodigo(req.params.codigo))),
   // Vista previa del cálculo (motor, fase 3): no guarda nada.
   getCalculoServicio: handle(req => calculoService.calcularVistaPrevia(readCodigo(req.params.codigo))),
@@ -111,6 +118,8 @@ module.exports = {
   retirarRegistro: handle(req => registrosService.retirarRegistro(readCodigo(req.params.codigo), req.user)),
   revisarRegistro: handle(req => registrosService.revisarRegistro(readCodigo(req.params.codigo), parse('registroRevision', req.body), req.user)),
   reabrirRegistro: handle(req => registrosService.reabrirRegistro(readCodigo(req.params.codigo), parse('registroReapertura', req.body), req.user)),
+  getAprobadores: handle(req => aprobadoresService.obtener(req.user)),
+  saveAprobadores: handle(req => aprobadoresService.guardar(parse('aprobadores', req.body), req.user)),
   getPuntosAcordados: handle(req => puntosService.getPuntos(req.params.codMetrica)),
   savePuntosAcordados: handle(req => puntosService.savePuntos(req.params.codMetrica, parse('puntosAcordados', req.body), req.user)),
 
