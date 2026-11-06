@@ -367,7 +367,11 @@ Tomadas por el usuario el 2026-11-05 (detalle y pendientes en
 6. **Clase del instrumento: dato registrado**, no deducido. Sin clase marcada,
    para el emp NB 23001 vale la clase que pide el cliente (dato del cliente).
 7. **Regla conservadora con U(E)** de calibración: |E| + U(E) ≤ T.
-8. **Sustitución: 7.1.2-15a/b** para los dos métodos del laboratorio.
+8. **Sustitución: 7.1.2-15a/b** para los dos métodos del laboratorio. En
+   ServiceMET «Método 1/2» es solo un registro (aclarado el 2026-11-06): la
+   sustitución llega como una carga mayor que lo que suman las pesas, y
+   DataMET+ la descompone en (n − 1)·mref + mref,k con mref = todas las pesas;
+   las ΔIj no se registran y se toman como cero, con su u(Ij).
 9. Editable por el laboratorio: **parámetros, tablas y textos** con versión y
    aprobación; las fórmulas en código, con pruebas.
 10. Se **autoriza en DataMET+**; la firma digital del PDF se hace fuera y el PDF

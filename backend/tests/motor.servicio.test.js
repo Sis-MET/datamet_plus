@@ -101,7 +101,7 @@ test('puntos que no se calculan: sustitución y cargas que no se forman', () => 
   const imposible = r.puntos.find(p => p.n === 5);
   assert.equal(sustitucion.calculado, false);
   assert.equal(imposible.calculado, false);
-  assert.ok(r.avisos.some(a => a.codigo === 'SUSTITUCION_PENDIENTE'));
+  assert.ok(r.avisos.some(a => a.codigo === 'PUNTO_SIN_INDICACION'));
   assert.ok(r.avisos.some(a => a.codigo === 'CARGA_NO_COMPUESTA'));
 });
 
@@ -146,4 +146,24 @@ test('termohigrómetro: corrección interpolada entre los puntos de su certifica
   assert.deepEqual(motor.corregirLectura(20, puntos), { valor: 20, correccion: 0, U: 0.4, k: 2, fuera: false, sinCertificado: false });
   assert.equal(motor.corregirLectura(10, puntos).fuera, true);
   assert.equal(motor.corregirLectura(10, puntos).valor, 9.8);
+});
+
+test('sustitución: la carga mayor que todas las pesas se calcula con 7.1.2-15b o 15a', () => {
+  // El juego suma 1 100 kg. 1 600 = 1 × 1 100 + 500 (15b); 2 200 = 2 × 1 100 (15a).
+  const { modelo } = modeloDeFila(fila({ lin4: 1600, ind4: 1600.5, retorno_lin4: 0, lin5: 2200, ind5: 2200, retorno_lin5: 0, cap_max1: 3000 }));
+  const r = calcularServicio(modelo, datos());
+  const p1600 = r.puntos.find(p => p.n === 4);
+  const p2200 = r.puntos.find(p => p.n === 5);
+  assert.equal(p1600.calculado, true);
+  assert.equal(p1600.sustitucion.ecuacion, '7.1.2-15b');
+  assert.equal(p1600.sustitucion.n, 2);
+  assert.equal(p2200.sustitucion.ecuacion, '7.1.2-15a');
+  assert.equal(p2200.sustitucion.n, 2);
+  // ΔI = 0: mref = (n − 1)·mref(1 100) + mref(500), cerca de 1 600 con correcciones y empuje.
+  assert.ok(Math.abs(p1600.mref - 1600) < 0.05, `mref = ${p1600.mref}`);
+  // La incertidumbre de la sustitución supera la de las pesas solas: suma lineal de mref y las u(I) del paso.
+  const directo = calcularServicio(modelo, datos()).puntos.find(p => p.n === 3);
+  assert.ok(p1600.uReferencia > directo.uReferencia);
+  assert.ok(p1600.componentes.some(c => c.fuente === 'sustitucionIndicaciones'));
+  assert.ok(r.avisos.some(a => a.codigo === 'SUSTITUCION'));
 });

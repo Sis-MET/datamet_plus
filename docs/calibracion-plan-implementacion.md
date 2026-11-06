@@ -393,11 +393,19 @@ Contra `DataMET_prueba`: el motor calcula 823 de los 844 servicios de 2026
 piezas de los juegos y transcritos los certificados de pesas y termohigrómetros
 (fase 1).
 
-Falta: interpretar la **sustitución** como la registra ServiceMET (métodos 1
-y 2: los puntos llegan con carga y sin indicación; hace falta que el
-laboratorio explique el procedimiento), convección (falta la diferencia de
-temperatura pesas–aire), la incertidumbre en uso y la pesada mínima (anexo del
-certificado) y los ejemplos H2/H3 y de la Guía SIM.
+**Sustitución (aclarado el 2026-11-06):** en ServiceMET «Método 1 / Método 2 /
+Sin método» es solo una lista de registro, no cambia ningún dato. En los
+datos, la sustitución llega como un punto normal cuya carga supera lo que
+suman las pesas llevadas (198 de los 200 servicios marcados con método 1 o 2
+tienen todas sus indicaciones). DataMET+ la reconoce así: si la carga no se
+arma con las piezas y supera su total, L = (n − 1)·mref + mref,k con mref =
+todas las pesas y el resto armado con piezas (7.1.2-15b; sin resto, 15a).
+ServiceMET no registra las diferencias ΔIj: se toman como cero y su u(Ij)
+cuenta en cada paso. Los puntos sin indicación no se calculan.
+
+Falta: convección (falta la diferencia de temperatura pesas–aire), la
+incertidumbre en uso y la pesada mínima (anexo del certificado) y los ejemplos
+H2/H3 y de la Guía SIM.
 
 ## Fase 4 — Registro de calibración: lista, editor y revisión
 

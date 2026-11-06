@@ -10,8 +10,10 @@
 const { aireDeCalibracion, corregirLectura, densidadCIPM2007 } = require('./aire');
 const { MG_POR, componerCarga, piezasSupuestas } = require('./cargas');
 const { errorEnPunto } = require('./error');
+const { combinar } = require('./estadistica');
 const { componentesIndicacion, excentricidad, repetibilidad, repetibilidadPara } = require('./indicacion');
 const { densidadSupuesta, masaReferencia } = require('./referencia');
+const { cargaSustitucion } = require('./sustitucion');
 const { conformidad, empEnServicio, rangoDeCarga, toleranciaPorcentaje } = require('./tolerancia');
 
 const MAGNITUDES = { t: 'T', hr: 'HR', p: 'P' };
@@ -101,6 +103,58 @@ const piezasDeJuegos = (juegos, unidad, empR111, avisos) => {
 };
 
 /**
+ * Carga de sustitución cuando la carga supera lo que suman las pesas:
+ * L = (n − 1)·mref + mref,k (4.3.3-5b), con mref todas las pesas y mref,k el
+ * resto armado con piezas; sin resto, L = n·mref (4.3.3-5a). ServiceMET no
+ * registra las diferencias ΔIj: se toman como cero, pero su u(Ij) cuenta en
+ * cada indicación de la carga patrón (7.1.2-15a/b, «incluso si ΔIj = 0»).
+ */
+const referenciaSustitucion = ({ carga, piezas, opcionesReferencia, componentesEn }) => {
+  const total = piezas.reduce((suma, p) => suma + p.nominal, 0);
+  const tolerancia = Math.max(1e-12, Math.abs(carga) * 1e-9);
+  if (!(total > 0) || carga <= total + tolerancia) return null;
+  const veces = Math.floor((carga + tolerancia) / total); // copias completas de la carga patrón
+  const resto = carga - veces * total;
+  const completa = masaReferencia(piezas, opcionesReferencia);
+  let parcial = null;
+  if (resto > tolerancia) {
+    const elegidas = componerCarga(resto, piezas);
+    if (!elegidas) return null;
+    parcial = { piezas: elegidas, referencia: masaReferencia(elegidas, opcionesReferencia) };
+  }
+  // n − 1 diferencias, en las indicaciones j·mref (j = 1 … n − 1).
+  const pasos = parcial ? veces : veces - 1;
+  const componentesPasos = Array.from({ length: pasos }, (_, j) => combinar(componentesEn((j + 1) * total)));
+  const nuRepetibilidad = Math.min(...Array.from({ length: pasos }, (_, j) => componentesEn((j + 1) * total))
+    .flat().filter(c => c.fuente === 'repetibilidad' && c.u > 0).map(c => c.nu), Infinity);
+  const resultado = cargaSustitucion({
+    mref: completa.mref,
+    uMref: completa.u,
+    diferencias: componentesPasos.map(() => 0),
+    uIndicaciones: componentesPasos,
+    parcial: parcial ? { mref: parcial.referencia.mref, u: parcial.referencia.u } : null,
+  });
+  const uPatron = parcial ? veces * completa.u + parcial.referencia.u : resultado.n * completa.u;
+  const uPasos = Math.sqrt(2 * componentesPasos.reduce((suma, u) => suma + u * u, 0));
+  return {
+    n: resultado.n,
+    ecuacion: resultado.ecuacion,
+    descripcion: parcial
+      ? `${veces} × ${Number(total.toPrecision(10))} en pesas + ${Number(resto.toPrecision(10))} en pesas`
+      : `${veces} × ${Number(total.toPrecision(10))} en pesas`,
+    piezas: [...piezas, ...(parcial ? parcial.piezas : [])],
+    referencia: {
+      mref: resultado.valor,
+      u: resultado.u,
+      componentes: [
+        { fuente: 'sustitucionPatron', u: uPatron, nu: Infinity, ecuacion: resultado.ecuacion },
+        { fuente: 'sustitucionIndicaciones', u: uPasos, nu: nuRepetibilidad, ecuacion: resultado.ecuacion },
+      ].filter(c => c.u > 0),
+    },
+  };
+};
+
+/**
  * Calcula un servicio.
  * modelo: de modeloDeFila. datos: {
  *   juegos: [{ codigo, clase, material, piezas, valores: Map(clave → {correccionMg, uMg, k}),
@@ -168,8 +222,8 @@ const calcularServicio = (modelo, datos) => {
   for (const punto of modelo.errores.puntos) {
     const base = { n: punto.n, carga: punto.carga, indicacionLeida: punto.indicacion };
     if (punto.indicacion == null) {
-      avisos.aviso('SUSTITUCION_PENDIENTE', `El punto ${punto.n} (${punto.carga}) no tiene indicación: se calculará como carga de sustitución cuando se defina cómo la registra ServiceMET.`);
-      puntos.push({ ...base, calculado: false, motivo: 'Sin indicación (sustitución)' });
+      avisos.aviso('PUNTO_SIN_INDICACION', `El punto ${punto.n} (${punto.carga}) no tiene indicación: no se calcula.`);
+      puntos.push({ ...base, calculado: false, motivo: 'Sin indicación' });
       continue;
     }
     // I = IL − (I0 + I0i)/2 con ceros evaluados (4.4.1-1b); si no, I = IL.
@@ -178,6 +232,24 @@ const calcularServicio = (modelo, datos) => {
 
     let elegidas = componerCarga(punto.carga, piezas);
     let supuestas = false;
+    let sustitucion = null;
+    // Carga mayor que todas las pesas: sustitución (4.3.3; decisión 8).
+    if (!elegidas && !sinPiezas.length) {
+      sustitucion = referenciaSustitucion({
+        carga: punto.carga,
+        piezas,
+        opcionesReferencia: { unidad, aire, empuje: config.empuje, kD: config.kD },
+        componentesEn: (indicacionPaso) => {
+          const rangoPaso = rangoDeCarga(rangos, indicacionPaso);
+          const sPaso = repetibilidadPara(indicacionPaso, ensayos);
+          return componentesIndicacion(indicacionPaso, { d0: rangos[0].d, dI: rangoPaso.d, s: sPaso?.s, nuS: sPaso?.nu, uRelEcc: ecc.uRel });
+        },
+      });
+      if (sustitucion) {
+        elegidas = sustitucion.piezas;
+        avisos.info('SUSTITUCION', `Punto ${punto.n}: carga de sustitución (${sustitucion.descripcion}, ${sustitucion.ecuacion}); ServiceMET no registra las diferencias ΔI, se toman como cero.`);
+      }
+    }
     if (!elegidas && sinPiezas.length) {
       const juego = sinPiezas[0];
       elegidas = (piezasSupuestas(punto.carga) || []).map(p => {
@@ -207,7 +279,7 @@ const calcularServicio = (modelo, datos) => {
       avisos.aviso('PESA_SIN_EMP', `En el punto ${punto.n} hay piezas sin certificado ni emp de la R111 (valor nominal fuera de la Tabla 1): su u queda en cero.`);
     }
 
-    const referencia = masaReferencia(elegidas, { unidad, aire, empuje: config.empuje, kD: config.kD });
+    const referencia = sustitucion ? sustitucion.referencia : masaReferencia(elegidas, { unidad, aire, empuje: config.empuje, kD: config.kD });
     const rango = rangoDeCarga(rangos, punto.carga);
     const s = repetibilidadPara(I, ensayos);
     const componentesI = componentesIndicacion(I, { d0: rangos[0].d, dI: rango.d, s: s?.s, nuS: s?.nu, uRelEcc: ecc.uRel });
@@ -237,6 +309,7 @@ const calcularServicio = (modelo, datos) => {
       rango: { max: rango.max, d: rango.d, e: rango.e },
       piezas: elegidas.map(p => ({ juego: p.juego, nominal: p.nominal, identificacion: p.identificacion, supuesta: Boolean(p.supuesta || supuestas) })),
       supuestas,
+      sustitucion: sustitucion ? { n: sustitucion.n, descripcion: sustitucion.descripcion, ecuacion: sustitucion.ecuacion } : null,
       ...resultado,
       tolerancia,
       conformidad: conforme,

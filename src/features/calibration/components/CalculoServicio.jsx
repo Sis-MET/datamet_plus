@@ -15,6 +15,8 @@ const FUENTES = {
   empuje: 'Empuje del aire',
   deriva: 'Deriva de las pesas',
   conveccion: 'Convección',
+  sustitucionPatron: 'Carga patrón (sustitución)',
+  sustitucionIndicaciones: 'Indicaciones de la sustitución',
 };
 
 const coma = (texto) => texto.replace('.', ',');
@@ -54,10 +56,17 @@ function Presupuesto({ punto, unidad }) {
           </tr>
         </tbody>
       </table>
-      <p className="mt-2 text-[12px] text-fg-muted">
-        Carga: {punto.piezas.map(p => `${coma(String(p.nominal))}${p.identificacion ? ` ${p.identificacion}` : ''}`).join(' + ')} {unidad}
-        {punto.supuestas ? ' (piezas supuestas: el juego no tiene sus piezas registradas)' : ` · ${[...new Set(punto.piezas.map(p => p.juego))].join(', ')}`}
-      </p>
+      {punto.sustitucion && (
+        <p className="mt-2 text-[12px] text-fg-muted">
+          Carga de sustitución: {punto.sustitucion.descripcion} {unidad} ({punto.sustitucion.ecuacion}). ServiceMET no registra las diferencias ΔI: se toman como cero y su incertidumbre se incluye.
+        </p>
+      )}
+      {!punto.sustitucion && (
+        <p className="mt-2 text-[12px] text-fg-muted">
+          Carga: {punto.piezas.map(p => `${coma(String(p.nominal))}${p.identificacion ? ` ${p.identificacion}` : ''}`).join(' + ')} {unidad}
+          {punto.supuestas ? ' (piezas supuestas: el juego no tiene sus piezas registradas)' : ` · ${[...new Set(punto.piezas.map(p => p.juego))].join(', ')}`}
+        </p>
+      )}
     </div>
   );
 }
