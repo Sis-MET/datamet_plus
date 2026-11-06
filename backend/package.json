@@ -13,6 +13,7 @@
     "ivmet:access-code": "node scripts/ivmet-access-code.js",
     "ivmet:doctor": "node scripts/ivmet-doctor.js",
     "ivmet:admin-bootstrap": "node scripts/ivmet-admin-bootstrap.js",
+    "patrones:importar": "node scripts/patrones-importar-excel.js",
     "test": "node --test tests/**/*.test.js"
   },
   "keywords": [
