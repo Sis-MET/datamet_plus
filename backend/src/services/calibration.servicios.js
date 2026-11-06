@@ -121,11 +121,19 @@ const filtrosSql = (request, { desde, hasta, q }) => {
   return condiciones.join(' AND ');
 };
 
+/** Estado del registro de cada servicio; vacío sin la migración 018. */
+const estadosDeRegistros = async () => {
+  const existe = await getPool().request().query("SELECT OBJECT_ID('dbo.CAL_REGISTROS', 'U') AS id");
+  if (existe.recordset[0].id == null) return new Map();
+  const result = await getPool().request().query('SELECT codigo_registro, estado FROM dbo.CAL_REGISTROS');
+  return new Map(result.recordset.map(row => [row.codigo_registro, row.estado]));
+};
+
 /**
  * Resumen de un servicio para la lista: identificación, cliente,
  * instrumento, técnico reconocido y cuántos avisos tiene por nivel.
  */
-const resumenDe = (modelo, avisos, versiones = 1) => {
+const resumenDe = (modelo, avisos, versiones = 1, estado = 'PENDIENTE') => {
   const { servicio, cliente, instrumento } = modelo;
   const cuenta = (nivel) => avisos.filter(aviso => aviso.nivel === nivel).length;
   return {
@@ -164,8 +172,8 @@ const resumenDe = (modelo, avisos, versiones = 1) => {
       notas: cuenta('info'),
       codigos: [...new Set(avisos.filter(aviso => aviso.nivel !== 'info').map(aviso => aviso.codigo))],
     },
-    // Aún no hay registro de calibración en DataMET+ (fase 4).
-    estado: 'PENDIENTE',
+    // Estado del registro de calibración (migración 018); PENDIENTE si aún no tiene.
+    estado,
     versiones,
   };
 };
@@ -178,13 +186,14 @@ const resumenDe = (modelo, avisos, versiones = 1) => {
 const listarServicios = async ({ desde = null, hasta = null, q = null, tecnico = null } = {}) => {
   const request = getPool().request();
   const where = filtrosSql(request, { desde, hasta, q });
-  const [result, contexto] = await Promise.all([
+  const [result, contexto, estados] = await Promise.all([
     request.query(`${VIGENTES} SELECT * FROM vigentes WHERE ${where} ORDER BY fecha_servicio DESC, seca, codigo_registro`),
     cargarContexto(),
+    estadosDeRegistros(),
   ]);
   const servicios = result.recordset.map((fila) => {
     const { modelo, avisos } = modeloDeFila(fila, contexto);
-    return resumenDe(modelo, avisos, fila.versiones);
+    return resumenDe(modelo, avisos, fila.versiones, estados.get(fila.codigo_registro) || 'PENDIENTE');
   });
   return {
     servicios: tecnico
@@ -193,13 +202,19 @@ const listarServicios = async ({ desde = null, hasta = null, q = null, tecnico =
   };
 };
 
-/** Fila vigente de un servicio y su modelo. */
-const leerServicio = async (codigo) => {
-  const result = await getPool().request()
+/** Fila vigente de un servicio tal como la subió ServiceMET (404 si no existe). */
+const filaVigente = async (codigo, createRequest = () => getPool().request()) => {
+  const result = await createRequest()
     .input('codigo', sql.NVarChar(100), codigo)
     .query(`${VIGENTES} SELECT * FROM vigentes WHERE rn = 1 AND codigo_registro = @codigo`);
   const fila = result.recordset[0];
   if (!fila) throw httpError(404, 'El servicio no existe o fue anulado en ServiceMET.');
+  return fila;
+};
+
+/** Fila vigente de un servicio y su modelo. */
+const leerServicio = async (codigo) => {
+  const fila = await filaVigente(codigo);
   const contexto = await cargarContexto();
   const { modelo, avisos } = modeloDeFila(fila, contexto);
   return { fila, modelo, avisos };
@@ -260,6 +275,7 @@ const revisarServicios = async ({ desde = null, hasta = null } = {}) => {
 module.exports = {
   cargarContexto,
   resumenDe,
+  filaVigente,
   getServicio,
   leerServicio,
   listarServicios,

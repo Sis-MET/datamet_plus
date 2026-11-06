@@ -247,6 +247,24 @@ const schemas = {
     motivo: optionalText(500),
   }).refine(data => data.excentricidad || data.repetibilidad.length || data.errores.length, 'Indica al menos una carga acordada.'),
 
+  // Registro de calibración de un servicio (fase 4, migración 018).
+  registroGuardar: z.object({
+    version: z.number().int().positive().nullable().default(null),
+    columnas: z.record(z.string().max(60), z.union([z.string().max(500), z.number(), z.null()])).default({}),
+    clase: z.object({
+      valor: z.enum(['I', 'II', 'III', 'IIII']).nullable(),
+      origen: z.enum(['PLACA', 'APROBACION', 'CLIENTE']).nullable(),
+    }).nullable().optional(),
+    motivo: optionalText(500),
+  }).refine(data => Object.keys(data.columnas).length <= 300, 'Demasiadas correcciones en un solo guardado.'),
+  registroRevision: z.object({
+    decision: z.enum(['APROBAR', 'OBSERVAR'], { error: 'Elige aprobar u observar.' }),
+    observacion: optionalText(500),
+  }).refine(data => data.decision === 'APROBAR' || data.observacion, 'Escribe la observación para el que elaboró el registro.'),
+  registroReapertura: z.object({
+    motivo: requiredText(500, 'Escribe por qué se reabre el registro aprobado.'),
+  }),
+
   // Servicios de calibración que subió ServiceMET (fase 2).
   serviciosFiltro: z.object({
     desde: z.iso.date({ error: 'La fecha «desde» no es válida: usa AAAA-MM-DD.' }).optional(),

@@ -6,6 +6,7 @@ const patronesService = require('../services/calibration.patrones');
 const serviciosService = require('../services/calibration.servicios');
 const puntosService = require('../services/calibration.puntos');
 const calculoService = require('../services/calibration.calculo');
+const registrosService = require('../services/calibration.registros');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -103,6 +104,13 @@ module.exports = {
   getServicio: handle(req => serviciosService.getServicio(readCodigo(req.params.codigo))),
   // Vista previa del cálculo (motor, fase 3): no guarda nada.
   getCalculoServicio: handle(req => calculoService.calcularVistaPrevia(readCodigo(req.params.codigo))),
+  // Registro de calibración de un servicio (fase 4): correcciones, envío y revisión.
+  getRegistro: handle(req => registrosService.getRegistro(readCodigo(req.params.codigo), req.user)),
+  guardarRegistro: handle(req => registrosService.guardarRegistro(readCodigo(req.params.codigo), parse('registroGuardar', req.body), req.user)),
+  enviarRegistro: handle(req => registrosService.enviarRegistro(readCodigo(req.params.codigo), req.user)),
+  retirarRegistro: handle(req => registrosService.retirarRegistro(readCodigo(req.params.codigo), req.user)),
+  revisarRegistro: handle(req => registrosService.revisarRegistro(readCodigo(req.params.codigo), parse('registroRevision', req.body), req.user)),
+  reabrirRegistro: handle(req => registrosService.reabrirRegistro(readCodigo(req.params.codigo), parse('registroReapertura', req.body), req.user)),
   getPuntosAcordados: handle(req => puntosService.getPuntos(req.params.codMetrica)),
   savePuntosAcordados: handle(req => puntosService.savePuntos(req.params.codMetrica, parse('puntosAcordados', req.body), req.user)),
 

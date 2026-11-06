@@ -33,8 +33,8 @@ const datosDePatron = async (patron, fecha) => {
   };
 };
 
-const calcularVistaPrevia = async (codigo) => {
-  const { modelo } = await leerServicio(codigo);
+/** Calcula un modelo de servicio (el de ServiceMET o el del registro, con sus correcciones). */
+const calcularModelo = async (modelo) => {
   const fecha = modelo.servicio.fecha;
   const juegos = (await Promise.all(modelo.patrones.juegos.map(p => datosDePatron(p, fecha)))).filter(Boolean);
   // El termohigrómetro: el primero con puntos transcritos; si ninguno, el primero.
@@ -52,7 +52,12 @@ const calcularVistaPrevia = async (codigo) => {
     claseInstrumento: modelo.instrumento.clase?.valor || null,
     configuracion: motor.CONFIGURACION_V1,
   });
-  return { codigo, termohigrometro: termohigrometro?.codigo || null, juegos: juegos.map(j => ({ codigo: j.codigo, clase: j.clase, piezas: j.piezas.length, certificado: j.certificado, verificado: j.verificado })), ...calculo };
+  return { termohigrometro: termohigrometro?.codigo || null, juegos: juegos.map(j => ({ codigo: j.codigo, clase: j.clase, piezas: j.piezas.length, certificado: j.certificado, verificado: j.verificado })), ...calculo };
 };
 
-module.exports = { calcularVistaPrevia };
+const calcularVistaPrevia = async (codigo) => {
+  const { modelo } = await leerServicio(codigo);
+  return { codigo, ...(await calcularModelo(modelo)) };
+};
+
+module.exports = { calcularModelo, calcularVistaPrevia };
