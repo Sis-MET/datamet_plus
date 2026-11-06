@@ -3,6 +3,7 @@ const equipmentService = require('../services/calibration.equipment');
 const complianceService = require('../services/calibration.compliance');
 const servicemetService = require('../services/calibration.servicemet');
 const patronesService = require('../services/calibration.patrones');
+const serviciosService = require('../services/calibration.servicios');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -14,6 +15,18 @@ const readId = (value) => {
   return id;
 };
 
+/** Código de un servicio de ServiceMET (codigo_registro). */
+const readCodigo = (value) => {
+  const codigo = String(value ?? '').trim();
+  if (!/^[\w\- .]{3,100}$/.test(codigo)) {
+    throw Object.assign(new Error('Código de servicio inválido.'), { statusCode: 400 });
+  }
+  return codigo;
+};
+
+/** Parámetros de la URL sin los vacíos. */
+const queryParams = (query) => Object.fromEntries(Object.entries(query || {}).filter(([, value]) => value !== '' && value != null));
+
 /** Envuelve cada acción: responde { success, data } y traduce errores conocidos. */
 const handle = (action) => async (req, res, next) => {
   try {
@@ -24,7 +37,7 @@ const handle = (action) => async (req, res, next) => {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
     // Tabla o columna ausente: falta aplicar una migración del módulo.
-    if (/Invalid (object|column) name '(dbo\.CAL_|registro_ref|revisado_|revision_obs|corregido_)/i.test(error.message || '')) {
+    if (/Invalid (object|column) name '(dbo\.CAL_|CAL_|registro_ref|revisado_|revision_obs|corregido_)/i.test(error.message || '')) {
       recordFailure({ origen: 'SERVIDOR', error: Object.assign(error, { statusCode: 503 }), req });
       return res.status(503).json({
         success: false,
@@ -83,6 +96,10 @@ module.exports = {
   )),
 
   // Patrones: tipo, clase, piezas y valores del certificado vigente (migración 016).
+  // Servicios de calibración que subió ServiceMET (fase 2).
+  listServicios: handle(req => serviciosService.listarServicios(parse('serviciosFiltro', queryParams(req.query)))),
+  getServicio: handle(req => serviciosService.getServicio(readCodigo(req.params.codigo))),
+
   getPatron: handle(req => patronesService.getPatron(readId(req.params.id), req.user)),
   savePatron: handle(req => patronesService.savePatron(
     readId(req.params.id),

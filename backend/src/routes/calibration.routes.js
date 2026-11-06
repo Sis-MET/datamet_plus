@@ -18,6 +18,9 @@ router.get('/equipos/:id/historial', controller.getEquipoHistorial);
 router.get('/equipos/:id/patron', controller.getPatron);
 router.get('/actividades/:id/historial', controller.getActividadHistorial);
 router.get('/eventos/historial', controller.getEventoHistorial);
+// Servicios de calibración que subió ServiceMET, con su modelo y avisos.
+router.get('/servicios', controller.listServicios);
+router.get('/servicios/:codigo', controller.getServicio);
 
 // Escritura.
 router.put('/equipos', controller.updateEquipos);

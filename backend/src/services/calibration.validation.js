@@ -232,6 +232,14 @@ const schemas = {
     dispositivos: optionalText(500),
     observaciones: optionalText(500),
   }),
+
+  // Servicios de calibración que subió ServiceMET (fase 2).
+  serviciosFiltro: z.object({
+    desde: z.iso.date({ error: 'La fecha «desde» no es válida: usa AAAA-MM-DD.' }).optional(),
+    hasta: z.iso.date({ error: 'La fecha «hasta» no es válida: usa AAAA-MM-DD.' }).optional(),
+    q: z.string().trim().max(100).optional().transform(value => value || null),
+    tecnico: z.string().trim().max(50).optional().transform(value => value || null),
+  }).refine(data => !data.desde || !data.hasta || data.desde <= data.hasta, 'La fecha «desde» es posterior a «hasta».'),
 };
 
 /** Valida y normaliza; ante un error responde 400 con el primer mensaje. */
