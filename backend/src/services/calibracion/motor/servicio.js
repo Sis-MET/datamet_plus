@@ -355,6 +355,15 @@ const calcularServicio = (modelo, datos) => {
       supuestas,
       composicion: elegida ? 'ELEGIDA' : sustitucion ? 'SUSTITUCION' : supuestas ? 'SUPUESTA' : 'REGLA',
       sustitucion: sustitucion ? { n: sustitucion.n, descripcion: sustitucion.descripcion, ecuacion: sustitucion.ecuacion } : null,
+      // Desglose de mref = mN + δmc + δmB, para explicar el cálculo (sin sustitución).
+      masa: sustitucion ? null : {
+        mN: referencia.mN,
+        correccion: referencia.deltaMc,
+        empuje: referencia.deltaMb,
+        piezas: (referencia.piezas || []).map(p => ({
+          nominal: p.nominal, correccion: p.correccion, correccionB: p.correccionB, densidad: p.densidad?.rho ?? null,
+        })),
+      },
       ...resultado,
       tolerancia,
       conformidad: conforme,
@@ -426,6 +435,14 @@ const calcularServicio = (modelo, datos) => {
     configuracion: config.version,
     conveccion: usaConveccion ? conveccion : null,
     aire: { rho: aire.rho, u: aire.u, condiciones: aire.condiciones },
+    // Cómo se trató el empuje: 5b con la densidad del aire de la calibración de
+    // cada juego (ρa1) si se conoce; si no, 5a.
+    empuje: {
+      metodo: config.empuje,
+      kD: config.kD,
+      juegos: [...new Map([...piezas, ...sinPiezas].map(p => [p.juego ?? p.codigo, p.rhoA1 ?? null])).entries()]
+        .map(([juego, rhoA1]) => ({ juego, rhoA1 })),
+    },
     repetibilidad: ensayos,
     excentricidad: { carga: cargaEcc, diferencias: ecc.diferencias, maxima: ecc.maxima, uRel: ecc.uRel },
     // Piezas registradas de los juegos, para elegir a mano la composición de una carga.

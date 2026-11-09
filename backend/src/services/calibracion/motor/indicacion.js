@@ -11,8 +11,10 @@ const repetibilidad = (lecturas) => {
   const n = valores.length;
   if (n < 2) return { n, media: valores[0] ?? null, s: null, nu: null };
   const media = valores.reduce((a, b) => a + b, 0) / n;
-  const s = Math.sqrt(valores.reduce((suma, v) => suma + (v - media) ** 2, 0) / (n - 1));
-  return { n, media, s, nu: n - 1 };
+  // Lecturas iguales dan s = 0, no el residuo del punto flotante (1e-13).
+  const iguales = valores.every(v => v === valores[0]);
+  const s = iguales ? 0 : Math.sqrt(valores.reduce((suma, v) => suma + (v - media) ** 2, 0) / (n - 1));
+  return { n, media: iguales ? valores[0] : media, s, nu: n - 1 };
 };
 
 /**

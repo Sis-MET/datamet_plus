@@ -72,6 +72,12 @@ export function Topbar({ view, section, isSidebarOpen, isDesktop, onToggleSideba
               <span className="sr-only text-fg-muted sm:not-sr-only sm:min-w-0 sm:shrink-[3] sm:truncate">{view.label}</span>
               <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-fg-subtle sm:block" strokeWidth={2.2} aria-hidden="true" />
               <span className="sr-only">: </span>
+              {section.grupo && (
+                <>
+                  <span className="hidden text-fg-muted sm:inline sm:min-w-0 sm:shrink-[2] sm:truncate">{section.grupo}</span>
+                  <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-fg-subtle sm:block" strokeWidth={2.2} aria-hidden="true" />
+                </>
+              )}
               <span className="min-w-0 truncate">{section.label}</span>
             </>
           ) : (

@@ -52,12 +52,18 @@ export const APP_VIEWS = {
       { id: 'cronograma', label: 'Cronograma' },
       { id: 'equipos', label: 'Equipos' },
       { id: 'actividades', label: 'Actividades' },
-      // Servicios de calibración de ServiceMET y, después, sus certificados.
-      { id: 'certificados', label: 'Certificados' },
+      // Desplegable: los registros de los servicios de ServiceMET (con sus
+      // certificados) y el método con el que se calculan, por versión (fase 6).
+      {
+        id: 'certificados',
+        label: 'Certificados',
+        children: [
+          { id: 'certificados', label: 'Registros' },
+          { id: 'metodo', label: 'Método de cálculo' },
+        ],
+      },
       { id: 'alertas', label: 'Alertas' },
       { id: 'cumplimiento', label: 'Cumplimiento' },
-      // Parámetros y textos del certificado por versión, con aprobación del jefe (fase 6).
-      { id: 'metodo', label: 'Método' },
       // Versiones de la app de los técnicos y su aprobación (17025, 7.11.2).
       { id: 'servicemet', label: 'Versiones ServiceMET' },
     ],
@@ -167,9 +173,17 @@ export function getNavigation(user) {
     });
 }
 
+/**
+ * Secciones de un apartado en una sola lista: las de un desplegable llevan el
+ * nombre del grupo («Certificados › Método de cálculo»).
+ */
+export const seccionesPlanas = sections => sections.flatMap(section => (section.children
+  ? section.children.map(child => ({ ...child, grupo: section.label }))
+  : [section]));
+
 /** Sección abierta de un apartado (la de la dirección), si el usuario la ve en el menú. */
 export function findSection(viewId, sectionId, user) {
   if (!sectionId) return null;
   const view = getNavigation(user).find(item => item.id === viewId);
-  return view?.sections.find(section => section.id === sectionId) || null;
+  return seccionesPlanas(view?.sections || []).find(section => section.id === sectionId) || null;
 }

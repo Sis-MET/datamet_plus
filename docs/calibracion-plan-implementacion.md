@@ -701,6 +701,19 @@ Digicert/ADSIB).
 
 Migración 021 aplicada y registrada en `DataMET_prueba` (2026-11-09).
 
+Ajustes pedidos antes de las pruebas (2026-11-09):
+
+- En la barra lateral, **Certificados** es un desplegable con **Registros** y
+  **Método de cálculo** (la dirección sigue siendo `/calibracion/metodo`).
+- Pestaña **«Cómo se calcula»** en el registro (y botón en Resultados): el
+  cálculo paso a paso con los números del servicio y la ecuación de cada
+  paso: densidad del aire y empuje (5a o 5b según se conozca ρa1),
+  repetibilidad, excentricidad y, por punto, m_ref = m_N + δm_c + δm_B, E,
+  presupuesto con el aporte de cada componente, νeff, k, U, lo que va al
+  certificado y la conformidad con su riesgo. El presupuesto nombra la
+  ecuación del empuje que se aplicó de verdad (antes decía 5b aunque faltara
+  ρa1) y lecturas iguales dan s = 0 exacto.
+
 ## Fase 7 — Validación, migración y puesta en marcha
 
 1. **Corrida paralela**: recalcular en DataMET+ los certificados emitidos con el

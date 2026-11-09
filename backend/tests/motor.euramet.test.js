@@ -241,3 +241,10 @@ test('H3: incertidumbre de las cargas de sustitución y del error (7.1.2-15a/b, 
   cerca(Math.sqrt(14.38 ** 2 + lt3.u ** 2), 23.85, 3e-3, 'u(E) 30 000 kg');
   assert.equal(motor.factorCobertura(783), 2);
 });
+
+test('6.1-1: lecturas iguales dan s = 0 exacto (sin residuo del punto flotante)', () => {
+  const r = motor.repetibilidad([830.8, 830.8, 830.8]);
+  assert.equal(r.s, 0);
+  assert.equal(r.media, 830.8);
+  assert.equal(r.nu, 2);
+});

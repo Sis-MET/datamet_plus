@@ -141,6 +141,8 @@ const masaReferencia = (piezas, opciones) => {
   let deltaMb = 0;
   const u = { certificado: 0, empuje: 0, deriva: 0, conveccion: 0 };
   const detalle = [];
+  // Ecuación del empuje que se aplicó de verdad: 5b solo con ρa1 conocido.
+  const ecuacionesEmpuje = new Set();
 
   for (const pieza of piezas) {
     const nominal = Number(pieza.nominal);
@@ -157,9 +159,11 @@ const masaReferencia = (piezas, opciones) => {
       ? { rho: Number(pieza.densidad), u: Number(pieza.uDensidad || 0) }
       : densidadSupuesta(pieza.material, densidades) || { rho: RHO_C, u: 0 };
     const correccionB = corrigeEmpuje ? correccionEmpuje(nominal, aire.rho, densidad.rho) : 0;
+    const rhoA1Pieza = empuje === '5b' ? (pieza.rhoA1 ?? rhoA1) : null;
     const uEmpuje = corrigeEmpuje
-      ? incertidumbreEmpuje({ mN: nominal, rhoA: aire.rho, uRhoA: aire.u || 0, rho: densidad.rho, uRho: densidad.u, rhoA1: empuje === '5b' ? (pieza.rhoA1 ?? rhoA1) : null })
+      ? incertidumbreEmpuje({ mN: nominal, rhoA: aire.rho, uRhoA: aire.u || 0, rho: densidad.rho, uRho: densidad.u, rhoA1: rhoA1Pieza })
       : cotaEmpuje(empuje, { mN: nominal, emp: Number(pieza.emp || 0), deltaT });
+    ecuacionesEmpuje.add(corrigeEmpuje ? (rhoA1Pieza != null ? '5b' : '5a') : empuje);
     // Convección (7.1.2-13), solo en pesas F1 o mejores.
     const uConveccion = conveccion && conConveccion.has(pieza.clase)
       ? (conveccionMg((nominal * enGramos) / 1000, deltaT) / 1000 / enGramos) / Math.sqrt(3)
@@ -176,7 +180,7 @@ const masaReferencia = (piezas, opciones) => {
 
   const componentes = [
     { fuente: 'certificado', u: u.certificado, nu: Infinity, ecuacion: '7.1.2-2' },
-    { fuente: 'empuje', u: u.empuje, nu: Infinity, ecuacion: `7.1.2-${empuje}` },
+    { fuente: 'empuje', u: u.empuje, nu: Infinity, ecuacion: `7.1.2-${[...ecuacionesEmpuje].sort().join('/') || empuje}` },
     { fuente: 'deriva', u: u.deriva, nu: Infinity, ecuacion: '7.1.2-11' },
     { fuente: 'conveccion', u: u.conveccion, nu: Infinity, ecuacion: '7.1.2-13' },
   ];

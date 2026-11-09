@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Sigma } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../../shared/utils/cn';
 import { Button } from '../../../../shared/components/ui/Button';
@@ -80,16 +81,24 @@ function ComposicionEnLinea({ punto, disponibles, unidad, onGuardar, onCerrar })
 }
 
 /** Pestaña «Resultados»: el cálculo con su presupuesto y la elección de piezas por punto. */
-export function ResultadosRegistro({ data, editable, onGuardar }) {
+export function ResultadosRegistro({ data, editable, onGuardar, onComoSeCalcula }) {
   const calculo = data.calculo;
   return (
     <section aria-label="Resultados del cálculo" className="card p-4 shadow-card sm:p-5">
-      <div className="mb-4">
-        <h3 className="text-sm font-semibold text-fg">Resultados del cálculo</h3>
-        <p className="mt-0.5 text-[12.5px] text-fg-muted">
-          Calculados con el motor de DataMET+ (EURAMET cg-18 v4.0) con los datos guardados. Toca un punto para ver su presupuesto de incertidumbre
-          {editable ? ' y, si hace falta, elegir otras piezas para su carga' : ''}.
-        </p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-fg">Resultados del cálculo</h3>
+          <p className="mt-0.5 text-[12.5px] text-fg-muted">
+            Calculados con el motor de DataMET+ (EURAMET cg-18 v4.0) con los datos guardados
+            {calculo?.metodo ? ` y la versión ${calculo.metodo.version} del método${calculo.metodo.aprobada ? '' : ' (sin aprobar)'}` : ''}.
+            Toca un punto para ver su presupuesto de incertidumbre{editable ? ' y, si hace falta, elegir otras piezas para su carga' : ''}.
+          </p>
+        </div>
+        {onComoSeCalcula && (
+          <Button size="sm" variant="secondary" onClick={onComoSeCalcula}>
+            <Sigma className="h-4 w-4" aria-hidden="true" /> Cómo se calcula
+          </Button>
+        )}
       </div>
       <CalculoServicio
         data={calculo}

@@ -45,7 +45,7 @@ describe('acceso a los apartados por área', () => {
   it('cada apartado despliega sus secciones, que son las pestañas de su página', () => {
     const secciones = (user, id) => getNavigation(user).find(view => view.id === id).sections.map(section => section.id);
     expect(secciones(soporte, 'rim')).toEqual(['registros', 'numeracion', 'nuevo']);
-    expect(secciones(calibracion, 'calibration')).toEqual(['cronograma', 'equipos', 'actividades', 'certificados', 'alertas', 'cumplimiento', 'metodo', 'servicemet']);
+    expect(secciones(calibracion, 'calibration')).toEqual(['cronograma', 'equipos', 'actividades', 'certificados', 'alertas', 'cumplimiento', 'servicemet']);
     expect(secciones(soporte, 'soporte')).toEqual(['informes', 'proximos', 'avisos']);
     // Sin secciones: Cronograma e IvMET (este tiene su propio menú).
     expect(secciones(sistemas, 'calendar')).toEqual([]);
@@ -61,6 +61,13 @@ describe('acceso a los apartados por área', () => {
     expect(secciones({ ...soporte, cargo: 'Jefe de  Área' })).toContain('configuracion');
     expect(secciones({ ...soporte, cargo: 'Técnico' })).not.toContain('configuracion');
     expect(secciones({ ...sistemas, area: 'Sistemas' })).not.toContain('configuracion');
+  });
+
+  it('Certificados es un desplegable con los registros y el método de cálculo', () => {
+    const certificados = getNavigation(calibracion).find(view => view.id === 'calibration').sections.find(s => s.id === 'certificados');
+    expect(certificados.children.map(child => child.id)).toEqual(['certificados', 'metodo']);
+    expect(findSection('calibration', 'metodo', calibracion)).toMatchObject({ label: 'Método de cálculo', grupo: 'Certificados' });
+    expect(findSection('calibration', 'certificados', calibracion)).toMatchObject({ label: 'Registros', grupo: 'Certificados' });
   });
 
   it('la sección abierta solo se nombra si el usuario la ve en el menú', () => {

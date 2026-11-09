@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, ArrowLeft, BadgeCheck, Calculator, Eye, FilePenLine, FileText, FileUp, History, Info, Loader2, Send, Undo2,
+  AlertCircle, ArrowLeft, BadgeCheck, Calculator, Eye, FilePenLine, FileText, FileUp, History, Info, Loader2, Send, Sigma, Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../../shared/utils/cn';
@@ -16,6 +16,7 @@ import { EnviarRegistroModal } from '../EnviarRegistroModal';
 import { PuntosAcordadosModal } from '../PuntosAcordadosModal';
 import { ReasonModal } from '../ReasonModal';
 import { AutorizarModal, SubirFirmadoModal } from '../certificado/EmisionModales';
+import { ComoSeCalcula } from './ComoSeCalcula';
 import { HistorialRegistro } from './HistorialRegistro';
 import { PreviaCertificado } from './PreviaCertificado';
 import { ResultadosRegistro } from './ResultadosRegistro';
@@ -235,6 +236,8 @@ export function RegistroPagina({ codigo, canEdit, onVolver }) {
   const TABS = [
     { value: 'datos', label: 'Datos del servicio', icon: <FileText className="h-4 w-4" aria-hidden="true" />, count: errores + avisos || undefined, alert: errores > 0 },
     { value: 'resultados', label: 'Resultados', icon: <Calculator className="h-4 w-4" aria-hidden="true" /> },
+    // El cálculo paso a paso con los números del servicio.
+    { value: 'calculo', label: 'Cómo se calcula', icon: <Sigma className="h-4 w-4" aria-hidden="true" /> },
     { value: 'vista', label: 'Vista previa', icon: <Eye className="h-4 w-4" aria-hidden="true" /> },
     { value: 'historial', label: 'Historial', icon: <History className="h-4 w-4" aria-hidden="true" />, count: data.historial.length || undefined },
   ];
@@ -263,7 +266,7 @@ export function RegistroPagina({ codigo, canEdit, onVolver }) {
         </p>
       )}
 
-      <Segmented label="Partes del registro" value={tab} onChange={setTab} options={TABS} className="cal-tabs self-start xl:[&>button:nth-child(3)]:hidden" />
+      <Segmented label="Partes del registro" value={tab} onChange={setTab} options={TABS} className="cal-tabs self-start xl:[&>button:nth-child(4)]:hidden" />
 
       <div className={cn('grid gap-5', tab !== 'vista' && 'xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]')}>
         <div className="flex min-w-0 flex-col gap-4">
@@ -282,7 +285,8 @@ export function RegistroPagina({ codigo, canEdit, onVolver }) {
               />
             </>
           )}
-          {tab === 'resultados' && <ResultadosRegistro data={data} editable={editable} onGuardar={guardarDirecto} />}
+          {tab === 'resultados' && <ResultadosRegistro data={data} editable={editable} onGuardar={guardarDirecto} onComoSeCalcula={() => setTab('calculo')} />}
+          {tab === 'calculo' && <ComoSeCalcula data={data} />}
           {tab === 'vista' && previa(true)}
           {tab === 'historial' && <HistorialRegistro data={data} onVerEmision={(emision) => { setEmisionVista(emision); setTab('vista'); }} />}
         </div>

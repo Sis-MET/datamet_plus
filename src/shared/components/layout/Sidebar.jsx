@@ -42,6 +42,89 @@ const ActiveDot = () => (
 // cualquier enlace; el clic normal navega dentro de la aplicación.
 const abreAparte = (event) => event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
 
+/** Enlace a una sección (pestaña) de un apartado. */
+function SectionLink({ view, section, active, badge, onNavigate }) {
+  return (
+    <a
+      href={rutaDe(view.id, section.id)}
+      onClick={(event) => {
+        if (abreAparte(event)) return;
+        event.preventDefault();
+        onNavigate(view.id, section.id);
+      }}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] font-medium outline-offset-0 transition-colors duration-150',
+        active ? itemActive : itemIdle
+      )}
+    >
+      <span className="truncate">{section.label}</span>
+      {(badge || active) && (
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          {badge && <Badge badge={badge} />}
+          {active && <ActiveDot />}
+        </span>
+      )}
+    </a>
+  );
+}
+
+/**
+ * Sección con su propio desplegable (Calibración › Certificados: Registros y
+ * Método de cálculo). Se abre sola al entrar a una de sus páginas.
+ */
+function SectionGroup({ view, section, inModule, activeSection, onNavigate }) {
+  const contieneActiva = inModule && section.children.some(child => child.id === activeSection);
+  const [open, setOpen] = useState(contieneActiva);
+  const [visto, setVisto] = useState(contieneActiva);
+  if (visto !== contieneActiva) {
+    setVisto(contieneActiva);
+    if (contieneActiva) setOpen(true);
+  }
+  const listId = `nav-${view.id}-${section.id}`;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen(actual => !actual)}
+        aria-expanded={open}
+        aria-controls={listId}
+        className={cn(
+          'flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] font-medium outline-offset-0 transition-colors duration-150',
+          contieneActiva && !open ? itemActive : contieneActiva ? 'text-fg hover:bg-fg/[0.05]' : itemIdle
+        )}
+      >
+        <span className="truncate">{section.label}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          {contieneActiva && !open && <ActiveDot />}
+          <ChevronRight
+            className={cn('h-3.5 w-3.5 text-fg-subtle transition-transform duration-300 ease-expo motion-reduce:transition-none', open && 'rotate-90')}
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+        </span>
+      </button>
+      <div
+        id={listId}
+        className={cn(
+          'grid transition-[grid-template-rows,visibility] duration-300 ease-expo motion-reduce:transition-none',
+          open ? 'grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <ul className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l border-line py-0.5 pl-2" aria-label={section.label}>
+            {section.children.map(child => (
+              <li key={child.id}>
+                <SectionLink view={view} section={child} active={inModule && activeSection === child.id} onNavigate={onNavigate} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 /** Apartado con sub-lista: el botón la despliega y cada sección es un enlace a su pestaña. */
 function ModuleGroup({ view, open, onToggle, activeView, activeSection, badge, onNavigate }) {
   const Icon = view.icon;
@@ -90,35 +173,28 @@ function ModuleGroup({ view, open, onToggle, activeView, activeSection, badge, o
       >
         <div className="min-h-0 overflow-hidden">
           <ul className="ml-[20px] mt-0.5 flex flex-col gap-0.5 border-l border-line-strong py-1 pl-2" aria-label={view.label}>
-            {view.sections.map((section) => {
-              const active = inModule && activeSection === section.id;
-              const sectionBadge = view.badgeSection === section.id ? badge : null;
-              return (
+            {view.sections.map(section => (
+              section.children ? (
+                <SectionGroup
+                  key={section.id}
+                  view={view}
+                  section={section}
+                  inModule={inModule}
+                  activeSection={activeSection}
+                  onNavigate={onNavigate}
+                />
+              ) : (
                 <li key={section.id}>
-                  <a
-                    href={rutaDe(view.id, section.id)}
-                    onClick={(event) => {
-                      if (abreAparte(event)) return;
-                      event.preventDefault();
-                      onNavigate(view.id, section.id);
-                    }}
-                    aria-current={active ? 'page' : undefined}
-                    className={cn(
-                      'flex h-8 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] font-medium outline-offset-0 transition-colors duration-150',
-                      active ? itemActive : itemIdle
-                    )}
-                  >
-                    <span className="truncate">{section.label}</span>
-                    {(sectionBadge || active) && (
-                      <span className="ml-auto flex shrink-0 items-center gap-2">
-                        {sectionBadge && <Badge badge={sectionBadge} />}
-                        {active && <ActiveDot />}
-                      </span>
-                    )}
-                  </a>
+                  <SectionLink
+                    view={view}
+                    section={section}
+                    active={inModule && activeSection === section.id}
+                    badge={view.badgeSection === section.id ? badge : null}
+                    onNavigate={onNavigate}
+                  />
                 </li>
-              );
-            })}
+              )
+            ))}
           </ul>
         </div>
       </div>
