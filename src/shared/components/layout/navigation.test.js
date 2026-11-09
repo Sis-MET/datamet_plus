@@ -65,14 +65,18 @@ describe('acceso a los apartados por área', () => {
 
   it('Certificados es un desplegable con los registros y el método de cálculo', () => {
     const certificados = getNavigation(calibracion).find(view => view.id === 'calibration').sections.find(s => s.id === 'certificados');
-    expect(certificados.children.map(child => child.id)).toEqual(['certificados', 'emitidos', 'patrones', 'metodo']);
+    expect(certificados.children.map(child => child.id)).toEqual(['certificados', 'emitidos', 'metodo']);
     expect(findSection('calibration', 'emitidos', calibracion)).toMatchObject({ label: 'Emitidos', grupo: 'Certificados' });
+    // Los patrones están con los equipos: ahí se cargan sus datos.
+    const equipos = getNavigation(calibracion).find(view => view.id === 'calibration').sections.find(s => s.id === 'equipos');
+    expect(equipos.children.map(child => child.id)).toEqual(['equipos', 'patrones']);
+    expect(findSection('calibration', 'patrones', calibracion)).toMatchObject({ label: 'Patrones', grupo: 'Equipos' });
     expect(findSection('calibration', 'metodo', calibracion)).toMatchObject({ label: 'Método de cálculo', grupo: 'Certificados' });
     expect(findSection('calibration', 'certificados', calibracion)).toMatchObject({ label: 'Registros', grupo: 'Certificados' });
   });
 
   it('la sección abierta solo se nombra si el usuario la ve en el menú', () => {
-    expect(findSection('calibration', 'equipos', calibracion)?.label).toBe('Equipos');
+    expect(findSection('calibration', 'equipos', calibracion)?.label).toBe('Todos los equipos');
     expect(findSection('soporte', 'proximos', soporte)?.label).toBe('Próximos servicios');
     expect(findSection('soporte', 'configuracion', soporte)).toBeNull();
     expect(findSection('calibration', 'equipos', soporte)).toBeNull();

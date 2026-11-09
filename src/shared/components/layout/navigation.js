@@ -50,7 +50,17 @@ export const APP_VIEWS = {
     area: { id: 'calibracion', nombre: 'Calibración' },
     sections: [
       { id: 'cronograma', label: 'Cronograma' },
-      { id: 'equipos', label: 'Equipos' },
+      // Desplegable: el gestor de equipos y, aparte, el estado de los patrones
+      // (pesas y termohigrómetros) para los certificados; los datos se cargan
+      // siempre en la ficha de cada equipo.
+      {
+        id: 'equipos',
+        label: 'Equipos',
+        children: [
+          { id: 'equipos', label: 'Todos los equipos' },
+          { id: 'patrones', label: 'Patrones' },
+        ],
+      },
       { id: 'actividades', label: 'Actividades' },
       // Desplegable: los registros de los servicios de ServiceMET (con sus
       // certificados) y el método con el que se calculan, por versión (fase 6).
@@ -60,7 +70,6 @@ export const APP_VIEWS = {
         children: [
           { id: 'certificados', label: 'Registros' },
           { id: 'emitidos', label: 'Emitidos' },
-          { id: 'patrones', label: 'Patrones' },
           { id: 'metodo', label: 'Método de cálculo' },
         ],
       },

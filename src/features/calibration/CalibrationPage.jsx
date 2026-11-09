@@ -298,7 +298,7 @@ export function CalibrationPage() {
       {/* Configuración del método por versiones (fase 6). */}
       {tab === 'metodo' && <MetodoPagina />}
       {/* Libro de certificados emitidos; «Abrir registro» lleva al registro del servicio. */}
-      {/* Qué le falta a cada patrón; «Piezas y valores» abre su ficha (la de Equipos). */}
+      {/* Equipos › Patrones: qué le falta a cada patrón; «Piezas y valores» abre su ficha de Equipos. */}
       {tab === 'patrones' && (
         <PatronesPanel
           version={historyVersion}
@@ -328,6 +328,7 @@ export function CalibrationPage() {
             <ServiciosPanel
               actualizar={vueltaRegistro}
               onAbrir={codigo => irADetalle([codigo], { alCambiar: () => window.scrollTo({ top: 0 }) })}
+              onVerPatrones={() => navegar(rutaDe('calibration', 'patrones'), { transicion: 'panel', alCambiar: () => window.scrollTo({ top: 0 }) })}
             />
           </div>
         </>

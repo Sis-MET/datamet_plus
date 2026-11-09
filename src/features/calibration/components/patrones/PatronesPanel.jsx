@@ -112,7 +112,7 @@ export function PatronesPanel({ version, onPiezas, onEquipos }) {
       <div className="min-w-0">
         <h2 className="text-xl font-semibold text-fg">Patrones de los certificados</h2>
         <p className="mt-1 max-w-3xl text-[13px] text-fg-muted">
-          El cálculo de un servicio deja de ser provisional cuando cada juego de pesas y termohigrómetro que usó tenía ese día su certificado vigente, con los valores transcritos y verificados por otra persona, y el juego tiene sus piezas registradas. Arriba, los que más servicios dejan provisionales: conviene completarlos primero.
+          El cálculo de un servicio deja de ser provisional cuando cada juego de pesas y termohigrómetro que usó tenía ese día su certificado vigente, con los valores transcritos y verificados por otra persona, y el juego tiene sus piezas registradas. Arriba, los que más servicios dejan provisionales: conviene completarlos primero. Esta vista solo resume: los datos se cargan en la ficha de cada equipo («Piezas y valores»).
         </p>
       </div>
 

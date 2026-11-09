@@ -721,8 +721,10 @@ Ajustes pedidos antes de las pruebas (2026-11-09):
   el firmado) y Anulado (autorización anulada antes de firmar). Búsqueda por
   n.º, cliente, instrumento, ID. o serie, filtro por año; abre el registro o
   el PDF firmado. Ahí se agregarán los históricos del Excel (fase 7).
-- **Certificados › Patrones** (`GET /calibracion/patrones/estado`,
-  `components/patrones/`): qué le falta hoy a cada juego de pesas y
+- **Equipos › Patrones** (`GET /calibracion/patrones/estado`,
+  `components/patrones/`; está con los equipos porque sus datos se cargan en
+  la ficha de cada equipo: esta vista solo los resume, no guarda nada): qué
+  le falta hoy a cada juego de pesas y
   termohigrómetro (en el gestor, tipo, piezas, certificado vigente, valores
   transcritos, verificados) y en cuántos servicios del año dejó el cálculo
   provisional, según su estado el día de cada servicio. Ordenados por los
@@ -730,6 +732,8 @@ Ajustes pedidos antes de las pruebas (2026-11-09):
   `DataMET_prueba` (2026-11-09): 35 patrones, ninguno listo; los 844
   servicios de 2026 son provisionales; TH-05 (520), TH-04 (387) y F1-101
   (291) son los primeros a completar.
+  En Certificados › Registros, un aviso dice cuántos servicios del año salen
+  provisionales por sus patrones y lleva a Equipos › Patrones.
 
 ## Fase 7 — Validación, migración y puesta en marcha
 

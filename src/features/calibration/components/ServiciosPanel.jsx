@@ -12,6 +12,7 @@ import { ESTADOS_REGISTRO } from '../domain/registro';
 import { AprobadoresModal } from './AprobadoresModal';
 import { Dropdown } from './Dropdown';
 import { EmptyState, ToneBadge } from './primitives';
+import { AvisoPatrones } from './patrones/AvisoPatrones';
 
 const CONTROL = 'flex h-9 items-center rounded-xl border border-line bg-surface text-fg shadow-xs transition-colors';
 
@@ -236,9 +237,10 @@ const inicioDelAnio = () => `${new Date().getFullYear()}-01-01`;
  */
 /**
  * `onAbrir(codigo)` abre la página del registro del servicio. `actualizar`
- * cambia al volver de un registro, para releer los estados.
+ * cambia al volver de un registro, para releer los estados. `onVerPatrones`
+ * lleva a Equipos › Patrones desde el aviso de cálculos provisionales.
  */
-export function ServiciosPanel({ onAbrir, actualizar = 0 }) {
+export function ServiciosPanel({ onAbrir, actualizar = 0, onVerPatrones }) {
   const baseId = useId();
   const [desde, setDesde] = useState(inicioDelAnio);
   const [hasta, setHasta] = useState('');
@@ -298,6 +300,7 @@ export function ServiciosPanel({ onAbrir, actualizar = 0 }) {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="sr-only">Servicios de calibración de ServiceMET</h2>
+      <AvisoPatrones onVer={onVerPatrones} />
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
