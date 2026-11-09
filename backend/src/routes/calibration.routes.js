@@ -30,6 +30,9 @@ router.get('/registros/:codigo/emisiones/:emision/pdf', controller.abrirCertific
 router.get('/emitidos', controller.listEmitidos);
 // Estado de los patrones para los certificados y su uso en los servicios del año.
 router.get('/patrones/estado', controller.getEstadoPatrones);
+// Validación del motor con los ejemplos publicados y sus evidencias registradas.
+router.get('/validacion', controller.getValidacion);
+router.get('/validacion/evidencias/:id', controller.getEvidenciaValidacion);
 // Aprobadores de los registros: los designa el jefe de Calibración (migración 019).
 router.get('/configuracion/aprobadores', controller.getAprobadores);
 // Configuración del método por versiones (fase 6, migración 021).
@@ -61,6 +64,7 @@ router.post('/metodo/borrador', controller.crearBorradorMetodo);
 router.put('/metodo/borrador', controller.guardarBorradorMetodo);
 router.post('/metodo/borrador/descarte', controller.descartarBorradorMetodo);
 router.post('/metodo/aprobacion', controller.aprobarMetodo);
+router.post('/validacion/evidencias', controller.registrarValidacion);
 // Emisión del certificado (fase 5): autoriza, firma y reemite el jefe de Calibración.
 router.post('/registros/:codigo/vista-previa', controller.vistaPreviaCertificado);
 router.post('/registros/:codigo/autorizacion', controller.autorizarCertificado);

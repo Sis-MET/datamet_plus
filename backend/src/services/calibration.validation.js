@@ -284,6 +284,11 @@ const schemas = {
   certificadoMotivo: z.object({
     motivo: requiredText(500, 'Escribe el motivo.'),
   }),
+  // Evidencia de la validación del motor (migración 022).
+  validacionEvidencia: z.object({
+    version: z.string({ error: 'Falta la versión de la aplicación.' }).trim().regex(/^\d+\.\d+\.\d+$/, 'Versión de la aplicación no válida.'),
+    observacion: z.string().trim().max(500).nullable().optional(),
+  }).strict(),
   // Configuración del método (fase 6): el contenido lo valida calibration.metodo.
   metodoBorrador: z.object({
     motivo: requiredText(500, 'Escribe por qué se cambia la configuración del método.'),

@@ -65,7 +65,7 @@ describe('acceso a los apartados por área', () => {
 
   it('Certificados es un desplegable con los registros y el método de cálculo', () => {
     const certificados = getNavigation(calibracion).find(view => view.id === 'calibration').sections.find(s => s.id === 'certificados');
-    expect(certificados.children.map(child => child.id)).toEqual(['certificados', 'emitidos', 'metodo']);
+    expect(certificados.children.map(child => child.id)).toEqual(['certificados', 'emitidos', 'metodo', 'validacion']);
     expect(findSection('calibration', 'emitidos', calibracion)).toMatchObject({ label: 'Emitidos', grupo: 'Certificados' });
     // Los patrones están con los equipos: ahí se cargan sus datos.
     const equipos = getNavigation(calibracion).find(view => view.id === 'calibration').sections.find(s => s.id === 'equipos');

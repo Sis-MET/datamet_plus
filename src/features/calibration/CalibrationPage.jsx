@@ -52,13 +52,14 @@ import { ServiceMetPanel } from './components/ServiceMetPanel';
 import { MetodoPagina } from './components/metodo/MetodoPagina';
 import { EmitidosPanel } from './components/emitidos/EmitidosPanel';
 import { PatronesPanel } from './components/patrones/PatronesPanel';
+import { ValidacionPagina } from './components/validacion/ValidacionPagina';
 import './calibration.css';
 
 const TAB_KEY = 'datamet_cal_tab';
 const VIEW_KEY = 'datamet_cal_view';
-const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'emitidos', 'patrones', 'alertas', 'cumplimiento', 'metodo', 'servicemet'];
+const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'emitidos', 'patrones', 'alertas', 'cumplimiento', 'metodo', 'validacion', 'servicemet'];
 // Secciones que no muestran el plan anual.
-const SIN_PLAN = new Set(['servicemet', 'certificados', 'emitidos', 'patrones', 'metodo']);
+const SIN_PLAN = new Set(['servicemet', 'certificados', 'emitidos', 'patrones', 'metodo', 'validacion']);
 const VIEWS = ['anio', 'mes', 'agenda'];
 
 const STATUS_FILTERS = [
@@ -297,6 +298,8 @@ export function CalibrationPage() {
       {tab === 'servicemet' && <ServiceMetPanel />}
       {/* Configuración del método por versiones (fase 6). */}
       {tab === 'metodo' && <MetodoPagina />}
+      {/* Validación del motor con los ejemplos publicados (7.11.2). */}
+      {tab === 'validacion' && <ValidacionPagina />}
       {/* Libro de certificados emitidos; «Abrir registro» lleva al registro del servicio. */}
       {/* Equipos › Patrones: qué le falta a cada patrón; «Piezas y valores» abre su ficha de Equipos. */}
       {tab === 'patrones' && (

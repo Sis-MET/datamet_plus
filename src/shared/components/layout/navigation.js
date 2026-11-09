@@ -71,6 +71,8 @@ export const APP_VIEWS = {
           { id: 'certificados', label: 'Registros' },
           { id: 'emitidos', label: 'Emitidos' },
           { id: 'metodo', label: 'Método de cálculo' },
+          // Los ejemplos publicados recalculados con el motor y su evidencia (7.11.2).
+          { id: 'validacion', label: 'Validación' },
         ],
       },
       { id: 'alertas', label: 'Alertas' },

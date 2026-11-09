@@ -734,6 +734,16 @@ Ajustes pedidos antes de las pruebas (2026-11-09):
   (291) son los primeros a completar.
   En Certificados › Registros, un aviso dice cuántos servicios del año salen
   provisionales por sus patrones y lleva a Equipos › Patrones.
+- **Certificados › Validación** (`calibracion/validacion.js`,
+  `GET /calibracion/validacion`, migración 022): los ejemplos de EURAMET
+  (Anexo H: H1, H2, H3), de la Guía SIM (G1, G2, G3), la tabla G.2 de la GUM
+  y CIPM-2007 frente a la fórmula aproximada se recalculan con el motor del
+  servidor; cada valor de la guía junto al del sistema, con su criterio
+  (8 casos, 189 valores, todos dentro). Las pruebas automáticas usan los
+  mismos datos. El personal de Calibración registra la corrida como
+  evidencia de la versión de la aplicación (CAL_VALIDACIONES: resultados,
+  huella SHA-256, quién y cuándo; al verla se comprueba la huella). Base del
+  informe de validación de la fase 7.
 
 ## Fase 7 — Validación, migración y puesta en marcha
 

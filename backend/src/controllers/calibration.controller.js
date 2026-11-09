@@ -13,6 +13,7 @@ const emisionService = require('../services/calibration.emision');
 const metodoService = require('../services/calibration.metodo');
 const emitidosService = require('../services/calibration.emitidos');
 const estadoPatronesService = require('../services/calibration.patrones.estado');
+const validacionService = require('../services/calibration.validacion');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -156,6 +157,10 @@ module.exports = {
   getMetodo: handle(req => metodoService.getMetodo(req.user)),
   // Libro de certificados emitidos (solo lectura).
   listEmitidos: handle(() => emitidosService.listarEmitidos()),
+  // Validación del motor con los ejemplos publicados y su evidencia (migración 022).
+  getValidacion: handle(req => validacionService.getValidacion({ version: String(req.query.version || '').slice(0, 20) || null }, req.user)),
+  registrarValidacion: handle(req => validacionService.registrarEvidencia(parse('validacionEvidencia', req.body), req.user)),
+  getEvidenciaValidacion: handle(req => validacionService.getEvidencia(readId(req.params.id))),
   // Qué le falta a cada patrón para que los cálculos dejen de ser provisionales.
   getEstadoPatrones: handle((req) => {
     const anio = Number(req.query.anio);

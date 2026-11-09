@@ -93,25 +93,8 @@ test('Anexo F: convección, cota de la tabla F2.1', () => {
 
 // ─── Ejemplo H1 de EURAMET (220 g, d = 0,1 mg) ─────────────────────────────
 
-const H1 = {
-  d: 0.0001,
-  repetibilidad: [100.0006, 100.0003, 100.0005, 100.0004, 100.0005],
-  excentricidad: [100.0006, 100.0004, 100.0005, 100.0007, 100.0005],
-  pesas: {
-    20: { nominal: 20, correccion: 0, U: 0.000024, k: 2, emp: 0.00008, clase: 'E2', densidad: 8000, uDensidad: 0 },
-    50: { nominal: 50, correccion: 0, U: 0.00003, k: 2, emp: 0.0001, clase: 'E2', densidad: 8000, uDensidad: 0 },
-    100: { nominal: 100, correccion: -0.0001, U: 0.00005, k: 2, emp: 0.00016, clase: 'E2', densidad: 8000, uDensidad: 0 },
-    200: { nominal: 200, correccion: 0.0001, U: 0.0001, k: 2, emp: 0.0003, clase: 'E2', densidad: 8000, uDensidad: 0 },
-  },
-  // Carga, indicación, piezas y lo que publica la guía (opción 1).
-  puntos: [
-    { I: 0, piezas: [], uI: 0.000118, uE: 0.000118, nu: 4, k: 2.87, U: 0.00034 },
-    { I: 50.0004, piezas: [50], uI: 0.000124, uE: 0.000465, nu: 1104, k: 2.0, U: 0.00093 },
-    { I: 100.0006, piezas: [100], uI: 0.000134, uE: 0.000900, nu: 15538, k: 2.0, U: 0.00180 },
-    { I: 150.0009, piezas: [100, 50], uI: 0.000149, uE: 0.001340, nu: 76345, k: 2.0, U: 0.00268 },
-    { I: 220.0014, piezas: [200, 20], uI: 0.000175, uE: 0.001971, nu: 357098, k: 2.0, U: 0.00394 },
-  ],
-};
+// Datos del ejemplo (los mismos que usa la pantalla de validación).
+const { H1, H2 } = require('../src/services/calibracion/validacion');
 
 test('H1: repetibilidad (6.1-1) y excentricidad (6.3, 7.1.1-11)', () => {
   const rep = motor.repetibilidad(H1.repetibilidad);
@@ -188,17 +171,6 @@ test('decisión 7: regla simple y conservadora, con su riesgo', () => {
 // Opción 1: sin corrección por empuje (7.1.2-5d), pesas F2 por su valor nominal
 // (u = emp/√3, 7.1.2-3) y deriva D = emp/2 (kD = 1,5 con U = emp/3).
 
-const H2 = {
-  d0: 2,
-  pesa: (kg, emp) => ({ nominal: kg * 1000, correccion: null, U: emp / 3, k: 2, emp, clase: 'F2' }),
-  // s constante por escalón: 1,095 g en el primero (10 000 g) y 2,739 g en el 2 y el 3 (25 000 g).
-  puntos: [
-    { I: 0, piezas: [], dI: 2, s: 1.095, uI: 1.238, uMref: 0, uE: 1.238, nu: 6, k: 2.52, U: 3.120 },
-    { I: 10000, piezas: [[10, 0.16]], dI: 2, s: 1.095, uI: 1.545, uMref: 0.151, uE: 1.552, nu: 16, k: 2.17, U: 3.369 },
-    { I: 19995, piezas: [[20, 0.3]], dI: 5, s: 2.739, uI: 3.464, uMref: 0.290, uE: 3.476, nu: 10, k: 2.28, U: 7.926 },
-    { I: 39990, piezas: [[20, 0.3], [20, 0.3]], dI: 10, s: 2.739, uI: 4.950, uMref: 0.581, uE: 4.984, nu: 43, k: 2.06, U: 10.266 },
-  ],
-};
 
 test('H2 opción 1: indicación, masa de referencia, u(E), νeff, k y U por punto', () => {
   // Excentricidad: |ΔIecc|máx = 5 g con 20 000 g (7.1.1-10).

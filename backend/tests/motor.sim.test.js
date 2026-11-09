@@ -24,21 +24,9 @@ const conNuB100 = componentes => componentes.map(c => (Number.isFinite(c.nu) ? c
 // Pesas E2 por su valor nominal (u = emp/√3, 7.1.2-3), deriva D = emp/3 y
 // balanza ajustada justo antes de calibrar (empuje por 7.1.2-5c).
 
-const G1 = {
-  d: 0.0001,
-  repetibilidad: [100.0002, 99.9999, 100.0001, 100.0000, 100.0002, 100.0002],
-  excentricidad: [100.0005, 100.0003, 100.0004, 100.0006, 100.0004],
-  emp: { 10: 0.00006, 20: 0.00008, 50: 0.0001, 100: 0.00016, 200: 0.0003 },
-  // Indicación, pesas y lo que publica la guía en G1.3 (mg).
-  puntos: [
-    { I: 30.0001, piezas: [10, 20], E: 0.1, mc: 0.08, mD: 0.03, mB: 0.02, uE: 0.165, nu: 12, k: 2.23, U: 0.37 },
-    { I: 60.0003, piezas: [10, 50], E: 0.3, mc: 0.09, mD: 0.03, mB: 0.02, uE: 0.170, nu: 14, k: 2.20, U: 0.37 },
-    { I: 100.0004, piezas: [100], E: 0.4, mc: 0.09, mD: 0.03, mB: 0.02, uE: 0.170, nu: 14, k: 2.20, U: 0.37 },
-    { I: 150.0006, piezas: [50, 100], E: 0.6, mc: 0.15, mD: 0.05, mB: 0.04, uE: 0.215, nu: 34, k: 2.08, U: 0.45 },
-    { I: 200.0009, piezas: [200], E: 0.9, mc: 0.17, mD: 0.06, mB: 0.04, uE: 0.232, nu: 44, k: 2.06, U: 0.48 },
-  ],
-};
-const pesaG1 = n => ({ nominal: n, correccion: null, U: G1.emp[n] / 3, k: 2, emp: G1.emp[n], clase: 'E2' });
+// Datos de los ejemplos (los mismos que usa la pantalla de validación).
+const { G1, G2 } = require('../src/services/calibracion/validacion');
+const pesaG1 = G1.pesa;
 const mg = x => redondear(x * 1000, 2); // g → mg con dos decimales, como la tabla
 
 const presupuestoG1 = (punto) => {
@@ -124,23 +112,6 @@ test('G1: linealización de U(W), incertidumbre global y pesada mínima (7.5.2-3
 // empuje es insignificante (nota 14): se modela con 7.1.2-5a al aire de
 // referencia y la u(ρa) de la guía.
 
-const G2 = {
-  d0: 2,
-  s1: [9998, 10000, 9998, 10000, 10000],
-  s2: [29995, 30000, 29995, 29995, 30000],
-  pesa: kg => ({ nominal: kg * 1000, correccion: null, U: (0.05 * kg) / 3, k: 2, emp: 0.05 * kg, clase: 'M1', densidad: 7950, uDensidad: 70 }),
-  opciones: { unidad: 'g', empuje: '5a', aire: { rho: 1.2, u: 0.0207 }, kD: 1.5 },
-  // Indicación (g), pesas (kg), d y lo que publica la guía en G2.3 (g).
-  puntos: [
-    { I: 10000, piezas: [10], dI: 2, s: 's1', uI: 1.37, uE: 1.41, nu: 10, k: 2.28, U: 3.2 },
-    { I: 24995, piezas: [20, 5], dI: 5, s: 's2', uI: 3.15, uE: 3.25, nu: 7, k: 2.43, U: 7.9 },
-    { I: 39990, piezas: [20, 20], dI: 10, s: 's2', uI: 4.02, uE: 4.22, nu: 21, k: 2.13, U: 9.0 },
-    { I: 59990, piezas: [20, 20, 20], dI: 10, s: 's2', uI: 4.02, uE: 4.46, nu: 26, k: 2.10, U: 9.4 },
-    // Netas, con 25 kg tarados: la carga de tara no entra en mref y d es el del valor neto.
-    { I: 9998, piezas: [10], dI: 2, s: 's1', uI: 1.37, uE: 1.41, nu: 10, k: 2.28, U: 3.2 },
-    { I: 19995, piezas: [20], dI: 5, s: 's2', uI: 3.15, uE: 3.22, nu: 7, k: 2.43, U: 7.8 },
-  ],
-};
 
 test('G2: repetibilidad por intervalo y error con u(E), νeff, k y U por punto', () => {
   const rep = { s1: motor.repetibilidad(G2.s1), s2: motor.repetibilidad(G2.s2) };
