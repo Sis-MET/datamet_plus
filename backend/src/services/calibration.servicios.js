@@ -91,7 +91,7 @@ const cargarPatrones = async () => {
     const codigo = clave(equipo.codigo);
     // Si un código se repite, manda el equipo activo.
     if (patrones.has(codigo) && equipo.estado !== 'ACTIVO') continue;
-    patrones.set(codigo, { id: equipo.id, codigo: equipo.codigo, estado: equipo.estado, certificados: lista });
+    patrones.set(codigo, { id: equipo.id, codigo: equipo.codigo, instrumento: equipo.instrumento, estado: equipo.estado, certificados: lista });
   }
   return patrones;
 };
@@ -202,6 +202,31 @@ const listarServicios = async ({ desde = null, hasta = null, q = null, tecnico =
   };
 };
 
+/**
+ * Patrones que usó cada servicio del periodo, con su estado el día del
+ * servicio (certificado vigente, valores transcritos y verificados).
+ */
+const usosDePatrones = async ({ desde = null, hasta = null } = {}) => {
+  const request = getPool().request();
+  const where = filtrosSql(request, { desde, hasta, q: null });
+  const [result, contexto] = await Promise.all([
+    request.query(`${VIGENTES} SELECT * FROM vigentes WHERE ${where}`),
+    cargarContexto(),
+  ]);
+  const usos = result.recordset.map((fila) => {
+    const { modelo } = modeloDeFila(fila, contexto);
+    return {
+      codigo: fila.codigo_registro,
+      fecha: modelo.servicio.fecha,
+      patrones: [
+        ...modelo.patrones.juegos.map(p => ({ ...p, uso: 'PESAS' })),
+        ...modelo.patrones.ambiente.map(p => ({ ...p, uso: 'AMBIENTE' })),
+      ],
+    };
+  });
+  return { usos, patrones: contexto.patrones };
+};
+
 /** Fila vigente de un servicio tal como la subió ServiceMET (404 si no existe). */
 const filaVigente = async (codigo, createRequest = () => getPool().request()) => {
   const result = await createRequest()
@@ -280,4 +305,5 @@ module.exports = {
   leerServicio,
   listarServicios,
   revisarServicios,
+  usosDePatrones,
 };

@@ -60,6 +60,7 @@ export const APP_VIEWS = {
         children: [
           { id: 'certificados', label: 'Registros' },
           { id: 'emitidos', label: 'Emitidos' },
+          { id: 'patrones', label: 'Patrones' },
           { id: 'metodo', label: 'Método de cálculo' },
         ],
       },

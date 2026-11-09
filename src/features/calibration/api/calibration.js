@@ -73,6 +73,8 @@ export const calibrationApi = {
   guardarAprobadores: (body) => write(api.put(`${BASE}/configuracion/aprobadores`, body)).then(response => response.data),
   // Libro de certificados emitidos (cada n.º con sus emisiones).
   emitidos: () => unwrap(api.get(`${BASE}/emitidos`)),
+  // Qué le falta a cada patrón y cuántos servicios del año deja provisionales.
+  estadoPatrones: (anio) => unwrap(api.get(`${BASE}/patrones/estado`, { anio })),
   // Configuración del método por versiones (fase 6, migración 021).
   metodo: () => unwrap(api.get(`${BASE}/metodo`)),
   crearBorradorMetodo: (body) => unwrap(api.post(`${BASE}/metodo/borrador`, body)),

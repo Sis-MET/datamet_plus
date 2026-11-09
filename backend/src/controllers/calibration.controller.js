@@ -12,6 +12,7 @@ const certificadoService = require('../services/calibration.certificado');
 const emisionService = require('../services/calibration.emision');
 const metodoService = require('../services/calibration.metodo');
 const emitidosService = require('../services/calibration.emitidos');
+const estadoPatronesService = require('../services/calibration.patrones.estado');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -155,6 +156,11 @@ module.exports = {
   getMetodo: handle(req => metodoService.getMetodo(req.user)),
   // Libro de certificados emitidos (solo lectura).
   listEmitidos: handle(() => emitidosService.listarEmitidos()),
+  // Qué le falta a cada patrón para que los cálculos dejen de ser provisionales.
+  getEstadoPatrones: handle((req) => {
+    const anio = Number(req.query.anio);
+    return estadoPatronesService.getEstadoPatrones(Number.isInteger(anio) && anio >= 2000 && anio <= 2100 ? { anio } : {});
+  }),
   crearBorradorMetodo: handle(req => metodoService.crearBorrador(req.user, parse('metodoBorrador', req.body))),
   guardarBorradorMetodo: handle(req => metodoService.guardarBorrador(req.user, parse('metodoGuardar', req.body))),
   descartarBorradorMetodo: handle(req => metodoService.descartarBorrador(req.user, parse('metodoDescarte', req.body))),

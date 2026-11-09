@@ -51,13 +51,14 @@ import { CompliancePanel } from './components/CompliancePanel';
 import { ServiceMetPanel } from './components/ServiceMetPanel';
 import { MetodoPagina } from './components/metodo/MetodoPagina';
 import { EmitidosPanel } from './components/emitidos/EmitidosPanel';
+import { PatronesPanel } from './components/patrones/PatronesPanel';
 import './calibration.css';
 
 const TAB_KEY = 'datamet_cal_tab';
 const VIEW_KEY = 'datamet_cal_view';
-const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'emitidos', 'alertas', 'cumplimiento', 'metodo', 'servicemet'];
+const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'emitidos', 'patrones', 'alertas', 'cumplimiento', 'metodo', 'servicemet'];
 // Secciones que no muestran el plan anual.
-const SIN_PLAN = new Set(['servicemet', 'certificados', 'emitidos', 'metodo']);
+const SIN_PLAN = new Set(['servicemet', 'certificados', 'emitidos', 'patrones', 'metodo']);
 const VIEWS = ['anio', 'mes', 'agenda'];
 
 const STATUS_FILTERS = [
@@ -297,6 +298,14 @@ export function CalibrationPage() {
       {/* Configuración del método por versiones (fase 6). */}
       {tab === 'metodo' && <MetodoPagina />}
       {/* Libro de certificados emitidos; «Abrir registro» lleva al registro del servicio. */}
+      {/* Qué le falta a cada patrón; «Piezas y valores» abre su ficha (la de Equipos). */}
+      {tab === 'patrones' && (
+        <PatronesPanel
+          version={historyVersion}
+          onPiezas={equipoId => setSub({ type: 'patron', equipoId })}
+          onEquipos={() => navegar(rutaDe('calibration', 'equipos'), { transicion: 'panel' })}
+        />
+      )}
       {tab === 'emitidos' && (
         <EmitidosPanel onAbrir={codigo => navegar(rutaDe('calibration', 'certificados', codigo), { transicion: 'panel', alCambiar: () => window.scrollTo({ top: 0 }) })} />
       )}

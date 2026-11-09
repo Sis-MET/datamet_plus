@@ -65,7 +65,7 @@ describe('acceso a los apartados por área', () => {
 
   it('Certificados es un desplegable con los registros y el método de cálculo', () => {
     const certificados = getNavigation(calibracion).find(view => view.id === 'calibration').sections.find(s => s.id === 'certificados');
-    expect(certificados.children.map(child => child.id)).toEqual(['certificados', 'emitidos', 'metodo']);
+    expect(certificados.children.map(child => child.id)).toEqual(['certificados', 'emitidos', 'patrones', 'metodo']);
     expect(findSection('calibration', 'emitidos', calibracion)).toMatchObject({ label: 'Emitidos', grupo: 'Certificados' });
     expect(findSection('calibration', 'metodo', calibracion)).toMatchObject({ label: 'Método de cálculo', grupo: 'Certificados' });
     expect(findSection('calibration', 'certificados', calibracion)).toMatchObject({ label: 'Registros', grupo: 'Certificados' });
