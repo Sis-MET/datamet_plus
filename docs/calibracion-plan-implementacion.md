@@ -713,6 +713,14 @@ Ajustes pedidos antes de las pruebas (2026-11-09):
   certificado y la conformidad con su riesgo. El presupuesto nombra la
   ecuación del empuje que se aplicó de verdad (antes decía 5b aunque faltara
   ρa1) y lecturas iguales dan s = 0 exacto.
+- **Certificados › Emitidos** (`GET /calibracion/emitidos`,
+  `components/emitidos/`): el libro de certificados. Cada n.º con su emisión
+  vigente, el cliente y el instrumento de la emisión firmada (del contenido
+  congelado), la fecha de la firma, quién autorizó y la cadena de
+  reemisiones con sus motivos; estados Vigente, Por firmar (autorizado sin
+  el firmado) y Anulado (autorización anulada antes de firmar). Búsqueda por
+  n.º, cliente, instrumento, ID. o serie, filtro por año; abre el registro o
+  el PDF firmado. Ahí se agregarán los históricos del Excel (fase 7).
 
 ## Fase 7 — Validación, migración y puesta en marcha
 

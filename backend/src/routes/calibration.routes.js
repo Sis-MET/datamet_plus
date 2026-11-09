@@ -26,6 +26,8 @@ router.get('/registros/:codigo', controller.getRegistro);
 // Certificado de calibración del registro (fase 5): vista previa.
 router.get('/registros/:codigo/certificado', controller.getCertificado);
 router.get('/registros/:codigo/emisiones/:emision/pdf', controller.abrirCertificadoPdf);
+// Certificados emitidos: cada n.º con sus emisiones (libro de certificados).
+router.get('/emitidos', controller.listEmitidos);
 // Aprobadores de los registros: los designa el jefe de Calibración (migración 019).
 router.get('/configuracion/aprobadores', controller.getAprobadores);
 // Configuración del método por versiones (fase 6, migración 021).

@@ -11,6 +11,7 @@ const aprobadoresService = require('../services/calibration.aprobadores');
 const certificadoService = require('../services/calibration.certificado');
 const emisionService = require('../services/calibration.emision');
 const metodoService = require('../services/calibration.metodo');
+const emitidosService = require('../services/calibration.emitidos');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -152,6 +153,8 @@ module.exports = {
   getAprobadores: handle(req => aprobadoresService.obtener(req.user)),
   // Configuración del método por versiones (fase 6).
   getMetodo: handle(req => metodoService.getMetodo(req.user)),
+  // Libro de certificados emitidos (solo lectura).
+  listEmitidos: handle(() => emitidosService.listarEmitidos()),
   crearBorradorMetodo: handle(req => metodoService.crearBorrador(req.user, parse('metodoBorrador', req.body))),
   guardarBorradorMetodo: handle(req => metodoService.guardarBorrador(req.user, parse('metodoGuardar', req.body))),
   descartarBorradorMetodo: handle(req => metodoService.descartarBorrador(req.user, parse('metodoDescarte', req.body))),

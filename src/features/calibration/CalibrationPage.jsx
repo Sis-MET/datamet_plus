@@ -15,7 +15,7 @@ import {
 import { toast } from 'sonner';
 import { Button } from '../../shared/components/ui/Button';
 import { cn } from '../../shared/utils/cn';
-import { usePestanaRuta } from '../../shared/navigation/ruta';
+import { navegar, rutaDe, usePestanaRuta } from '../../shared/navigation/ruta';
 import { safeStorage } from '../../shared/utils/storage';
 import { calibrationApi } from './api/calibration';
 import { useCalibrationPlan } from './hooks/useCalibrationPlan';
@@ -50,13 +50,14 @@ import { AlertSettings } from './components/AlertSettings';
 import { CompliancePanel } from './components/CompliancePanel';
 import { ServiceMetPanel } from './components/ServiceMetPanel';
 import { MetodoPagina } from './components/metodo/MetodoPagina';
+import { EmitidosPanel } from './components/emitidos/EmitidosPanel';
 import './calibration.css';
 
 const TAB_KEY = 'datamet_cal_tab';
 const VIEW_KEY = 'datamet_cal_view';
-const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'alertas', 'cumplimiento', 'metodo', 'servicemet'];
+const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'emitidos', 'alertas', 'cumplimiento', 'metodo', 'servicemet'];
 // Secciones que no muestran el plan anual.
-const SIN_PLAN = new Set(['servicemet', 'certificados', 'metodo']);
+const SIN_PLAN = new Set(['servicemet', 'certificados', 'emitidos', 'metodo']);
 const VIEWS = ['anio', 'mes', 'agenda'];
 
 const STATUS_FILTERS = [
@@ -295,6 +296,10 @@ export function CalibrationPage() {
       {tab === 'servicemet' && <ServiceMetPanel />}
       {/* Configuración del método por versiones (fase 6). */}
       {tab === 'metodo' && <MetodoPagina />}
+      {/* Libro de certificados emitidos; «Abrir registro» lleva al registro del servicio. */}
+      {tab === 'emitidos' && (
+        <EmitidosPanel onAbrir={codigo => navegar(rutaDe('calibration', 'certificados', codigo), { transicion: 'panel', alCambiar: () => window.scrollTo({ top: 0 }) })} />
+      )}
       {tab === 'certificados' && (
         <>
           {/* El registro de un servicio es una página (/calibracion/certificados/<servicio>), como los informes de Soporte. */}
