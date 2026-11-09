@@ -226,7 +226,10 @@
 .cc-notas ul { margin: 0; padding: 0; list-style: none; }
 .cc-notas li::before { content: '- '; }
 .cc-logos { display: flex; justify-content: center; padding: 1mm 0 3mm; }
-.cc-logos img { display: block; width: 120mm; height: auto; }
+/* La imagen salió del libro estirada a lo ancho (×1,42: el logo de METRICA
+   mide 4,65:1 y el original 3,27:1). Se dibuja con su proporción real,
+   1015:141 ÷ 1,42 ≈ 5,06:1, y no con la de sus píxeles. */
+.cc-logos img { display: block; width: 100mm; height: 19.8mm; }
 .cc-subtitulo { margin: 0 0 0.6mm; font-size: 8.6pt; font-weight: 700; }
 .cc-fin { margin-top: 4mm; font-size: 8.6pt; font-weight: 700; }
 .cc-anexo-titulo { margin-bottom: 2mm; padding: 1.5mm 2mm; border: 1pt solid #000; background: var(--cc-gris); font-size: 9pt; font-weight: 700; text-align: center; }

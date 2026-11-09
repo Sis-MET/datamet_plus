@@ -112,7 +112,9 @@
 .cp-declaraciones { align-self: start; padding: 3.5mm 4mm; border-left: 1.6mm solid var(--cp-acento); background: var(--cp-zebra); font-size: 7.6pt; line-height: 1.45; }
 .cp-declaraciones p { margin: 0 0 2mm; }
 .cp-declaraciones p:last-child { margin-bottom: 0; }
-.cp-declaraciones img { display: block; width: 46mm; height: auto; margin: 3mm 0 0; }
+/* La marca DTA salió del libro estirada a lo ancho (×1,42): se dibuja con su
+   proporción real, 497:141 ÷ 1,42 ≈ 2,48:1. */
+.cp-declaraciones img { display: block; width: 40mm; height: 16.2mm; margin: 3mm 0 0; }
 
 .cp-resumen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin-top: 6mm; }
 .cp-kpi { padding: 2.6mm 3mm; border: 0.6pt solid var(--cp-linea); border-top: 1.2mm solid var(--cp-banda); }
@@ -167,7 +169,7 @@
 .cp-anexo-aviso strong { font-size: 12pt; }
 .cp-anexo-aviso span { color: var(--cp-mal); font-size: 8pt; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .cp-fin { display: flex; align-items: center; justify-content: space-between; margin-top: 4mm; padding-top: 2.5mm; border-top: 0.8pt solid var(--cp-texto); font-weight: 700; letter-spacing: 0.04em; }
-.cp-fin img { display: block; width: 40mm; height: auto; }
+.cp-fin img { display: block; width: 34mm; height: 13.7mm; }
 
 /* ── Vista previa en pantalla ── */
 .cp-vista .cp-doc { display: flex; flex-direction: column; align-items: center; gap: 14px; }
