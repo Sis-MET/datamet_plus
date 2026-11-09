@@ -15,6 +15,7 @@ const { componentesIndicacion, excentricidad, repetibilidad, repetibilidadPara }
 const { densidadSupuesta, masaReferencia } = require('./referencia');
 const { cargaSustitucion } = require('./sustitucion');
 const { conformidad, empEnServicio, rangoDeCarga, toleranciaPorcentaje } = require('./tolerancia');
+const { incertidumbreEnUso, pesadaMinima } = require('./uso');
 
 const MAGNITUDES = { t: 'T', hr: 'HR', p: 'P' };
 
@@ -59,7 +60,7 @@ const ambienteCorregido = (ambiente, termohigrometro, avisos) => {
 const materialPorClase = (clase) => (String(clase || '').startsWith('M') ? 'Fundición gris' : 'Acero inoxidable');
 
 /** Piezas de los juegos en la unidad del instrumento, con su ρa1 y sus valores. */
-const piezasDeJuegos = (juegos, unidad, empR111, avisos) => {
+const piezasDeJuegos = (juegos, unidad, empR111, avisos, densidades) => {
   const mgPor = MG_POR[unidad];
   const piezas = [];
   const sinPiezas = [];
@@ -77,7 +78,7 @@ const piezasDeJuegos = (juegos, unidad, empR111, avisos) => {
     for (const pieza of activas) {
       const valor = juego.valores?.get(`${Number(pieza.nominalMg)}|${pieza.identificacion || ''}`);
       if (!valor) sinValores += 1;
-      const supuesta = pieza.densidad == null ? densidadSupuesta(pieza.material || juego.material || materialPorClase(juego.clase)) : null;
+      const supuesta = pieza.densidad == null ? densidadSupuesta(pieza.material || juego.material || materialPorClase(juego.clase), densidades) : null;
       piezas.push({
         // Identifica la pieza en una composición elegida a mano.
         clave: `${juego.codigo}|${Number(pieza.nominalMg)}|${pieza.identificacion || ''}`,
@@ -236,11 +237,26 @@ const calcularServicio = (modelo, datos) => {
   if (!posiciones.length) avisos.aviso('SIN_EXCENTRICIDAD', 'Sin ensayo de excentricidad: no se incluye su contribución.');
 
   // Patrones.
-  const { piezas, sinPiezas } = piezasDeJuegos(datos.juegos || [], unidad, datos.empR111, avisos);
+  const { piezas, sinPiezas } = piezasDeJuegos(datos.juegos || [], unidad, datos.empR111, avisos, config.densidades);
   if (sinPiezas.length) {
     avisos.aviso('PIEZAS_SUPUESTAS', `${sinPiezas.map(j => j.codigo).join(', ')} sin piezas registradas: cada carga se arma con la serie 5-2-2-1 de su clase, con valores nominales.`);
   }
   if (!piezas.length && !sinPiezas.length) avisos.error('SIN_PESAS', 'Sin juegos de pesas no se puede calcular la masa de referencia.');
+
+  // Convección: ΔT pesas–aire por el tiempo de estabilización (configuración).
+  const conveccion = config.conveccion?.activa ? (() => {
+    const texto = String(modelo.lugar?.estabilizacionPesas || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
+    const deltaT = config.conveccion.deltaTPorEstabilizacion?.[texto] ?? config.conveccion.deltaTSinDato ?? 0;
+    return { deltaT, estabilizacion: modelo.lugar?.estabilizacionPesas || null };
+  })() : null;
+  const usaConveccion = conveccion && conveccion.deltaT > 0 && [...piezas, ...sinPiezas].some(p => (config.conveccion.clases || []).includes(p.clase));
+  if (usaConveccion) {
+    avisos.info('CONVECCION', `Convección en pesas ${config.conveccion.clases.join(', ')} con ΔT = ${conveccion.deltaT} K (estabilización: ${conveccion.estabilizacion || 'sin dato'}; EURAMET 7.1.2-13, Anexo F).`);
+  }
+  const opcionesMasa = {
+    unidad, aire, empuje: config.empuje, kD: config.kD, conveccion: Boolean(usaConveccion), deltaT: usaConveccion ? conveccion.deltaT : 0,
+    clasesConveccion: config.conveccion?.clases, densidades: config.densidades,
+  };
 
   const metodoCeros = modelo.errores.metodo === 'EVALUANDO_CEROS';
   const claseInstrumento = datos.claseInstrumento || modelo.instrumento.clase?.valor || null;
@@ -266,7 +282,7 @@ const calcularServicio = (modelo, datos) => {
       sustitucion = referenciaSustitucion({
         carga: punto.carga,
         piezas,
-        opcionesReferencia: { unidad, aire, empuje: config.empuje, kD: config.kD },
+        opcionesReferencia: opcionesMasa,
         componentesEn: (indicacionPaso) => {
           const rangoPaso = rangoDeCarga(rangos, indicacionPaso);
           const sPaso = repetibilidadPara(indicacionPaso, ensayos);
@@ -281,7 +297,7 @@ const calcularServicio = (modelo, datos) => {
     if (!elegidas && sinPiezas.length) {
       const juego = sinPiezas[0];
       elegidas = (piezasSupuestas(punto.carga) || []).map(p => {
-        const densidad = densidadSupuesta(juego.material) || { rho: 8000, u: 0 };
+        const densidad = densidadSupuesta(juego.material, config.densidades) || { rho: 8000, u: 0 };
         const nominalMg = p.nominal * MG_POR[unidad];
         return {
           ...p,
@@ -307,7 +323,7 @@ const calcularServicio = (modelo, datos) => {
       avisos.aviso('PESA_SIN_EMP', `En el punto ${punto.n} hay piezas sin certificado ni emp de la R111 (valor nominal fuera de la Tabla 1): su u queda en cero.`);
     }
 
-    const referencia = sustitucion ? sustitucion.referencia : masaReferencia(elegidas, { unidad, aire, empuje: config.empuje, kD: config.kD });
+    const referencia = sustitucion ? sustitucion.referencia : masaReferencia(elegidas, opcionesMasa);
     const rango = rangoDeCarga(rangos, punto.carga);
     const s = repetibilidadPara(I, ensayos);
     const componentesI = componentesIndicacion(I, { d0: rangos[0].d, dI: rango.d, s: s?.s, nuS: s?.nu, uRelEcc: ecc.uRel });
@@ -353,17 +369,69 @@ const calcularServicio = (modelo, datos) => {
   }
 
   const calculados = puntos.filter(p => p.calculado);
+
+  // Información adicional: incertidumbre en uso, global y pesada mínima (7.4, 7.5, G).
+  let enUso = null;
+  if (calculados.length && config.enUso) {
+    const resultado = incertidumbreEnUso({
+      rangos,
+      d0: rangos[0].d,
+      puntos: calculados.map(p => ({ I: p.indicacion, E: p.error, u: p.u })),
+      s: Math.max(0, ...ensayos.map(e => e.s || 0)),
+      eccMaxima: ecc.maxima,
+      eccCarga: cargaEcc,
+      clase: claseInstrumento,
+      configuracion: config.enUso,
+    });
+    const maxTotal = rangos[rangos.length - 1].max;
+    const tabla = (config.enUso.fracciones || []).map((fraccion) => {
+      const R = fraccion * maxTotal;
+      const r = resultado.rangos.find(x => R <= x.max * (1 + 1e-9)) || resultado.rangos[resultado.rangos.length - 1];
+      return { fraccion, R, U: r.U(R), Ugl: r.Ugl(R) };
+    });
+    // Pesada mínima en el rango menor, donde se pesan las cantidades pequeñas (G-9).
+    const menor = resultado.rangos[0];
+    const alfaGl = menor.U0;
+    const betaGl = menor.C + Math.abs(resultado.a1);
+    const pm = config.pesadaMinima || { exactitudes: [], factores: [] };
+    enUso = {
+      k: resultado.k,
+      deltaT: resultado.deltaT,
+      kT: resultado.kT,
+      origenKT: resultado.origenKT,
+      a1: resultado.a1,
+      terminos: resultado.terminos,
+      rangos: resultado.rangos.map(r => ({ max: r.max, d: r.d, U0: r.U0, C: r.C, alfa: r.alfa, beta: r.beta })),
+      tabla,
+      pesadaMinima: {
+        alfaGl,
+        betaGl,
+        exactitudes: pm.exactitudes,
+        factores: pm.factores,
+        filas: pm.exactitudes.map(exactitud => ({
+          exactitud,
+          valores: pm.factores.map((factor) => {
+            const valor = pesadaMinima({ alfaGl, betaGl, exactitud, factor });
+            return valor != null && valor <= maxTotal ? valor : null;
+          }),
+        })),
+      },
+    };
+  }
+
   return {
     calculado: calculados.length > 0,
     provisional: avisos.lista.some(a => ['PESAS_SIN_VALORES', 'PESAS_SIN_VERIFICAR', 'PIEZAS_SUPUESTAS', 'THB_SIN_VALORES'].includes(a.codigo)),
     unidad,
     configuracion: config.version,
+    conveccion: usaConveccion ? conveccion : null,
     aire: { rho: aire.rho, u: aire.u, condiciones: aire.condiciones },
     repetibilidad: ensayos,
     excentricidad: { carga: cargaEcc, diferencias: ecc.diferencias, maxima: ecc.maxima, uRel: ecc.uRel },
     // Piezas registradas de los juegos, para elegir a mano la composición de una carga.
     piezasDisponibles: piezas.map(p => ({ clave: p.clave, juego: p.juego, nominal: p.nominal, identificacion: p.identificacion })),
     puntos,
+    enUso,
     avisos: avisos.lista,
   };
 };

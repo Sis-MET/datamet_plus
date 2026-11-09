@@ -34,21 +34,22 @@ const dentro = (raiz, destino) => {
   return relativo === '' || (!relativo.startsWith(`..${path.sep}`) && relativo !== '..' && !path.isAbsolute(relativo));
 };
 
-function crearArchivo(ubicacion) {
+/** Archivo de PDF de un área en una carpeta del servidor. `area` va en los mensajes. */
+function crearArchivo(ubicacion, { area = 'Soporte' } = {}) {
   const traducir = cause => {
     if (cause.statusCode) return cause;
     if (['ENOENT', 'ENOTDIR'].includes(cause.code)) return error(404, 'La carpeta o el PDF ya no están disponibles en el servidor.');
     if (['EACCES', 'EPERM'].includes(cause.code)) return error(503, 'DataMET+ no tiene acceso a la carpeta seleccionada. Solicite revisar sus permisos.');
     if (cause.code === 'ENOSPC') return error(503, 'El servidor no tiene espacio disponible para guardar el PDF.');
-    return error(503, 'No se pudo acceder al archivo de Soporte. Compruebe la disponibilidad de la carpeta en el servidor.');
+    return error(503, `No se pudo acceder al archivo de ${area}. Compruebe la disponibilidad de la carpeta en el servidor.`);
   };
   const raiz = async () => {
-    if (!ubicacion || !path.isAbsolute(ubicacion)) throw error(503, 'El archivo de Soporte no está configurado en el servidor.');
+    if (!ubicacion || !path.isAbsolute(ubicacion)) throw error(503, `El archivo de ${area} no está configurado en el servidor.`);
     try {
       const real = await fs.realpath(ubicacion);
-      if (!(await fs.stat(real)).isDirectory()) throw error(503, 'La carpeta del archivo de Soporte no está disponible.');
+      if (!(await fs.stat(real)).isDirectory()) throw error(503, `La carpeta del archivo de ${area} no está disponible.`);
       return real;
-    } catch (cause) { throw cause.statusCode ? cause : error(503, 'La carpeta del archivo de Soporte no está disponible en el servidor.'); }
+    } catch (cause) { throw cause.statusCode ? cause : error(503, `La carpeta del archivo de ${area} no está disponible en el servidor.`); }
   };
   const resolver = async (carpeta = '') => {
     carpetaRelativa(carpeta);
@@ -58,9 +59,9 @@ function crearArchivo(ubicacion) {
       for (const parte of carpeta ? carpeta.split('/') : []) {
         actual = path.join(actual, parte);
         const stat = await fs.lstat(actual);
-        if (stat.isSymbolicLink() || !stat.isDirectory()) throw error(400, 'Seleccione una carpeta del archivo de Soporte. Los accesos directos no están disponibles.');
+        if (stat.isSymbolicLink() || !stat.isDirectory()) throw error(400, `Seleccione una carpeta del archivo de ${area}. Los accesos directos no están disponibles.`);
         actual = await fs.realpath(actual);
-        if (!dentro(base, actual)) throw error(403, 'La carpeta está fuera del archivo de Soporte.');
+        if (!dentro(base, actual)) throw error(403, `La carpeta está fuera del archivo de ${area}.`);
       }
       return { base, carpeta: actual, raizHuella: hash(process.platform === 'win32' ? base.toLowerCase() : base) };
     } catch (cause) { throw traducir(cause); }
@@ -73,7 +74,7 @@ function crearArchivo(ubicacion) {
       const stat = await fs.lstat(archivo);
       if (stat.isSymbolicLink() || !stat.isFile() || stat.size > MAX_PDF_BYTES) throw error(409, 'El archivo guardado ya no corresponde a un PDF disponible.');
       const real = await fs.realpath(archivo);
-      if (!dentro(destino.base, real)) throw error(403, 'El archivo está fuera del archivo de Soporte.');
+      if (!dentro(destino.base, real)) throw error(403, `El archivo está fuera del archivo de ${area}.`);
       const contenido = await fs.readFile(real);
       if (contenido.length > MAX_PDF_BYTES) throw error(409, 'El archivo guardado supera el tamaño permitido.');
       return { ...destino, contenido, huella: hash(contenido) };

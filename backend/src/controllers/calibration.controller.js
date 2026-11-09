@@ -8,6 +8,9 @@ const puntosService = require('../services/calibration.puntos');
 const calculoService = require('../services/calibration.calculo');
 const registrosService = require('../services/calibration.registros');
 const aprobadoresService = require('../services/calibration.aprobadores');
+const certificadoService = require('../services/calibration.certificado');
+const emisionService = require('../services/calibration.emision');
+const metodoService = require('../services/calibration.metodo');
 const { parse } = require('../services/calibration.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -41,7 +44,7 @@ const handle = (action) => async (req, res, next) => {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
     // Tabla o columna ausente: falta aplicar una migración del módulo.
-    if (/Invalid (object|column) name '(dbo\.CAL_|CAL_|registro_ref|revisado_|revision_obs|corregido_)/i.test(error.message || '')) {
+    if (/Invalid (object|column) name '(dbo\.CAL_|CAL_|registro_ref|revisado_|revision_obs|revision_motivo|corregido_)/i.test(error.message || '')) {
       recordFailure({ origen: 'SERVIDOR', error: Object.assign(error, { statusCode: 503 }), req });
       return res.status(503).json({
         success: false,
@@ -118,7 +121,41 @@ module.exports = {
   retirarRegistro: handle(req => registrosService.retirarRegistro(readCodigo(req.params.codigo), req.user)),
   revisarRegistro: handle(req => registrosService.revisarRegistro(readCodigo(req.params.codigo), parse('registroRevision', req.body), req.user)),
   reabrirRegistro: handle(req => registrosService.reabrirRegistro(readCodigo(req.params.codigo), parse('registroReapertura', req.body), req.user)),
+  getCertificado: handle(req => certificadoService.getCertificado(readCodigo(req.params.codigo), req.user, {
+    emision: req.query.emision ? readId(req.query.emision) : null,
+  })),
+  vistaPreviaCertificado: handle(req => certificadoService.previsualizar(readCodigo(req.params.codigo), parse('registroVistaPrevia', req.body))),
+  autorizarCertificado: handle(req => emisionService.autorizar(readCodigo(req.params.codigo), req.user)),
+  anularAutorizacion: handle(req => emisionService.anularAutorizacion(readCodigo(req.params.codigo), parse('certificadoMotivo', req.body), req.user)),
+  subirFirmado: handle(req => emisionService.subirFirmado(
+    readCodigo(req.params.codigo),
+    req.body,
+    { fechaFirma: /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.fechaFirma || '')) ? req.query.fechaFirma : null },
+    req.user,
+  )),
+  abrirRevisionCertificado: handle(req => emisionService.abrirRevision(readCodigo(req.params.codigo), parse('certificadoMotivo', req.body), req.user)),
+  abrirCertificadoPdf: async (req, res, next) => {
+    try {
+      const pdf = await emisionService.abrirPdf(readCodigo(req.params.codigo), readId(req.params.emision), req.user);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': `inline; filename="certificado.pdf"; filename*=UTF-8''${encodeURIComponent(pdf.nombre).replace(/['()]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`,
+      });
+      res.send(pdf.contenido);
+    } catch (error) {
+      if ([400, 403, 404, 409, 503].includes(error.statusCode)) return res.status(error.statusCode).json({ success: false, message: error.message });
+      return next(error);
+    }
+  },
   getAprobadores: handle(req => aprobadoresService.obtener(req.user)),
+  // Configuración del método por versiones (fase 6).
+  getMetodo: handle(req => metodoService.getMetodo(req.user)),
+  crearBorradorMetodo: handle(req => metodoService.crearBorrador(req.user, parse('metodoBorrador', req.body))),
+  guardarBorradorMetodo: handle(req => metodoService.guardarBorrador(req.user, parse('metodoGuardar', req.body))),
+  descartarBorradorMetodo: handle(req => metodoService.descartarBorrador(req.user, parse('metodoDescarte', req.body))),
+  aprobarMetodo: handle(req => metodoService.aprobar(req.user, parse('metodoAprobacion', req.body))),
   saveAprobadores: handle(req => aprobadoresService.guardar(parse('aprobadores', req.body), req.user)),
   getPuntosAcordados: handle(req => puntosService.getPuntos(req.params.codMetrica)),
   savePuntosAcordados: handle(req => puntosService.savePuntos(req.params.codMetrica, parse('puntosAcordados', req.body), req.user)),

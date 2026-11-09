@@ -85,7 +85,15 @@ const datosDe = (json) => {
     composiciones: datos.composiciones && typeof datos.composiciones === 'object'
       ? Object.fromEntries(Object.entries(datos.composiciones).filter(esComposicion))
       : {},
+    // Anexo de información adicional (incertidumbre en uso, pesada mínima), a pedido del cliente.
+    anexo: datos.anexo === true,
   };
+};
+
+/** Pedido del anexo de información adicional: sin cambio si no llega. */
+const planAnexo = (actual, entrante) => {
+  if (entrante === undefined || Boolean(entrante) === Boolean(actual)) return { anexo: Boolean(actual), cambio: null };
+  return { anexo: Boolean(entrante), cambio: { campo: 'anexo', antes: actual ? 'Sí' : 'No', despues: entrante ? 'Sí' : 'No' } };
 };
 
 const numeroComa = (valor) => String(Number(valor.toPrecision(10))).replace('.', ',');
@@ -158,7 +166,8 @@ const planClase = (actual, entrante) => {
 
 /**
  * Qué puede hacer el usuario con el registro en su estado actual. revisor: el
- * jefe o un aprobador designado; reabrir uno aprobado queda para el jefe.
+ * jefe o un aprobador designado; reabrir uno aprobado queda para el jefe, que
+ * también autoriza, firma y abre las revisiones del certificado (fase 5).
  */
 const permisosDe = ({ usuario, jefe, revisor = jefe, editor }, registro) => {
   const estado = registro?.estado || 'PENDIENTE';
@@ -171,6 +180,10 @@ const permisosDe = ({ usuario, jefe, revisor = jefe, editor }, registro) => {
     retirar: estado === 'EN_REVISION' && (mismo || revisor),
     revisar: estado === 'EN_REVISION' && revisor && !mismo,
     reabrir: estado === 'APROBADO' && jefe,
+    autorizar: estado === 'APROBADO' && jefe,
+    anularAutorizacion: estado === 'AUTORIZADO' && jefe,
+    subirFirmado: estado === 'AUTORIZADO' && jefe,
+    abrirRevision: estado === 'EMITIDO' && jefe,
     motivoRevisar: estado === 'EN_REVISION' && revisor && mismo ? 'Lo enviaste tú: debe revisarlo otra persona.' : null,
   };
 };
@@ -184,7 +197,7 @@ const leerRegistro = async (createRequest, codigo, { lock = false } = {}) => {
         CONVERT(varchar(19), creado_en, 126) AS creado_en, actualizado_por,
         CONVERT(varchar(19), actualizado_en, 126) AS actualizado_en, enviado_por,
         CONVERT(varchar(19), enviado_en, 126) AS enviado_en, revisado_por,
-        CONVERT(varchar(19), revisado_en, 126) AS revisado_en, observacion, configuracion
+        CONVERT(varchar(19), revisado_en, 126) AS revisado_en, observacion, configuracion, revision_motivo
       FROM dbo.CAL_REGISTROS ${lock ? 'WITH (UPDLOCK, HOLDLOCK)' : ''} WHERE codigo_registro = @codigo`);
   return result.recordset[0] || null;
 };
@@ -249,9 +262,22 @@ const metaRegistro = (registro) => (registro ? {
   revisadoEn: registro.revisado_en ? `${registro.revisado_en}Z` : null,
   observacion: clean(registro.observacion),
   configuracion: registro.configuracion,
+  revisionMotivo: clean(registro.revision_motivo),
 } : null);
 
 // ─── Operaciones ───────────────────────────────────────────────────────────
+
+/** Emisiones del certificado (calibration.emision, que carga este módulo: diferido). */
+const emisionesDe = async (registroId) => {
+  const { leerEmisiones, publica } = require('./calibration.emision');
+  return (await leerEmisiones(() => getPool().request(), registroId)).map(publica);
+};
+
+// Desde la aprobación el registro conserva la versión del método con la que se
+// calculó; antes, se calcula con la vigente (fase 6).
+const CONSERVAN_METODO = new Set(['APROBADO', 'AUTORIZADO', 'EMITIDO']);
+const versionDe = registro => (registro && CONSERVAN_METODO.has(registro.estado) && registro.configuracion != null
+  ? Number(registro.configuracion) : null);
 
 /** El registro de un servicio: sus correcciones, el modelo corregido, el cálculo y el historial. */
 const getRegistro = async (codigo, user) => {
@@ -261,7 +287,7 @@ const getRegistro = async (codigo, user) => {
   const fuente = normalizarFuente(fila, columnas);
   const datos = datosDe(registro?.datos);
   const { modelo, avisos } = await modeloCorregido(fila, datos);
-  const calculo = await calcularModelo(modelo, datos);
+  const calculo = await calcularModelo(modelo, datos, { version: versionDe(registro) });
   const editables = Object.fromEntries([...columnas.entries()].filter(([c, meta]) => esEditable(c, meta)).map(([c, meta]) => [c, meta]));
   const huellaActual = huellaDe({ fuente, datos });
   return {
@@ -284,6 +310,8 @@ const getRegistro = async (codigo, user) => {
     calculo,
     versiones: fila.versiones,
     historial: registro ? await leerHistorial(registro.id) : [],
+    // Emisiones del certificado (fase 5).
+    emisiones: registro ? await emisionesDe(registro.id) : [],
     permisos: permisosDe(persona, registro),
   };
 };
@@ -310,11 +338,12 @@ const guardarRegistro = async (codigo, data, user) => {
     const clase = planClase(actuales.clase, data.clase);
     const unidad = String(correcciones.columnas.unidades ?? fuente.unidades ?? '').trim();
     const composiciones = planComposiciones(actuales.composiciones, data.composiciones, unidad);
-    const cambios = [...correcciones.cambios, ...(clase.cambio ? [clase.cambio] : []), ...composiciones.cambios];
+    const anexo = planAnexo(actuales.anexo, data.anexo);
+    const cambios = [...correcciones.cambios, ...(clase.cambio ? [clase.cambio] : []), ...composiciones.cambios, ...(anexo.cambio ? [anexo.cambio] : [])];
     if (!cambios.length) return { codigo, cambios: 0, version: registro?.version ?? null };
 
     if (!registro) registro = await crearRegistro(createRequest, codigo, user);
-    const datos = { columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones };
+    const datos = { columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones, anexo: anexo.anexo };
     await createRequest()
       .input('id', sql.Int, registro.id)
       .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datos))
@@ -446,6 +475,15 @@ const reabrirRegistro = async (codigo, { motivo }, user) => {
 };
 
 module.exports = {
+  // Para la emisión del certificado (calibration.emision.js).
+  calcularModelo,
+  columnasCalibracion,
+  datosDe,
+  filaVigente,
+  historial,
+  leerRegistro,
+  modeloCorregido,
+  normalizarFuente,
   CLASES,
   ORIGENES_CLASE,
   enviarRegistro,
@@ -454,6 +492,7 @@ module.exports = {
   guardarRegistro,
   huellaDe,
   permisosDe,
+  planAnexo,
   planComposiciones,
   textoComposicion,
   planClase,
@@ -461,4 +500,5 @@ module.exports = {
   reabrirRegistro,
   retirarRegistro,
   revisarRegistro,
+  versionDe,
 };

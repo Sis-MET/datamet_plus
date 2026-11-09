@@ -111,6 +111,8 @@ module.exports = {
   },
   calibration: {
     alertsEnabled: flag(process.env.CAL_ALERTS_ENABLED, true),
+    // Carpeta del área donde se archivan los certificados firmados (PC-EMIN).
+    documentosDir: String(process.env.CAL_DOCUMENTOS_DIR || '').trim(),
     // Enlace al cronograma que se incluye en los correos (opcional).
     appUrl: String(process.env.APP_URL || '').trim(),
   },

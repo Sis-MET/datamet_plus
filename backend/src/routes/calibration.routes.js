@@ -23,8 +23,13 @@ router.get('/servicios', controller.listServicios);
 router.get('/servicios/:codigo', controller.getServicio);
 router.get('/servicios/:codigo/calculo', controller.getCalculoServicio);
 router.get('/registros/:codigo', controller.getRegistro);
+// Certificado de calibración del registro (fase 5): vista previa.
+router.get('/registros/:codigo/certificado', controller.getCertificado);
+router.get('/registros/:codigo/emisiones/:emision/pdf', controller.abrirCertificadoPdf);
 // Aprobadores de los registros: los designa el jefe de Calibración (migración 019).
 router.get('/configuracion/aprobadores', controller.getAprobadores);
+// Configuración del método por versiones (fase 6, migración 021).
+router.get('/metodo', controller.getMetodo);
 // Puntos de ensayo acordados de cada instrumento de cliente (los mantiene Calibración).
 router.get('/puntos-acordados/:codMetrica', controller.getPuntosAcordados);
 
@@ -48,6 +53,16 @@ router.post('/registros/:codigo/retiro', controller.retirarRegistro);
 router.post('/registros/:codigo/revision', controller.revisarRegistro);
 router.post('/registros/:codigo/reapertura', controller.reabrirRegistro);
 router.put('/configuracion/aprobadores', controller.saveAprobadores);
+router.post('/metodo/borrador', controller.crearBorradorMetodo);
+router.put('/metodo/borrador', controller.guardarBorradorMetodo);
+router.post('/metodo/borrador/descarte', controller.descartarBorradorMetodo);
+router.post('/metodo/aprobacion', controller.aprobarMetodo);
+// Emisión del certificado (fase 5): autoriza, firma y reemite el jefe de Calibración.
+router.post('/registros/:codigo/vista-previa', controller.vistaPreviaCertificado);
+router.post('/registros/:codigo/autorizacion', controller.autorizarCertificado);
+router.post('/registros/:codigo/autorizacion/anulacion', controller.anularAutorizacion);
+router.post('/registros/:codigo/firmado', express.raw({ type: 'application/pdf', limit: '30mb' }), controller.subirFirmado);
+router.post('/registros/:codigo/revision-certificado', controller.abrirRevisionCertificado);
 router.post('/actividades', controller.createActividad);
 router.put('/actividades/:id', controller.updateActividad);
 router.delete('/actividades/:id', controller.deleteActividad);

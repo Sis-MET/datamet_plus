@@ -42,19 +42,21 @@ import { EditEquipmentModal, NewEquipmentModal } from './components/EquipmentFor
 import { CertificateModal } from './components/CertificateModal';
 import { PatronModal } from './components/PatronModal';
 import { ServiciosPanel } from './components/ServiciosPanel';
+import { RegistroPagina } from './components/registro/RegistroPagina';
 import { tipoPatronSugerido } from './domain/patrones';
 import { ReasonModal } from './components/ReasonModal';
 import { ActivitiesList } from './components/ActivitiesList';
 import { AlertSettings } from './components/AlertSettings';
 import { CompliancePanel } from './components/CompliancePanel';
 import { ServiceMetPanel } from './components/ServiceMetPanel';
+import { MetodoPagina } from './components/metodo/MetodoPagina';
 import './calibration.css';
 
 const TAB_KEY = 'datamet_cal_tab';
 const VIEW_KEY = 'datamet_cal_view';
-const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'alertas', 'cumplimiento', 'servicemet'];
+const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'alertas', 'cumplimiento', 'metodo', 'servicemet'];
 // Secciones que no muestran el plan anual.
-const SIN_PLAN = new Set(['servicemet', 'certificados']);
+const SIN_PLAN = new Set(['servicemet', 'certificados', 'metodo']);
 const VIEWS = ['anio', 'mes', 'agenda'];
 
 const STATUS_FILTERS = [
@@ -92,7 +94,7 @@ function PlanSkeleton() {
 export function CalibrationPage() {
   // La pestaña va en la dirección (/calibracion/equipos, /calibracion/alertas…)
   // y se elige desde la barra lateral.
-  const { pestana: storedTab } = usePestanaRuta('calibration', TABS, {
+  const { pestana: storedTab, detalle, irADetalle } = usePestanaRuta('calibration', TABS, {
     clave: TAB_KEY,
     predeterminada: 'cronograma',
   });
@@ -104,6 +106,8 @@ export function CalibrationPage() {
   const [query, setQuery] = useState('');
   const [situaciones, setSituaciones] = useState(() => new Set());
   const [ficha, setFicha] = useState(null);
+  // Cambia al volver del registro de un servicio: la lista relee los estados.
+  const [vueltaRegistro, setVueltaRegistro] = useState(0);
   // Cambia tras configurar varios equipos para vaciar la selección de la tabla.
   const [bulkRound, setBulkRound] = useState(0);
   // Ficha apilada sobre la principal (certificado, datos, baja, anulación).
@@ -123,6 +127,7 @@ export function CalibrationPage() {
   const canEdit = Boolean(data?.permisos?.canEdit);
   // Cumplimiento es solo para quienes editan; sin permiso se vuelve al cronograma.
   const tab = storedTab === 'cumplimiento' && data && !canEdit ? 'cronograma' : storedTab;
+  const registroAbierto = tab === 'certificados' && detalle[0] ? detalle[0] : null;
   const ajustes = data?.ajustes;
 
   const categorias = useMemo(
@@ -288,7 +293,31 @@ export function CalibrationPage() {
       <div className="vt-panel flex flex-col gap-4">
       {/* Versiones de ServiceMET y servicios de calibración: no dependen del plan anual. */}
       {tab === 'servicemet' && <ServiceMetPanel />}
-      {tab === 'certificados' && <ServiciosPanel canEdit={canEdit} />}
+      {/* Configuración del método por versiones (fase 6). */}
+      {tab === 'metodo' && <MetodoPagina />}
+      {tab === 'certificados' && (
+        <>
+          {/* El registro de un servicio es una página (/calibracion/certificados/<servicio>), como los informes de Soporte. */}
+          {registroAbierto && (
+            <RegistroPagina
+              key={registroAbierto}
+              codigo={registroAbierto}
+              canEdit={canEdit}
+              onVolver={() => {
+                irADetalle([], { alCambiar: () => window.scrollTo({ top: 0 }) });
+                setVueltaRegistro(v => v + 1);
+              }}
+            />
+          )}
+          {/* La lista se oculta sin desmontarse: al volver conserva filtros y grupos abiertos. */}
+          <div hidden={Boolean(registroAbierto)}>
+            <ServiciosPanel
+              actualizar={vueltaRegistro}
+              onAbrir={codigo => irADetalle([codigo], { alCambiar: () => window.scrollTo({ top: 0 }) })}
+            />
+          </div>
+        </>
+      )}
 
       {error && !SIN_PLAN.has(tab) && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-danger/30 bg-danger/5 px-4 py-3" role="alert">

@@ -1,0 +1,8 @@
+/* Página del registro de calibración: marcas de los datos corregidos, como
+   en el editor de Soporte (.st-campo-editado). */
+
+/* Distinto de lo que subió ServiceMET (guardado o no). */
+.cc-campo-corregido { box-shadow: inset 3px 0 0 rgb(var(--c-info)); }
+
+/* Escrito y aún sin guardar. */
+.cc-campo-pendiente { box-shadow: inset 3px 0 0 rgb(var(--c-warning)); }

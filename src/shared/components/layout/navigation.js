@@ -56,6 +56,8 @@ export const APP_VIEWS = {
       { id: 'certificados', label: 'Certificados' },
       { id: 'alertas', label: 'Alertas' },
       { id: 'cumplimiento', label: 'Cumplimiento' },
+      // Parámetros y textos del certificado por versión, con aprobación del jefe (fase 6).
+      { id: 'metodo', label: 'Método' },
       // Versiones de la app de los técnicos y su aprobación (17025, 7.11.2).
       { id: 'servicemet', label: 'Versiones ServiceMET' },
     ],

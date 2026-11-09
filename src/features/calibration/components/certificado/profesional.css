@@ -1,0 +1,174 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CERTIFICADO DE CALIBRACIÓN — MODELO SUGERIDO (.cp-doc)
+   Propuesta de diseño, al estilo de los certificados de laboratorios
+   acreditados: portada con la identificación, el resumen y las firmas;
+   resultados numerados con tablas de cabecera oscura; gráfico de errores con
+   barras de incertidumbre; encabezado con el n.º en cada hoja. Convive con el
+   modelo actual (.cc-doc, hoja CERT), que no cambia.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cp-doc {
+  --cp-texto: #1c1f23;
+  --cp-suave: #5b6470;
+  --cp-linea: #d5d9de;
+  --cp-banda: #22272e;
+  --cp-zebra: #f4f6f8;
+  --cp-acento: #ffd200;
+  --cp-ok: #127a3a;
+  --cp-mal: #b42318;
+  color: var(--cp-texto);
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, 'Figtree Variable', sans-serif;
+  font-size: 8.6pt;
+  line-height: 1.35;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cp-pagina {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 210mm;
+  height: 297mm;
+  padding: 11mm 15mm 9mm;
+  overflow: hidden;
+  background: #fff;
+  box-sizing: border-box;
+}
+.cp-pagina *,
+.cp-pagina *::before,
+.cp-pagina *::after { box-sizing: border-box; }
+
+.cp-borrador {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: rgb(180 35 24 / 0.08);
+  font-size: 84pt;
+  font-weight: 800;
+  letter-spacing: 6pt;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-35deg);
+  white-space: nowrap;
+}
+
+/* ── Encabezado de cada hoja ── */
+.cp-cabecera {
+  display: grid;
+  flex: none;
+  grid-template-columns: 44mm 1fr auto;
+  align-items: center;
+  column-gap: 6mm;
+  padding-bottom: 2.5mm;
+  border-bottom: 0.8pt solid var(--cp-texto);
+}
+.cp-cabecera .cp-logo { display: block; width: 44mm; height: auto; }
+.cp-cabecera .cp-tipo { font-size: 7.5pt; color: var(--cp-suave); letter-spacing: 0.06em; text-transform: uppercase; }
+.cp-cabecera .cp-num { margin-top: 0.4mm; font-size: 13pt; font-weight: 700; letter-spacing: 0.02em; }
+.cp-marca {
+  min-width: 34mm;
+  border: 0.8pt solid var(--cp-texto);
+  font-size: 7.5pt;
+  text-align: center;
+}
+.cp-marca div { padding: 0.8mm 2mm; }
+.cp-marca div + div { border-top: 0.6pt solid var(--cp-texto); }
+.cp-marca strong { font-size: 8.5pt; }
+.cp-acento { flex: none; height: 1.6mm; margin-top: 0.5mm; background: var(--cp-acento); }
+
+.cp-cuerpo { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; padding-top: 5mm; }
+
+.cp-pie {
+  display: grid;
+  flex: none;
+  grid-template-columns: 1fr auto;
+  gap: 4mm;
+  align-items: end;
+  padding-top: 2mm;
+  border-top: 0.6pt solid var(--cp-linea);
+  color: var(--cp-suave);
+  font-size: 7pt;
+}
+.cp-pie .cp-pagina-n { color: var(--cp-texto); font-weight: 600; white-space: nowrap; }
+.cp-reemplaza { flex: none; margin: 0 0 1mm; font-size: 7.3pt; font-style: italic; color: var(--cp-texto); }
+
+.cp-medidor {
+  position: absolute !important;
+  top: 0;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ── Portada ── */
+.cp-titulo h1 { margin: 0; font-size: 22pt; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
+.cp-titulo p { margin: 1.2mm 0 0; color: var(--cp-suave); font-size: 9pt; }
+.cp-portada { display: grid; grid-template-columns: 1.55fr 1fr; gap: 6mm; margin-top: 6mm; }
+.cp-ident { margin: 0; }
+.cp-ident > div { display: grid; grid-template-columns: 36mm 1fr; gap: 2mm; padding: 1.35mm 0; border-bottom: 0.5pt solid var(--cp-linea); }
+.cp-ident dt { color: var(--cp-suave); font-size: 7.8pt; }
+.cp-ident dd { margin: 0; font-weight: 600; font-size: 8.8pt; overflow-wrap: anywhere; }
+.cp-ident .cp-grupo { padding-top: 3mm; border-bottom: 0; color: var(--cp-texto); font-size: 7.5pt; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.cp-declaraciones { align-self: start; padding: 3.5mm 4mm; border-left: 1.6mm solid var(--cp-acento); background: var(--cp-zebra); font-size: 7.6pt; line-height: 1.45; }
+.cp-declaraciones p { margin: 0 0 2mm; }
+.cp-declaraciones p:last-child { margin-bottom: 0; }
+.cp-declaraciones img { display: block; width: 46mm; height: auto; margin: 3mm 0 0; }
+
+.cp-resumen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin-top: 6mm; }
+.cp-kpi { padding: 2.6mm 3mm; border: 0.6pt solid var(--cp-linea); border-top: 1.2mm solid var(--cp-banda); }
+.cp-kpi span { display: block; color: var(--cp-suave); font-size: 7.2pt; letter-spacing: 0.04em; text-transform: uppercase; }
+.cp-kpi strong { display: block; margin-top: 1mm; font-size: 11pt; }
+.cp-kpi small { display: block; margin-top: 0.6mm; color: var(--cp-suave); font-size: 7pt; }
+.cp-kpi.cp-ok { border-top-color: var(--cp-ok); }
+.cp-kpi.cp-ok strong { color: var(--cp-ok); }
+.cp-kpi.cp-mal { border-top-color: var(--cp-mal); }
+.cp-kpi.cp-mal strong { color: var(--cp-mal); }
+
+.cp-firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; margin-top: 9mm; }
+.cp-firma { padding-top: 15mm; }
+.cp-firma div { border-top: 0.7pt solid var(--cp-texto); padding-top: 1.2mm; }
+.cp-firma strong { display: block; font-size: 9pt; }
+.cp-firma span { color: var(--cp-suave); font-size: 7.5pt; }
+.cp-legal { position: absolute; right: 0; bottom: 0; left: 0; color: var(--cp-suave); font-size: 6.6pt; line-height: 1.4; }
+.cp-legal a { color: #0b5cad; text-decoration: underline; }
+
+/* ── Secciones y tablas ── */
+.cp-h2 { display: flex; align-items: baseline; gap: 2.5mm; margin: 0 0 2.5mm; padding-bottom: 1mm; border-bottom: 0.8pt solid var(--cp-texto); font-size: 11pt; font-weight: 700; }
+.cp-h2 span { color: var(--cp-suave); font-size: 9pt; }
+.cp-h3 { margin: 0 0 1.5mm; font-size: 9pt; font-weight: 700; }
+.cp-bloque { padding-bottom: 4.5mm; }
+.cp-texto { margin: 0 0 1.4mm; }
+.cp-suave { color: var(--cp-suave); }
+
+.cp-tabla { width: 100%; border-collapse: collapse; font-size: 8.2pt; }
+.cp-tabla th {
+  padding: 1.2mm 1.6mm;
+  background: var(--cp-banda);
+  color: #fff;
+  font-size: 7.2pt;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  vertical-align: bottom;
+}
+.cp-tabla th small { display: block; font-weight: 400; opacity: 0.75; }
+.cp-tabla td { padding: 0.9mm 1.6mm; border-bottom: 0.5pt solid var(--cp-linea); text-align: center; font-variant-numeric: tabular-nums; }
+.cp-tabla tbody tr:nth-child(even) td { background: var(--cp-zebra); }
+.cp-tabla .cp-izq { text-align: left; }
+.cp-tabla .cp-ok { color: var(--cp-ok); font-weight: 700; }
+.cp-tabla .cp-mal { color: var(--cp-mal); font-weight: 700; }
+.cp-dos { display: grid; grid-template-columns: 1fr 52mm; gap: 6mm; align-items: start; }
+.cp-receptor svg { display: block; width: 100%; height: auto; }
+.cp-receptor p { margin: 1mm 0 0; color: var(--cp-suave); font-size: 7pt; text-align: center; }
+.cp-grafico { display: block; width: 100%; height: auto; margin-top: 2.5mm; }
+.cp-lista { margin: 0; padding-left: 4mm; }
+.cp-lista li { margin-bottom: 1mm; }
+.cp-anexo-aviso { display: flex; flex-direction: column; gap: 0.6mm; margin-bottom: 3mm; padding: 3mm 4mm; border-left: 1.6mm solid var(--cp-acento); background: var(--cp-zebra); }
+.cp-anexo-aviso strong { font-size: 12pt; }
+.cp-anexo-aviso span { color: var(--cp-mal); font-size: 8pt; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.cp-fin { display: flex; align-items: center; justify-content: space-between; margin-top: 4mm; padding-top: 2.5mm; border-top: 0.8pt solid var(--cp-texto); font-weight: 700; letter-spacing: 0.04em; }
+.cp-fin img { display: block; width: 40mm; height: auto; }
+
+/* ── Vista previa en pantalla ── */
+.cp-vista .cp-doc { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.cp-vista .cp-pagina { box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), 0 10px 30px -14px rgb(0 0 0 / 0.35); }

@@ -55,7 +55,10 @@ test('clase del instrumento con su origen', () => {
 test('permisos: elabora el personal del área; revisa el jefe y nunca quien lo envió', () => {
   const tecnico = { usuario: 'Ortuño', jefe: false, editor: true };
   const jefe = { usuario: 'Vallejos', jefe: true, editor: true };
-  assert.deepEqual(permisosDe(tecnico, null), { editar: true, enviar: true, retirar: false, revisar: false, reabrir: false, motivoRevisar: null });
+  assert.deepEqual(permisosDe(tecnico, null), {
+    editar: true, enviar: true, retirar: false, revisar: false, reabrir: false,
+    autorizar: false, anularAutorizacion: false, subirFirmado: false, abrirRevision: false, motivoRevisar: null,
+  });
   const enRevision = { estado: 'EN_REVISION', enviado_por: 'Ortuño' };
   assert.equal(permisosDe(tecnico, enRevision).editar, false);
   assert.equal(permisosDe(tecnico, enRevision).retirar, true);
@@ -66,6 +69,13 @@ test('permisos: elabora el personal del área; revisa el jefe y nunca quien lo e
   assert.equal(propio.revisar, false);
   assert.match(propio.motivoRevisar, /otra persona/);
   assert.equal(permisosDe(jefe, { estado: 'APROBADO' }).reabrir, true);
+  // Certificado (fase 5): autoriza, sube el firmado y abre revisiones el jefe.
+  assert.equal(permisosDe(jefe, { estado: 'APROBADO' }).autorizar, true);
+  assert.equal(permisosDe(tecnico, { estado: 'APROBADO' }).autorizar, false);
+  assert.equal(permisosDe(jefe, { estado: 'AUTORIZADO' }).subirFirmado, true);
+  assert.equal(permisosDe(jefe, { estado: 'AUTORIZADO' }).anularAutorizacion, true);
+  assert.equal(permisosDe(jefe, { estado: 'EMITIDO' }).abrirRevision, true);
+  assert.equal(permisosDe(jefe, { estado: 'EMITIDO' }).editar, false);
   assert.equal(permisosDe(tecnico, { estado: 'APROBADO' }).reabrir, false);
   assert.equal(permisosDe(tecnico, { estado: 'OBSERVADO' }).editar, true);
   assert.equal(permisosDe({ usuario: 'X', jefe: false, editor: false }, null).editar, false);

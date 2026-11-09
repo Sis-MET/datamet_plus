@@ -31,10 +31,12 @@ const numero = (valor) => Number(valor.toFixed(2)).toString();
  * Arma el PDF.
  * @param {{ jpeg: Uint8Array, ancho: number, alto: number }[]} paginas
  *   JPEG de cada hoja con su tamaño en píxeles.
- * @param {{ titulo?: string, autor?: string, fecha?: Date }} info
+ * @param {{ titulo?: string, autor?: string, fecha?: Date, palabrasClave?: string }} info
+ *   `palabrasClave`: texto ASCII para /Keywords (el certificado de calibración
+ *   lleva ahí la huella de su emisión, para reconocer el PDF firmado).
  * @returns {Uint8Array}
  */
-export function pdfDeImagenes(paginas, { titulo = '', autor = '', fecha = new Date() } = {}) {
+export function pdfDeImagenes(paginas, { titulo = '', autor = '', fecha = new Date(), palabrasClave = '' } = {}) {
   if (!paginas.length) throw new Error('El PDF necesita al menos una hoja.');
   const partes = [];
   const offsets = [];
@@ -59,8 +61,9 @@ export function pdfDeImagenes(paginas, { titulo = '', autor = '', fecha = new Da
 
   objeto(1, '<< /Type /Catalog /Pages 2 0 R >>');
   objeto(2, `<< /Type /Pages /Kids [${paginas.map((_, i) => `${idPagina(i)} 0 R`).join(' ')}] /Count ${paginas.length} >>`);
+  const claves = String(palabrasClave).replace(/[^A-Za-z0-9+ ._-]/g, '');
   objeto(3, `<< /Title ${cadenaPdf(titulo)} /Author ${cadenaPdf(autor)} /Creator (DataMET+) /Producer (DataMET+)`
-    + ` /CreationDate (${fechaPdf(fecha)}) >>`);
+    + `${claves ? ` /Keywords (${claves})` : ''} /CreationDate (${fechaPdf(fecha)}) >>`);
 
   paginas.forEach((pagina, i) => {
     const id = idPagina(i);

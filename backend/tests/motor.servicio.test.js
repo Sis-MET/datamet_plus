@@ -191,3 +191,21 @@ test('composición elegida a mano: se usa si suma la carga; si no, avisa y vuelv
   const repetida = calcularServicio(modelo, datos({ composiciones: { 1: ['M1-TEST|50000000|', 'M1-TEST|50000000|'] } }));
   assert.match(repetida.avisos.find(a => a.codigo === 'COMPOSICION_INVALIDA').mensaje, /repite una pieza/);
 });
+
+test('convección (7.1.2-13) solo en pesas F1 o mejores, con ΔT por el tiempo de estabilización', () => {
+  const { modelo } = modeloDeFila(fila({ tiempo_estab: 'Mayor a 15 minutos' }));
+  const conE2 = calcularServicio(modelo, datos({ juegos: [{ ...datos().juegos[0], clase: 'E2' }] }));
+  const p500 = conE2.puntos[1];
+  const conveccion = p500.componentes.find(c => c.fuente === 'conveccion');
+  // 500 kg con ΔT = 5 K: fila de 500 kg fuera de tabla → escala la de 50 kg (32,27 mg) por 10; u = Δm/√3, en kg.
+  assert.ok(conveccion && Math.abs(conveccion.u - (32.27 * 10 / 1e6) / Math.sqrt(3)) < 1e-12, `u = ${conveccion?.u}`);
+  assert.ok(conE2.avisos.some(a => a.codigo === 'CONVECCION' && /ΔT = 5 K/.test(a.mensaje)));
+  assert.deepEqual(conE2.conveccion, { deltaT: 5, estabilizacion: 'Mayor a 15 minutos' });
+  // Con más tiempo de estabilización, menos ΔT.
+  const { modelo: largo } = modeloDeFila(fila({ tiempo_estab: 'Mayor a 30 minutos' }));
+  assert.equal(calcularServicio(largo, datos({ juegos: [{ ...datos().juegos[0], clase: 'E2' }] })).conveccion.deltaT, 3);
+  // Pesas M1: no aplica.
+  const m1 = calcularServicio(modelo, datos());
+  assert.equal(m1.conveccion, null);
+  assert.ok(!m1.puntos[1].componentes.some(c => c.fuente === 'conveccion' && c.u > 0));
+});

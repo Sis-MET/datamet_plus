@@ -53,6 +53,17 @@ export const calibrationApi = {
   // Registro de calibración de un servicio (fase 4, migración 018).
   registro: (codigo) => unwrap(api.get(`${BASE}/registros/${encodeURIComponent(codigo)}`)),
   guardarRegistro: (codigo, body) => write(api.put(`${BASE}/registros/${encodeURIComponent(codigo)}`, body)).then(response => response.data),
+  // Certificado de calibración del registro (fase 5): vista previa.
+  certificado: (codigo, emision = null) => unwrap(api.get(`${BASE}/registros/${encodeURIComponent(codigo)}/certificado`, emision ? { emision } : undefined)),
+  // Vista previa con cambios sin guardar: no escribe nada.
+  vistaPreviaCertificado: (codigo, cambios) => unwrap(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/vista-previa`, cambios, { timeout: 60000 })),
+  autorizarCertificado: (codigo) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/autorizacion`, {})),
+  anularAutorizacion: (codigo, body) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/autorizacion/anulacion`, body)),
+  subirFirmado: (codigo, pdf, fechaFirma = null) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/firmado`, pdf, {
+    params: fechaFirma ? { fechaFirma } : undefined, timeout: 120000,
+  })).then(response => response.data),
+  abrirRevisionCertificado: (codigo, body) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/revision-certificado`, body)),
+  pdfCertificado: (codigo, emision) => api.blob(`${BASE}/registros/${encodeURIComponent(codigo)}/emisiones/${emision}/pdf`, { timeout: 60000 }),
   enviarRegistro: (codigo) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/envio`, {})),
   retirarRegistro: (codigo) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/retiro`, {})),
   revisarRegistro: (codigo, body) => write(api.post(`${BASE}/registros/${encodeURIComponent(codigo)}/revision`, body)),
@@ -60,6 +71,12 @@ export const calibrationApi = {
   // Aprobadores de los registros: los designa el jefe de Calibración (migración 019).
   aprobadores: () => unwrap(api.get(`${BASE}/configuracion/aprobadores`)),
   guardarAprobadores: (body) => write(api.put(`${BASE}/configuracion/aprobadores`, body)).then(response => response.data),
+  // Configuración del método por versiones (fase 6, migración 021).
+  metodo: () => unwrap(api.get(`${BASE}/metodo`)),
+  crearBorradorMetodo: (body) => unwrap(api.post(`${BASE}/metodo/borrador`, body)),
+  guardarBorradorMetodo: (body) => unwrap(api.put(`${BASE}/metodo/borrador`, body)),
+  descartarBorradorMetodo: (body) => unwrap(api.post(`${BASE}/metodo/borrador/descarte`, body)),
+  aprobarMetodo: (body) => write(api.post(`${BASE}/metodo/aprobacion`, body)).then(response => response.data),
   // Puntos de ensayo acordados de un instrumento de cliente (migración 017).
   puntosAcordados: (codMetrica) => unwrap(api.get(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`)),
   savePuntosAcordados: (codMetrica, body) => unwrap(api.put(`${BASE}/puntos-acordados/${encodeURIComponent(codMetrica)}`, body)),

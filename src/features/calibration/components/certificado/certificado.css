@@ -1,0 +1,251 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CERTIFICADO DE CALIBRACIÓN (.cc-doc)
+   Hojas A4 blancas con el diseño de la hoja CERT del libro F-VMET-02-7.2:
+   tipografía Century Gothic, encabezado con el logotipo, marca de agua del
+   símbolo, tablas con cabecera gris y pie con la dirección y la página. No
+   sigue el tema de la aplicación: es igual en pantalla y en el PDF.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cc-doc {
+  --cc-gris: #d9d9d9;
+  --cc-borde: #7f7f7f;
+  --cc-azul: #4472c4;
+  color: #000;
+  font-family: 'Century Gothic', CenturyGothic, 'URW Gothic', 'Avant Garde', 'Figtree Variable', sans-serif;
+  font-size: 9pt;
+  line-height: 1.25;
+  font-variant-numeric: normal;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.cc-pagina {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 210mm;
+  height: 297mm;
+  padding: 8mm 17mm 9mm 18mm;
+  overflow: hidden;
+  background: #fff;
+  box-sizing: border-box;
+}
+.cc-pagina *,
+.cc-pagina *::before,
+.cc-pagina *::after { box-sizing: border-box; }
+
+/* Marca de agua: el símbolo de Métrica en gris claro, detrás del contenido. */
+.cc-agua {
+  position: absolute;
+  top: 52mm;
+  left: 50%;
+  width: 186mm;
+  opacity: 0.1;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.cc-agua img { display: block; width: 100%; height: auto; }
+
+/* Sin emitir. */
+.cc-borrador {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: rgb(200 0 0 / 0.1);
+  font-family: 'Figtree Variable', sans-serif;
+  font-size: 88pt;
+  font-weight: 800;
+  letter-spacing: 6pt;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-35deg);
+  white-space: nowrap;
+}
+
+.cc-encabezado { position: relative; flex: none; }
+.cc-titulo {
+  display: grid;
+  grid-template-columns: 23mm 1fr;
+  align-items: center;
+  column-gap: 4mm;
+}
+.cc-titulo img { display: block; width: 23mm; height: 23mm; object-fit: contain; }
+.cc-titulo h1 {
+  margin: 0;
+  padding-right: 10mm;
+  font-size: 21pt;
+  font-weight: 700;
+  line-height: 1.12;
+  text-align: center;
+}
+.cc-linea {
+  display: flex;
+  align-items: flex-end;
+  gap: 6mm;
+  margin-top: 5mm;
+  padding-bottom: 0.6mm;
+  border-bottom: 1.2pt solid #000;
+}
+.cc-linea a { color: var(--cc-azul); font-size: 8.5pt; text-decoration: none; }
+.cc-linea .cc-numero { margin-left: auto; font-size: 13pt; font-weight: 700; white-space: nowrap; }
+.cc-linea .cc-numero span { display: inline-block; margin-right: 4mm; }
+
+.cc-cuerpo {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 1.2mm;
+}
+
+.cc-reemplaza {
+  position: relative;
+  flex: none;
+  margin: 0 0 0.8mm;
+  font-size: 7.5pt;
+  font-style: italic;
+}
+
+.cc-pie {
+  position: relative;
+  display: flex;
+  flex: none;
+  justify-content: space-between;
+  font-size: 9pt;
+}
+
+/* Medidor de la paginación: fuera de pantalla y sin escala. */
+.cc-medidor {
+  position: absolute !important;
+  top: 0;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ── Hoja 1: datos generales ── */
+.cc-seccion {
+  margin: 1.6mm 0 0.8mm;
+  font-size: 9.5pt;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.cc-cliente-cabecera { display: flex; align-items: flex-start; justify-content: space-between; }
+.cc-emision {
+  width: 32mm;
+  margin-top: 0.4mm;
+  border: 1pt solid #000;
+  font-size: 10pt;
+  font-weight: 700;
+  text-align: center;
+}
+.cc-cliente {
+  display: grid;
+  grid-template-columns: 42mm 1fr;
+  column-gap: 1.5mm;
+  row-gap: 0.4mm;
+  margin: 1mm 0 1.2mm;
+  font-size: 10pt;
+}
+.cc-cliente dt { text-align: right; text-transform: uppercase; }
+.cc-cliente dd { margin: 0; font-weight: 700; }
+.cc-tipo { margin: 0.6mm 0 1.4mm; font-size: 10pt; font-weight: 700; }
+.cc-calibrando {
+  display: grid;
+  grid-template-columns: 21mm 43mm 19mm 1fr;
+  row-gap: 2.2mm;
+  margin-bottom: 1.4mm;
+  font-size: 10pt;
+}
+.cc-calibrando .cc-v { font-weight: 700; }
+.cc-calibracion {
+  display: grid;
+  grid-template-columns: 61mm 1fr;
+  row-gap: 2.6mm;
+  column-gap: 2mm;
+  margin-top: 1.6mm;
+  font-size: 10.5pt;
+  align-items: start;
+}
+.cc-calibracion dt { text-transform: uppercase; line-height: 1.25; }
+.cc-calibracion dd { margin: 0; font-size: 8pt; font-weight: 700; line-height: 1.35; padding-top: 0.6mm; }
+.cc-calibracion dd .cc-nota { display: block; margin-top: 0.3mm; font-size: 7pt; font-weight: 400; }
+.cc-firmas { margin-top: 7mm; font-size: 10.5pt; font-weight: 700; line-height: 1.45; }
+.cc-firma-espacio { height: 22mm; }
+.cc-legal-bloque { position: absolute; left: 0; right: 0; bottom: 5mm; }
+.cc-verificar { display: inline-block; margin-bottom: 0.6mm; color: #0563c1; font-size: 8pt; text-decoration: underline; }
+.cc-legal {
+  border: 1pt solid #000;
+  padding: 0.8mm 1mm;
+  font-size: 5.6pt;
+  line-height: 1.3;
+}
+.cc-legal p { margin: 0; }
+
+/* ── Tablas de resultados ── */
+.cc-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  text-align: center;
+  background: transparent;
+}
+.cc-tabla th,
+.cc-tabla td {
+  border: 0.75pt solid var(--cc-borde);
+  padding: 0.35mm 1mm;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+.cc-tabla thead th {
+  background: var(--cc-gris);
+  font-size: 7.5pt;
+  font-weight: 700;
+}
+.cc-tabla .cc-tabla-titulo { font-size: 9pt; }
+.cc-resultados { margin: 1.4mm 0 1.6mm; }
+.cc-bloque { padding-bottom: 2.2mm; }
+
+.cc-excentricidad { display: flex; justify-content: center; }
+.cc-excentricidad table { width: 104mm; }
+.cc-receptor { width: 44mm; }
+.cc-receptor svg { display: block; width: 26mm; height: auto; margin: 0 auto; }
+
+.cc-repetibilidad { display: grid; grid-template-columns: 60mm 1fr; gap: 3mm; align-items: start; padding-left: 21mm; }
+.cc-repetibilidad .cc-pequena { margin-top: 0.8mm; font-size: 8.5pt; font-style: italic; text-align: center; }
+.cc-grafico { display: block; width: 100%; height: auto; }
+.cc-grafico-marco { border: 0.9pt solid #000; padding: 1mm 1.5mm 0.5mm; }
+
+.cc-errores thead th { font-size: 7.2pt; }
+.cc-errores td { font-size: 8.5pt; }
+.cc-antes th:first-child { width: 30mm; text-align: left; padding-left: 2mm; }
+
+/* ── Hoja de notas ── */
+.cc-notas { font-size: 8.6pt; line-height: 1.3; }
+.cc-notas h3 { margin: 0 0 0.3mm; font-size: 7.6pt; font-weight: 700; text-decoration: underline; }
+.cc-notas p { margin: 0; }
+.cc-notas ul { margin: 0; padding: 0; list-style: none; }
+.cc-notas li::before { content: '- '; }
+.cc-logos { display: flex; justify-content: center; padding: 1mm 0 3mm; }
+.cc-logos img { display: block; width: 120mm; height: auto; }
+.cc-subtitulo { margin: 0 0 0.6mm; font-size: 8.6pt; font-weight: 700; }
+.cc-fin { margin-top: 4mm; font-size: 8.6pt; font-weight: 700; }
+.cc-anexo-titulo { margin-bottom: 2mm; padding: 1.5mm 2mm; border: 1pt solid #000; background: var(--cc-gris); font-size: 9pt; font-weight: 700; text-align: center; }
+
+/* ── Vista previa en pantalla ── */
+.cc-vista {
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgb(var(--c-surface-3));
+  padding: 16px;
+}
+.cc-vista .cc-doc { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.cc-vista .cc-pagina { box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), 0 10px 30px -14px rgb(0 0 0 / 0.35); }
+
+/* Guardar PDF: las mismas hojas, fuera de la pantalla, para pasarlas a imagen. */
+#cc-guardado {
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  width: 210mm;
+  pointer-events: none;
+}

@@ -77,20 +77,23 @@ async function cargarImagen(url) {
 
 /**
  * Dibuja cada hoja en un canvas, `escala` píxeles por píxel CSS.
- * @param {HTMLElement[]} hojas Las `.st-pagina` montadas (fuera de la pantalla).
+ * @param {HTMLElement[]} hojas Las hojas montadas (fuera de la pantalla).
+ * @param {{ escala?: number, documento?: string }} opciones `documento`: el
+ *   contenedor de las hojas cuyas reglas CSS se aplican (`.st-doc` del
+ *   informe de Soporte, `.cc-doc` del certificado de calibración).
  * @returns {Promise<HTMLCanvasElement[]>}
  */
-export async function rasterizarHojas(hojas, { escala = 3 } = {}) {
+export async function rasterizarHojas(hojas, { escala = 3, documento = '.st-doc' } = {}) {
   const css = cssDeLaPagina();
   const cache = new Map();
   const lienzos = [];
   for (const hoja of hojas) {
     // 210 × 297 mm en px CSS, con decimales (fuera de la pantalla no hay zoom).
     const { width: ancho, height: alto } = hoja.getBoundingClientRect();
-    const doc = hoja.closest('.st-doc');
+    const doc = hoja.closest(documento);
     const exterior = doc?.parentElement || document.body;
 
-    // Lo que hereda de la página, y dentro el .st-doc con sus reglas, como en pantalla.
+    // Lo que hereda de la página, y dentro el documento con sus reglas, como en pantalla.
     const contenedor = document.createElementNS(XHTML, 'div');
     contenedor.setAttribute(
       'style',
@@ -99,7 +102,7 @@ export async function rasterizarHojas(hojas, { escala = 3 } = {}) {
     const estilo = document.createElementNS(XHTML, 'style');
     estilo.textContent = css;
     const informe = document.createElementNS(XHTML, 'div');
-    informe.setAttribute('class', doc?.getAttribute('class') || 'st-doc');
+    informe.setAttribute('class', doc?.getAttribute('class') || documento.replace(/^\./, ''));
     const copia = hoja.cloneNode(true);
     await incrustarImagenes(copia, cache);
     informe.append(copia);

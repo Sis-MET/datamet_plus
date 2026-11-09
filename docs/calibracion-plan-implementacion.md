@@ -407,6 +407,31 @@ Falta: convección (falta la diferencia de temperatura pesas–aire), la
 incertidumbre en uso y la pesada mínima (anexo del certificado) y los ejemplos
 H2/H3 y de la Guía SIM.
 
+**Avance (2026-11-09, cierre de la fase 3):**
+
+- **Convección** (7.1.2-13, Anexo F) en pesas E1, E2 y F1: el ΔT pesas–aire
+  sale del tiempo de estabilización que registra ServiceMET (más de 30 min →
+  3 K; más de 15 min → 5 K; sin dato → 7 K). Valores **por aprobar**; quedan
+  en la configuración del método (fase 6).
+- **Incertidumbre en uso, global y pesada mínima** (`motor/uso.js`, 7.4, 7.5,
+  C2.2-16, G-9): u²(W) = αW² + βW²·R² con s de una lectura, excentricidad con
+  su efecto completo (7.4.4-10), temperatura (7.4.3-1, KT del fabricante o el
+  límite de la R76 por la clase) y empuje (7.4.3-4); el ajuste u²(E) = A + B·I²;
+  la recta E = a1·R por el origen; U(W) ≈ U(0) + C·R y Ugl ≈ U(0) + C·R +
+  |a1·R| por rango, y la pesada mínima por exactitud y factor de seguridad.
+  Supuestos **por aprobar**: ΔT del lugar 5 K, KT de la R76 con factor 1,
+  k = 2. Va en el **anexo** del certificado (los dos modelos), que no forma
+  parte del certificado y se agrega a pedido del cliente (casilla en el
+  registro).
+- **Validación**: H2 (multi-escalón, opción 1) y H3 (sustitución,
+  7.1.2-15a/b) en `motor.euramet.test.js`; los ejemplos G1, G2 y G3 de la
+  Guía SIM en `motor.sim.test.js`. La guía combina valores redondeados y toma
+  ν = 100 para las componentes tipo B; con esa convención el motor da sus
+  u(E), νeff, k y U; sin redondear en el camino (y ν = ∞, como EURAMET v4) su
+  U queda hasta 4,5 % menor en G1 y dentro del 1 % en G2. Términos de uso que
+  la Guía SIM 2009 trata distinto que EURAMET v4 (tara, linealización por
+  intervalo) no se validan con ella.
+
 ## Fase 4 — Registro de calibración: lista, editor y revisión
 
 **Base de datos** (migración `018_calibracion_registros.sql`; no usar
@@ -548,6 +573,94 @@ Reutilizar `soporte.revisiones.js` y `CB_REVISIONES` / `CB_DOCUMENTOS`.
 **Hecho cuando** se emite, firma, archiva y reemite un certificado de prueba de
 punta a punta.
 
+**Avance (2026-11-09):**
+
+- **Documento** (`components/certificado/CertificadoDocumento.jsx`,
+  `certificado.css`): las hojas A4 con el diseño de la hoja CERT (se exportó
+  la hoja del libro a PDF como referencia): encabezado con el logotipo, marca
+  de agua del símbolo, datos generales, resultados y notas, con los
+  logotipos del libro (`src/assets/certificado`). El contenido lo arma el
+  servidor (`calibration.certificado.js`) como textos ya formateados y series
+  de los gráficos: así se congela al autorizar y se vuelve a dibujar igual.
+  Agregados de la propuesta (sección 7 de la fase 0, **textos por aprobar**):
+  columna k, clase con su origen («III (placa)», «III *» si la pidió el
+  cliente), ajuste del instrumento, errores antes del ajuste (las precargas,
+  en una tabla horizontal), gráfico con AS FOUND, nota de incertidumbre al
+  95,45 %, «la desviación estándar corresponde a una sola indicación», nota de
+  datos del cliente, método citando EURAMET v4.0 y la Guía SIM. Las tablas
+  largas siguen en otra hoja con su cabecera; las notas van en hoja aparte
+  salvo que los resultados ya ocupen más de una.
+- **Reglas de contenido** (para confirmar con el laboratorio): alcance «Min′:
+  la menor carga del ensayo hasta Max» si el ensayo llegó a Max (98 %), o
+  «hasta Max′: la mayor carga» si no (EURAMET 4.2); patrones con el alcance
+  de sus piezas registradas («1 g a 5000 g»), trazabilidad con el
+  certificado vigente en la fecha de calibración; condiciones ambientales
+  con la media corregida del termohigrómetro; el emp o la tolerancia con los
+  decimales del instrumento; error y U con el redondeo de la decisión 3;
+  riesgo «< 5,00» por debajo del 5 %, como el libro. El año del número es el
+  de la creación del registro en DataMET+ (equivale a «registrar el servicio
+  en el libro»).
+- **Vista previa y PDF**: «Certificado» en el detalle del servicio, con lo que
+  impide autorizarlo (sin número, sin trazabilidad, cálculo provisional) y
+  avisos. El PDF es una imagen por hoja (el mismo generador de Soporte,
+  `rasterizar.js` ahora admite otro contenedor), con «BORRADOR» hasta emitir.
+- **Emisión** (migración 020, `calibration.emision.js`): el jefe de
+  Calibración **autoriza** el registro aprobado (se fija el número, se
+  comprueba que no lo tenga otro certificado y se congela el contenido en
+  `CAL_EMISIONES`); descarga el **PDF para firmar** (lleva en /Keywords la
+  huella de la emisión), lo firma con su firma digital y lo **sube**:
+  DataMET+ exige la firma, que sea el PDF de esa emisión y la fecha de la
+  firma (si no la puede leer, la pide), lo archiva en
+  `CAL_DOCUMENTOS_DIR\<año>` con el nombre del libro y su huella, sin
+  sobrescribir, y el certificado queda **emitido**. Antes de firmar se puede
+  **anular la autorización** con motivo (la emisión no se borra y su número
+  de emisión se vuelve a usar).
+- **Reemisión**: «Abrir revisión» con motivo devuelve el registro a borrador;
+  la emisión siguiente (02, 03…) repite revisión, aprobación, autorización y
+  firma; lleva «Revisiones del certificado» y, en el pie de cada hoja, a qué
+  emisión reemplaza. Al emitirla, la anterior queda reemplazada (se conserva
+  con su PDF). El detalle lista las emisiones con su estado y su PDF.
+- Probado: pruebas del contenido, de las reglas de la firma y un flujo
+  completo simulado (autorizar, subir firmado, abrir revisión, reemitir,
+  anular). En DataMET_prueba (migración 020 aplicada) no se pudo autorizar de
+  verdad: los cálculos de prueba son provisionales y el usuario de prueba no
+  es jefe de Calibración.
+
+**Avance (2026-11-09, rediseño a pedido del usuario):**
+
+- **Página del registro** en vez de ventanas (`components/registro/`), con la
+  dirección `/calibracion/certificados/<servicio>`, como el editor de informes
+  de Soporte: encabezado y panel de estado con las acciones que tocan
+  (enviar, aprobar, observar, autorizar, subir el firmado, abrir revisión…);
+  pestañas «Datos del servicio · Resultados · Vista previa · Historial»; los
+  datos de ServiceMET se corrigen en el lugar, sección por sección, con
+  «ServiceMET: … · Restaurar» bajo cada dato corregido y las listas de
+  ServiceMET donde corresponde; índice de secciones con sus avisos; barra
+  «N datos sin guardar · Motivo · Guardar» (Ctrl+S) y aviso al salir. La
+  elección de piezas se despliega bajo el presupuesto del punto. Al costado,
+  el **pre-informe**: el certificado tal como saldría, que se recalcula en el
+  servidor con los cambios sin guardar (`POST …/vista-previa`, no escribe
+  nada). Se quitaron `ServicioModal`, `CorreccionesModal`, `ComposicionModal`
+  y `CertificadoModal`; quedan ventanas solo para confirmar (enviar,
+  autorizar, subir el firmado, motivos).
+- **Modelo sugerido de certificado** (`CertificadoProfesional.jsx`,
+  `profesional.css`), sin tocar el actual: inspirado en certificados de
+  laboratorios acreditados (p. ej. los DAkkS de Mettler-Toledo): portada con
+  la identificación, declaraciones de trazabilidad y alcance, resumen de
+  resultados (error máximo, U máxima, conformidad) y firmas; encabezado con
+  el n.º, la acreditación y la página en cada hoja; secciones numeradas
+  (datos de la calibración, resultados, declaraciones); tablas de cabecera
+  oscura con masa de referencia, indicación, error, U, k, emp y conformidad;
+  gráfico de errores con barras ±U y la banda del emp; patrones y ambiente
+  en tabla. La vista previa elige entre «Modelo actual» y «Modelo sugerido»;
+  se autoriza y firma con el actual hasta que el laboratorio apruebe el
+  sugerido. Sus textos (declaraciones) son una propuesta.
+
+Falta en la fase 5: USP <41> en el anexo (el anexo con la incertidumbre en
+uso y la pesada mínima ya está, ver la fase 3), la carpeta `CAL_DOCUMENTOS_DIR` en el servidor y la
+prueba de punta a punta con un certificado real firmado (firma digital de
+Digicert/ADSIB).
+
 ## Fase 6 — Configuración del método
 
 - Pantalla para ver y editar la versión en borrador: parámetros (k, probabilidad,
@@ -558,6 +671,35 @@ punta a punta.
   Historial de versiones con diferencias.
 - Al aprobar una versión nueva, los registros en borrador se recalculan con
   ella; los emitidos no cambian (conservan su versión).
+
+**Avance (2026-11-09):** Calibración › **Método** (`components/metodo/`,
+`calibration.metodo.js`, migración 021 con `CAL_METODO_VERSIONES` y
+`CAL_METODO_HISTORIAL`).
+
+- Se editan: incertidumbre del empuje (5a/5b), kD, convección (se aplica,
+  clases, ΔT por estabilización y sin dato), densidades por material (con sus
+  palabras clave; gana la primera fila), umbrales de avisos, información en
+  uso (k, ΔT, KT, factor, cargas de la tabla), pesada mínima (exactitudes y
+  factores) y todos los textos del certificado.
+- **Fijos en el código** (cambiarlos cambia el método validado): probabilidad
+  de cobertura, redondeo de U, fórmula del aire, método de excentricidad y
+  regla conservadora. Las tablas normativas (emp de la R76 y la R111, F2.1)
+  tampoco se editan.
+- Borrador → vigente: lo redacta el personal de Calibración (un borrador a la
+  vez, con motivo; control de concurrencia por revisión) y lo aprueba el jefe
+  de Calibración, que no puede haberlo redactado ni editado. La anterior queda
+  reemplazada; las descartadas quedan con su historial. Ninguna se borra.
+- La versión 1 la crea el sistema la primera vez que se abre la pantalla, con
+  los valores de «Configuración inicial»; el jefe la aprueba ahí.
+- Los registros sin aprobar se calculan con la vigente; los aprobados,
+  autorizados y emitidos con la suya (`CAL_REGISTROS.configuracion`), también
+  sus textos. El contenido congelado de cada emisión guarda la versión.
+- Página como la del registro: secciones editables con las marcas (amarillo
+  sin guardar, azul distinto de la versión anterior), barra de guardado
+  (Ctrl+S), al costado los cambios frente a la versión de la que partió y la
+  pestaña Historial con las versiones y sus diferencias.
+
+Migración 021 aplicada y registrada en `DataMET_prueba` (2026-11-09).
 
 ## Fase 7 — Validación, migración y puesta en marcha
 

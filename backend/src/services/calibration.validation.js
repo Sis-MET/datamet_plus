@@ -263,12 +263,43 @@ const schemas = {
     }).nullable().optional(),
     // Carga armada a mano por punto: claves de las piezas; null vuelve a la regla.
     composiciones: z.record(z.string().regex(/^\d{1,2}$/), z.array(z.string().min(3).max(120)).max(100).nullable()).optional(),
+    anexo: z.boolean().optional(),
     motivo: optionalText(500),
   }).refine(data => Object.keys(data.columnas).length <= 300, 'Demasiadas correcciones en un solo guardado.'),
   registroRevision: z.object({
     decision: z.enum(['APROBAR', 'OBSERVAR'], { error: 'Elige aprobar u observar.' }),
     observacion: optionalText(500),
   }).refine(data => data.decision === 'APROBAR' || data.observacion, 'Escribe la observación para el que elaboró el registro.'),
+  // Vista previa del certificado con cambios sin guardar (mismos campos que guardar).
+  registroVistaPrevia: z.object({
+    columnas: z.record(z.string().max(60), z.union([z.string().max(500), z.number(), z.null()])).default({}),
+    clase: z.object({
+      valor: z.enum(['I', 'II', 'III', 'IIII']).nullable(),
+      origen: z.enum(['PLACA', 'APROBACION', 'CLIENTE']).nullable(),
+    }).nullable().optional(),
+    composiciones: z.record(z.string().regex(/^\d{1,2}$/), z.array(z.string().min(3).max(120)).max(100).nullable()).optional(),
+    anexo: z.boolean().optional(),
+  }),
+  // Anular la autorización de un certificado o abrir una revisión (reemisión).
+  certificadoMotivo: z.object({
+    motivo: requiredText(500, 'Escribe el motivo.'),
+  }),
+  // Configuración del método (fase 6): el contenido lo valida calibration.metodo.
+  metodoBorrador: z.object({
+    motivo: requiredText(500, 'Escribe por qué se cambia la configuración del método.'),
+  }).strict(),
+  metodoGuardar: z.object({
+    revision: z.number({ error: 'Falta la revisión del borrador.' }).int().positive(),
+    contenido: z.record(z.string(), z.unknown(), { error: 'Falta el contenido de la configuración.' }),
+    motivo: z.string().trim().max(500).nullable().optional(),
+  }).strict(),
+  metodoDescarte: z.object({
+    motivo: requiredText(500, 'Escribe por qué se descarta el borrador.'),
+  }).strict(),
+  metodoAprobacion: z.object({
+    revision: z.number({ error: 'Falta la revisión de la versión.' }).int().positive(),
+    motivo: z.string().trim().max(500).nullable().optional(),
+  }).strict(),
   registroReapertura: z.object({
     motivo: requiredText(500, 'Escribe por qué se reabre el registro aprobado.'),
   }),

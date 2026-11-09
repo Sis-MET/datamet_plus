@@ -16,19 +16,28 @@ const GRAMOS_POR = { mg: 1e-3, g: 1, kg: 1e3, t: 1e6 };
  * Densidad supuesta por material, con su incertidumbre típica (k = 1)
  * (EURAMET cg-18 Anexo E1; R111 Tabla B.7).
  */
-const DENSIDADES_SUPUESTAS = [
-  { patron: /alpaca|plata alemana|niquel plata/i, rho: 8600, u: 85 },
-  { patron: /lat[oó]n|bronce/i, rho: 8400, u: 85 },
-  { patron: /inox/i, rho: 7950, u: 70 },
-  { patron: /fundici[oó]n blanca/i, rho: 7700, u: 200 },
-  { patron: /fundici[oó]n|hierro fundido|gris/i, rho: 7100, u: 300 },
-  { patron: /acero al carbono|acero/i, rho: 7700, u: 100 },
-  { patron: /hierro/i, rho: 7800, u: 100 },
-  { patron: /aluminio/i, rho: 2700, u: 65 },
-];
+const DENSIDADES_INICIALES = Object.freeze([
+  { material: 'Alpaca (plata alemana)', claves: ['alpaca', 'plata alemana', 'niquel plata'], rho: 8600, u: 85 },
+  { material: 'Latón o bronce', claves: ['laton', 'bronce'], rho: 8400, u: 85 },
+  { material: 'Acero inoxidable', claves: ['inox'], rho: 7950, u: 70 },
+  { material: 'Fundición blanca', claves: ['fundicion blanca'], rho: 7700, u: 200 },
+  { material: 'Fundición gris (hierro fundido)', claves: ['fundicion', 'hierro fundido', 'gris'], rho: 7100, u: 300 },
+  { material: 'Acero', claves: ['acero al carbono', 'acero'], rho: 7700, u: 100 },
+  { material: 'Hierro', claves: ['hierro'], rho: 7800, u: 100 },
+  { material: 'Aluminio', claves: ['aluminio'], rho: 2700, u: 65 },
+]);
 
-const densidadSupuesta = (material) => {
-  const fila = DENSIDADES_SUPUESTAS.find(item => item.patron.test(String(material || '')));
+const sinAcentos = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/**
+ * Densidad supuesta por el material (R111 B.7) cuando la pieza no la trae: la
+ * primera fila de la tabla con una clave contenida en el material. La tabla es
+ * de la configuración del método.
+ */
+const densidadSupuesta = (material, tabla = DENSIDADES_INICIALES) => {
+  const texto = sinAcentos(material);
+  if (!texto) return null;
+  const fila = (tabla || []).find(item => (item.claves || []).some(clave => sinAcentos(clave) && texto.includes(sinAcentos(clave))));
   return fila ? { rho: fila.rho, u: fila.u } : null;
 };
 
@@ -96,7 +105,7 @@ const conveccionMg = (masaKg, deltaT) => {
   return valor * escalaMasa;
 };
 
-const CLASES_CON_CONVECCION = new Set(['E1', 'E2', 'F1']);
+const CLASES_CON_CONVECCION = Object.freeze(['E1', 'E2', 'F1']);
 
 /**
  * Masa de referencia de una carga y su presupuesto.
@@ -112,12 +121,16 @@ const CLASES_CON_CONVECCION = new Set(['E1', 'E2', 'F1']);
  *   kD,                          factor de la deriva (7.1.2-10), 1 por defecto
  *   deltaT,                      diferencia de temperatura pesas–aire (convección, 5e)
  *   conveccion,                  true para incluirla (pesas F1 o mejores)
+ *   clasesConveccion,            clases con convección (de la configuración)
+ *   densidades,                  tabla de densidades por material (configuración)
  * }
  */
 const masaReferencia = (piezas, opciones) => {
   const {
     unidad = 'g', aire = null, rhoA1 = null, empuje = '5b', kD = 1, deltaT = 0, conveccion = false,
+    clasesConveccion = CLASES_CON_CONVECCION, densidades = DENSIDADES_INICIALES,
   } = opciones || {};
+  const conConveccion = new Set(clasesConveccion);
   const enGramos = GRAMOS_POR[unidad];
   if (!enGramos) throw new Error(`Unidad desconocida: ${unidad}`);
   const corrigeEmpuje = empuje === '5a' || empuje === '5b';
@@ -142,13 +155,13 @@ const masaReferencia = (piezas, opciones) => {
     // Empuje.
     const densidad = pieza.densidad != null
       ? { rho: Number(pieza.densidad), u: Number(pieza.uDensidad || 0) }
-      : densidadSupuesta(pieza.material) || { rho: RHO_C, u: 0 };
+      : densidadSupuesta(pieza.material, densidades) || { rho: RHO_C, u: 0 };
     const correccionB = corrigeEmpuje ? correccionEmpuje(nominal, aire.rho, densidad.rho) : 0;
     const uEmpuje = corrigeEmpuje
       ? incertidumbreEmpuje({ mN: nominal, rhoA: aire.rho, uRhoA: aire.u || 0, rho: densidad.rho, uRho: densidad.u, rhoA1: empuje === '5b' ? (pieza.rhoA1 ?? rhoA1) : null })
       : cotaEmpuje(empuje, { mN: nominal, emp: Number(pieza.emp || 0), deltaT });
     // Convección (7.1.2-13), solo en pesas F1 o mejores.
-    const uConveccion = conveccion && CLASES_CON_CONVECCION.has(pieza.clase)
+    const uConveccion = conveccion && conConveccion.has(pieza.clase)
       ? (conveccionMg((nominal * enGramos) / 1000, deltaT) / 1000 / enGramos) / Math.sqrt(3)
       : 0;
 
@@ -179,6 +192,8 @@ const masaReferencia = (piezas, opciones) => {
 };
 
 module.exports = {
+  CLASES_CON_CONVECCION,
+  DENSIDADES_INICIALES,
   RHO_0,
   RHO_C,
   conveccionMg,

@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { AlertCircle, ChevronDown, FileText, RefreshCw, Search, ShieldCheck, UserRound } from 'lucide-react';
 import { Button } from '../../../shared/components/ui/Button';
 import { cn } from '../../../shared/utils/cn';
@@ -12,7 +12,6 @@ import { ESTADOS_REGISTRO } from '../domain/registro';
 import { AprobadoresModal } from './AprobadoresModal';
 import { Dropdown } from './Dropdown';
 import { EmptyState, ToneBadge } from './primitives';
-import { ServicioModal } from './ServicioModal';
 
 const CONTROL = 'flex h-9 items-center rounded-xl border border-line bg-surface text-fg shadow-xs transition-colors';
 
@@ -235,7 +234,11 @@ const inicioDelAnio = () => `${new Date().getFullYear()}-01-01`;
  * avisos de calidad de sus datos. El registro de calibración (corregir,
  * calcular, revisar) se elabora en la siguiente etapa.
  */
-export function ServiciosPanel({ canEdit }) {
+/**
+ * `onAbrir(codigo)` abre la página del registro del servicio. `actualizar`
+ * cambia al volver de un registro, para releer los estados.
+ */
+export function ServiciosPanel({ onAbrir, actualizar = 0 }) {
   const baseId = useId();
   const [desde, setDesde] = useState(inicioDelAnio);
   const [hasta, setHasta] = useState('');
@@ -246,11 +249,14 @@ export function ServiciosPanel({ canEdit }) {
   // Con pocos grupos (por ejemplo, al buscar un SECA) se muestran abiertos
   // salvo que se cierren a mano.
   const [cerrados, setCerrados] = useState(() => new Set());
-  const [seleccionado, setSeleccionado] = useState(null);
   const [aprobadores, setAprobadores] = useState(false);
 
   const load = useCallback(() => calibrationApi.servicios({ desde: desde || undefined, hasta: hasta || undefined }), [desde, hasta]);
   const { data, error, loading, reload } = useResource(load);
+  // Al volver de un registro se releen los estados.
+  useEffect(() => {
+    if (actualizar) reload();
+  }, [actualizar, reload]);
   const servicios = useMemo(() => data?.servicios || [], [data]);
 
   const tecnicos = useMemo(() => tecnicosDe(servicios), [servicios]);
@@ -407,22 +413,13 @@ export function ServiciosPanel({ canEdit }) {
                 grupo={grupo}
                 abierto={estaAbierto(grupo.clave)}
                 onToggle={() => alternar(grupo.clave)}
-                onOpen={setSeleccionado}
+                onOpen={servicio => onAbrir(servicio.codigo)}
               />
             ))}
           </div>
         </>
       )}
 
-      {seleccionado && (
-        <ServicioModal
-          key={seleccionado.codigo}
-          codigo={seleccionado.codigo}
-          canEdit={canEdit}
-          onClose={() => setSeleccionado(null)}
-          onChanged={reload}
-        />
-      )}
       {aprobadores && <AprobadoresModal onClose={() => setAprobadores(false)} />}
     </div>
   );

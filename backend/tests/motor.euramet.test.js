@@ -183,3 +183,61 @@ test('decisión 7: regla simple y conservadora, con su riesgo', () => {
   assert.equal(motor.conformidad({ ...base, regla: 'NINGUNA' }).evaluada, false);
   cerca(motor.toleranciaPorcentaje(500, 0.1), 0.5, 1e-12, '0,1 % de 500');
 });
+
+// ─── H2: 60 kg multi-escalón (12 000 g / 2 g; 30 000 g / 5 g; 60 000 g / 10 g) ──
+// Opción 1: sin corrección por empuje (7.1.2-5d), pesas F2 por su valor nominal
+// (u = emp/√3, 7.1.2-3) y deriva D = emp/2 (kD = 1,5 con U = emp/3).
+
+const H2 = {
+  d0: 2,
+  pesa: (kg, emp) => ({ nominal: kg * 1000, correccion: null, U: emp / 3, k: 2, emp, clase: 'F2' }),
+  // s constante por escalón: 1,095 g en el primero (10 000 g) y 2,739 g en el 2 y el 3 (25 000 g).
+  puntos: [
+    { I: 0, piezas: [], dI: 2, s: 1.095, uI: 1.238, uMref: 0, uE: 1.238, nu: 6, k: 2.52, U: 3.120 },
+    { I: 10000, piezas: [[10, 0.16]], dI: 2, s: 1.095, uI: 1.545, uMref: 0.151, uE: 1.552, nu: 16, k: 2.17, U: 3.369 },
+    { I: 19995, piezas: [[20, 0.3]], dI: 5, s: 2.739, uI: 3.464, uMref: 0.290, uE: 3.476, nu: 10, k: 2.28, U: 7.926 },
+    { I: 39990, piezas: [[20, 0.3], [20, 0.3]], dI: 10, s: 2.739, uI: 4.950, uMref: 0.581, uE: 4.984, nu: 43, k: 2.06, U: 10.266 },
+  ],
+};
+
+test('H2 opción 1: indicación, masa de referencia, u(E), νeff, k y U por punto', () => {
+  // Excentricidad: |ΔIecc|máx = 5 g con 20 000 g (7.1.1-10).
+  const uRelEcc = 5 / (2 * 20000 * Math.sqrt(3));
+  for (const punto of H2.puntos) {
+    const referencia = motor.masaReferencia(punto.piezas.map(([kg, emp]) => H2.pesa(kg, emp)), { unidad: 'g', empuje: '5d', kD: 1.5 });
+    const componentesI = motor.componentesIndicacion(punto.I, { d0: H2.d0, dI: punto.dI, s: punto.s, nuS: 4, uRelEcc });
+    const r = motor.errorEnPunto({ indicacion: punto.I, componentesI, referencia });
+    const nombre = `H2 ${punto.I} g`;
+    cerca(r.uIndicacion, punto.uI, 2e-3, `${nombre} u(I)`);
+    if (punto.uMref) cerca(referencia.u, punto.uMref, 1e-2, `${nombre} u(mref)`);
+    cerca(r.u, punto.uE, 2e-3, `${nombre} u(E)`);
+    // La guía imprime νeff truncado (GUM G.6.4).
+    assert.equal(Math.floor(r.nuEff), punto.nu, `${nombre} νeff`);
+    assert.equal(r.k, punto.k, `${nombre} k`);
+    cerca(r.U, punto.U, 3e-3, `${nombre} U`);
+  }
+  // 60 000 g (escalón 3): u(I) = 5,909 g.
+  const u60 = motor.componentesIndicacion(59990, { d0: H2.d0, dI: 10, s: 2.739, nuS: 4, uRelEcc });
+  cerca(Math.sqrt(u60.reduce((s, c) => s + c.u * c.u, 0)), 5.909, 2e-3, 'H2 60 000 g u(I)');
+});
+
+// ─── H3: 30 000 kg / d = 10 kg con cargas de sustitución (7.1.2-15a/b) ────────
+// Se usan las u(I) de la guía: incluyen la deriva bajo carga (7.4.4-7), que el
+// motor no agrega porque ServiceMET no registra tiempos de carga.
+
+test('H3: incertidumbre de las cargas de sustitución y del error (7.1.2-15a/b, 7.1.3-1c)', () => {
+  // mref = 10 pesas M1 de 1 000 kg: u(δmc) = u(δmD) = 10·50 g/√3 y empuje por 5d.
+  const pesas = Array.from({ length: 10 }, () => ({ nominal: 1000, correccion: null, U: null, k: 2, emp: 0.05, clase: 'M1' }));
+  const mref = motor.masaReferencia(pesas, { unidad: 'kg', empuje: '5d', kD: 1 });
+  cerca(mref.u, 0.44, 1e-2, 'u(mref)');
+  // LT2 = mref + Lsub1 (20 000 kg), con u(I1) = 7,97 kg en I(mref) = 10 010 kg.
+  const lt2 = motor.cargaSustitucion({ mref: 10000, uMref: mref.u, diferencias: [0], uIndicaciones: [7.97], parcial: { mref: 10000, u: mref.u } });
+  cerca(lt2.u, 11.28, 3e-3, 'u(LT2)');
+  // u(E) en 20 018 kg con u(I) = 10,82 kg: 15,64 kg.
+  cerca(Math.sqrt(10.82 ** 2 + lt2.u ** 2), 15.64, 3e-3, 'u(E) 20 000 kg');
+  // LT3 = mref + Lsub1 + Lsub2 (30 000 kg), con u(I2) = 10,82 kg; u(E) en 30 040 kg con u(I) = 14,38 kg: 23,85 kg.
+  const lt3 = motor.cargaSustitucion({ mref: 10000, uMref: mref.u, diferencias: [0, 10], uIndicaciones: [7.97, 10.82] });
+  assert.equal(lt3.valor, 30010);
+  cerca(Math.sqrt(14.38 ** 2 + lt3.u ** 2), 23.85, 3e-3, 'u(E) 30 000 kg');
+  assert.equal(motor.factorCobertura(783), 2);
+});

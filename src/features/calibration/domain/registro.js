@@ -7,7 +7,9 @@ export const ESTADOS_REGISTRO = {
   BORRADOR: { label: 'Borrador', tone: 'warning', descripcion: 'En elaboración.' },
   EN_REVISION: { label: 'En revisión', tone: 'info', descripcion: 'Espera la revisión del jefe de Calibración o de un aprobador.' },
   OBSERVADO: { label: 'Observado', tone: 'danger', descripcion: 'Quien lo revisó lo devolvió con una observación.' },
-  APROBADO: { label: 'Aprobado', tone: 'success', descripcion: 'Revisado y aprobado.' },
+  APROBADO: { label: 'Aprobado', tone: 'success', descripcion: 'Revisado y aprobado: falta autorizar el certificado.' },
+  AUTORIZADO: { label: 'Autorizado', tone: 'info', descripcion: 'Certificado autorizado: falta subir el PDF firmado.' },
+  EMITIDO: { label: 'Emitido', tone: 'success', descripcion: 'Certificado firmado y archivado.' },
 };
 
 export const ACCIONES_REGISTRO = {
@@ -18,6 +20,17 @@ export const ACCIONES_REGISTRO = {
   APROBACION: 'Aprobado',
   OBSERVACION: 'Observado',
   REAPERTURA: 'Reabierto',
+  AUTORIZACION: 'Certificado autorizado',
+  ANULACION: 'Autorización anulada',
+  EMISION: 'Certificado emitido',
+  REVISION: 'Revisión del certificado',
+};
+
+export const ESTADOS_EMISION = {
+  AUTORIZADO: { label: 'Autorizada', tone: 'info' },
+  EMITIDO: { label: 'Vigente', tone: 'success' },
+  REEMPLAZADO: { label: 'Reemplazada', tone: 'muted' },
+  ANULADO: { label: 'Anulada', tone: 'danger' },
 };
 
 export const CLASES_INSTRUMENTO = ['I', 'II', 'III', 'IIII'];
@@ -35,6 +48,7 @@ const FIJAS = {
   emp: 'emp según NB 23001', indicar: 'Tolerancia del cliente (%)', factor: 'Factor de seguridad',
   regla_aceptacion: 'Regla de decisión', mant_soporte: 'Mantenimiento del soporte', venta_pesas: 'Venta de pesas',
   reemplazo: 'Reemplazo', observaciones: 'Observaciones',
+  anexo: 'Anexo de información adicional',
 };
 
 /** Nombre legible de una columna de DATA_SERVICIOS_DATOS_CALIBRACION. */

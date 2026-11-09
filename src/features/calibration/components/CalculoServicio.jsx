@@ -22,7 +22,8 @@ const fijo = (valor, decimales) => (valor == null ? '—' : coma(Number(valor).t
 const cientifico = (valor) => (valor == null ? '—' : coma(Number(valor).toExponential(2)));
 const grados = (nu) => (!Number.isFinite(nu) ? '∞' : nu > 9999 ? '> 9 999' : String(Math.floor(nu)));
 
-function Presupuesto({ punto, unidad, onElegirPiezas }) {
+function Presupuesto({ punto, unidad, renderComposicion }) {
+  const [eligiendo, setEligiendo] = useState(false);
   return (
     <div className="bg-surface-2/40 px-3 py-3">
       <table className="w-full text-[12.5px]">
@@ -66,10 +67,10 @@ function Presupuesto({ punto, unidad, onElegirPiezas }) {
             {punto.supuestas ? ' (piezas supuestas: el juego no tiene sus piezas registradas)' : ` · ${[...new Set(punto.piezas.map(p => p.juego))].join(', ')}`}
             {punto.composicion === 'ELEGIDA' ? ' · elegidas a mano' : punto.composicion === 'REGLA' ? ' · regla: menos piezas' : ''}
           </p>
-          {onElegirPiezas && punto.composicion !== 'SUPUESTA' && (
+          {renderComposicion && punto.composicion !== 'SUPUESTA' && !eligiendo && (
             <button
               type="button"
-              onClick={() => onElegirPiezas(punto)}
+              onClick={() => setEligiendo(true)}
               className="flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12.5px] font-semibold text-fg shadow-xs transition-colors hover:bg-surface-2"
             >
               <Layers className="h-3.5 w-3.5" aria-hidden="true" />
@@ -78,6 +79,7 @@ function Presupuesto({ punto, unidad, onElegirPiezas }) {
           )}
         </div>
       )}
+      {eligiendo && renderComposicion(punto, () => setEligiendo(false))}
     </div>
   );
 }
@@ -95,10 +97,11 @@ function Conformidad({ conformidad }) {
 /**
  * Resultado del cálculo de un servicio con el motor (fase 3): error, U y k
  * por punto, conformidad y el presupuesto de incertidumbre desplegable.
- * `data` es el cálculo que devuelve el registro. Con `onElegirPiezas`, cada
- * punto permite elegir a mano las piezas de su carga.
+ * `data` es el cálculo que devuelve el registro. Con `renderComposicion`
+ * (punto, cerrar), cada punto permite elegir a mano las piezas de su carga
+ * ahí mismo, bajo su presupuesto.
  */
-export function CalculoServicio({ data, onElegirPiezas = null }) {
+export function CalculoServicio({ data, renderComposicion = null }) {
   const [abierto, setAbierto] = useState(null);
 
   if (!data) return <p className="text-[13px] text-fg-muted">Sin cálculo.</p>;
@@ -186,7 +189,7 @@ export function CalculoServicio({ data, onElegirPiezas = null }) {
                     {expandido && (
                       <tr className="border-t border-line">
                         <td colSpan={9} className="p-0">
-                          <Presupuesto punto={punto} unidad={unidad} onElegirPiezas={data.piezasDisponibles?.length ? onElegirPiezas : null} />
+                          <Presupuesto punto={punto} unidad={unidad} renderComposicion={data.piezasDisponibles?.length ? renderComposicion : null} />
                         </td>
                       </tr>
                     )}
