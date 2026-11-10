@@ -97,6 +97,39 @@ const corregirLectura = (valor, puntos = []) => {
 };
 
 /**
+ * Humedad corregida cuando el certificado calibró la humedad a varias
+ * temperaturas (puntos con `temperatura`): se corrige con los puntos de cada
+ * temperatura y se interpola entre las dos temperaturas calibradas que
+ * encierran la lectura de temperatura `t`; fuera de ellas, la más cercana.
+ * Con una sola temperatura (o ninguna), igual que corregirLectura.
+ */
+const corregirHumedad = (hr, t, puntos = []) => {
+  const grupos = new Map();
+  for (const punto of puntos) {
+    if (punto.temperatura == null) continue;
+    grupos.set(punto.temperatura, [...(grupos.get(punto.temperatura) || []), punto]);
+  }
+  const temperaturas = [...grupos.keys()].sort((a, b) => a - b);
+  if (temperaturas.length < 2 || hr == null) return corregirLectura(hr, puntos);
+  const conPuntosDe = temperatura => corregirLectura(hr, grupos.get(temperatura));
+  if (t == null || t <= temperaturas[0]) return conPuntosDe(temperaturas[0]);
+  if (t >= temperaturas[temperaturas.length - 1]) return conPuntosDe(temperaturas[temperaturas.length - 1]);
+  const j = temperaturas.findIndex(temperatura => temperatura >= t);
+  const [a, b] = [conPuntosDe(temperaturas[j - 1]), conPuntosDe(temperaturas[j])];
+  const f = (t - temperaturas[j - 1]) / (temperaturas[j] - temperaturas[j - 1]);
+  const correccion = a.correccion + f * (b.correccion - a.correccion);
+  return {
+    valor: hr + correccion,
+    correccion,
+    // Como en corregirLectura: no menor que la menor de las dos.
+    U: Math.max(a.U + f * (b.U - a.U), Math.min(a.U, b.U)),
+    k: Math.min(a.k, b.k),
+    fuera: a.fuera || b.fuera,
+    sinCertificado: false,
+  };
+};
+
+/**
  * Densidad del aire durante la calibración con su incertidumbre: media de las
  * lecturas de inicio y fin, coeficientes de sensibilidad numéricos sobre
  * CIPM-2007 y la incertidumbre de la fórmula.
@@ -151,6 +184,7 @@ module.exports = {
   U_REL_APROXIMADA,
   U_REL_CIPM,
   aireDeCalibracion,
+  corregirHumedad,
   corregirLectura,
   densidadAire,
   densidadAproximada,

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  aptaR111,
   avisosAmbiente,
   avisosPesas,
   claseSugerida,
@@ -76,20 +77,37 @@ test('avisa las piezas sin valores y las que no cumplen la R111', () => {
     // F1, 1 kg: emp 5 mg. U (k = 2) = 2 mg > 5/3 mg.
     { nominalMg: 1 * KG, identificacion: '', correccionMg: 1, uMg: 2, k: 2 },
     // 500 g: emp 2,5 mg; U = 0,5 mg; |corrección| 2,1 > 2,5 − 0,5.
-    { nominalMg: 500 * G, identificacion: '', correccionMg: -2.1, uMg: 0.5, k: 2, conforme: false },
+    { nominalMg: 500 * G, identificacion: '', correccionMg: -2.1, uMg: 0.5, k: 2 },
     { nominalMg: 200 * G, identificacion: '', correccionMg: 0.1, uMg: 0.3, k: 2 },
   ];
   const avisos = avisosPesas({ clase: 'F1', piezas, valores });
   const de = (nominal, ident = '') => avisos.filter(aviso => aviso.pieza === piezaKey({ nominalMg: nominal, identificacion: ident }));
 
   assert.match(de(1 * KG)[0].mensaje, /supera un tercio del emp/);
-  assert.equal(de(500 * G).length, 2);
-  assert.ok(de(500 * G).some(aviso => /R111 5\.3/.test(aviso.mensaje)));
-  assert.ok(de(500 * G).some(aviso => /no conforme/.test(aviso.mensaje)));
+  assert.equal(de(500 * G).length, 1);
+  assert.match(de(500 * G)[0].mensaje, /R111 5\.3/);
   assert.match(de(200 * G)[0].mensaje, /fuera de 7390 a 8730/);
   // Las desactivadas no avisan; las que no tienen valores, sí.
   assert.equal(de(200 * G, '*').length, 0);
   assert.deepEqual(de(100 * G).map(aviso => aviso.tipo).sort(), ['falta', 'info']);
+});
+
+test('«Apta» se calcula con la clase y los valores del certificado (R111 5.2 y 5.3)', () => {
+  // F1, 1 kg: emp 5 mg; un tercio 1,667 mg.
+  assert.equal(aptaR111({ clase: 'F1', nominalMg: 1 * KG, correccionMg: 4, uMg: 1, k: 2 }).apta, true);
+  // |corrección| justo en emp − U.
+  assert.equal(aptaR111({ clase: 'F1', nominalMg: 1 * KG, correccionMg: -4, uMg: 1, k: 2 }).apta, true);
+  assert.equal(aptaR111({ clase: 'F1', nominalMg: 1 * KG, correccionMg: 4.1, uMg: 1, k: 2 }).cumpleCorreccion, false);
+  // U = 2 mg (k = 2) supera emp/3.
+  const grande = aptaR111({ clase: 'F1', nominalMg: 1 * KG, correccionMg: 0, uMg: 2, k: 2 });
+  assert.deepEqual([grande.apta, grande.cumpleU, grande.cumpleCorreccion], [false, false, true]);
+  // La U se lleva a k = 2: 0,9 mg con k = 1 son 1,8 mg.
+  assert.equal(aptaR111({ clase: 'F1', nominalMg: 1 * KG, correccionMg: 0, uMg: 0.9, k: 1 }).cumpleU, false);
+  // Sin clase, valor nominal que la clase no tiene o sin valores: no se decide.
+  assert.equal(aptaR111({ clase: null, nominalMg: 1 * KG, correccionMg: 0, uMg: 1, k: 2 }).apta, null);
+  assert.equal(aptaR111({ clase: 'F1', nominalMg: 3 * KG, correccionMg: 0, uMg: 1, k: 2 }).apta, null);
+  assert.equal(aptaR111({ clase: 'F1', nominalMg: 1 * KG, correccionMg: null, uMg: 1, k: 2 }).apta, null);
+  assert.equal(aptaR111({ clase: 'F1', nominalMg: 1 * KG, correccionMg: 0, uMg: 1, k: 0 }).apta, null);
 });
 
 test('una corrección justo en el límite emp − U no avisa', () => {
@@ -152,6 +170,22 @@ test('la versión de una transcripción no depende del orden de las filas', () =
   const a = transcripcionVersion({ temperatura: 20.5, valores, puntos: [] });
   const b = transcripcionVersion({ temperatura: 20.5, valores: [...valores].reverse(), puntos: [] });
   assert.deepEqual(a, b);
+  // «Apta» se deriva de los valores: no cuenta como cambio.
+  assert.deepEqual(transcripcionVersion({ temperatura: 20.5, valores: valores.map(v => ({ ...v, conforme: true })), puntos: [] }), a);
+  // La temperatura de un punto de humedad y las U de las condiciones sí cuentan.
+  const punto = { magnitud: 'HR', punto: 50.6, correccion: 0.3, u: 3, k: 2 };
+  assert.notDeepEqual(
+    transcripcionVersion({ valores: [], puntos: [{ ...punto, temperatura: 15.2 }] }),
+    transcripcionVersion({ valores: [], puntos: [{ ...punto, temperatura: 25.3 }] })
+  );
+  assert.equal(transcripcionVersion({ presionU: 0.4, valores: [], puntos: [] }).presionU, 0.4);
+  // Si el certificado daba el error o la corrección también cuenta; sin dato, corrección.
+  const presion = { magnitud: 'P', punto: 650, correccion: -1.33, u: 1.42, k: 2 };
+  assert.equal(transcripcionVersion({ valores: [], puntos: [presion] }).puntos[0].expresadoComo, 'CORRECCION');
+  assert.notDeepEqual(
+    transcripcionVersion({ valores: [], puntos: [presion] }),
+    transcripcionVersion({ valores: [], puntos: [{ ...presion, expresadoComo: 'ERROR' }] })
+  );
 });
 
 test('valida y redondea los datos de un patrón', () => {
@@ -164,7 +198,10 @@ test('valida y redondea los datos de un patrón', () => {
     ],
     certificado: {
       temperatura: 20.456,
-      valores: [{ nominalMg: 1000, identificacion: '*', correccionMg: 0.0123456789, uMg: 0.03, k: 2 }],
+      temperaturaU: 0.5,
+      humedadU: 1.6,
+      presionU: 0.4,
+      valores: [{ nominalMg: 1000, identificacion: '*', correccionMg: 0.0123456789, uMg: 0.03, k: 2, conforme: true }],
     },
   });
   assert.equal(data.piezas[0].identificacion, '*');
@@ -173,6 +210,12 @@ test('valida y redondea los datos de un patrón', () => {
   assert.equal(data.piezas[1].activa, true);
   assert.equal(data.certificado.temperatura, 20.46);
   assert.equal(data.certificado.valores[0].correccionMg, 0.012346);
+  // «Apta» la calcula el servidor: lo que llegue se descarta.
+  assert.equal('conforme' in data.certificado.valores[0], false);
+  assert.deepEqual(
+    [data.certificado.temperaturaU, data.certificado.humedadU, data.certificado.presionU, data.certificado.condicionesK],
+    [0.5, 1.6, 0.4, null]
+  );
   assert.equal(data.certificado.version, null);
   assert.deepEqual(data.certificado.puntos, []);
   assert.equal(data.motivo, null);
@@ -195,4 +238,42 @@ test('rechaza patrones mal cargados', () => {
     ] },
   }), /punto repetido/);
   assert.throws(() => parse('patron', { tipo: 'AMBIENTE', certificado: { presion: 101.3 } }), /hPa/);
+  assert.throws(() => parse('patron', {
+    tipo: 'AMBIENTE',
+    certificado: { puntos: [{ magnitud: 'T', temperatura: 20, punto: 20, correccion: 0.1, u: 0.2, k: 2 }] },
+  }), /Solo los puntos de humedad/);
+  assert.throws(() => parse('patron', {
+    tipo: 'AMBIENTE',
+    certificado: { puntos: [
+      { magnitud: 'HR', temperatura: 15.2, punto: 50.6, correccion: 0.3, u: 3, k: 2 },
+      { magnitud: 'HR', temperatura: 15.2, punto: 50.6, correccion: 0.2, u: 3, k: 2 },
+    ] },
+  }), /punto repetido/);
+  assert.throws(() => parse('patron', { tipo: 'PESAS', certificado: { presionU: -1 } }), /negativa/);
+});
+
+test('el mismo valor de humedad a dos temperaturas no es un punto repetido', () => {
+  const data = parse('patron', {
+    tipo: 'AMBIENTE',
+    certificado: { puntos: [
+      { magnitud: 'HR', temperatura: 15.2, punto: 50.6, correccion: 0.3, u: 3, k: 2 },
+      { magnitud: 'HR', temperatura: 25.3, punto: 50.6, correccion: 0.2, u: 3, k: 2 },
+      { magnitud: 'T', punto: 15.2, correccion: 0.5, u: 0.41, k: 2 },
+    ] },
+  });
+  assert.deepEqual(data.certificado.puntos.map(p => p.temperatura), [15.2, 25.3, null]);
+  assert.deepEqual(data.certificado.puntos.map(p => p.expresadoComo), ['CORRECCION', 'CORRECCION', 'CORRECCION']);
+});
+
+test('un punto puede venir del certificado como error', () => {
+  const data = parse('patron', {
+    tipo: 'AMBIENTE',
+    certificado: { puntos: [{ magnitud: 'P', punto: 750, correccion: -1.33, expresadoComo: 'ERROR', u: 1.42, k: 2 }] },
+  });
+  assert.equal(data.certificado.puntos[0].expresadoComo, 'ERROR');
+  assert.equal(data.certificado.puntos[0].correccion, -1.33);
+  assert.throws(() => parse('patron', {
+    tipo: 'AMBIENTE',
+    certificado: { puntos: [{ magnitud: 'P', punto: 750, correccion: 1, expresadoComo: 'DESVIO', u: 1, k: 2 }] },
+  }));
 });

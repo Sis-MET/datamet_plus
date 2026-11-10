@@ -139,6 +139,26 @@ const claseSugerida = (codigo) => {
 };
 
 /**
+ * Pieza apta para su clase según la OIML R111, solo con los valores de su
+ * certificado: U (k = 2) ≤ emp/3 (5.2) y |corrección| ≤ emp − U (5.3).
+ * Devuelve { apta, emp, u2, cumpleU, cumpleCorreccion }; apta es null si no se
+ * puede decidir (sin clase, valor nominal que la clase no tiene o sin valores).
+ */
+const aptaR111 = ({ clase, nominalMg, correccionMg, uMg, k }) => {
+  const emp = clase ? empR111(clase, nominalMg) : null;
+  const numeros = [correccionMg, uMg, k].map(v => (v == null || v === '' ? Number.NaN : Number(v)));
+  if (emp === null || numeros.some(v => !Number.isFinite(v)) || !(numeros[2] > 0)) {
+    return { apta: null, emp, u2: null, cumpleU: null, cumpleCorreccion: null };
+  }
+  const [correccion, u, kValor] = numeros;
+  // R111 5.2 expresa U con k = 2.
+  const u2 = (u / kValor) * 2;
+  const cumpleU = u2 <= emp / 3 + 1e-12;
+  const cumpleCorreccion = Math.abs(correccion) <= emp - u2 + 1e-12;
+  return { apta: cumpleU && cumpleCorreccion, emp, u2, cumpleU, cumpleCorreccion };
+};
+
+/**
  * Avisos de un juego de pesas según la OIML R111 (no bloquean el registro):
  * piezas sin valores, U mayor que un tercio del emp (5.2), masa convencional
  * fuera de emp − U (5.3) y densidad fuera de la Tabla 5.
@@ -158,17 +178,13 @@ const avisosPesas = ({ clase, piezas, valores }) => {
     if (!valor) {
       avisos.push({ tipo: 'falta', pieza: key, mensaje: `${label}: falta la corrección, la U y el k del certificado.` });
     } else if (emp !== null) {
-      // R111 5.2 expresa U con k = 2.
-      const u2 = (Number(valor.uMg) / Number(valor.k)) * 2;
-      if (u2 > emp / 3 + 1e-12) {
+      const { u2, cumpleU, cumpleCorreccion } = aptaR111({ clase, nominalMg: pieza.nominalMg, ...valor });
+      if (cumpleU === false) {
         avisos.push({ tipo: 'aviso', pieza: key, mensaje: `${label}: U (k = 2) = ${decimal(u2)} mg supera un tercio del emp de ${clase} (${decimal(emp / 3)} mg; R111 5.2).` });
       }
-      if (Math.abs(Number(valor.correccionMg)) > emp - u2 + 1e-12) {
+      if (cumpleCorreccion === false) {
         avisos.push({ tipo: 'aviso', pieza: key, mensaje: `${label}: la corrección ${decimal(valor.correccionMg)} mg sale de ± (emp − U) = ± ${decimal(Math.max(emp - u2, 0))} mg (R111 5.3).` });
       }
-    }
-    if (valor?.conforme === false) {
-      avisos.push({ tipo: 'aviso', pieza: key, mensaje: `${label}: el certificado la declara no conforme con su clase.` });
     }
 
     if (pieza.densidad == null) {
@@ -233,25 +249,34 @@ const valorVersion = (valor) => ({
   correccionMg: Number(valor.correccionMg),
   uMg: Number(valor.uMg),
   k: Number(valor.k),
-  conforme: valor.conforme ?? null,
 });
 
 const puntoVersion = (punto) => ({
   magnitud: punto.magnitud,
   documento: punto.documento || null,
+  temperatura: punto.temperatura ?? null,
   punto: Number(punto.punto),
   correccion: Number(punto.correccion),
+  expresadoComo: punto.expresadoComo || 'CORRECCION',
   u: Number(punto.u),
   k: Number(punto.k),
 });
 
-const transcripcionVersion = ({ temperatura, humedad, presion, observaciones, valores, puntos }) => ({
+const transcripcionVersion = ({
+  temperatura, humedad, presion, temperaturaU, humedadU, presionU, condicionesK, observaciones, valores, puntos,
+}) => ({
   temperatura: temperatura ?? null,
   humedad: humedad ?? null,
   presion: presion ?? null,
+  temperaturaU: temperaturaU ?? null,
+  humedadU: humedadU ?? null,
+  presionU: presionU ?? null,
+  condicionesK: condicionesK ?? null,
   observaciones: observaciones || null,
   valores: [...valores].map(valorVersion).sort((a, b) => a.pieza.localeCompare(b.pieza)),
-  puntos: [...puntos].map(puntoVersion).sort((a, b) => `${a.magnitud}|${a.punto}`.localeCompare(`${b.magnitud}|${b.punto}`)),
+  puntos: [...puntos].map(puntoVersion).sort((a, b) => (
+    `${a.magnitud}|${a.temperatura ?? ''}|${a.punto}`.localeCompare(`${b.magnitud}|${b.temperatura ?? ''}|${b.punto}`)
+  )),
 });
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -337,8 +362,8 @@ const findVigente = async (createRequest, equipo) => {
 const loadTranscripcion = async (createRequest, certificadoId, { lock = false } = {}) => {
   const hint = lock ? 'WITH (UPDLOCK, HOLDLOCK)' : '';
   const cabecera = await createRequest().input('cid', sql.Int, certificadoId).query(`
-    SELECT temperatura, humedad, presion, observaciones, transcrito_por,
-      CONVERT(varchar(19), transcrito_en, 126) AS transcrito_en, version
+    SELECT temperatura, humedad, presion, temperatura_u, humedad_u, presion_u, condiciones_k,
+      observaciones, transcrito_por, CONVERT(varchar(19), transcrito_en, 126) AS transcrito_en, version
     FROM dbo.CAL_CERT_TRANSCRIPCION ${hint} WHERE certificado_id = @cid
   `);
   const valores = await createRequest().input('cid', sql.Int, certificadoId).query(`
@@ -349,16 +374,21 @@ const loadTranscripcion = async (createRequest, certificadoId, { lock = false } 
     ORDER BY p.nominal_mg DESC, p.identificacion
   `);
   const puntos = await createRequest().input('cid', sql.Int, certificadoId).query(`
-    SELECT magnitud, documento, punto, correccion, u, k
+    SELECT magnitud, documento, temperatura, punto, correccion, expresado_como, u, k
     FROM dbo.CAL_CERT_PUNTOS ${hint} WHERE certificado_id = @cid
-    ORDER BY CASE magnitud WHEN 'T' THEN 1 WHEN 'HR' THEN 2 ELSE 3 END, punto
+    ORDER BY CASE magnitud WHEN 'T' THEN 1 WHEN 'HR' THEN 2 ELSE 3 END, temperatura, punto
   `);
   const row = cabecera.recordset[0];
+  const numero = (value) => (value == null ? null : Number(value));
   return {
     cabecera: row ? {
       temperatura: row.temperatura == null ? null : Number(row.temperatura),
       humedad: row.humedad == null ? null : Number(row.humedad),
       presion: row.presion == null ? null : Number(row.presion),
+      temperaturaU: numero(row.temperatura_u),
+      humedadU: numero(row.humedad_u),
+      presionU: numero(row.presion_u),
+      condicionesK: numero(row.condiciones_k),
       observaciones: clean(row.observaciones),
       transcritoPor: clean(row.transcrito_por),
       transcritoEn: row.transcrito_en ? `${row.transcrito_en}Z` : null,
@@ -377,8 +407,10 @@ const loadTranscripcion = async (createRequest, certificadoId, { lock = false } 
     puntos: puntos.recordset.map(item => ({
       magnitud: item.magnitud,
       documento: clean(item.documento),
+      temperatura: numero(item.temperatura),
       punto: Number(item.punto),
       correccion: Number(item.correccion),
+      expresadoComo: item.expresado_como || 'CORRECCION',
       u: Number(item.u),
       k: Number(item.k),
     })),
@@ -425,6 +457,10 @@ const getPatron = async (equipoId, user = null) => {
 
   const tipo = config?.tipo || tipoSugerido(equipo.instrumento);
   const clase = config ? config.clase : claseSugerida(equipo.codigo);
+  // Materiales de la tabla de densidades del método vigente (R111, Tabla B.7).
+  // Se carga aquí: calibration.metodo depende de este módulo.
+  const { motor } = await require('./calibration.metodo').configuracionVigente();
+  const materiales = (motor.densidades || []).map(({ material, claves, rho, u }) => ({ material, claves, rho, u }));
   let avisos = [];
   if (tipo === 'PESAS' && equipo.certFecha) avisos = avisosPesas({ clase, piezas, valores: datos.valores });
   if (tipo === 'AMBIENTE' && equipo.certFecha) avisos = avisosAmbiente({ puntos: datos.puntos });
@@ -447,8 +483,11 @@ const getPatron = async (equipoId, user = null) => {
       ente: equipo.enteCalibrador,
     } : null,
     transcripcion: datos.cabecera,
-    valores: datos.valores,
+    valores: datos.valores.map(valor => ({ ...valor, apta: aptaR111({ clase, ...valor }).apta })),
     puntos: datos.puntos,
+    // Para calcular «Apta» mientras se escribe, con la clase elegida.
+    r111: { clases: CLASES, emp: EMP_TABLA },
+    materiales,
     verificacion: equipo.certFecha ? verificacionDe({ vigente, transcripcion: datos.cabecera, who }) : null,
     avisos,
   };
@@ -549,7 +588,7 @@ const savePiezas = async (createRequest, equipoId, piezas, usuario) => {
   };
 };
 
-const writeTranscripcion = async (createRequest, certificadoId, piezas, datos, usuario, existe) => {
+const writeTranscripcion = async (createRequest, certificadoId, piezas, datos, clase, usuario, existe) => {
   const porClave = new Map(piezas.map(pieza => [piezaKey(pieza), pieza]));
   for (const valor of datos.valores) {
     const pieza = porClave.get(piezaKey(valor));
@@ -567,7 +606,8 @@ const writeTranscripcion = async (createRequest, certificadoId, piezas, datos, u
       .input('pid', sql.Int, porClave.get(piezaKey(valor)).id)
       .input('documento', sql.NVarChar(40), valor.documento || null)
       .input('k', sql.Decimal(5, 2), valor.k)
-      .input('conforme', sql.Bit, valor.conforme ?? null);
+      // Apta para su clase, calculada con los valores del certificado (R111 5.2 y 5.3).
+      .input('conforme', sql.Bit, aptaR111({ clase, ...valor }).apta);
     pesoInput(request, 'correccion', valor.correccionMg);
     pesoInput(request, 'u', valor.uMg);
     await request.query(`
@@ -580,13 +620,15 @@ const writeTranscripcion = async (createRequest, certificadoId, piezas, datos, u
       .input('cid', sql.Int, certificadoId)
       .input('magnitud', sql.VarChar(2), punto.magnitud)
       .input('documento', sql.NVarChar(40), punto.documento || null)
+      .input('temperatura', sql.Decimal(6, 2), punto.magnitud === 'HR' ? punto.temperatura ?? null : null)
       .input('punto', sql.Decimal(12, 4), punto.punto)
       .input('correccion', sql.Decimal(12, 4), punto.correccion)
+      .input('expresado', sql.VarChar(10), punto.expresadoComo === 'ERROR' ? 'ERROR' : 'CORRECCION')
       .input('u', sql.Decimal(12, 4), punto.u)
       .input('k', sql.Decimal(5, 2), punto.k)
       .query(`
-        INSERT INTO dbo.CAL_CERT_PUNTOS (certificado_id, magnitud, documento, punto, correccion, u, k)
-        VALUES (@cid, @magnitud, @documento, @punto, @correccion, @u, @k)
+        INSERT INTO dbo.CAL_CERT_PUNTOS (certificado_id, magnitud, documento, temperatura, punto, correccion, expresado_como, u, k)
+        VALUES (@cid, @magnitud, @documento, @temperatura, @punto, @correccion, @expresado, @u, @k)
       `);
   }
 
@@ -595,15 +637,21 @@ const writeTranscripcion = async (createRequest, certificadoId, piezas, datos, u
     .input('t', sql.Decimal(6, 2), datos.temperatura ?? null)
     .input('hr', sql.Decimal(6, 2), datos.humedad ?? null)
     .input('p', sql.Decimal(8, 2), datos.presion ?? null)
+    .input('tU', sql.Decimal(6, 2), datos.temperaturaU ?? null)
+    .input('hrU', sql.Decimal(6, 2), datos.humedadU ?? null)
+    .input('pU', sql.Decimal(8, 2), datos.presionU ?? null)
+    .input('k', sql.Decimal(5, 2), datos.condicionesK ?? null)
     .input('obs', sql.NVarChar(300), datos.observaciones || null)
     .input('usuario', sql.NVarChar(50), usuario);
   await request.query(existe
     ? `UPDATE dbo.CAL_CERT_TRANSCRIPCION
-       SET temperatura = @t, humedad = @hr, presion = @p, observaciones = @obs,
+       SET temperatura = @t, humedad = @hr, presion = @p, temperatura_u = @tU, humedad_u = @hrU, presion_u = @pU,
+         condiciones_k = @k, observaciones = @obs,
          transcrito_por = @usuario, transcrito_en = SYSUTCDATETIME(), version = version + 1
        WHERE certificado_id = @cid`
-    : `INSERT INTO dbo.CAL_CERT_TRANSCRIPCION (certificado_id, temperatura, humedad, presion, observaciones, transcrito_por)
-       VALUES (@cid, @t, @hr, @p, @obs, @usuario)`);
+    : `INSERT INTO dbo.CAL_CERT_TRANSCRIPCION
+         (certificado_id, temperatura, humedad, presion, temperatura_u, humedad_u, presion_u, condiciones_k, observaciones, transcrito_por)
+       VALUES (@cid, @t, @hr, @p, @tU, @hrU, @pU, @k, @obs, @usuario)`);
 
   // Cambiar lo transcrito obliga a verificarlo de nuevo contra el original.
   await createRequest().input('cid', sql.Int, certificadoId).query(`
@@ -663,7 +711,7 @@ const savePatron = async (equipoId, data, actor) => withTransaction(async (creat
     const despues = transcripcionVersion(data.certificado);
     if (!antes || !same(antes, despues)) {
       if (antes && !data.motivo) throw httpError(400, 'Escribe el motivo del cambio: los valores de este certificado ya estaban transcritos.');
-      await writeTranscripcion(createRequest, certificadoId, piezas, data.certificado, who.usuario, Boolean(previo.cabecera));
+      await writeTranscripcion(createRequest, certificadoId, piezas, data.certificado, nuevaConfig.clase, who.usuario, Boolean(previo.cabecera));
       const cantidad = data.tipo === 'PESAS' ? `${despues.valores.length} piezas` : `${despues.puntos.length} puntos`;
       await logAction(
         createRequest,
@@ -715,6 +763,7 @@ const valoresVigentesEn = async (equipoId, fecha) => {
 module.exports = {
   CLASES,
   empR111,
+  aptaR111,
   densidadR111,
   formatNominal,
   piezaKey,

@@ -6,13 +6,19 @@ import { calibrationApi } from '../api/calibration';
 import { formatDate } from '../domain/format';
 import {
   CLASES_R111,
+  EXPRESIONES,
   MAGNITUDES,
   ORIGENES_DENSIDAD,
   TIPOS_PATRON,
   UNIDADES_MASA,
   VERIFICACION,
+  aptaPieza,
+  cambiarExpresion,
+  densidadSupuestaDe,
   esPegadoMultiple,
+  expresionDe,
   formatNumber,
+  materialDeLista,
   parseNominalText,
   parseNumber,
   parsePegado,
@@ -62,13 +68,16 @@ const piezaVacia = (unidad = 'g', material = '') => ({
   activa: true,
 });
 
-const valorVacio = () => ({ correccion: '', u: '', k: '', documento: '', conforme: '' });
+const valorVacio = () => ({ correccion: '', u: '', k: '', documento: '' });
 
 const filaPunto = (magnitud, punto = null) => ({
   key: nuevaClave(),
   magnitud,
+  // Solo en humedad: la temperatura a la que se calibró el punto.
+  temperatura: texto(punto?.temperatura),
   punto: texto(punto?.punto),
-  correccion: texto(punto?.correccion),
+  // Como lo da el certificado: la corrección o el error (expresion de la magnitud).
+  correccion: texto(cambiarExpresion(punto?.correccion, punto?.expresadoComo)),
   u: texto(punto?.u),
   k: texto(punto?.k),
   documento: punto?.documento || '',
@@ -82,7 +91,6 @@ const estadoInicial = (data) => {
       u: texto(valor.uMg),
       k: texto(valor.k),
       documento: valor.documento || '',
-      conforme: valor.conforme === true ? 'SI' : valor.conforme === false ? 'NO' : '',
     };
   }
   return {
@@ -91,10 +99,21 @@ const estadoInicial = (data) => {
     piezas: data.piezas.map(filaPieza),
     valores,
     puntos: data.puntos.map(punto => filaPunto(punto.magnitud, punto)),
+    // Qué da el certificado en cada magnitud. Los de presión suelen dar el error
+    // (formulario EMCA): sin puntos guardados, la presión empieza en «Error».
+    expresion: {
+      T: expresionDe(data.puntos, 'T'),
+      HR: expresionDe(data.puntos, 'HR'),
+      P: expresionDe(data.puntos, 'P', 'ERROR'),
+    },
     condiciones: {
       temperatura: texto(data.transcripcion?.temperatura),
       humedad: texto(data.transcripcion?.humedad),
       presion: texto(data.transcripcion?.presion),
+      temperaturaU: texto(data.transcripcion?.temperaturaU),
+      humedadU: texto(data.transcripcion?.humedadU),
+      presionU: texto(data.transcripcion?.presionU),
+      condicionesK: texto(data.transcripcion?.condicionesK),
       observaciones: data.transcripcion?.observaciones || '',
     },
   };
@@ -145,6 +164,10 @@ const armarEnvio = (form, data) => {
       temperatura: numero(form.condiciones.temperatura, 'Temperatura'),
       humedad: numero(form.condiciones.humedad, 'Humedad'),
       presion: numero(form.condiciones.presion, 'Presión'),
+      temperaturaU: numero(form.condiciones.temperaturaU, 'Incertidumbre de la temperatura'),
+      humedadU: numero(form.condiciones.humedadU, 'Incertidumbre de la humedad'),
+      presionU: numero(form.condiciones.presionU, 'Incertidumbre de la presión'),
+      condicionesK: numero(form.condiciones.condicionesK, 'k de las incertidumbres de las condiciones'),
       observaciones: form.condiciones.observaciones.trim() || null,
       valores: [],
       puntos: [],
@@ -161,19 +184,23 @@ const armarEnvio = (form, data) => {
           correccionMg: numero(valor.correccion, `${etiqueta}, corrección`, true),
           uMg: numero(valor.u, `${etiqueta}, U`, true),
           k: numero(valor.k, `${etiqueta}, k`, true),
-          conforme: valor.conforme === 'SI' ? true : valor.conforme === 'NO' ? false : null,
         });
       }
     } else {
       certificado.puntos = form.puntos
-        .filter(fila => [fila.punto, fila.correccion, fila.u, fila.k].some(item => String(item).trim()))
+        .filter(fila => [fila.temperatura, fila.punto, fila.correccion, fila.u, fila.k].some(item => String(item).trim()))
         .map((fila) => {
           const etiqueta = `${MAGNITUDES.find(m => m.id === fila.magnitud)?.label} ${fila.punto || ''}`.trim();
+          const expresadoComo = form.expresion[fila.magnitud] || 'CORRECCION';
+          const valor = numero(fila.correccion, `${etiqueta}, ${expresadoComo === 'ERROR' ? 'error' : 'corrección'}`, true);
           return {
             magnitud: fila.magnitud,
             documento: fila.documento.trim() || null,
+            temperatura: fila.magnitud === 'HR' ? numero(fila.temperatura, `${etiqueta}, temperatura`) : null,
             punto: numero(fila.punto, `${etiqueta}, punto`, true),
-            correccion: numero(fila.correccion, `${etiqueta}, corrección`, true),
+            // El cálculo usa la corrección: el error con el signo cambiado.
+            correccion: cambiarExpresion(valor, expresadoComo),
+            expresadoComo,
             u: numero(fila.u, `${etiqueta}, U`, true),
             k: numero(fila.k, `${etiqueta}, k`, true),
           };
@@ -205,7 +232,7 @@ function Celda({ value, onChange, onPaste, disabled, label, numeric = true, clas
 }
 
 /** Lista desplegable del módulo, a la altura de las celdas. */
-function Selector({ value, onChange, options, disabled, label, className }) {
+function Selector({ value, onChange, options, disabled, label, className, menuWidth }) {
   return (
     <Dropdown
       value={value}
@@ -214,7 +241,8 @@ function Selector({ value, onChange, options, disabled, label, className }) {
       ariaLabel={label}
       disabled={disabled}
       size="sm"
-      maxHeight={200}
+      maxHeight={menuWidth ? 280 : 200}
+      menuWidth={menuWidth}
       className={className}
     />
   );
@@ -246,12 +274,38 @@ const botonSecundario = 'inline-flex h-9 items-center justify-center gap-1.5 rou
 
 const COLUMNAS_PIEZA = ['nominal', 'identificacion', 'material', 'densidad', 'densidadU', 'densidadK', 'densidadOrigen'];
 const COLUMNAS_VALOR = ['correccion', 'u', 'k', 'documento'];
-const COLUMNAS_PUNTO = ['punto', 'correccion', 'u', 'k', 'documento'];
+// En humedad, la temperatura va primero, como en el certificado.
+const columnasPunto = (magnitud) => (magnitud === 'HR' ? ['temperatura'] : []).concat(['punto', 'correccion', 'u', 'k', 'documento']);
 
-const asignarPieza = (fila, campo, valor) => {
+/**
+ * Al elegir el material, la densidad supuesta de la tabla del método (R111,
+ * Tabla B.7) con su U y k = 2, si la pieza no tiene densidad o tenía la
+ * supuesta del material anterior.
+ */
+const conMaterial = (fila, material, materiales) => {
+  const anterior = densidadSupuestaDe(fila.material, materiales);
+  const nueva = densidadSupuestaDe(material, materiales);
+  const sinDensidad = !fila.densidad.trim() && !fila.densidadU.trim() && !fila.densidadK.trim();
+  const eraSupuesta = anterior && fila.densidadOrigen === 'SUPUESTA' && parseNumber(fila.densidad) === anterior.densidad;
+  if (!nueva || !(sinDensidad || eraSupuesta)) return { ...fila, material };
+  return {
+    ...fila,
+    material,
+    densidad: texto(nueva.densidad),
+    densidadU: texto(nueva.densidadU),
+    densidadK: texto(nueva.densidadK),
+    densidadOrigen: 'SUPUESTA',
+  };
+};
+
+const asignarPieza = (materiales) => (fila, campo, valor) => {
   if (campo === 'nominal') {
     const nominal = parseNominalText(valor, fila.unidad);
     return nominal ? { ...fila, nominal: nominal.valor, unidad: nominal.unidad } : { ...fila, nominal: valor };
+  }
+  if (campo === 'material') {
+    // Lo pegado se lleva al nombre de la lista; si no coincide, queda marcado.
+    return { ...fila, material: materialDeLista(valor, materiales)?.material || valor };
   }
   if (campo === 'densidadOrigen') {
     const normal = valor.toLowerCase();
@@ -259,6 +313,108 @@ const asignarPieza = (fila, campo, valor) => {
   }
   return { ...fila, [campo]: valor };
 };
+
+// ─── Puntos de un termohigrómetro ──────────────────────────────────────────
+
+/** Columnas de los puntos de una magnitud, en el orden del certificado. */
+const columnasDePuntos = (magnitud, comoError) => [
+  ...(magnitud.id === 'HR' ? [{ campo: 'temperatura', titulo: 'Temperatura de calibración', unidad: '°C' }] : []),
+  { campo: 'punto', titulo: magnitud.id === 'HR' ? 'Humedad del punto' : 'Punto calibrado', unidad: magnitud.unidad },
+  { campo: 'correccion', titulo: comoError ? 'Error' : 'Corrección', unidad: magnitud.unidad },
+  { campo: 'u', titulo: 'Incertidumbre (U)', unidad: magnitud.unidad },
+  { campo: 'k', titulo: 'k', unidad: null, angosta: true },
+];
+
+const tituloColumna = (columna) => `${columna.titulo}${columna.unidad ? ` (${columna.unidad})` : ''}`;
+
+/**
+ * Puntos calibrados de una magnitud: un bloque a todo lo ancho con su
+ * encabezado. En pantallas chicas cada punto es una tarjeta con sus etiquetas
+ * (calibration.css, .cal-puntos).
+ */
+function PuntosMagnitud({ magnitud, filas, expresion, editable, disabled, onExpresion, onAgregar, onCambiar, onQuitar, onPegar }) {
+  const comoError = expresion === 'ERROR';
+  const columnas = columnasDePuntos(magnitud, comoError);
+  const plantilla = { '--cal-puntos-columnas': `${columnas.map(c => (c.angosta ? 'minmax(0, 0.6fr)' : 'minmax(0, 1fr)')).join(' ')} 2.5rem` };
+  return (
+    <section className="rounded-xl border border-line bg-surface shadow-xs" aria-label={magnitud.label}>
+      <header className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-line px-4 py-3">
+        <div className="min-w-[10rem] flex-1">
+          <h4 className="text-[14px] font-semibold text-fg">
+            {magnitud.label} <span className="font-normal text-fg-muted">({magnitud.unidad})</span>
+          </h4>
+          <p className="mt-0.5 text-xs text-fg-muted">
+            {filas.length === 1 ? '1 punto' : `${filas.length} puntos`}
+            {comoError && ' · el cálculo usa la corrección, que es el error con el signo cambiado'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[12.5px] text-fg-muted">El certificado da</span>
+          <Selector
+            value={expresion}
+            onChange={onExpresion}
+            options={EXPRESIONES}
+            disabled={disabled}
+            label={`${magnitud.label}: el certificado da la corrección o el error`}
+            className="w-32"
+          />
+        </div>
+        {editable && (
+          <button type="button" className={botonSecundario} disabled={disabled} onClick={onAgregar}>
+            <Plus className="h-4 w-4" aria-hidden="true" /> Agregar punto
+          </button>
+        )}
+      </header>
+      {filas.length === 0 ? (
+        <p className="px-4 py-6 text-center text-[13px] text-fg-subtle">
+          Sin puntos. Agrega el primero o pega las filas copiadas del certificado.
+        </p>
+      ) : (
+        <div className="px-4 py-3.5">
+          <div className="cal-puntos">
+            <div className="cal-puntos-fila cal-puntos-encabezado" style={plantilla} aria-hidden="true">
+              {columnas.map(columna => <span key={columna.campo}>{tituloColumna(columna)}</span>)}
+              <span />
+            </div>
+            {filas.map((fila, indice) => (
+              <div key={fila.key} className="cal-puntos-fila" style={plantilla}>
+                {columnas.map(columna => (
+                  <label key={columna.campo} className="block min-w-0">
+                    <span className="cal-puntos-etiqueta">{tituloColumna(columna)}</span>
+                    <Celda
+                      value={fila[columna.campo]}
+                      onChange={valor => onCambiar(fila.key, { [columna.campo]: valor })}
+                      onPaste={onPegar(indice, columna.campo)}
+                      disabled={disabled}
+                      label={`${magnitud.label}, punto ${indice + 1}: ${tituloColumna(columna).toLowerCase()}`}
+                      className="h-10 w-full"
+                    />
+                  </label>
+                ))}
+                <div className="cal-puntos-quitar">
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={() => onQuitar(fila.key)}
+                      aria-label={`Quitar el punto ${indice + 1} de ${magnitud.label.toLowerCase()}`}
+                      title="Quitar punto"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-fg-muted hover:bg-fg/[0.06] hover:text-danger"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {magnitud.id === 'HR' && (
+            <p className="cal-hint mt-3">Anota la temperatura de cada punto como en el certificado: el cálculo corrige la humedad a la temperatura medida.</p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 // ─── Ficha ─────────────────────────────────────────────────────────────────
 
@@ -338,6 +494,17 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
   const setPunto = (key, patch) => set({ puntos: form.puntos.map(fila => (fila.key === key ? { ...fila, ...patch } : fila)) });
   const ultimaUnidad = form.piezas[form.piezas.length - 1]?.unidad || 'g';
   const materialComun = form.piezas.find(fila => fila.material)?.material || '';
+  const materiales = data.materiales || [];
+  const opcionesMaterial = [
+    { value: '', label: '—' },
+    ...materiales.map(m => ({ value: m.material, label: m.material, hint: `${formatNumber(m.rho)} kg/m³` })),
+  ];
+  // Un material guardado antes de la lista (texto libre) se muestra para cambiarlo.
+  const opcionesMaterialDe = (material) => (
+    !material || materiales.some(m => m.material === material)
+      ? opcionesMaterial
+      : [...opcionesMaterial, { value: material, label: `${material} (no está en la lista)` }]
+  );
 
   const pegarPieza = (indice, campo) => (event) => {
     const contenido = event.clipboardData.getData('text/plain');
@@ -352,7 +519,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
         celdas: parsePegado(contenido),
         columnas: COLUMNAS_PIEZA,
         nuevaFila: () => piezaVacia(ultimaUnidad, materialComun),
-        asignar: asignarPieza,
+        asignar: asignarPieza(materiales),
       }),
     }));
   };
@@ -383,7 +550,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
         fila: indice,
         columna: campo,
         celdas: parsePegado(contenido),
-        columnas: COLUMNAS_PUNTO,
+        columnas: columnasPunto(magnitud),
         nuevaFila: () => filaPunto(magnitud),
       });
       return { ...current, puntos: [...otras, ...pegadas] };
@@ -537,7 +704,17 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                         </div>
                       </td>
                       <td className="px-2 py-1.5"><Celda numeric={false} value={fila.identificacion} onChange={(identificacion) => setPieza(fila.key, { identificacion })} onPaste={pegarPieza(indice, 'identificacion')} disabled={disabled} label="Identificación" className="w-16" /></td>
-                      <td className="px-2 py-1.5"><Celda numeric={false} value={fila.material} onChange={(material) => setPieza(fila.key, { material })} onPaste={pegarPieza(indice, 'material')} disabled={disabled} label="Material" className="w-36" /></td>
+                      <td className="px-2 py-1.5">
+                        <Selector
+                          value={fila.material}
+                          onChange={(material) => set({ piezas: form.piezas.map(item => (item.key === fila.key ? conMaterial(item, material, materiales) : item)) })}
+                          options={opcionesMaterialDe(fila.material)}
+                          disabled={disabled}
+                          label="Material"
+                          className="w-48"
+                          menuWidth={300}
+                        />
+                      </td>
                       <td className="px-2 py-1.5"><Celda value={fila.densidad} onChange={(densidad) => setPieza(fila.key, { densidad })} onPaste={pegarPieza(indice, 'densidad')} disabled={disabled} label="Densidad" className="w-24" /></td>
                       <td className="px-2 py-1.5"><Celda value={fila.densidadU} onChange={(densidadU) => setPieza(fila.key, { densidadU })} onPaste={pegarPieza(indice, 'densidadU')} disabled={disabled} label="U de la densidad" className="w-20" /></td>
                       <td className="px-2 py-1.5"><Celda value={fila.densidadK} onChange={(densidadK) => setPieza(fila.key, { densidadK })} onPaste={pegarPieza(indice, 'densidadK')} disabled={disabled} label="k de la densidad" className="w-14" /></td>
@@ -571,7 +748,8 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
               </Tabla>
             )}
             <p className="cal-hint mt-3">
-              Las piezas guardadas no se borran: se desactivan. Sin densidad, el cálculo usará la supuesta por material (OIML R111, Tabla B.7).
+              Al elegir el material se llena su densidad supuesta (OIML R111, Tabla B.7) con la U para k = 2; cámbiala si el certificado da una medida.
+              Los materiales son los de Método de cálculo › Densidades. Las piezas guardadas no se borran: se desactivan.
             </p>
           </ModalSection>
         )}
@@ -648,7 +826,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                         <th className={encabezado}>U (mg)</th>
                         <th className={encabezado}>k</th>
                         <th className={encabezado}>Documento</th>
-                        <th className={encabezado}>Apta</th>
+                        <th className={encabezado}>Apta (R111)</th>
                         <th className={encabezado}><span className="sr-only">Avisos</span></th>
                       </tr>
                     </thead>
@@ -660,6 +838,14 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                         const avisos = (clave && avisosPorPieza.get(clave)) || [];
                         const serios = avisos.filter(aviso => aviso.tipo !== 'info');
                         const pieza = `${fila.nominal} ${fila.unidad}${fila.identificacion ? ` ${fila.identificacion}` : ''}`;
+                        const apta = aptaPieza({
+                          r111: data.r111,
+                          clase: form.clase,
+                          nominalMg: Number.isFinite(nominal) ? toMg(nominal, fila.unidad) : Number.NaN,
+                          correccion: valor.correccion,
+                          u: valor.u,
+                          k: valor.k,
+                        });
                         return (
                           <tr key={fila.key} className="border-t border-line">
                             <td className="whitespace-nowrap px-3 py-1.5 font-medium tabular-nums text-fg">
@@ -669,15 +855,14 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                             <td className="px-2 py-1.5"><Celda value={valor.u} onChange={(u) => setValor(fila.key, { u })} onPaste={pegarValor(indice, 'u')} disabled={disabled} label={`U de ${pieza}`} className="w-24" /></td>
                             <td className="px-2 py-1.5"><Celda value={valor.k} onChange={(k) => setValor(fila.key, { k })} onPaste={pegarValor(indice, 'k')} disabled={disabled} label={`k de ${pieza}`} className="w-14" /></td>
                             <td className="px-2 py-1.5"><Celda numeric={false} value={valor.documento} onChange={(documento) => setValor(fila.key, { documento })} onPaste={pegarValor(indice, 'documento')} disabled={disabled} label={`Documento de ${pieza}`} className="w-40" /></td>
-                            <td className="px-2 py-1.5">
-                              <Selector
-                                value={valor.conforme}
-                                onChange={(conforme) => setValor(fila.key, { conforme })}
-                                options={[{ value: '', label: '—' }, { value: 'SI', label: 'Sí' }, { value: 'NO', label: 'No' }]}
-                                disabled={disabled}
-                                label={`Apta según el certificado: ${pieza}`}
-                                className="w-20"
-                              />
+                            <td className="px-3 py-1.5" title={apta.motivo}>
+                              {apta.apta == null ? (
+                                <span className="text-[13px] text-fg-subtle" aria-label={`${pieza}: ${apta.motivo}`}>—</span>
+                              ) : (
+                                <span aria-label={`${pieza}: ${apta.apta ? 'apta' : 'no apta'}. ${apta.motivo}`}>
+                                  <ToneBadge tone={apta.apta ? 'success' : 'danger'}>{apta.apta ? 'Sí' : 'No'}</ToneBadge>
+                                </span>
+                              )}
                             </td>
                             <td className="px-2 py-1.5">
                               {serios.length > 0 && (
@@ -692,81 +877,78 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                     </tbody>
                   </Tabla>
                 )
-              ) : (
-                <div className="grid gap-5 lg:grid-cols-3">
-                  {MAGNITUDES.map((magnitud) => {
-                    const filas = form.puntos.filter(fila => fila.magnitud === magnitud.id);
-                    return (
-                      <div key={magnitud.id}>
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-[13px] font-semibold text-fg">{magnitud.label} ({magnitud.unidad})</p>
-                          {editable && (
-                            <button type="button" className={botonSecundario} disabled={disabled} onClick={() => set({ puntos: [...form.puntos, filaPunto(magnitud.id)] })}>
-                              <Plus className="h-4 w-4" aria-hidden="true" /> Punto
-                            </button>
-                          )}
-                        </div>
-                        {filas.length === 0 ? (
-                          <p className="rounded-xl border border-dashed border-line px-3 py-4 text-center text-xs text-fg-subtle">Sin puntos</p>
-                        ) : (
-                          <Tabla minWidth={340}>
-                            <thead className="bg-surface-2/60">
-                              <tr>
-                                <th className={encabezado}>Punto</th>
-                                <th className={encabezado}>Corr.</th>
-                                <th className={encabezado}>U</th>
-                                <th className={encabezado}>k</th>
-                                <th className={encabezado}><span className="sr-only">Quitar</span></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {filas.map((fila, indice) => (
-                                <tr key={fila.key} className="border-t border-line">
-                                  <td className="px-1.5 py-1.5"><Celda value={fila.punto} onChange={(punto) => setPunto(fila.key, { punto })} onPaste={pegarPunto(magnitud.id, indice, 'punto')} disabled={disabled} label={`${magnitud.label}: punto`} className="w-16" /></td>
-                                  <td className="px-1.5 py-1.5"><Celda value={fila.correccion} onChange={(correccion) => setPunto(fila.key, { correccion })} onPaste={pegarPunto(magnitud.id, indice, 'correccion')} disabled={disabled} label={`${magnitud.label}: corrección`} className="w-16" /></td>
-                                  <td className="px-1.5 py-1.5"><Celda value={fila.u} onChange={(u) => setPunto(fila.key, { u })} onPaste={pegarPunto(magnitud.id, indice, 'u')} disabled={disabled} label={`${magnitud.label}: U`} className="w-14" /></td>
-                                  <td className="px-1.5 py-1.5"><Celda value={fila.k} onChange={(k) => setPunto(fila.key, { k })} onPaste={pegarPunto(magnitud.id, indice, 'k')} disabled={disabled} label={`${magnitud.label}: k`} className="w-12" /></td>
-                                  <td className="px-1 py-1.5 text-right">
-                                    {editable && (
-                                      <button
-                                        type="button"
-                                        onClick={() => set({ puntos: form.puntos.filter(item => item.key !== fila.key) })}
-                                        aria-label={`Quitar punto de ${magnitud.label.toLowerCase()}`}
-                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted hover:bg-fg/[0.06] hover:text-danger"
-                                      >
-                                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </Tabla>
-                        )}
-                      </div>
-                    );
-                  })}
+              ) : null}
+              {form.tipo === 'PESAS' && piezasActivas.length > 0 && (
+                <p className="cal-hint -mt-2">
+                  «Apta» se calcula con la clase del juego y los valores del certificado: U (k = 2) ≤ emp/3 y |corrección| ≤ emp − U
+                  (OIML R111, 5.2 y 5.3). Pasa el cursor sobre el resultado para ver las cuentas.
+                </p>
+              )}
+              {form.tipo !== 'PESAS' && (
+                <div className="space-y-4">
+                  {MAGNITUDES.map(magnitud => (
+                    <PuntosMagnitud
+                      key={magnitud.id}
+                      magnitud={magnitud}
+                      filas={form.puntos.filter(fila => fila.magnitud === magnitud.id)}
+                      expresion={form.expresion[magnitud.id]}
+                      editable={editable}
+                      disabled={disabled}
+                      onExpresion={expresion => set({ expresion: { ...form.expresion, [magnitud.id]: expresion } })}
+                      onAgregar={() => set({ puntos: [...form.puntos, filaPunto(magnitud.id)] })}
+                      onCambiar={setPunto}
+                      onQuitar={key => set({ puntos: form.puntos.filter(item => item.key !== key) })}
+                      onPegar={(indice, campo) => pegarPunto(magnitud.id, indice, campo)}
+                    />
+                  ))}
+                  <p className="cal-hint">
+                    Copia cada valor tal como está en el certificado y elige en cada magnitud si da la corrección o el error. El cálculo
+                    usa la corrección: si el certificado da el error, le cambia el signo.
+                  </p>
                 </div>
               )}
 
               {form.tipo === 'PESAS' && (
                 <div>
                   <p className="field-label">Condiciones durante la calibración del juego</p>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <label className="block">
-                      <span className="mb-1 block text-xs text-fg-muted">Temperatura (°C)</span>
-                      <Celda value={form.condiciones.temperatura} onChange={(temperatura) => set({ condiciones: { ...form.condiciones, temperatura } })} disabled={disabled} label="Temperatura durante la calibración" className="h-10" />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs text-fg-muted">Humedad relativa (%)</span>
-                      <Celda value={form.condiciones.humedad} onChange={(humedad) => set({ condiciones: { ...form.condiciones, humedad } })} disabled={disabled} label="Humedad durante la calibración" className="h-10" />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs text-fg-muted">Presión (hPa)</span>
-                      <Celda value={form.condiciones.presion} onChange={(presion) => set({ condiciones: { ...form.condiciones, presion } })} disabled={disabled} label="Presión durante la calibración" className="h-10" />
+                  <div className="flex flex-wrap items-start gap-4">
+                    <Tabla minWidth={420}>
+                      <thead className="bg-surface-2/60">
+                        <tr>
+                          <th className={encabezado}>Parámetro</th>
+                          <th className={encabezado}>Promedio</th>
+                          <th className={encabezado}>Incertidumbre</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { campo: 'temperatura', etiqueta: 'Temperatura', unidad: '°C' },
+                          { campo: 'humedad', etiqueta: 'Humedad relativa', unidad: '%' },
+                          { campo: 'presion', etiqueta: 'Presión', unidad: 'hPa = mbar' },
+                        ].map(({ campo, etiqueta, unidad }) => (
+                          <tr key={campo} className="border-t border-line">
+                            <td className="whitespace-nowrap px-3 py-1.5 text-[13px] text-fg">
+                              {etiqueta} <span className="text-fg-muted">({unidad})</span>
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <Celda value={form.condiciones[campo]} onChange={(valor) => set({ condiciones: { ...form.condiciones, [campo]: valor } })} disabled={disabled} label={`${etiqueta} durante la calibración`} className="w-28" />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <Celda value={form.condiciones[`${campo}U`]} onChange={(valor) => set({ condiciones: { ...form.condiciones, [`${campo}U`]: valor } })} disabled={disabled} label={`Incertidumbre de la ${etiqueta.toLowerCase()} durante la calibración`} className="w-28" />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Tabla>
+                    <label className="block w-40">
+                      <span className="mb-1 block text-xs text-fg-muted">k de las incertidumbres</span>
+                      <Celda value={form.condiciones.condicionesK} onChange={(condicionesK) => set({ condiciones: { ...form.condiciones, condicionesK } })} disabled={disabled} label="k de las incertidumbres de las condiciones" className="h-10 w-20" />
+                      <span className="mt-1 block text-xs leading-snug text-fg-subtle">Si el certificado lo indica.</span>
                     </label>
                   </div>
-                  <p className="cal-hint mt-2">Las que declara el certificado del juego. Sirven para la densidad del aire de su calibración (EURAMET cg-18, 7.1.2-5b).</p>
+                  <p className="cal-hint mt-2">
+                    Las que declara el certificado del juego, con su incertidumbre. El promedio sirve para la densidad del aire de su calibración (EURAMET cg-18, 7.1.2-5b).
+                  </p>
                 </div>
               )}
 

@@ -70,7 +70,7 @@ const pieza = z.object({
   densidadOrigen: z.enum(['MEDIDA', 'SUPUESTA']).nullable().default(null),
   activa: z.boolean().default(true),
 })
-  .refine(item => item.densidadU == null || item.densidadK != null, 'Indica el k de la incertidumbre de la densidad.')
+  .refine(item => item.densidadU == null || item.densidadK != null, 'Indica el k de la incertidumbre de la densidad (la densidad supuesta de la OIML R111, Tabla B.7, va con k = 2).')
   .refine(item => item.densidad != null || (item.densidadU == null && item.densidadOrigen == null), 'Indica la densidad o deja vacíos su incertidumbre y su origen.');
 
 const valorPieza = z.object({
@@ -80,14 +80,20 @@ const valorPieza = z.object({
   correccionMg: numero('Indica la corrección de cada pieza.').min(-1e9).max(1e9).transform(roundTo(6)),
   uMg: numero('Indica la U de cada pieza.').min(0, 'La U no puede ser negativa.').max(1e9).transform(roundTo(6)),
   k: numero('Indica el k de cada pieza.').positive('El k debe ser mayor que cero.').max(10, 'Revisa el k: no puede superar 10.').transform(roundTo(2)),
-  conforme: z.boolean().nullable().default(null),
+  // «Apta» no se envía: el servidor la calcula con la OIML R111 (aptaR111).
 });
 
 const puntoAmbiente = z.object({
   magnitud: z.enum(['T', 'HR', 'P'], { error: 'Indica si el punto es de temperatura, humedad o presión.' }),
   documento: optionalText(40),
+  // Temperatura (°C) a la que se calibró un punto de humedad relativa.
+  temperatura: z.number({ error: 'La temperatura de un punto de humedad debe ser un número.' })
+    .min(-40).max(80, 'Revisa la temperatura del punto de humedad: está en °C.').nullable().default(null).transform(roundTo(2)),
   punto: numero('Indica el valor de cada punto.').min(-100).max(2000).transform(roundTo(4)),
+  // Siempre la corrección que usa el cálculo; expresadoComo dice si el
+  // certificado daba la corrección o el error (= −corrección).
   correccion: numero('Indica la corrección de cada punto.').min(-1000).max(1000).transform(roundTo(4)),
+  expresadoComo: z.enum(['CORRECCION', 'ERROR']).default('CORRECCION'),
   u: numero('Indica la U de cada punto.').min(0, 'La U no puede ser negativa.').max(1000).transform(roundTo(4)),
   k: numero('Indica el k de cada punto.').positive('El k debe ser mayor que cero.').max(10, 'Revisa el k: no puede superar 10.').transform(roundTo(2)),
 });
@@ -102,6 +108,11 @@ const patron = z.object({
     temperatura: z.number().min(-10).max(50, 'Revisa la temperatura: está en °C.').nullable().default(null).transform(roundTo(2)),
     humedad: z.number().min(0).max(100, 'La humedad va de 0 a 100 %.').nullable().default(null).transform(roundTo(2)),
     presion: z.number().gt(300, 'Revisa la presión: está en hPa.').lt(1200, 'Revisa la presión: está en hPa.').nullable().default(null).transform(roundTo(2)),
+    // Incertidumbre expandida de cada condición y su k, si el certificado lo da.
+    temperaturaU: z.number().min(0, 'La incertidumbre no puede ser negativa.').max(10, 'Revisa la incertidumbre de la temperatura: está en °C.').nullable().default(null).transform(roundTo(2)),
+    humedadU: z.number().min(0, 'La incertidumbre no puede ser negativa.').max(30, 'Revisa la incertidumbre de la humedad: está en %.').nullable().default(null).transform(roundTo(2)),
+    presionU: z.number().min(0, 'La incertidumbre no puede ser negativa.').max(50, 'Revisa la incertidumbre de la presión: está en hPa.').nullable().default(null).transform(roundTo(2)),
+    condicionesK: z.number().positive('El k debe ser mayor que cero.').max(10, 'Revisa el k: no puede superar 10.').nullable().default(null).transform(roundTo(2)),
     observaciones: optionalText(300),
     valores: z.array(valorPieza).max(300).default([]),
     puntos: z.array(puntoAmbiente).max(120).default([]),
@@ -112,8 +123,12 @@ const patron = z.object({
   .refine(data => !data.piezas || sinRepetidos(data.piezas, clavePieza), 'Hay piezas repetidas: distínguelas con una identificación (por ejemplo, «*»).')
   .refine(data => !data.certificado || sinRepetidos(data.certificado.valores, clavePieza), 'Una pieza tiene dos filas de valores.')
   .refine(
-    data => !data.certificado || sinRepetidos(data.certificado.puntos, item => `${item.magnitud}|${item.punto}`),
-    'Hay un punto repetido en la misma magnitud.'
+    data => !data.certificado || data.certificado.puntos.every(item => item.temperatura == null || item.magnitud === 'HR'),
+    'Solo los puntos de humedad relativa llevan temperatura.'
+  )
+  .refine(
+    data => !data.certificado || sinRepetidos(data.certificado.puntos, item => `${item.magnitud}|${item.temperatura ?? ''}|${item.punto}`),
+    'Hay un punto repetido en la misma magnitud (y a la misma temperatura, en humedad).'
   );
 
 const serie = z.string().regex(/^(CAL|VER|ACT)-\d{1,9}$/);

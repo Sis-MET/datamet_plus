@@ -87,6 +87,97 @@ export const piezaKey = ({ nominalMg, identificacion }) => `${Number(nominalMg)}
 
 export const piezaLabel = (pieza) => `${formatNominal(pieza.nominalMg)}${pieza.identificacion ? ` ${pieza.identificacion}` : ''}`;
 
+// ─── Error o corrección de los termohigrómetros ─────────────────────────────
+
+/** Lo que da el certificado en cada punto: la corrección o el error de indicación. */
+export const EXPRESIONES = [
+  { value: 'CORRECCION', label: 'Corrección' },
+  { value: 'ERROR', label: 'Error' },
+];
+
+/**
+ * Pasa entre la corrección que usa el cálculo y el valor que escribe el
+ * certificado: el error es la corrección con el signo cambiado. Sirve en los
+ * dos sentidos.
+ */
+export const cambiarExpresion = (valor, expresadoComo) => {
+  if (valor == null || Number.isNaN(valor)) return valor;
+  return expresadoComo === 'ERROR' ? (valor === 0 ? 0 : -valor) : valor;
+};
+
+/** Lo que da el certificado de una magnitud según sus puntos guardados; sin puntos, `porDefecto`. */
+export const expresionDe = (puntos, magnitud, porDefecto = 'CORRECCION') => {
+  const propios = puntos.filter(punto => punto.magnitud === magnitud);
+  if (!propios.length) return porDefecto;
+  return propios.some(punto => punto.expresadoComo === 'ERROR') ? 'ERROR' : 'CORRECCION';
+};
+
+// ─── Apta según la OIML R111 ─────────────────────────────────────────────────
+
+/**
+ * emp (± mg) de la Tabla 1 de la R111 para una clase y un valor nominal, con
+ * la tabla que manda el servidor ({ clases, emp: [[nominalMg, ...por clase]] }).
+ * null si la clase no tiene ese valor nominal.
+ */
+export const empR111 = (r111, clase, nominalMg) => {
+  const columna = r111?.clases?.indexOf(clase) ?? -1;
+  if (columna < 0 || !Number.isFinite(nominalMg)) return null;
+  const fila = r111.emp.find(([nominal]) => Math.abs(nominalMg - nominal) <= Math.abs(nominal) * 1e-9);
+  return fila?.[columna + 1] ?? null;
+};
+
+/**
+ * Pieza apta para su clase solo con los valores de su certificado (la misma
+ * regla que el servidor, aptaR111): U (k = 2) ≤ emp/3 (R111 5.2) y
+ * |corrección| ≤ emp − U (5.3). apta es null si no se puede decidir; `motivo`
+ * lo explica en una frase.
+ */
+export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k }) => {
+  if (!clase) return { apta: null, motivo: 'Elige la clase del juego para calcularla.' };
+  const emp = empR111(r111, clase, nominalMg);
+  if (emp == null) return { apta: null, motivo: `La clase ${clase} no tiene este valor nominal (R111, Tabla 1).` };
+  const [c, uValor, kValor] = [correccion, u, k].map(parseNumber);
+  if (![c, uValor, kValor].every(Number.isFinite) || !(kValor > 0)) {
+    return { apta: null, emp, motivo: 'Faltan la corrección, la U o el k.' };
+  }
+  const u2 = (uValor / kValor) * 2;
+  const cumpleU = u2 <= emp / 3 + 1e-12;
+  const cumpleCorreccion = Math.abs(c) <= emp - u2 + 1e-12;
+  // Para leer: 4 cifras significativas (la decisión usa los valores completos).
+  const mg = (valor) => `${formatNumber(Number(valor.toPrecision(4)))} mg`;
+  const motivos = [
+    `U (k = 2) = ${mg(u2)} ${cumpleU ? '≤' : '>'} emp/3 = ${mg(emp / 3)} (5.2)`,
+    `|corrección| = ${mg(Math.abs(c))} ${cumpleCorreccion ? '≤' : '>'} emp − U = ${mg(Math.max(emp - u2, 0))} (5.3)`,
+  ];
+  return { apta: cumpleU && cumpleCorreccion, emp, u2, cumpleU, cumpleCorreccion, motivo: `emp ${clase}: ${mg(emp)}. ${motivos.join('; ')}.` };
+};
+
+// ─── Materiales (tabla de densidades del método) ────────────────────────────
+
+const sinAcentos = (texto) => String(texto ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+/**
+ * Material de la lista para un texto escrito o pegado: el del mismo nombre o,
+ * como el cálculo, el primero con una palabra clave contenida en el texto.
+ * null si ninguno coincide.
+ */
+export const materialDeLista = (texto, materiales = []) => {
+  const buscado = sinAcentos(texto);
+  if (!buscado) return null;
+  return materiales.find(m => sinAcentos(m.material) === buscado)
+    || materiales.find(m => (m.claves || []).some(clave => sinAcentos(clave) && buscado.includes(sinAcentos(clave))))
+    || null;
+};
+
+/**
+ * Densidad supuesta de un material (R111, Tabla B.7) como la escribe un
+ * certificado: valor y U con k = 2 (la tabla del método guarda u con k = 1).
+ */
+export const densidadSupuestaDe = (material, materiales = []) => {
+  const fila = materiales.find(m => m.material === material);
+  return fila ? { densidad: fila.rho, densidadU: Number((2 * fila.u).toPrecision(12)), densidadK: 2 } : null;
+};
+
 /** Celdas pegadas desde Excel o un PDF: filas separadas por salto de línea y columnas por tabulador. */
 export const parsePegado = (text) => {
   const lineas = String(text ?? '').replace(/\r\n?/g, '\n').split('\n');

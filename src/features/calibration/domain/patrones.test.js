@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aptaPieza,
+  cambiarExpresion,
+  densidadSupuestaDe,
+  empR111,
   esPegadoMultiple,
+  expresionDe,
   formatNominal,
   formatNumber,
   parseNominalText,
   parseNumber,
   parsePegado,
   pegarEnFilas,
+  materialDeLista,
   piezaLabel,
   splitNominal,
   tipoPatronSugerido,
@@ -85,5 +91,81 @@ describe('tipo de patrón sugerido', () => {
     expect(tipoPatronSugerido('Barómetro digital')).toBe('AMBIENTE');
     expect(tipoPatronSugerido('Multímetro')).toBeNull();
     expect(tipoPatronSugerido(null)).toBeNull();
+  });
+});
+
+// Extracto de la tabla que manda el servidor (R111, Tabla 1).
+const R111 = {
+  clases: ['E1', 'E2', 'F1', 'F2', 'M1', 'M1-2', 'M2', 'M2-3', 'M3'],
+  emp: [
+    [1e6, 0.5, 1.6, 5, 16, 50, null, 160, null, 500],
+    [500, 0.008, 0.025, 0.08, 0.25, 0.8, null, 2.5, null, null],
+  ],
+};
+
+describe('«Apta» según la OIML R111', () => {
+  it('toma el emp de la clase y el valor nominal', () => {
+    expect(empR111(R111, 'F1', 1e6)).toBe(5);
+    expect(empR111(R111, 'M3', 500)).toBeNull();
+    expect(empR111(R111, 'X', 1e6)).toBeNull();
+  });
+
+  it('es apta si U (k = 2) ≤ emp/3 y |corrección| ≤ emp − U', () => {
+    expect(aptaPieza({ r111: R111, clase: 'F1', nominalMg: 1e6, correccion: '4', u: '1', k: '2' }).apta).toBe(true);
+    expect(aptaPieza({ r111: R111, clase: 'F1', nominalMg: 1e6, correccion: '-4,1', u: '1', k: '2' }).apta).toBe(false);
+    const grande = aptaPieza({ r111: R111, clase: 'F1', nominalMg: 1e6, correccion: '0', u: '2', k: '2' });
+    expect([grande.apta, grande.cumpleU, grande.cumpleCorreccion]).toEqual([false, false, true]);
+    expect(grande.motivo).toBe('emp F1: 5 mg. U (k = 2) = 2 mg > emp/3 = 1,667 mg (5.2); |corrección| = 0 mg ≤ emp − U = 3 mg (5.3).');
+  });
+
+  it('no decide sin clase, sin el valor nominal en la tabla o sin valores', () => {
+    expect(aptaPieza({ r111: R111, clase: '', nominalMg: 1e6, correccion: '0', u: '1', k: '2' }).apta).toBeNull();
+    expect(aptaPieza({ r111: R111, clase: 'F1', nominalMg: 3e6, correccion: '0', u: '1', k: '2' }).motivo).toMatch(/no tiene este valor nominal/);
+    expect(aptaPieza({ r111: R111, clase: 'F1', nominalMg: 1e6, correccion: '', u: '1', k: '2' }).apta).toBeNull();
+  });
+});
+
+describe('materiales de la tabla de densidades', () => {
+  const MATERIALES = [
+    { material: 'Acero inoxidable', claves: ['inox'], rho: 7950, u: 70 },
+    { material: 'Fundición gris (hierro fundido)', claves: ['fundicion', 'hierro fundido', 'gris'], rho: 7100, u: 300 },
+    { material: 'Acero', claves: ['acero al carbono', 'acero'], rho: 7700, u: 100 },
+  ];
+
+  it('reconoce el material escrito o pegado', () => {
+    expect(materialDeLista('acero inoxidable', MATERIALES).material).toBe('Acero inoxidable');
+    expect(materialDeLista('Inox.', MATERIALES).material).toBe('Acero inoxidable');
+    expect(materialDeLista('Hierro fundido', MATERIALES).material).toBe('Fundición gris (hierro fundido)');
+    expect(materialDeLista('Acero', MATERIALES).material).toBe('Acero');
+    expect(materialDeLista('Vidrio', MATERIALES)).toBeNull();
+    expect(materialDeLista('', MATERIALES)).toBeNull();
+  });
+
+  it('da la densidad supuesta con su U para k = 2, como la escribe el certificado', () => {
+    expect(densidadSupuestaDe('Acero inoxidable', MATERIALES)).toEqual({ densidad: 7950, densidadU: 140, densidadK: 2 });
+    expect(densidadSupuestaDe('Vidrio', MATERIALES)).toBeNull();
+  });
+});
+
+describe('error o corrección del termohigrómetro', () => {
+  it('el error es la corrección con el signo cambiado, en los dos sentidos', () => {
+    expect(cambiarExpresion(1.33, 'ERROR')).toBe(-1.33);
+    expect(cambiarExpresion(-1.33, 'ERROR')).toBe(1.33);
+    expect(cambiarExpresion(0.3, 'CORRECCION')).toBe(0.3);
+    expect(Object.is(cambiarExpresion(0, 'ERROR'), 0)).toBe(true);
+    expect(cambiarExpresion(null, 'ERROR')).toBeNull();
+  });
+
+  it('cada magnitud dice lo que da su certificado según sus puntos', () => {
+    const puntos = [
+      { magnitud: 'T', expresadoComo: 'CORRECCION' },
+      { magnitud: 'P', expresadoComo: 'ERROR' },
+      { magnitud: 'P', expresadoComo: 'ERROR' },
+    ];
+    expect(expresionDe(puntos, 'T')).toBe('CORRECCION');
+    expect(expresionDe(puntos, 'P')).toBe('ERROR');
+    // Sin puntos guardados, lo que se indique por defecto.
+    expect(expresionDe(puntos, 'HR')).toBe('CORRECCION');
+    expect(expresionDe([], 'P', 'ERROR')).toBe('ERROR');
   });
 });

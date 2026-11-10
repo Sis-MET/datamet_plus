@@ -32,7 +32,8 @@ const groupOptions = (options) => {
 /**
  * Lista desplegable de una sola opción.
  * options: [{ value, label, hint?, group? }]; `group` agrupa bajo un subtítulo.
- * size: 'md' (formularios) o 'sm' (celdas de tablas).
+ * size: 'md' (formularios) o 'sm' (celdas de tablas). menuWidth: ancho del
+ * menú en px cuando las opciones no caben en el ancho del botón.
  */
 export function Dropdown({
   id,
@@ -44,6 +45,7 @@ export function Dropdown({
   disabled,
   maxHeight = 264,
   size = 'md',
+  menuWidth = null,
   className,
 }) {
   const generatedId = useId();
@@ -149,6 +151,7 @@ export function Dropdown({
         onClose={() => setOpen(false)}
         maxHeight={maxHeight}
         ariaLabel={ariaLabel}
+        width={menuWidth || 'anchor'}
         className={MENU}
       >
         <div ref={listRef} id={listId} role="listbox" className="overflow-y-auto" style={{ maxHeight: maxHeight - 8 }}>

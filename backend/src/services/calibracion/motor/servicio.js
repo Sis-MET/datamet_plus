@@ -7,7 +7,7 @@
  * y, por cada punto del ensayo de error, la composición de la carga, la masa
  * de referencia, la indicación, E, U, k y la conformidad.
  */
-const { aireDeCalibracion, corregirLectura, densidadAire } = require('./aire');
+const { aireDeCalibracion, corregirHumedad, corregirLectura, densidadAire } = require('./aire');
 const { MG_POR, componerCarga, piezasSupuestas } = require('./cargas');
 const { errorEnPunto } = require('./error');
 const { COBERTURA, combinar } = require('./estadistica');
@@ -58,15 +58,19 @@ const mediana = (valores) => {
 const ambienteCorregido = (ambiente, termohigrometro, avisos) => {
   const puntos = termohigrometro?.puntos || {};
   const certificado = {};
-  const corregir = (momento) => Object.fromEntries(Object.entries(MAGNITUDES).map(([campo, magnitud]) => {
-    const lectura = corregirLectura(momento?.[campo] ?? null, puntos[magnitud] || []);
+  // La temperatura va primero: la humedad se corrige con los puntos calibrados
+  // a la temperatura medida (ya corregida), si el certificado da varias.
+  const corregir = (momento) => Object.entries(MAGNITUDES).reduce((corregidas, [campo, magnitud]) => {
+    const lectura = campo === 'hr'
+      ? corregirHumedad(momento?.hr ?? null, corregidas.t ?? null, puntos[magnitud] || [])
+      : corregirLectura(momento?.[campo] ?? null, puntos[magnitud] || []);
     if (lectura.fuera) avisos.aviso('THB_FUERA_DE_RANGO', `La lectura de ${campo === 't' ? 'temperatura' : campo === 'hr' ? 'humedad' : 'presión'} (${momento[campo]}) está fuera del rango calibrado del termohigrómetro.`);
     if (lectura.U != null) {
       const actual = certificado[campo];
       if (!actual || lectura.U / lectura.k > actual.U / actual.k) certificado[campo] = { U: lectura.U, k: lectura.k };
     }
-    return [campo, lectura.valor];
-  }));
+    return { ...corregidas, [campo]: lectura.valor };
+  }, {});
   const resultado = { inicio: corregir(ambiente.inicio), fin: corregir(ambiente.fin), certificado };
   const NOMBRES = { t: 'la temperatura', hr: 'la humedad', p: 'la presión' };
   const faltan = Object.keys(MAGNITUDES).filter(campo => !certificado[campo]).map(campo => NOMBRES[campo]);

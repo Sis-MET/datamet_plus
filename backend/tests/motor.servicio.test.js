@@ -174,6 +174,53 @@ test('termohigrómetro: corrección interpolada entre los puntos de su certifica
   assert.equal(motor.corregirLectura(10, puntos).valor, 9.8);
 });
 
+test('termohigrómetro: la humedad calibrada a dos temperaturas se interpola en temperatura', () => {
+  // Como el THB-02: tres puntos de humedad a 15,2 °C y tres a 25,3 °C, con 50,6 % repetido.
+  const puntos = [
+    { temperatura: 15.2, punto: 31, correccion: 0.3, u: 3, k: 2 },
+    { temperatura: 15.2, punto: 50.6, correccion: 0.3, u: 3, k: 2 },
+    { temperatura: 15.2, punto: 69.4, correccion: -1.4, u: 3, k: 2 },
+    { temperatura: 25.3, punto: 30.7, correccion: -0.3, u: 3, k: 2 },
+    { temperatura: 25.3, punto: 50.6, correccion: 0.2, u: 3, k: 2 },
+    { temperatura: 25.3, punto: 69.3, correccion: -0.3, u: 3, k: 2 },
+  ];
+  // En las temperaturas calibradas, los puntos de esa temperatura.
+  assert.ok(Math.abs(motor.corregirHumedad(50.6, 15.2, puntos).correccion - 0.3) < 1e-12);
+  assert.ok(Math.abs(motor.corregirHumedad(50.6, 25.3, puntos).correccion - 0.2) < 1e-12);
+  // A mitad de camino, la media de las dos correcciones.
+  const medio = motor.corregirHumedad(50.6, (15.2 + 25.3) / 2, puntos);
+  assert.ok(Math.abs(medio.correccion - 0.25) < 1e-12);
+  assert.equal(medio.U, 3);
+  assert.equal(medio.fuera, false);
+  // Fuera de las temperaturas calibradas, la más cercana.
+  assert.ok(Math.abs(motor.corregirHumedad(50.6, 12, puntos).correccion - 0.3) < 1e-12);
+  assert.ok(Math.abs(motor.corregirHumedad(50.6, 28, puntos).correccion - 0.2) < 1e-12);
+  // Sin temperaturas (o con una sola), igual que antes.
+  const sinTemperatura = puntos.slice(0, 3).map(({ temperatura: _t, ...punto }) => punto);
+  assert.deepEqual(motor.corregirHumedad(40, 20, sinTemperatura), motor.corregirLectura(40, sinTemperatura));
+  assert.deepEqual(motor.corregirHumedad(40, 20, puntos.slice(0, 3)), motor.corregirLectura(40, puntos.slice(0, 3)));
+});
+
+test('servicio: la humedad se corrige a la temperatura medida', () => {
+  const { modelo } = modeloDeFila(fila());
+  const conTemperaturas = datos({
+    termohigrometro: {
+      codigo: 'TH-TEST',
+      puntos: {
+        ...datos().termohigrometro.puntos,
+        HR: [
+          { temperatura: 15, punto: 30, correccion: -1, u: 2, k: 2 }, { temperatura: 15, punto: 70, correccion: 1, u: 2, k: 2 },
+          { temperatura: 25, punto: 30, correccion: 1, u: 2, k: 2 }, { temperatura: 25, punto: 70, correccion: 3, u: 2, k: 2 },
+        ],
+      },
+    },
+  });
+  const antes = calcularServicio(modelo, datos());
+  const despues = calcularServicio(modelo, conTemperaturas);
+  // Lecturas a unos 20,7 °C (corregidas): la corrección de la humedad sube con la temperatura.
+  assert.ok(despues.aire.condiciones.hr > antes.aire.condiciones.hr + 0.9, `${despues.aire.condiciones.hr} vs ${antes.aire.condiciones.hr}`);
+});
+
 test('sustitución: la carga mayor que todas las pesas se calcula con 7.1.2-15b o 15a', () => {
   // El juego suma 1 100 kg. 1 600 = 1 × 1 100 + 500 (15b); 2 200 = 2 × 1 100 (15a).
   const { modelo } = modeloDeFila(fila({ lin4: 1600, ind4: 1600.5, retorno_lin4: 0, lin5: 2200, ind5: 2200, retorno_lin5: 0, cap_max1: 3000 }));
