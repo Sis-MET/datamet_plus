@@ -50,7 +50,7 @@ const TEXTOS = {
   datosCliente: '(*) Dato proporcionado por el cliente. METRICA Ltda. no es responsable de esta información; la declaración de conformidad depende de ella.',
 };
 
-const ORIGEN_CLASE = { PLACA: 'placa', APROBACION: 'aprobación de modelo' };
+const ORIGEN_CLASE = { PLACA: 'placa', APROBACION: 'aprobación de modelo', DEDUCIDA: 'deducida de Max/e, OIML R76' };
 
 // ─── Formatos ──────────────────────────────────────────────────────────────
 
@@ -233,9 +233,14 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
   const e = eDistinto ? rangos.map(r => coma(r.e || r.d)).join('/') : null;
   const usaClase = m.criterio.empNB23001 === true && m.instrumento.clase?.valor;
   const claseCliente = usaClase && m.instrumento.clase.origen === 'CLIENTE';
+  // Sin clase en el registro el cálculo usa la sugerida: se ve en la vista previa y bloquea la emisión.
+  const claseSugerida = m.criterio.empNB23001 === true && !usaClase ? calculo?.clase?.sugerida?.valor || null : null;
+  if (m.criterio.empNB23001 === true && !usaClase) {
+    bloqueos.push(`Falta confirmar la clase del instrumento${claseSugerida ? ` (se sugiere ${claseSugerida})` : ''}.`);
+  }
   const clase = usaClase
     ? `${m.instrumento.clase.valor}${claseCliente ? ' *' : ORIGEN_CLASE[m.instrumento.clase.origen] ? ` (${ORIGEN_CLASE[m.instrumento.clase.origen]})` : ''}`
-    : null;
+    : claseSugerida ? `${claseSugerida} (sugerida, sin confirmar)` : null;
 
   // Datos de la calibración.
   const condiciones = calculo?.aire?.condiciones
@@ -302,9 +307,13 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
 
   // Errores de indicación.
   const regla = m.criterio.regla || 'NINGUNA';
-  const toleranciaCliente = !m.criterio.empNB23001 && m.criterio.toleranciaCliente > 0;
+  const porcentajeCliente = !m.criterio.empNB23001 && m.criterio.toleranciaCliente > 0;
+  // Tolerancia absoluta por rango que da el cliente (se usa sin emp NB 23001 ni %).
+  const rangosCliente = !m.criterio.empNB23001 && !porcentajeCliente && (m.criterio.toleranciasRango || []).length > 0;
+  const toleranciaCliente = porcentajeCliente || rangosCliente;
   const encabezadoTolerancia = m.criterio.empNB23001 ? 'EMP (NB 23001)'
-    : toleranciaCliente ? `TOLERANCIA DEL CLIENTE ${coma(m.criterio.toleranciaCliente)} % *` : 'EMP DEL CLIENTE';
+    : porcentajeCliente ? `TOLERANCIA DEL CLIENTE ${coma(m.criterio.toleranciaCliente)} % *`
+      : rangosCliente ? 'TOLERANCIA DEL CLIENTE *' : 'EMP DEL CLIENTE';
   const calculados = (calculo?.puntos || []).filter(p => p.calculado);
   const sinCalcular = (calculo?.puntos || []).filter(p => !p.calculado);
   if (!calculo?.calculado) bloqueos.push('El servicio no se puede calcular.');
@@ -532,7 +541,11 @@ const previsualizar = async (codigo, cambios) => {
   const unidad = String(correcciones.columnas.unidades ?? fuente.unidades ?? '').trim();
   const composiciones = r.planComposiciones(actuales.composiciones, cambios.composiciones, unidad);
   const anexo = r.planAnexo(actuales.anexo, cambios.anexo);
-  const datos = { columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones, anexo: anexo.anexo };
+  const tolerancias = r.planTolerancias(actuales.tolerancias, cambios.tolerancias, unidad);
+  const datos = {
+    columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones,
+    anexo: anexo.anexo, tolerancias: tolerancias.tolerancias,
+  };
   const { modelo, avisos: avisosDatos } = await r.modeloCorregido(fila, datos);
   const calculo = await r.calcularModelo(modelo, datos, { version: r.versionDe(registro) });
   const emisiones = registro ? await emisionService.leerEmisiones(request, registro.id) : [];

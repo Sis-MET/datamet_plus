@@ -15,6 +15,8 @@ export function useRegistroEditor(data) {
   const [pendientes, setPendientes] = useState({});
   // undefined: sin cambio; null: quitar la clase; { valor, origen }: nueva.
   const [clase, setClase] = useState(undefined);
+  // Tolerancias del cliente por rango como texto mientras se escriben; undefined: sin cambio.
+  const [tolerancias, setTolerancias] = useState(undefined);
 
   const fuente = useMemo(() => data?.fuente || {}, [data]);
   const guardadas = useMemo(() => data?.datos?.columnas || {}, [data]);
@@ -53,24 +55,41 @@ export function useRegistroEditor(data) {
     setClase(igual(nueva, claseGuardada) ? undefined : nueva);
   }, [claseGuardada]);
 
-  const cantidad = Object.keys(pendientes).length + (clase === undefined ? 0 : 1);
+  const toleranciasGuardadas = useMemo(() => (data?.datos?.tolerancias || []).map(t => ({
+    hasta: t.hasta == null ? '' : String(t.hasta).replace('.', ','), tolerancia: String(t.tolerancia).replace('.', ','),
+  })), [data]);
+  const toleranciasActuales = tolerancias === undefined ? toleranciasGuardadas : tolerancias;
+  const cambiarTolerancias = useCallback((filas) => {
+    const normal = lista => JSON.stringify(lista.map(f => [comparable(f.hasta), comparable(f.tolerancia)]));
+    setTolerancias(normal(filas) === normal(toleranciasGuardadas) ? undefined : filas);
+  }, [toleranciasGuardadas]);
+
+  const cantidad = Object.keys(pendientes).length + (clase === undefined ? 0 : 1) + (tolerancias === undefined ? 0 : 1);
 
   /** Lo que se manda al guardar (y a la vista previa en vivo). */
   const cambios = useMemo(() => {
     const columnas = Object.fromEntries(Object.entries(pendientes).map(([columna, texto]) => [columna, String(texto ?? '').trim() === '' ? null : String(texto).trim()]));
+    // Solo las filas que se leen: «hasta» vacío = en adelante; las incompletas no se mandan.
+    const numero = texto => (comparable(texto) === '' ? null : Number(comparable(texto)));
+    const filas = tolerancias === undefined ? undefined : tolerancias
+      .map(f => ({ hasta: numero(f.hasta), tolerancia: numero(f.tolerancia) }))
+      .filter(f => f.tolerancia > 0 && (f.hasta == null || f.hasta > 0));
     return {
       columnas,
       ...(clase === undefined ? {} : { clase: clase && clase.valor ? clase : null }),
+      ...(filas === undefined ? {} : { tolerancias: filas }),
     };
-  }, [clase, pendientes]);
+  }, [clase, pendientes, tolerancias]);
 
   const descartar = useCallback(() => {
     setPendientes({});
     setClase(undefined);
+    setTolerancias(undefined);
   }, []);
 
   return {
     valor, estado, cambiar, restaurar, cantidad, cambios, descartar,
     clase: claseActual, claseGuardada, cambiarClase, clasePendiente: clase !== undefined,
+    tolerancias: toleranciasActuales, cambiarTolerancias, toleranciasPendientes: tolerancias !== undefined,
   };
 }

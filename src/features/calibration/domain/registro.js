@@ -49,6 +49,7 @@ const FIJAS = {
   regla_aceptacion: 'Regla de decisión', mant_soporte: 'Mantenimiento del soporte', venta_pesas: 'Venta de pesas',
   reemplazo: 'Reemplazo', observaciones: 'Observaciones',
   anexo: 'Anexo de información adicional',
+  tolerancias: 'Tolerancias del cliente por rango',
 };
 
 /** Nombre legible de una columna de DATA_SERVICIOS_DATOS_CALIBRACION. */

@@ -14,7 +14,9 @@ const { combinar } = require('./estadistica');
 const { componentesIndicacion, excentricidad, repetibilidad, repetibilidadPara } = require('./indicacion');
 const { densidadSupuesta, masaReferencia } = require('./referencia');
 const { cargaSustitucion } = require('./sustitucion');
-const { conformidad, empEnServicio, rangoDeCarga, toleranciaPorcentaje } = require('./tolerancia');
+const {
+  claseSugerida, conformidad, empEnServicio, rangoDeCarga, toleranciaPorRango, toleranciaPorcentaje,
+} = require('./tolerancia');
 const { incertidumbreEnUso, pesadaMinima } = require('./uso');
 
 const MAGNITUDES = { t: 'T', hr: 'HR', p: 'P' };
@@ -259,7 +261,15 @@ const calcularServicio = (modelo, datos) => {
   };
 
   const metodoCeros = modelo.errores.metodo === 'EVALUANDO_CEROS';
-  const claseInstrumento = datos.claseInstrumento || modelo.instrumento.clase?.valor || null;
+  const claseRegistrada = datos.claseInstrumento || modelo.instrumento.clase?.valor || null;
+  // Sin clase registrada y con emp NB 23001 pedido: la que sugiere la R76
+  // (Tabla 3), para que el ingeniero vea los resultados y la confirme.
+  const sugerida = !claseRegistrada && modelo.criterio.empNB23001 ? claseSugerida(rangos, MG_POR[unidad] / 1000) : null;
+  const claseInstrumento = claseRegistrada || sugerida?.valor || null;
+  if (sugerida) {
+    const eTexto = `${Number(sugerida.e.toPrecision(10))} ${unidad}`.replace('.', ',');
+    avisos.aviso('CLASE_SUGERIDA', `Sin clase registrada: el emp NB 23001 se calcula con la clase ${sugerida.valor}, sugerida por la OIML R76 (Tabla 3) con e = ${eTexto} y n = Max/e = ${sugerida.n}${sugerida.enTabla ? '' : ' (fuera de la Tabla 3: elegida por n, como el libro)'}. Confírmala o corrígela en «Clase del instrumento» antes de enviar a revisión.`);
+  }
   const puntos = [];
   let retornoAnterior = 0;
   for (const punto of modelo.errores.puntos) {
@@ -334,6 +344,9 @@ const calcularServicio = (modelo, datos) => {
       tolerancia = claseInstrumento ? empEnServicio({ carga: punto.carga, clase: claseInstrumento, e: rango.e || rango.d }) : null;
     } else if (modelo.criterio.toleranciaCliente > 0) {
       tolerancia = toleranciaPorcentaje(punto.carga, modelo.criterio.toleranciaCliente);
+    } else if (modelo.criterio.toleranciasRango?.length) {
+      // Tolerancia absoluta del cliente por rango de carga (dato del cliente).
+      tolerancia = toleranciaPorRango(punto.carga, modelo.criterio.toleranciasRango);
     }
     const conforme = conformidad({ error: resultado.error, U: resultado.U, k: resultado.k, tolerancia, regla: modelo.criterio.regla });
 
@@ -434,6 +447,13 @@ const calcularServicio = (modelo, datos) => {
     unidad,
     configuracion: config.version,
     conveccion: usaConveccion ? conveccion : null,
+    // Clase con la que se calculó el emp NB 23001: la registrada o la sugerida.
+    clase: {
+      valor: claseInstrumento,
+      registrada: Boolean(claseRegistrada),
+      requerida: modelo.criterio.empNB23001 === true,
+      sugerida: sugerida || null,
+    },
     aire: { rho: aire.rho, u: aire.u, condiciones: aire.condiciones },
     // Cómo se trató el empuje: 5b con la densidad del aire de la calibración de
     // cada juego (ρa1) si se conoce; si no, 5a.

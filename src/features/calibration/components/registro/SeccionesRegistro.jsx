@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { AlertOctagon, AlertTriangle, Info, Pencil, RotateCcw } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Info, Pencil, Plus, RotateCcw, Trash2, Wand2 } from 'lucide-react';
 import { cn } from '../../../../shared/utils/cn';
 import { formatDate } from '../../domain/format';
 import {
@@ -150,8 +150,35 @@ function Datos({ filas }) {
   );
 }
 
+/**
+ * Sin clase en el registro y con emp NB 23001 pedido: la que sugiere la R76
+ * (Tabla 3) con e y n = Max/e. El cálculo ya la usa, pero hay que confirmarla.
+ */
+function ClaseSugerida({ calculo, editor, editable, unidad }) {
+  const s = calculo?.clase?.sugerida;
+  if (!s || !calculo.clase.requerida || editor.clase?.valor) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-warning/35 bg-warning/[0.06] px-3.5 py-2.5">
+      <AlertTriangle className="h-4 w-4 flex-none text-warning" aria-hidden="true" />
+      <p className="min-w-0 flex-1 text-[12.5px] text-fg">
+        Se sugiere la <strong>clase {s.valor}</strong> por la OIML R76 (Tabla 3): e = {numero(s.e)} {unidad} y n = Max/e = {numero(s.n)}
+        {s.enTabla ? '' : ' (fuera de la tabla: elegida por n, como el libro)'}. El cálculo ya la usa para el emp NB 23001, pero hay que confirmarla para enviar a revisión.
+      </p>
+      {editable && (
+        <button
+          type="button"
+          onClick={() => editor.cambiarClase({ valor: s.valor, origen: 'DEDUCIDA' })}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-fg px-3 text-[12.5px] font-semibold text-surface hover:opacity-90"
+        >
+          <Wand2 className="h-3.5 w-3.5" aria-hidden="true" /> Usar la clase {s.valor}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Clase del instrumento con su origen, en el lugar. */
-function Clase({ editor, editable, origenes }) {
+function Clase({ editor, editable, origenes, calculo, unidad }) {
   const id = useId();
   const clase = editor.clase;
   if (!editable) {
@@ -159,10 +186,12 @@ function Clase({ editor, editable, origenes }) {
       <div>
         <p className="mb-1 text-[12px] text-fg-muted">Clase del instrumento</p>
         <p className="text-[13px] font-medium text-fg">{clase?.valor ? `${clase.valor} (${origenes?.[clase.origen] || clase.origen})` : 'No declarada: se usa la que pida el cliente'}</p>
+        <ClaseSugerida calculo={calculo} editor={editor} editable={false} unidad={unidad} />
       </div>
     );
   }
   return (
+    <>
     <div className={cn('grid gap-3 sm:grid-cols-2', editor.clasePendiente && 'cc-campo-pendiente rounded-xl')}>
       <div>
         <label htmlFor={`${id}-c`} className="mb-1 block text-[12px] text-fg-muted">Clase del instrumento</label>
@@ -186,11 +215,86 @@ function Clase({ editor, editable, origenes }) {
         />
       </div>
     </div>
+    <ClaseSugerida calculo={calculo} editor={editor} editable unidad={unidad} />
+    </>
+  );
+}
+
+/**
+ * Tolerancia absoluta que el cliente fija por rango de carga (dato del
+ * cliente). Se usa cuando no pidió el emp NB 23001 ni un %.
+ */
+function ToleranciasCliente({ editor, editable, criterio, unidad }) {
+  const filas = editor.tolerancias;
+  const cambiarFila = (i, campo, valor) => editor.cambiarTolerancias(filas.map((f, j) => (j === i ? { ...f, [campo]: valor } : f)));
+  const quitar = i => editor.cambiarTolerancias(filas.filter((_, j) => j !== i));
+  const agregar = () => editor.cambiarTolerancias([...filas, { hasta: '', tolerancia: '' }]);
+  const leer = texto => Number(String(texto ?? '').trim().replace(',', '.'));
+  const toleranciaMal = f => String(f.tolerancia).trim() !== '' && !(leer(f.tolerancia) > 0);
+  const hastaMal = f => String(f.hasta).trim() !== '' && !(leer(f.hasta) > 0);
+  // Con lo que se está editando, no solo con lo guardado: emp vacío = NB 23001, como en ServiceMET.
+  const empTexto = editor.estado('emp');
+  const empSin = String(empTexto.valor ?? '').trim().toLowerCase();
+  const usaNB = !empTexto.pendiente ? criterio.empNB23001
+    : empSin === '' || empSin.startsWith('s') || empSin.includes('nb') ? true
+      : empSin === 'no' ? false : criterio.empNB23001;
+  const indicar = editor.estado('indicar');
+  const porcentaje = indicar.pendiente ? leer(indicar.valor) : criterio.toleranciaCliente;
+  let manda = null;
+  if (usaNB) manda = 'Hoy se usa el emp NB 23001: estos rangos no cuentan.';
+  else if (porcentaje > 0) manda = `Hoy se usa el ${numero(porcentaje)} % de la carga: estos rangos no cuentan.`;
+  if (!editable && !filas.length) return null;
+  return (
+    <div className={cn('rounded-xl bg-surface-2/50 px-3.5 py-3', editor.toleranciasPendientes && 'cc-campo-pendiente')}>
+      <p className="text-[12.5px] font-semibold text-fg">Tolerancia del cliente por rango</p>
+      <p className="mt-0.5 text-[12px] text-fg-muted">
+        Valor absoluto (±) que pide el cliente hasta cada carga; el último rango puede quedar «en adelante». Es un dato del cliente y se marca así en el certificado.
+        {manda ? ` ${manda}` : ''}
+      </p>
+      {filas.length > 0 && (
+        <div className="mt-2 flex flex-col gap-1.5">
+          {filas.map((f, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-2 text-[12.5px]">
+              <span className="text-fg-muted">Hasta</span>
+              <input
+                value={f.hasta}
+                onChange={e => cambiarFila(i, 'hasta', e.target.value)}
+                disabled={!editable}
+                inputMode="decimal"
+                placeholder="en adelante"
+                aria-label={`Rango ${i + 1}: hasta`}
+                className={cn('field h-9 w-28 rounded-lg px-2.5 text-[13px] tabular-nums', hastaMal(f) && 'field-invalid')}
+              />
+              <span className="text-fg-muted">{unidad}: ±</span>
+              <input
+                value={f.tolerancia}
+                onChange={e => cambiarFila(i, 'tolerancia', e.target.value)}
+                disabled={!editable}
+                inputMode="decimal"
+                aria-label={`Rango ${i + 1}: tolerancia`}
+                className={cn('field h-9 w-24 rounded-lg px-2.5 text-[13px] tabular-nums', toleranciaMal(f) && 'field-invalid')}
+              />
+              <span className="text-fg-muted">{unidad}</span>
+              {editable && (
+                <button type="button" onClick={() => quitar(i)} aria-label={`Quitar el rango ${i + 1}`} className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg">
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {editable && filas.length < 5 && (
+        <button type="button" onClick={agregar} className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-info hover:underline">
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Agregar rango
+        </button>
+      )}
+    </div>
   );
 }
 
 /** Lo que interpreta DataMET+ en cada sección, debajo de los datos. */
-function contexto(id, { data, m, unidad, onPuntosAcordados, puedeAcordar, editable, onAnexo }) {
+function contexto(id, { data, m, unidad, onPuntosAcordados, puedeAcordar, editable, onAnexo, editor }) {
   switch (id) {
     case 'servicio':
       return (
@@ -275,6 +379,8 @@ function contexto(id, { data, m, unidad, onPuntosAcordados, puedeAcordar, editab
     }
     case 'criterio':
       return (
+        <div className="flex flex-col gap-3">
+        <ToleranciasCliente editor={editor} editable={editable} criterio={m.criterio} unidad={unidad} />
         <label className={cn('flex items-start gap-3 rounded-xl bg-surface-2/50 px-3.5 py-3', editable && 'cursor-pointer')}>
           <input
             type="checkbox"
@@ -288,6 +394,7 @@ function contexto(id, { data, m, unidad, onPuntosAcordados, puedeAcordar, editab
             <span className="block text-fg-muted">Incertidumbre de una pesada en uso, incertidumbre global y pesada mínima (EURAMET 7.4, 7.5 y G). Va en una hoja aparte que no forma parte del certificado.</span>
           </span>
         </label>
+        </div>
       );
     default:
       return null;
@@ -317,10 +424,10 @@ function Seccion({ meta, data, editor, editable, avisos, onPuntosAcordados, pued
           {campos.lista.map(columna => <Campo key={columna} columna={columna} editor={editor} editable={editable} columnas={data.columnas} />)}
         </div>
       )}
-      {campos.clase && <div className="mt-4"><Clase editor={editor} editable={editable} origenes={data.origenesClase} /></div>}
+      {campos.clase && <div className="mt-4"><Clase editor={editor} editable={editable} origenes={data.origenesClase} calculo={data.calculo} unidad={m.instrumento.unidad} /></div>}
       {campos.tablas.map(tabla => <TablaEditable key={tabla.titulo} tabla={tabla} editor={editor} editable={editable} columnas={data.columnas} />)}
       {(() => {
-        const extra = contexto(meta.id, { data, m, unidad: m.instrumento.unidad, onPuntosAcordados, puedeAcordar, editable, onAnexo });
+        const extra = contexto(meta.id, { data, m, unidad: m.instrumento.unidad, onPuntosAcordados, puedeAcordar, editable, onAnexo, editor });
         return extra ? <div className="mt-4">{extra}</div> : null;
       })()}
     </section>

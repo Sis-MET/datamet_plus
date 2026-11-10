@@ -42,6 +42,12 @@ const certificado = z.object({
 // cambió no aparece como cambiado al compararlo con lo guardado.
 const CLASES_PESAS = ['E1', 'E2', 'F1', 'F2', 'M1', 'M1-2', 'M2', 'M2-3', 'M3'];
 const roundTo = (digits) => (value) => (value == null ? value : Number(value.toFixed(digits)));
+// Tolerancias del cliente por rango (calibration.registros.planTolerancias valida el resto).
+const toleranciasRango = z.array(z.object({
+  hasta: z.number({ error: 'El límite «hasta» debe ser un número.' }).positive('El límite «hasta» debe ser mayor que cero.').nullable(),
+  tolerancia: z.number({ error: 'La tolerancia debe ser un número.' }).positive('La tolerancia debe ser mayor que cero.'),
+}).strict()).max(5, 'Admite hasta 5 rangos de tolerancia.').nullable().optional();
+
 const numero = (message) => z.number({ error: message }).finite(message);
 const identificacion = z.string().default('')
   .transform(value => value.replace(/\u00a0/g, ' ').trim())
@@ -259,11 +265,13 @@ const schemas = {
     columnas: z.record(z.string().max(60), z.union([z.string().max(500), z.number(), z.null()])).default({}),
     clase: z.object({
       valor: z.enum(['I', 'II', 'III', 'IIII']).nullable(),
-      origen: z.enum(['PLACA', 'APROBACION', 'CLIENTE']).nullable(),
+      origen: z.enum(['PLACA', 'APROBACION', 'CLIENTE', 'DEDUCIDA']).nullable(),
     }).nullable().optional(),
     // Carga armada a mano por punto: claves de las piezas; null vuelve a la regla.
     composiciones: z.record(z.string().regex(/^\d{1,2}$/), z.array(z.string().min(3).max(120)).max(100).nullable()).optional(),
     anexo: z.boolean().optional(),
+    // Tolerancia absoluta del cliente por rango de carga; null o [] las quita.
+    tolerancias: toleranciasRango,
     motivo: optionalText(500),
   }).refine(data => Object.keys(data.columnas).length <= 300, 'Demasiadas correcciones en un solo guardado.'),
   registroRevision: z.object({
@@ -275,10 +283,12 @@ const schemas = {
     columnas: z.record(z.string().max(60), z.union([z.string().max(500), z.number(), z.null()])).default({}),
     clase: z.object({
       valor: z.enum(['I', 'II', 'III', 'IIII']).nullable(),
-      origen: z.enum(['PLACA', 'APROBACION', 'CLIENTE']).nullable(),
+      origen: z.enum(['PLACA', 'APROBACION', 'CLIENTE', 'DEDUCIDA']).nullable(),
     }).nullable().optional(),
     composiciones: z.record(z.string().regex(/^\d{1,2}$/), z.array(z.string().min(3).max(120)).max(100).nullable()).optional(),
     anexo: z.boolean().optional(),
+    // Tolerancia absoluta del cliente por rango de carga; null o [] las quita.
+    tolerancias: toleranciasRango,
   }),
   // Anular la autorización de un certificado o abrir una revisión (reemisión).
   certificadoMotivo: z.object({

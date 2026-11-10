@@ -163,6 +163,14 @@ test('un servicio completo da su modelo sin errores ni avisos', () => {
   assert.deepEqual(modelo.errores.puntos.map(p => p.n), [1, 2, 3, 4]);
   assert.equal(modelo.errores.metodo, 'EVALUANDO_CEROS');
   assert.deepEqual(modelo.criterio, { empNB23001: true, toleranciaCliente: 0, factorSeguridad: 1, regla: 'SIMPLE' });
+
+  // Sin emp en ServiceMET: el libro usa el NB 23001 por omisión; DataMET+ también, con aviso.
+  const vacio = modeloDeFila({ ...base(), emp: null }, contexto());
+  assert.equal(vacio.modelo.criterio.empNB23001, true);
+  assert.ok(vacio.avisos.some(a => a.codigo === 'EMP_POR_OMISION'));
+  const no = modeloDeFila({ ...base(), emp: 'No' }, contexto());
+  assert.equal(no.modelo.criterio.empNB23001, false);
+  assert.ok(!no.avisos.some(a => a.codigo === 'EMP_POR_OMISION'));
   assert.equal(modelo.lugar.inspeccion.length, 14);
 });
 

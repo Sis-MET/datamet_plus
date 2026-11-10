@@ -763,6 +763,21 @@ Ajustes pedidos antes de las pruebas (2026-11-09):
 6. **Corte**: fecha desde la que solo se emite en DataMET+; el Excel queda de
    solo lectura.
 
+**Avance (2026-11-09, primera corrida paralela):** 106 certificados del libro
+(una copia, CARE) recalculados con DataMET+ en `DataMET_prueba`; informe en
+[calibracion-corrida-paralela.md](calibracion-corrida-paralela.md). Coinciden
+el n.º, s, excentricidad, errores (≤ 0,2 d en el 94 %) y la conformidad donde
+ambos la evalúan. Por resolver antes de emitir: clase del instrumento (el libro
+la deduce), tolerancias del cliente por rango, regla de la s, USP ⟨41⟩ y
+condiciones del instrumento en el anexo, y cargar piezas y valores de los
+patrones.
+
+**2026-11-10:** resueltas la clase (sugerida por la R76, confirmada por el
+ingeniero; sin ella no se envía ni se aprueba), el emp vacío (NB 23001 por
+omisión, como el libro) y las tolerancias del cliente por rango. Segunda
+corrida: tolerancia en 937 de 949 puntos y conformidad igual en el 98 % de los
+puntos comparables.
+
 ## En paralelo — Cambios en ServiceMET
 
 No bloquean: el adaptador tolera los datos actuales.

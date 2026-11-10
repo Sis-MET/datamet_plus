@@ -105,15 +105,41 @@ test('puntos que no se calculan: sustitución y cargas que no se forman', () => 
   assert.ok(r.avisos.some(a => a.codigo === 'CARGA_NO_COMPUESTA'));
 });
 
-test('emp NB 23001: sin clase no se evalúa; con clase III se usa el emp en servicio', () => {
+test('emp NB 23001: sin clase se usa la sugerida por la R76 hasta confirmarla; con clase, la registrada', () => {
   const { modelo } = modeloDeFila(fila({ emp: 'Sí' }));
+  // 1 500 kg con e = 0,5 kg: n = 3 000 y e ≥ 5 g → clase III (Tabla 3).
   const sinClase = calcularServicio(modelo, datos());
-  assert.ok(sinClase.avisos.some(a => a.codigo === 'SIN_CLASE'));
-  assert.equal(sinClase.puntos[0].conformidad.evaluada, false);
-  const conClase = calcularServicio(modelo, datos({ claseInstrumento: 'III' }));
-  // 1000 kg con e = 0,5 kg: 2 000 e → 2 × 1 e = 1 kg.
-  assert.equal(conClase.puntos[2].tolerancia, 1);
-  assert.equal(conClase.puntos[2].conformidad.evaluada, true);
+  assert.ok(sinClase.avisos.some(a => a.codigo === 'CLASE_SUGERIDA'));
+  assert.ok(!sinClase.avisos.some(a => a.codigo === 'SIN_CLASE'));
+  assert.equal(sinClase.clase.valor, 'III');
+  assert.equal(sinClase.clase.registrada, false);
+  assert.equal(sinClase.clase.requerida, true);
+  assert.deepEqual(sinClase.clase.sugerida, { valor: 'III', n: 3000, e: 0.5, enTabla: true });
+  // 1000 kg: 2 000 e → 2 × 1 e = 1 kg.
+  assert.equal(sinClase.puntos[2].tolerancia, 1);
+  assert.equal(sinClase.puntos[2].conformidad.evaluada, true);
+  // Con la clase registrada (II): 2 000 e ≤ 5 000 e → 2 × 0,5 e = 0,5 kg.
+  const conClase = calcularServicio(modelo, datos({ claseInstrumento: 'II' }));
+  assert.equal(conClase.clase.registrada, true);
+  assert.equal(conClase.clase.sugerida, null);
+  assert.ok(!conClase.avisos.some(a => a.codigo === 'CLASE_SUGERIDA'));
+  assert.equal(conClase.puntos[2].tolerancia, 0.5);
+});
+
+test('tolerancia del cliente por rango: sin emp NB 23001 ni %, la del primer rango que contiene la carga', () => {
+  const { modelo } = modeloDeFila(fila({ emp: 'No', indicar: 0 }));
+  modelo.criterio.toleranciasRango = [{ hasta: 500, tolerancia: 0.5 }, { hasta: null, tolerancia: 1 }];
+  const r = calcularServicio(modelo, datos());
+  const porCarga = Object.fromEntries(r.puntos.filter(p => p.calculado).map(p => [p.carga, p.tolerancia]));
+  assert.equal(porCarga[100], 0.5);
+  assert.equal(porCarga[1000], 1);
+  assert.equal(r.clase.requerida, false);
+  assert.ok(!r.avisos.some(a => a.codigo === 'CLASE_SUGERIDA'));
+  // El % del cliente manda sobre los rangos (como el libro).
+  const conPorcentaje = modeloDeFila(fila({ emp: 'No', indicar: 0.1 })).modelo;
+  conPorcentaje.criterio.toleranciasRango = [{ hasta: null, tolerancia: 5 }];
+  const p = calcularServicio(conPorcentaje, datos()).puntos.find(x => x.carga === 1000);
+  assert.equal(p.tolerancia, 1);
 });
 
 test('sin condiciones ambientales no se calcula (el empuje no se puede corregir)', () => {

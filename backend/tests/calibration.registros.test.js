@@ -114,3 +114,29 @@ test('composición elegida a mano: legible en el historial y vuelta a la regla',
   assert.equal(parse('registroGuardar', { composiciones: { 3: claves, 4: null } }).composiciones[4], null);
   assert.throws(() => parse('registroGuardar', { composiciones: { x: claves } }));
 });
+
+test('tolerancias del cliente por rango: se ordenan, se validan y dejan su cambio para el historial', () => {
+  const { planTolerancias } = require('../src/services/calibration.registros');
+  const r = planTolerancias([], [{ hasta: 600, tolerancia: 0.2 }, { hasta: 300, tolerancia: 0.1 }], 'g');
+  assert.deepEqual(r.tolerancias, [{ hasta: 300, tolerancia: 0.1 }, { hasta: 600, tolerancia: 0.2 }]);
+  assert.deepEqual(r.cambio, { campo: 'tolerancias', antes: null, despues: 'hasta 300 g: ± 0,1 g; hasta 600 g: ± 0,2 g' });
+  assert.equal(planTolerancias(r.tolerancias, undefined, 'g').cambio, null);
+  assert.equal(planTolerancias(r.tolerancias, [{ hasta: 300, tolerancia: 0.1 }, { hasta: 600, tolerancia: 0.2 }], 'g').cambio, null);
+  // Quitarlas.
+  assert.deepEqual(planTolerancias(r.tolerancias, null, 'g').tolerancias, []);
+  // Solo el último puede quedar «en adelante»; sin repetir límites; tolerancia > 0.
+  assert.deepEqual(planTolerancias([], [{ hasta: null, tolerancia: 1 }, { hasta: 100, tolerancia: 0.5 }], 'kg').tolerancias,
+    [{ hasta: 100, tolerancia: 0.5 }, { hasta: null, tolerancia: 1 }]);
+  assert.throws(() => planTolerancias([], [{ hasta: null, tolerancia: 1 }, { hasta: null, tolerancia: 2 }], 'kg'), /último rango/);
+  assert.throws(() => planTolerancias([], [{ hasta: 10, tolerancia: 1 }, { hasta: 10, tolerancia: 2 }], 'kg'), /mismo límite/);
+  assert.throws(() => planTolerancias([], [{ hasta: 10, tolerancia: 0 }], 'kg'), /mayor que cero/);
+});
+
+test('con emp NB 23001 pedido, la clase tiene que estar en el registro para enviar o aprobar', () => {
+  const { faltaClase } = require('../src/services/calibration.registros');
+  const modelo = { criterio: { empNB23001: true } };
+  const calculo = { clase: { sugerida: { valor: 'III' } } };
+  assert.match(faltaClase(modelo, { clase: null }, calculo), /se sugiere la clase III/);
+  assert.equal(faltaClase(modelo, { clase: { valor: 'III', origen: 'DEDUCIDA' } }, calculo), null);
+  assert.equal(faltaClase({ criterio: { empNB23001: false } }, { clase: null }, calculo), null);
+});

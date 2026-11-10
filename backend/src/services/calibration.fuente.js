@@ -696,7 +696,14 @@ const modeloDeFila = (fila, contexto = {}) => {
     errores: leerErrores(fila, rangos, avisos),
     criterio: {
       empNB23001: (() => {
-        const emp = reparar(avisos, 'criterio', 'emp', segun(fila.emp, EMP));
+        const leido = segun(fila.emp, EMP);
+        const emp = reparar(avisos, 'criterio', 'emp', leido);
+        if (emp == null && !leido.original) {
+          // Vacío en ServiceMET: el libro F-VMET-02-7.2 usa el emp NB 23001 por
+          // omisión (RECA C146 = «SÍ» al limpiar el formulario); se hace igual, con aviso.
+          avisos.aviso('criterio', 'EMP_POR_OMISION', 'ServiceMET no indica si se usa el emp NB 23001: se usa, como en el libro F-VMET-02-7.2. Corrígelo en «emp según NB 23001» si el cliente pidió otra tolerancia.');
+          return true;
+        }
         return emp == null ? null : emp === 'SI';
       })(),
       toleranciaCliente: numero(fila.indicar),

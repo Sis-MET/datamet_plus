@@ -24,7 +24,14 @@ const { MG_POR } = require('./calibracion/motor/cargas');
 const TABLA_FUENTE = 'DATA_SERVICIOS_DATOS_CALIBRACION';
 const EDITABLES_EN = new Set(['BORRADOR', 'OBSERVADO']);
 const CLASES = ['I', 'II', 'III', 'IIII'];
-const ORIGENES_CLASE = { PLACA: 'Placa', APROBACION: 'Aprobación de modelo', CLIENTE: 'Pedida por el cliente' };
+const ORIGENES_CLASE = {
+  PLACA: 'Placa',
+  APROBACION: 'Aprobación de modelo',
+  CLIENTE: 'Pedida por el cliente',
+  // Sin placa ni aprobación: la que sugiere la OIML R76 (Tabla 3) con e y n = Max/e, confirmada por el ingeniero.
+  DEDUCIDA: 'Deducida de Max/e (OIML R76, Tabla 3)',
+};
+const MAX_TOLERANCIAS = 5;
 
 // Columnas que tampoco se corrigen aquí: identidad del servicio y del cliente
 // (vienen de DATA_CLIENTES) y estados de ServiceMET. En calibración «hora» y
@@ -87,7 +94,46 @@ const datosDe = (json) => {
       : {},
     // Anexo de información adicional (incertidumbre en uso, pesada mínima), a pedido del cliente.
     anexo: datos.anexo === true,
+    // Tolerancia absoluta del cliente por rango de carga (dato del cliente): [{ hasta, tolerancia }].
+    tolerancias: Array.isArray(datos.tolerancias)
+      ? datos.tolerancias.filter(t => t && Number(t.tolerancia) > 0 && (t.hasta == null || Number(t.hasta) > 0))
+      : [],
   };
+};
+
+const textoTolerancias = (tramos, unidad) => (tramos.length
+  ? tramos.map(t => `${t.hasta == null ? 'en adelante' : `hasta ${numeroComa(t.hasta)} ${unidad}`}: ± ${numeroComa(t.tolerancia)} ${unidad}`).join('; ')
+  : null);
+
+/**
+ * Tolerancias del cliente por rango: sin cambio si no llegan; null o [] las
+ * quita. Ordenadas por «hasta»; solo la última puede no tenerlo (en adelante).
+ */
+const planTolerancias = (actuales, entrantes, unidad) => {
+  if (entrantes === undefined) return { tolerancias: actuales, cambio: null };
+  const lista = (entrantes || []).map(t => ({ hasta: t.hasta == null ? null : Number(t.hasta), tolerancia: Number(t.tolerancia) }));
+  if (lista.length > MAX_TOLERANCIAS) throw httpError(400, `Admite hasta ${MAX_TOLERANCIAS} rangos de tolerancia.`);
+  if (lista.some(t => !(t.tolerancia > 0) || (t.hasta != null && !(t.hasta > 0)))) {
+    throw httpError(400, 'Cada rango necesita su tolerancia (mayor que cero) y, salvo el último, su límite «hasta».');
+  }
+  const ordenadas = [...lista].sort((a, b) => (a.hasta ?? Infinity) - (b.hasta ?? Infinity));
+  if (ordenadas.slice(0, -1).some(t => t.hasta == null)) throw httpError(400, 'Solo el último rango puede quedar sin límite («en adelante»).');
+  if (ordenadas.some((t, i) => i > 0 && t.hasta != null && t.hasta === ordenadas[i - 1].hasta)) throw httpError(400, 'Dos rangos tienen el mismo límite «hasta».');
+  const antes = textoTolerancias(actuales || [], unidad);
+  const despues = textoTolerancias(ordenadas, unidad);
+  if (antes === despues) return { tolerancias: actuales, cambio: null };
+  return { tolerancias: ordenadas, cambio: { campo: 'tolerancias', antes, despues } };
+};
+
+/**
+ * Si el cliente pidió el emp NB 23001, la clase tiene que estar en el
+ * registro (de la placa, la aprobación, el cliente o confirmada la sugerida):
+ * sin ella no se envía ni se aprueba. null si está bien.
+ */
+const faltaClase = (modelo, datos, calculo) => {
+  if (modelo.criterio.empNB23001 !== true || datos.clase) return null;
+  const sugerida = calculo?.clase?.sugerida?.valor;
+  return `Confirma la clase del instrumento en «Cliente e instrumento»: el cliente pidió el emp NB 23001${sugerida ? ` y se sugiere la clase ${sugerida}` : ''}.`;
 };
 
 /** Pedido del anexo de información adicional: sin cambio si no llega. */
@@ -158,7 +204,7 @@ const planClase = (actual, entrante) => {
   if (entrante === undefined) return { clase: actual, cambio: null };
   const nueva = entrante && entrante.valor ? { valor: entrante.valor, origen: entrante.origen } : null;
   if (nueva && !CLASES.includes(nueva.valor)) throw httpError(400, 'La clase debe ser I, II, III o IIII.');
-  if (nueva && !ORIGENES_CLASE[nueva.origen]) throw httpError(400, 'Indica de dónde sale la clase: placa, aprobación de modelo o pedida por el cliente.');
+  if (nueva && !ORIGENES_CLASE[nueva.origen]) throw httpError(400, 'Indica de dónde sale la clase: placa, aprobación de modelo, pedida por el cliente o deducida de Max/e.');
   const texto = c => (c ? `${c.valor} (${ORIGENES_CLASE[c.origen]})` : null);
   if (texto(actual) === texto(nueva)) return { clase: actual, cambio: null };
   return { clase: nueva, cambio: { campo: 'clase', antes: texto(actual), despues: texto(nueva) } };
@@ -245,6 +291,7 @@ const modeloCorregido = async (fila, datos) => {
   const contexto = await cargarContexto();
   const { modelo, avisos } = modeloDeFila({ ...fila, ...datos.columnas }, contexto);
   if (datos.clase) modelo.instrumento.clase = { valor: datos.clase.valor, origen: datos.clase.origen };
+  modelo.criterio.toleranciasRango = datos.tolerancias || [];
   return { modelo, avisos };
 };
 
@@ -339,11 +386,18 @@ const guardarRegistro = async (codigo, data, user) => {
     const unidad = String(correcciones.columnas.unidades ?? fuente.unidades ?? '').trim();
     const composiciones = planComposiciones(actuales.composiciones, data.composiciones, unidad);
     const anexo = planAnexo(actuales.anexo, data.anexo);
-    const cambios = [...correcciones.cambios, ...(clase.cambio ? [clase.cambio] : []), ...composiciones.cambios, ...(anexo.cambio ? [anexo.cambio] : [])];
+    const tolerancias = planTolerancias(actuales.tolerancias, data.tolerancias, unidad);
+    const cambios = [
+      ...correcciones.cambios, ...(clase.cambio ? [clase.cambio] : []), ...composiciones.cambios,
+      ...(anexo.cambio ? [anexo.cambio] : []), ...(tolerancias.cambio ? [tolerancias.cambio] : []),
+    ];
     if (!cambios.length) return { codigo, cambios: 0, version: registro?.version ?? null };
 
     if (!registro) registro = await crearRegistro(createRequest, codigo, user);
-    const datos = { columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones, anexo: anexo.anexo };
+    const datos = {
+      columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones,
+      anexo: anexo.anexo, tolerancias: tolerancias.tolerancias,
+    };
     await createRequest()
       .input('id', sql.Int, registro.id)
       .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datos))
@@ -376,6 +430,8 @@ const enviarRegistro = async (codigo, user) => {
       const motivo = calculo.avisos.find(a => a.nivel === 'error')?.mensaje || 'No hay puntos calculados.';
       throw httpError(409, `No se puede enviar a revisión: ${motivo}`);
     }
+    const sinClase = faltaClase(modelo, datos, calculo);
+    if (sinClase) throw httpError(409, `No se puede enviar a revisión. ${sinClase}`);
     if (!registro) registro = await crearRegistro(createRequest, codigo, user);
     const huella = huellaDe({ fuente: normalizarFuente(fila, columnas), datos });
     await createRequest()
@@ -443,6 +499,8 @@ const revisarRegistro = async (codigo, { decision, observacion }, user) => {
     const { modelo } = await modeloCorregido(fila, datos);
     const calculo = await calcularModelo(modelo, datos);
     if (!calculo.calculado) throw httpError(409, 'No se puede aprobar: el registro no se puede calcular.');
+    const sinClase = faltaClase(modelo, datos, calculo);
+    if (sinClase) throw httpError(409, `No se puede aprobar. ${sinClase}`);
     if (calculo.provisional) {
       const razon = calculo.avisos.find(a => ['PESAS_SIN_VALORES', 'PESAS_SIN_VERIFICAR', 'PIEZAS_SUPUESTAS', 'THB_SIN_VALORES'].includes(a.codigo));
       throw httpError(409, `No se puede aprobar un cálculo provisional: ${razon?.mensaje || 'faltan datos verificados de los patrones.'}`);
@@ -493,6 +551,8 @@ module.exports = {
   huellaDe,
   permisosDe,
   planAnexo,
+  planTolerancias,
+  faltaClase,
   planComposiciones,
   textoComposicion,
   planClase,

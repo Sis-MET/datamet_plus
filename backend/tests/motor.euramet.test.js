@@ -157,6 +157,34 @@ test('R76 Tabla 6 y 3.5.2: emp en servicio (NB 23001)', () => {
   assert.deepEqual(motor.rangoDeCarga([{ max: 30 }, { max: 60 }], 45), { max: 60 });
 });
 
+test('R76 Tabla 3: clase sugerida por e y n = Max/e (la de menor exactitud que cumple)', () => {
+  // 220 g, e = 1 mg: n = 220 000 → solo I.
+  assert.deepEqual(motor.claseSugerida([{ max: 220, d: 0.0001, e: 0.001 }], 1), { valor: 'I', n: 220000, e: 0.001, enTabla: true });
+  // 600 g, e = 0,01 g: n = 60 000 → I o II; se propone II (como el libro).
+  assert.equal(motor.claseSugerida([{ max: 600, d: 0.01, e: 0.01 }], 1).valor, 'II');
+  // 6 kg, e = 0,1 g: n = 60 000 → II (e ≥ 0,1 g, n ≥ 5 000).
+  assert.equal(motor.claseSugerida([{ max: 6, d: 0.0001, e: 0.0001 }], 1000).valor, 'II');
+  // 1 500 kg, e = 0,5 kg: n = 3 000 → III; 60 kg, e = 0,1 kg: n = 600 → III y IIII → IIII.
+  assert.equal(motor.claseSugerida([{ max: 1500, d: 0.5, e: 0.5 }], 1000).valor, 'III');
+  assert.equal(motor.claseSugerida([{ max: 60, d: 0.1, e: 0.1 }], 1000).valor, 'IIII');
+  // Sin e se usa d. Fuera de la tabla (220 g con e = 0,1 mg): la del libro por n.
+  const fuera = motor.claseSugerida([{ max: 220, d: 0.0001, e: null }], 1);
+  assert.deepEqual({ valor: fuera.valor, enTabla: fuera.enTabla }, { valor: 'I', enTabla: false });
+  // Multirango: la que admiten todos los rangos.
+  assert.equal(motor.claseSugerida([{ max: 30, d: 0.01, e: 0.01 }, { max: 60, d: 0.02, e: 0.02 }], 1000).valor, 'III');
+  assert.equal(motor.claseSugerida([], 1), null);
+});
+
+test('tolerancia del cliente por rango (dato del cliente)', () => {
+  const tramos = [{ hasta: 300, tolerancia: 0.1 }, { hasta: 600, tolerancia: 0.2 }];
+  assert.equal(motor.toleranciaPorRango(1, tramos), 0.1);
+  assert.equal(motor.toleranciaPorRango(300, tramos), 0.1);
+  assert.equal(motor.toleranciaPorRango(301, tramos), 0.2);
+  assert.equal(motor.toleranciaPorRango(700, tramos), null);
+  assert.equal(motor.toleranciaPorRango(700, [...tramos, { hasta: null, tolerancia: 0.5 }]), 0.5);
+  assert.equal(motor.toleranciaPorRango(10, []), null);
+});
+
 test('decisión 7: regla simple y conservadora, con su riesgo', () => {
   const base = { error: 0.04, U: 0.03, k: 2, tolerancia: 0.06 };
   assert.equal(motor.conformidad({ ...base, regla: 'SIMPLE' }).conforme, true);
