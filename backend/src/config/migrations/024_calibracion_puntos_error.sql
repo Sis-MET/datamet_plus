@@ -39,7 +39,7 @@ BEGIN
       (codigo, version, titulo, tipo, modulos, descripcion, impacto, referencias, fecha_cambio,
        estado, a_posteriori, registrado_por)
     VALUES (
-      'CC-' + @anio + '-' + RIGHT('00' + CAST(@ultimo + 1 AS varchar(10)), 3), N'2.19.0', @titulo, 'MEJORA', N'Calibración',
+      'CC-' + @anio + '-' + RIGHT('00' + CAST(@ultimo + 1 AS varchar(10)), 3), N'2.18.1', @titulo, 'MEJORA', N'Calibración',
       N'En la ficha de un termohigrómetro, cada magnitud indica si su certificado da la corrección o el error de cada punto, y el valor se transcribe tal como está en el certificado. El cálculo usa la corrección (el error con el signo cambiado), así que ya no hace falta cambiar el signo a mano.',
       N'Agrega expresado_como a CAL_CERT_PUNTOS (migración 024). Los puntos ya transcritos quedan como corrección, que es lo que se pedía antes. No cambia el cálculo.',
       N'Migración 024; calibration.patrones.js; PatronModal.jsx.',

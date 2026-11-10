@@ -64,7 +64,7 @@ BEGIN
       (codigo, version, titulo, tipo, modulos, descripcion, impacto, referencias, fecha_cambio,
        estado, a_posteriori, registrado_por)
     VALUES (
-      'CC-' + @anio + '-' + RIGHT('00' + CAST(@ultimo + 1 AS varchar(10)), 3), N'2.19.0', @titulo, 'MEJORA', N'Calibración',
+      'CC-' + @anio + '-' + RIGHT('00' + CAST(@ultimo + 1 AS varchar(10)), 3), N'2.18.1', @titulo, 'MEJORA', N'Calibración',
       N'En la ficha del patrón, el material de cada pieza se elige de la tabla de densidades del método de cálculo y llena la densidad supuesta con su incertidumbre (k = 2). «Apta» ya no se escribe: se calcula con la clase del juego y la corrección y la U de cada pieza (OIML R111 5.2 y 5.3). Se registra la incertidumbre de las condiciones de calibración del juego y la temperatura de cada punto de humedad del termohigrómetro, que el cálculo usa para corregir la humedad a la temperatura medida.',
       N'Agrega temperatura a CAL_CERT_PUNTOS (con su clave única) y las incertidumbres de las condiciones a CAL_CERT_TRANSCRIPCION (migración 023). La corrección de la humedad interpola entre las temperaturas calibradas; sin temperaturas, calcula igual que antes. No cambia los valores ya transcritos.',
       N'Migración 023; calibration.patrones.js; motor/aire.js; PatronModal.jsx.',
