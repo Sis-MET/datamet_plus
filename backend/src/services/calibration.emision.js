@@ -159,8 +159,10 @@ const registroParaEmitir = async (createRequest, codigo) => {
   if (!registro) throw httpError(404, 'El servicio no tiene registro de calibración.');
   const datos = r.datosDe(registro.datos);
   const columnas = await r.columnasCalibracion();
-  const huella = r.huellaDe({ fuente: r.normalizarFuente(fila, columnas), datos });
-  return { registro, datos, fila, huella };
+  const fuente = r.normalizarFuente(fila, columnas);
+  // Igual a la huella del envío (también con la forma anterior de los datos).
+  const sinCambios = r.coincideHuella({ fuente, datos }, registro.huella);
+  return { registro, datos, fila, sinCambios };
 };
 
 const exigirJefe = async (user, accion) => {
@@ -178,9 +180,9 @@ const exigirJefe = async (user, accion) => {
 const autorizar = async (codigo, user) => {
   const persona = await exigirJefe(user, 'autoriza los certificados');
   return withTransaction(async (createRequest) => {
-    const { registro, datos, fila, huella } = await registroParaEmitir(createRequest, codigo);
+    const { registro, datos, fila, sinCambios } = await registroParaEmitir(createRequest, codigo);
     if (registro.estado !== 'APROBADO') throw httpError(409, 'Solo se autoriza un registro aprobado.');
-    if (registro.huella !== huella) throw httpError(409, 'Los datos cambiaron desde la aprobación. Reábrelo y vuelve a enviarlo a revisión.');
+    if (!sinCambios) throw httpError(409, 'Los datos cambiaron desde la aprobación. Reábrelo y vuelve a enviarlo a revisión.');
     const r = registros();
     const { modelo } = await r.modeloCorregido(fila, datos);
     // Con la versión del método con la que se aprobó (fase 6).
@@ -191,7 +193,7 @@ const autorizar = async (codigo, user) => {
     const emisiones = await leerEmisiones(createRequest, registro.id);
     const siguiente = siguienteEmision(emisiones, clean(registro.revision_motivo));
     const { contenido, archivo: nombre, bloqueos } = contenidoCertificado(
-      { modelo, calculo, creadoEn: registro.creado_en ? `${registro.creado_en}Z` : null, anexo: datos.anexo, textos },
+      { modelo, calculo, creadoEn: registro.creado_en ? `${registro.creado_en}Z` : null, anexo: datos.anexo, usp: datos.usp, textos },
       { ...siguiente },
     );
     if (bloqueos.length) throw httpError(409, `No se puede autorizar: ${bloqueos.join(' ')}`);

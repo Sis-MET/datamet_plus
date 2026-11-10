@@ -316,6 +316,70 @@ const bloquesDe = (c) => {
         </div>
       ),
     });
+    // USP ⟨41⟩ (si el cliente la pidió) y condiciones, como la hoja INCO del libro.
+    const u = a.usp;
+    if (u) {
+      bloques.push({
+        id: 'anexo-usp-repetibilidad',
+        render: () => (
+          <div className="cc-notas">
+            <h3 style={{ marginTop: '3mm' }}>{u.titulo}</h3>
+            <p className="cc-subtitulo">REPETIBILIDAD</p>
+            <table className="cc-tabla">
+              <tbody>{u.repetibilidad.map(f => <tr key={f.dato}><td style={{ textAlign: 'left' }}>{f.dato}</td><td>{f.destacado ? <strong>{f.valor}</strong> : f.valor}</td></tr>)}</tbody>
+            </table>
+          </div>
+        ),
+      });
+      bloques.push({
+        id: 'anexo-usp-exactitud',
+        render: () => (
+          <div className="cc-notas">
+            <p className="cc-subtitulo" style={{ marginTop: '2mm' }}>EXACTITUD Y ADECUACIÓN DE LAS PESAS</p>
+            <p>{u.exactitud.rango}</p>
+            {u.exactitud.vacia ? <p>{u.exactitud.vacia}</p> : (
+              <table className="cc-tabla cc-resultados">
+                <thead><tr><th>CARGA</th><th>ERROR</th><th>TOLERANCIA</th><th>EXACTITUD</th><th>U PESAS</th><th>LÍMITE PESAS</th><th>PESAS</th></tr></thead>
+                <tbody>
+                  {u.exactitud.filas.map(f => <tr key={f.carga}><td>{f.carga}</td><td>{f.error}</td><td>{f.limite}</td><td>{f.resultado}</td><td>{f.Upesas}</td><td>{f.limitePesas}</td><td>{f.pesas}</td></tr>)}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ),
+      });
+      bloques.push({
+        id: 'anexo-usp-peso',
+        render: () => (
+          <div className="cc-notas">
+            <p className="cc-subtitulo" style={{ marginTop: '2mm' }}>PESO MÍNIMO DE MUESTRA</p>
+            <table className="cc-tabla cc-resultados">
+              <thead>
+                <tr><th rowSpan={2}>EXACTITUD REQUERIDA</th><th colSpan={u.pesoMinimo.factores.length}>FACTOR DE SEGURIDAD</th></tr>
+                <tr>{u.pesoMinimo.factores.map(f => <th key={f}>{f}</th>)}</tr>
+              </thead>
+              <tbody>{u.pesoMinimo.filas.map(f => <tr key={f.exactitud}><td>{f.exactitud}</td>{f.valores.map((v, i) => <td key={i}>{v}</td>)}</tr>)}</tbody>
+            </table>
+            <p>{u.pesoMinimo.nota}</p>
+          </div>
+        ),
+      });
+    }
+    if (a.condiciones) {
+      bloques.push({
+        id: 'anexo-condiciones',
+        render: () => (
+          <div className="cc-notas">
+            <h3 style={{ marginTop: '3mm' }}>OBSERVACIONES Y CONDICIONES DEL INSTRUMENTO Y LA INSTALACIÓN</h3>
+            <table className="cc-tabla">
+              <thead><tr><th>CONDICIÓN</th><th>ESTADO</th><th>OBSERVACIÓN</th></tr></thead>
+              <tbody>{a.condiciones.map(f => <tr key={f.condicion}><td style={{ textAlign: 'left' }}>{f.condicion}</td><td>{f.estado}</td><td style={{ textAlign: 'left' }}>{f.observacion}</td></tr>)}</tbody>
+            </table>
+          </div>
+        ),
+      });
+    }
+    bloques.push({ id: 'anexo-fin', render: () => <div className="cc-fin">FIN DE LA INFORMACIÓN ADICIONAL.</div> });
   }
   return bloques;
 };

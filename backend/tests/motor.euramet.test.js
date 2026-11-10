@@ -159,7 +159,7 @@ test('R76 Tabla 6 y 3.5.2: emp en servicio (NB 23001)', () => {
 
 test('R76 Tabla 3: clase sugerida por e y n = Max/e (la de menor exactitud que cumple)', () => {
   // 220 g, e = 1 mg: n = 220 000 → solo I.
-  assert.deepEqual(motor.claseSugerida([{ max: 220, d: 0.0001, e: 0.001 }], 1), { valor: 'I', n: 220000, e: 0.001, enTabla: true });
+  assert.deepEqual(motor.claseSugerida([{ max: 220, d: 0.0001, e: 0.001 }], 1), { valor: 'I', n: 220000, e: 0.001, enTabla: true, regla: 'TABLA_3' });
   // 600 g, e = 0,01 g: n = 60 000 → I o II; se propone II (como el libro).
   assert.equal(motor.claseSugerida([{ max: 600, d: 0.01, e: 0.01 }], 1).valor, 'II');
   // 6 kg, e = 0,1 g: n = 60 000 → II (e ≥ 0,1 g, n ≥ 5 000).

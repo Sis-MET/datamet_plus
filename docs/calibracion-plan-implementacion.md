@@ -656,10 +656,10 @@ punta a punta.
   se autoriza y firma con el actual hasta que el laboratorio apruebe el
   sugerido. Sus textos (declaraciones) son una propuesta.
 
-Falta en la fase 5: USP <41> en el anexo (el anexo con la incertidumbre en
-uso y la pesada mínima ya está, ver la fase 3), la carpeta `CAL_DOCUMENTOS_DIR` en el servidor y la
+Falta en la fase 5: la carpeta `CAL_DOCUMENTOS_DIR` en el servidor y la
 prueba de punta a punta con un certificado real firmado (firma digital de
-Digicert/ADSIB).
+Digicert/ADSIB). El anexo ya tiene la incertidumbre en uso, la pesada mínima,
+la USP ⟨41⟩ y las condiciones del instrumento (2026-11-10, ver la fase 7).
 
 ## Fase 6 — Configuración del método
 
@@ -681,10 +681,22 @@ Digicert/ADSIB).
   palabras clave; gana la primera fila), umbrales de avisos, información en
   uso (k, ΔT, KT, factor, cargas de la tabla), pesada mínima (exactitudes y
   factores) y todos los textos del certificado.
-- **Fijos en el código** (cambiarlos cambia el método validado): probabilidad
-  de cobertura, redondeo de U, fórmula del aire, método de excentricidad y
-  regla conservadora. Las tablas normativas (emp de la R76 y la R111, F2.1)
-  tampoco se editan.
+- **Reglas de cálculo** (desde 2026-11-10, a pedido del usuario: que el
+  laboratorio no dependa del programador): s de repetibilidad en cada carga
+  (ensayos que encierran la carga, EURAMET 7.1.1, o la mayor de todos, como
+  el libro), factor de cobertura (t de Student con la probabilidad elegida, o
+  k fijo), cifras y sentido del redondeo de U, fórmula del aire (CIPM-2007 o
+  aproximada), método de excentricidad (3 o 1), factor del emp en servicio
+  (2 = NB 23001), banda de guarda de la regla conservadora (|E| + f·U ≤ T),
+  umbral del riesgo que se escribe «menor que», regla de la clase sugerida
+  (Tabla 3 de la R76 o solo n, como el libro) y los límites de la USP ⟨41⟩.
+  Son opciones entre cálculos ya programados y probados, no fórmulas libres:
+  cada una tiene su prueba automática y su fila en Validación (caso «Opciones
+  de la configuración del método»), así un cambio de configuración no obliga
+  a revalidar el programa (7.11.2). Una versión guardada antes recibe cada
+  regla nueva con el valor que reproduce su cálculo. La página avisa si el
+  texto «Incertidumbre» del certificado no dice la probabilidad o el k que se
+  eligió. Las tablas normativas (emp de la R76 y la R111, F2.1) no se editan.
 - Borrador → vigente: lo redacta el personal de Calibración (un borrador a la
   vez, con motivo; control de concurrencia por revisión) y lo aprueba el jefe
   de Calibración, que no puede haberlo redactado ni editado. La anterior queda
@@ -712,7 +724,14 @@ Ajustes pedidos antes de las pruebas (2026-11-09):
   presupuesto con el aporte de cada componente, νeff, k, U, lo que va al
   certificado y la conformidad con su riesgo. El presupuesto nombra la
   ecuación del empuje que se aplicó de verdad (antes decía 5b aunque faltara
-  ρa1) y lecturas iguales dan s = 0 exacto.
+  ρa1) y lecturas iguales dan s = 0 exacto. Desde 2026-11-10 es el cálculo de
+  **cada certificado**: su n.º (el emitido o el que llevará), las reglas del
+  método con que se calcula (versión y cada regla en palabras), los datos
+  registrados (instrumento, patrones con su certificado, ambiente, lecturas de
+  repetibilidad, excentricidad y error, y lo corregido en el registro), los
+  pasos generales, la tabla de todos los puntos (m_ref, I, E, u, νeff, k, U,
+  T, conformidad) y el detalle de cada uno. Desde Certificados › Emitidos,
+  «Cómo se calcula» abre el registro en esa pestaña.
 - **Certificados › Emitidos** (`GET /calibracion/emitidos`,
   `components/emitidos/`): el libro de certificados. Cada n.º con su emisión
   vigente, el cliente y el instrumento de la emisión firmada (del contenido
@@ -739,7 +758,8 @@ Ajustes pedidos antes de las pruebas (2026-11-09):
   (Anexo H: H1, H2, H3), de la Guía SIM (G1, G2, G3), la tabla G.2 de la GUM
   y CIPM-2007 frente a la fórmula aproximada se recalculan con el motor del
   servidor; cada valor de la guía junto al del sistema, con su criterio
-  (8 casos, 189 valores, todos dentro). Las pruebas automáticas usan los
+  (8 casos, 189 valores, todos dentro; desde 2026-11-10, 9 casos y 209
+  valores con el de las opciones del método). Las pruebas automáticas usan los
   mismos datos. El personal de Calibración registra la corrida como
   evidencia de la versión de la aplicación (CAL_VALIDACIONES: resultados,
   huella SHA-256, quién y cuándo; al verla se comprueba la huella). Base del
@@ -776,7 +796,13 @@ patrones.
 ingeniero; sin ella no se envía ni se aprueba), el emp vacío (NB 23001 por
 omisión, como el libro) y las tolerancias del cliente por rango. Segunda
 corrida: tolerancia en 937 de 949 puntos y conformidad igual en el 98 % de los
-puntos comparables.
+puntos comparables. Después: la regla de la s y las demás decisiones del método
+pasan a «Método de cálculo» (fase 6), y el anexo suma la **USP ⟨41⟩** (a pedido
+en cada registro: repetibilidad 2s/m con s ≥ 0,41 d a 5 % de Max, exactitud de
+5 % a 100 % de Max, adecuación de las pesas con U ≤ ⅓ de la tolerancia y peso
+mínimo de muestra; límites en «Método de cálculo») y las **condiciones del
+instrumento y la instalación** que revisó el técnico. Los valores de los
+patrones los carga el personal de Calibración en producción.
 
 ## En paralelo — Cambios en ServiceMET
 
@@ -828,8 +854,12 @@ No bloquean: el adaptador tolera los datos actuales.
 | Deriva de las pesas | D = kD·U, kD = 1 (configurable 1–3); sin historial, D = emp | EURAMET 7.1.2-10 |
 | Convección | Activa en pesas F1 o mejores; ΔT por el tiempo de estabilización | EURAMET 7.1.2.4, F |
 | Excentricidad | Método 3 | Detalle resuelto |
-| Repetibilidad | s por intervalo; ν = n − 1 de la s usada | EURAMET 7.1.1.3 |
+| Repetibilidad | s por intervalo (la mayor de los dos ensayos que encierran la carga); ν = n − 1 de la s usada. Configurable: la mayor de todos, como el libro | EURAMET 7.1.1.3 |
 | Sustitución | 7.1.2-15a/b | Decisión 8 |
-| Regla conservadora | \|E\| + U(E) ≤ T | Decisión 7 |
+| Regla conservadora | \|E\| + U(E) ≤ T (banda de guarda 1·U) | Decisión 7 |
+| emp en servicio | 2 × emp de verificación (R76 Tabla 6) | NB 23001; R76 3.5.2 |
+| Riesgo «menor que» | < 5 % | Hoja CERT del libro |
+| Clase sugerida | Tabla 3 de la R76 (si admite varias, la de menor exactitud) | Corrida paralela |
+| USP ⟨41⟩ | Tolerancia 0,10 %; carga 5 % de Max; s ≥ 0,41 d; 2·s/m; U de las pesas ≤ T/3 | Hoja INCO del libro |
 | Avisos | Excentricidad > 2d; lectura vs carga > 4d; U > 3d | Alertas actuales de RECA |
 | Composición de cargas | Menos piezas; desempate a confirmar | Decisión 4 |

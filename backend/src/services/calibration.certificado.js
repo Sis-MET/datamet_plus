@@ -83,6 +83,16 @@ const numeroCertificado = ({ negociacion, reca, anio }) => {
   return `${negociacion}-${String(reca).padStart(2, '0')}-${String(anio).slice(-2)}`;
 };
 
+/**
+ * N.º que lleva (o llevará) el certificado de un registro: el mismo cálculo
+ * que el contenido del certificado, con el año de creación del registro.
+ */
+const numeroDelRegistro = ({ modelo, creadoEn = null }) => numeroCertificado({
+  negociacion: modelo.servicio.seca?.negociacion,
+  reca: modelo.servicio.reca?.numero,
+  anio: (creadoEn ? fechaBolivia(new Date(creadoEn)) : fechaBolivia()).slice(0, 4),
+});
+
 /** Emisión con dos dígitos: 01, 02… */
 const textoEmision = (emision) => String(emision || 1).padStart(2, '0');
 
@@ -164,6 +174,70 @@ const anexoDe = (uso, { unidad, clase }) => {
   };
 };
 
+const APROBADO = ok => (ok ? 'APROBADO' : 'REPROBADO');
+
+/**
+ * Evaluación USP ⟨41⟩ del anexo (como la hoja INCO del libro): repetibilidad,
+ * exactitud, adecuación de las pesas y peso mínimo de muestra, con los
+ * límites de la configuración del método. Textos propios, sin el de la USP.
+ */
+const uspDe = (usp, { unidad }) => {
+  const c = usp.configuracion;
+  const r = usp.repetibilidad;
+  // Con n cifras significativas, sin ceros de más («30 g», «0,0058 g»).
+  const masa = (valor, n = 3) => `${coma(Number(valor.toPrecision(n)))} ${unidad}`;
+  const pct = valor => `${coma(Number((valor * 100).toPrecision(4)))} %`;
+  return {
+    titulo: 'EVALUACIÓN SEGÚN LA USP ⟨41⟩ (BALANZAS DE USO FARMACÉUTICO)',
+    repetibilidad: [
+      { dato: 'Carga de evaluación', valor: `${masa(r.carga)} (${pct(c.cargaEvaluacion)} de Max)` },
+      { dato: 'Desviación estándar medida (la mayor de los ensayos)', valor: masa(r.sMedida) },
+      { dato: `Desviación estándar mínima (${coma(c.sMinimaEnD)} · d)`, valor: masa(r.sMinima) },
+      { dato: 'Desviación estándar usada (s)', valor: masa(r.s) },
+      { dato: `${coma(c.factorS)} · s / carga`, valor: `${cifras(r.valor * 100, 3)} %` },
+      { dato: 'Criterio de aceptación', valor: `≤ ${pct(c.tolerancia)}` },
+      { dato: 'Resultado', valor: APROBADO(r.cumple), destacado: true },
+      { dato: 'Peso mínimo de muestra por repetibilidad', valor: masa(r.pesoMinimo) },
+    ],
+    exactitud: {
+      rango: `Cargas entre ${masa(usp.exactitud.desde)} (${pct(c.cargaEvaluacion)} de Max) y ${masa(usp.exactitud.hasta)}. Tolerancia: ${pct(c.tolerancia)} de la carga; las pesas son adecuadas si su incertidumbre expandida (k = 2) no supera 1/${coma(c.divisorPesas)} de esa tolerancia.`,
+      filas: usp.exactitud.filas.map(f => ({
+        carga: `${coma(f.carga)} ${unidad}`,
+        error: `${coma(f.presentacion?.error ?? f.error, f.presentacion?.decimales ?? 6)} ${unidad}`,
+        limite: `± ${masa(f.limite)}`,
+        resultado: APROBADO(f.cumple),
+        Upesas: masa(f.Upesas, 2),
+        limitePesas: masa(f.limitePesas, 2),
+        pesas: APROBADO(f.pesasAdecuadas),
+      })),
+      vacia: usp.exactitud.filas.length ? null : 'Ningún punto del ensayo de error está en el rango de evaluación.',
+    },
+    pesoMinimo: {
+      factores: usp.pesoMinimo.factores.map(f => coma(f)),
+      filas: usp.pesoMinimo.filas.map(f => ({
+        exactitud: porcentaje(f.exactitud),
+        valores: f.valores.map(v => (v == null ? '—' : masa(v))),
+      })),
+      nota: `Peso mínimo de muestra = ${coma(c.factorS)} · s · factor de seguridad / exactitud requerida. «—»: supera la capacidad del instrumento.`,
+    },
+  };
+};
+
+/**
+ * Condiciones del instrumento y de la instalación que revisó el técnico
+ * (ServiceMET), como la hoja INCO del libro. Solo las que tienen dato.
+ */
+const condicionesDe = (lugar = {}) => {
+  const filas = [
+    lugar.estabilizacionPesas ? { condicion: 'Estabilización de las pesas', estado: lugar.estabilizacionPesas, observacion: '' } : null,
+    lugar.operacionBalanza ? { condicion: 'Operación de la balanza', estado: lugar.operacionBalanza, observacion: '' } : null,
+    ...(lugar.inspeccion || [])
+      .filter(i => i.valor || i.comentario)
+      .map(i => ({ condicion: i.etiqueta, estado: i.valor || '—', observacion: i.comentario || '' })),
+  ].filter(Boolean);
+  return filas.length ? filas : null;
+};
+
 // ─── Contenido ─────────────────────────────────────────────────────────────
 
 /** Patrón en el certificado: «Set de pesas patrón OIML F1; 1 g a 5000 g; Código: F1-101». */
@@ -211,7 +285,7 @@ const escalones = (puntos) => {
  * Devuelve { contenido, archivo, bloqueos, avisos }: los bloqueos impiden
  * autorizarlo; los avisos conviene revisarlos.
  */
-const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conAnexo = false, textos = null }, emision = {}) => {
+const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conAnexo = false, usp: conUsp = false, textos = null }, emision = {}) => {
   // Los textos de la versión del método con la que se calculó (fase 6).
   const T = textos || TEXTOS;
   const avisos = [];
@@ -320,6 +394,7 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
   else if (calculo.provisional) bloqueos.push('El cálculo es provisional: faltan valores verificados de los patrones.');
   if (sinCalcular.length) avisos.push(`Puntos sin calcular, que no salen en el certificado: ${sinCalcular.map(p => p.n).join(', ')}.`);
   const aplica = regla !== 'NINGUNA';
+  const umbralRiesgo = calculo?.reglas?.riesgoUmbral ?? 0.05;
   const errores = {
     encabezadoTolerancia,
     filas: calculados.map((p) => {
@@ -338,7 +413,8 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
           ? conUnidad(coma(p.tolerancia, Math.min(6, Math.max(decInstrumento, decimalesDe(p.tolerancia)))), unidad)
           : 'NO APLICA',
         conformidad: aplica && c?.evaluada ? (c.conforme ? 'CONFORME' : 'NO CONFORME') : 'NO APLICA',
-        riesgo: aplica && c?.evaluada ? (c.riesgo < 0.05 ? '< 5,00' : coma(c.riesgo * 100, 2)) : 'NO APLICA',
+        // Bajo el umbral del método (5 % por omisión) se escribe «< umbral».
+        riesgo: aplica && c?.evaluada ? (c.riesgo < umbralRiesgo ? `< ${coma(umbralRiesgo * 100, 2)}` : coma(c.riesgo * 100, 2)) : 'NO APLICA',
       };
     }),
   };
@@ -460,8 +536,15 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
     patronesDetalle,
     normas: 'EURAMET cg-18 v4.0 (2015); Guía SIM MWG7/cg-01/v.00 (2009); OIML R 76-1:2006; OIML R 111-1:2004; ISO/IEC Guide 98-3:2008',
     // Información adicional (anexo que no forma parte del certificado), a pedido del cliente.
-    anexo: conAnexo && calculo?.enUso ? anexoDe(calculo.enUso, { unidad, clase: usaClase ? m.instrumento.clase.valor : (m.instrumento.clase?.valor || null) }) : null,
+    anexo: conAnexo && calculo?.enUso ? {
+      // La clase con la que se calculó el KT (la registrada o, mientras no se confirma, la sugerida).
+      ...anexoDe(calculo.enUso, { unidad, clase: usaClase ? m.instrumento.clase.valor : (m.instrumento.clase?.valor || calculo.clase?.valor || null) }),
+      // USP ⟨41⟩, si el cliente la pidió; y las condiciones que revisó el técnico.
+      usp: conUsp && calculo.usp ? uspDe(calculo.usp, { unidad }) : null,
+      condiciones: condicionesDe(m.lugar),
+    } : null,
   };
+  if (conAnexo && conUsp && !calculo?.usp) avisos.push('Se pidió la evaluación USP ⟨41⟩, pero sin repetibilidad o sin rangos no se puede calcular.');
   return {
     contenido,
     archivo: numero ? nombreArchivo({
@@ -515,6 +598,7 @@ const getCertificado = async (codigo, user, { emision: pedida = null } = {}) => 
     calculo: registro.calculo,
     creadoEn: registro.registro?.creadoEn || null,
     anexo: registro.datos?.anexo === true,
+    usp: registro.datos?.usp === true,
     textos,
   }, siguiente);
   if (registro.estado !== 'APROBADO') avisos.unshift('El registro aún no está aprobado: es un borrador.');
@@ -541,10 +625,11 @@ const previsualizar = async (codigo, cambios) => {
   const unidad = String(correcciones.columnas.unidades ?? fuente.unidades ?? '').trim();
   const composiciones = r.planComposiciones(actuales.composiciones, cambios.composiciones, unidad);
   const anexo = r.planAnexo(actuales.anexo, cambios.anexo);
+  const usp = r.planUsp(actuales.usp, cambios.usp);
   const tolerancias = r.planTolerancias(actuales.tolerancias, cambios.tolerancias, unidad);
   const datos = {
     columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones,
-    anexo: anexo.anexo, tolerancias: tolerancias.tolerancias,
+    anexo: anexo.anexo, usp: usp.usp, tolerancias: tolerancias.tolerancias,
   };
   const { modelo, avisos: avisosDatos } = await r.modeloCorregido(fila, datos);
   const calculo = await r.calcularModelo(modelo, datos, { version: r.versionDe(registro) });
@@ -552,7 +637,7 @@ const previsualizar = async (codigo, cambios) => {
   const siguiente = emisionService.siguienteEmision(emisiones, registro?.revision_motivo || null);
   const { textos } = await require('./calibration.metodo').configuracionDe(calculo.configuracion);
   const { contenido, archivo, bloqueos, avisos } = contenidoCertificado({
-    modelo, calculo, creadoEn: registro?.creado_en ? `${registro.creado_en}Z` : null, anexo: datos.anexo, textos,
+    modelo, calculo, creadoEn: registro?.creado_en ? `${registro.creado_en}Z` : null, anexo: datos.anexo, usp: datos.usp, textos,
   }, siguiente);
   return { codigo, borrador: true, contenido, archivo, bloqueos, avisos, calculo, avisosDatos, modelo };
 };
@@ -565,5 +650,6 @@ module.exports = {
   previsualizar,
   nombreArchivo,
   numeroCertificado,
+  numeroDelRegistro,
   textoEmision,
 };

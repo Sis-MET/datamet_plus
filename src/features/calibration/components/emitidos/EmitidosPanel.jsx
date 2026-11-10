@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertCircle, ExternalLink, FileCheck2, Loader2, Search } from 'lucide-react';
+import { AlertCircle, ExternalLink, FileCheck2, Loader2, Search, Sigma } from 'lucide-react';
 import { cn } from '../../../../shared/utils/cn';
 import { Button } from '../../../../shared/components/ui/Button';
 import { useResource } from '../../../system/hooks/useResource';
@@ -73,6 +73,9 @@ function Certificado({ certificado: c, onAbrir }) {
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={() => onAbrir(c.codigo)}>Abrir registro</Button>
+        <Button size="sm" variant="secondary" onClick={() => onAbrir(c.codigo, 'calculo')}>
+          <Sigma className="h-3.5 w-3.5" aria-hidden="true" /> Cómo se calcula
+        </Button>
         {vigente && (
           <Button size="sm" variant="secondary" onClick={() => abrirFirmado(c.codigo, vigente.emision)}>
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /> PDF firmado

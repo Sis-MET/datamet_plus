@@ -29,7 +29,7 @@ const ORIGENES_CLASE = {
   APROBACION: 'Aprobación de modelo',
   CLIENTE: 'Pedida por el cliente',
   // Sin placa ni aprobación: la que sugiere la OIML R76 (Tabla 3) con e y n = Max/e, confirmada por el ingeniero.
-  DEDUCIDA: 'Deducida de Max/e (OIML R76, Tabla 3)',
+  DEDUCIDA: 'Deducida de Max/e (OIML R76)',
 };
 const MAX_TOLERANCIAS = 5;
 
@@ -79,6 +79,20 @@ const ordenar = (valor) => {
 /** Huella de lo enviado a revisión: la fila de ServiceMET y las correcciones. */
 const huellaDe = ({ fuente, datos }) => createHash('sha256').update(JSON.stringify(ordenar({ fuente, datos }))).digest('hex');
 
+/**
+ * ¿La huella guardada corresponde a estos datos? También con la forma que
+ * tenían los datos antes de agregar campos nuevos (USP ⟨41⟩, tolerancias por
+ * rango) si siguen vacíos: un registro enviado antes no cambió por eso.
+ */
+const coincideHuella = ({ fuente, datos }, huella) => {
+  if (!huella) return false;
+  const { usp, tolerancias, ...antes } = datos;
+  const formas = [datos];
+  if (!usp) formas.push({ ...antes, tolerancias });
+  if (!usp && !(tolerancias || []).length) formas.push(antes);
+  return formas.some(forma => huellaDe({ fuente, datos: forma }) === huella);
+};
+
 const esComposicion = ([n, claves]) => /^\d{1,2}$/.test(n) && Array.isArray(claves) && claves.length > 0
   && claves.every(c => typeof c === 'string');
 
@@ -94,6 +108,8 @@ const datosDe = (json) => {
       : {},
     // Anexo de información adicional (incertidumbre en uso, pesada mínima), a pedido del cliente.
     anexo: datos.anexo === true,
+    // Evaluación USP ⟨41⟩ dentro del anexo (clientes farmacéuticos).
+    usp: datos.usp === true,
     // Tolerancia absoluta del cliente por rango de carga (dato del cliente): [{ hasta, tolerancia }].
     tolerancias: Array.isArray(datos.tolerancias)
       ? datos.tolerancias.filter(t => t && Number(t.tolerancia) > 0 && (t.hasta == null || Number(t.hasta) > 0))
@@ -136,11 +152,15 @@ const faltaClase = (modelo, datos, calculo) => {
   return `Confirma la clase del instrumento en «Cliente e instrumento»: el cliente pidió el emp NB 23001${sugerida ? ` y se sugiere la clase ${sugerida}` : ''}.`;
 };
 
-/** Pedido del anexo de información adicional: sin cambio si no llega. */
-const planAnexo = (actual, entrante) => {
-  if (entrante === undefined || Boolean(entrante) === Boolean(actual)) return { anexo: Boolean(actual), cambio: null };
-  return { anexo: Boolean(entrante), cambio: { campo: 'anexo', antes: actual ? 'Sí' : 'No', despues: entrante ? 'Sí' : 'No' } };
+/** Un pedido sí/no del registro (anexo, USP ⟨41⟩): sin cambio si no llega. */
+const planBandera = campo => (actual, entrante) => {
+  if (entrante === undefined || Boolean(entrante) === Boolean(actual)) return { [campo]: Boolean(actual), cambio: null };
+  return { [campo]: Boolean(entrante), cambio: { campo, antes: actual ? 'Sí' : 'No', despues: entrante ? 'Sí' : 'No' } };
 };
+/** Pedido del anexo de información adicional. */
+const planAnexo = planBandera('anexo');
+/** Pedido de la evaluación USP ⟨41⟩ en el anexo. */
+const planUsp = planBandera('usp');
 
 const numeroComa = (valor) => String(Number(valor.toPrecision(10))).replace('.', ',');
 
@@ -336,12 +356,12 @@ const getRegistro = async (codigo, user) => {
   const { modelo, avisos } = await modeloCorregido(fila, datos);
   const calculo = await calcularModelo(modelo, datos, { version: versionDe(registro) });
   const editables = Object.fromEntries([...columnas.entries()].filter(([c, meta]) => esEditable(c, meta)).map(([c, meta]) => [c, meta]));
-  const huellaActual = huellaDe({ fuente, datos });
+  const emisiones = registro ? await emisionesDe(registro.id) : [];
   return {
     codigo,
     estado: registro?.estado || 'PENDIENTE',
     registro: metaRegistro(registro),
-    cambioDesdeEnvio: Boolean(registro?.huella && ['EN_REVISION'].includes(registro.estado) && registro.huella !== huellaActual),
+    cambioDesdeEnvio: Boolean(registro?.huella && ['EN_REVISION'].includes(registro.estado) && !coincideHuella({ fuente, datos }, registro.huella)),
     datos,
     correcciones: [
       ...Object.entries(datos.columnas).map(([columna, valor]) => ({ tipo: 'columna', columna, original: fuente[columna] ?? null, corregido: valor })),
@@ -358,7 +378,13 @@ const getRegistro = async (codigo, user) => {
     versiones: fila.versiones,
     historial: registro ? await leerHistorial(registro.id) : [],
     // Emisiones del certificado (fase 5).
-    emisiones: registro ? await emisionesDe(registro.id) : [],
+    emisiones,
+    // N.º del certificado: el de la última emisión o el que llevará.
+    certificado: {
+      numero: emisiones.at(-1)?.numero
+        || require('./calibration.certificado').numeroDelRegistro({ modelo, creadoEn: registro?.creado_en ? `${registro.creado_en}Z` : null }),
+      emision: emisiones.at(-1)?.emision ?? null,
+    },
     permisos: permisosDe(persona, registro),
   };
 };
@@ -386,17 +412,18 @@ const guardarRegistro = async (codigo, data, user) => {
     const unidad = String(correcciones.columnas.unidades ?? fuente.unidades ?? '').trim();
     const composiciones = planComposiciones(actuales.composiciones, data.composiciones, unidad);
     const anexo = planAnexo(actuales.anexo, data.anexo);
+    const usp = planUsp(actuales.usp, data.usp);
     const tolerancias = planTolerancias(actuales.tolerancias, data.tolerancias, unidad);
     const cambios = [
       ...correcciones.cambios, ...(clase.cambio ? [clase.cambio] : []), ...composiciones.cambios,
-      ...(anexo.cambio ? [anexo.cambio] : []), ...(tolerancias.cambio ? [tolerancias.cambio] : []),
+      ...(anexo.cambio ? [anexo.cambio] : []), ...(usp.cambio ? [usp.cambio] : []), ...(tolerancias.cambio ? [tolerancias.cambio] : []),
     ];
     if (!cambios.length) return { codigo, cambios: 0, version: registro?.version ?? null };
 
     if (!registro) registro = await crearRegistro(createRequest, codigo, user);
     const datos = {
       columnas: correcciones.columnas, clase: clase.clase, composiciones: composiciones.composiciones,
-      anexo: anexo.anexo, tolerancias: tolerancias.tolerancias,
+      anexo: anexo.anexo, usp: usp.usp, tolerancias: tolerancias.tolerancias,
     };
     await createRequest()
       .input('id', sql.Int, registro.id)
@@ -481,7 +508,7 @@ const revisarRegistro = async (codigo, { decision, observacion }, user) => {
     if (!persona.revisor) throw httpError(403, 'Solo el jefe de Calibración o un aprobador que él designó revisan los registros.');
     if (!permisos.revisar) throw httpError(403, permisos.motivoRevisar || 'No puedes revisar este registro.');
     const datos = datosDe(registro.datos);
-    if (huellaDe({ fuente: normalizarFuente(fila, columnas), datos }) !== registro.huella) {
+    if (!coincideHuella({ fuente: normalizarFuente(fila, columnas), datos }, registro.huella)) {
       throw httpError(409, 'Los datos cambiaron desde el envío (en ServiceMET o en las correcciones). Retíralo y vuelve a enviarlo.');
     }
 
@@ -549,8 +576,10 @@ module.exports = {
   getRegistro,
   guardarRegistro,
   huellaDe,
+  coincideHuella,
   permisosDe,
   planAnexo,
+  planUsp,
   planTolerancias,
   faltaClase,
   planComposiciones,

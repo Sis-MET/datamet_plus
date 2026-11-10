@@ -20,13 +20,36 @@ export const ACCIONES_METODO = {
 
 export const CLASES_PESAS = ['E1', 'E2', 'F1', 'F2', 'M1', 'M2', 'M3'];
 
-// Lo que no se edita aquí (decisiones de la fase 0, validadas con el motor).
-export const FIJOS = [
-  { clave: 'cobertura', etiqueta: 'Probabilidad de cobertura', texto: () => '95,45 % (k por νeff, t de Student)' },
-  { clave: 'redondeoU', etiqueta: 'Redondeo de U', texto: () => 'Dos cifras significativas, hacia arriba; el error al mismo decimal' },
-  { clave: 'formulaAire', etiqueta: 'Densidad del aire', texto: valor => (valor === 'CIPM-2007' ? 'CIPM-2007 (EURAMET A1.1)' : valor) },
-  { clave: 'excentricidad', etiqueta: 'Excentricidad', texto: () => 'Método 3: se vuelve a cero entre posiciones (EURAMET 5.3)' },
-  { clave: 'reglaConservadora', etiqueta: 'Regla conservadora', texto: () => '|E| + U(E) ≤ T' },
+// Opciones de las reglas de cálculo (todas programadas y probadas en el motor;
+// la primera es la de la versión 1).
+export const REPETIBILIDAD = [
+  { value: 'ENCIERRAN', label: 'Ensayos que encierran la carga', descripcion: 'La mayor de las dos s de los ensayos más cercanos por debajo y por encima de cada carga (EURAMET 7.1.1).' },
+  { value: 'MAYOR', label: 'La mayor de todos', descripcion: 'La mayor s de todos los ensayos, en todo el rango, como el libro F-VMET-02-7.2. Más conservadora: sube U en las cargas bajas.' },
+];
+export const COBERTURA = [
+  { value: 'T_STUDENT', label: 't de Student (νeff)', descripcion: 'k para la probabilidad de cobertura con los grados efectivos de libertad (EURAMET 7.3 y Anexo B): sube cuando la repetibilidad tiene pocas lecturas.' },
+  { value: 'FIJO', label: 'k fijo', descripcion: 'El mismo k en todos los puntos, sin mirar νeff. EURAMET lo admite solo si u(E) es fiable (muchas lecturas).' },
+];
+export const CIFRAS_U = [
+  { value: 1, label: '1 cifra' },
+  { value: 2, label: '2 cifras', descripcion: 'Lo habitual (GUM 7.2.6).' },
+  { value: 3, label: '3 cifras' },
+];
+export const SENTIDO_U = [
+  { value: 'ARRIBA', label: 'Hacia arriba', descripcion: 'Nunca declara una U menor que la calculada (GUM 7.2.6 lo admite).' },
+  { value: 'CERCANO', label: 'Al más cercano', descripcion: 'Redondeo común: la mitad sube.' },
+];
+export const AIRE = [
+  { value: 'CIPM-2007', label: 'CIPM-2007', descripcion: 'Fórmula completa (EURAMET A1.1), con incertidumbre relativa de 2,2·10⁻⁵.' },
+  { value: 'APROXIMADA', label: 'Aproximada', descripcion: 'Fórmula simplificada (EURAMET A1.1-1, OIML R111 E.3-1), con 2,4·10⁻⁴; pensada para 600–1 100 hPa y 15–27 °C.' },
+];
+export const EXCENTRICIDAD = [
+  { value: 'METODO_3', label: 'Método 3', descripcion: 'Se vuelve a cero entre posiciones y se resta el retorno (EURAMET 5.3 y 6.3-2).' },
+  { value: 'METODO_1', label: 'Método 1', descripcion: 'Diferencia directa con el centro, sin restar el retorno a cero (EURAMET 6.3-1).' },
+];
+export const CLASE_SUGERIDA = [
+  { value: 'TABLA_3', label: 'Tabla 3 de la R76', descripcion: 'La clase que admiten e y n = Max/e de todos los rangos; si admiten varias, la de menor exactitud.' },
+  { value: 'POR_N', label: 'Solo por n', descripcion: 'Como el libro: por n = Max/e del rango mayor (hasta 1 000: IIII; 10 000: III; 100 000: II; más: I).' },
 ];
 
 export const EMPUJE = [
@@ -34,8 +57,19 @@ export const EMPUJE = [
   { value: '5a', label: '7.1.2-5a', descripcion: 'Solo con la densidad del aire y de la pesa.' },
 ];
 
-// Límites (los mismos del backend) y unidad de cada número.
+// Límites (los mismos del backend) y unidad de cada número; `escala` convierte
+// lo que se escribe en lo que se guarda (p. ej. % → fracción).
 export const NUMEROS = {
+  'parametros.cobertura.probabilidad': { min: 0.9, max: 0.999, escala: 0.01, unidad: '%' },
+  'parametros.cobertura.k': { min: 1, max: 4 },
+  'parametros.conformidad.bandaGuarda': { min: 0, max: 3, unidad: '× U' },
+  'parametros.conformidad.riesgoUmbral': { min: 0.001, max: 0.5, escala: 0.01, unidad: '%' },
+  'parametros.empServicio.factor': { min: 1, max: 3, unidad: '× emp de verificación' },
+  'parametros.usp.tolerancia': { min: 0.0001, max: 0.05, escala: 0.01, unidad: '%' },
+  'parametros.usp.cargaEvaluacion': { min: 0.001, max: 1, escala: 0.01, unidad: '% de Max' },
+  'parametros.usp.sMinimaEnD': { min: 0, max: 2, unidad: '× d' },
+  'parametros.usp.factorS': { min: 1, max: 4, unidad: '× s' },
+  'parametros.usp.divisorPesas': { min: 1, max: 10 },
   'parametros.kD': { min: 1, max: 3 },
   'parametros.conveccion.porEstabilizacion[].deltaT': { min: 0, max: 20, unidad: 'K' },
   'parametros.conveccion.deltaTSinDato': { min: 0, max: 20, unidad: 'K' },
@@ -76,6 +110,23 @@ const TEXTOS = {
 export const LARGO_TEXTO = Object.fromEntries(Object.entries(TEXTOS).map(([ruta, [, largo]]) => [ruta, largo]));
 
 const ETIQUETAS = {
+  'parametros.repetibilidad.regla': 'Regla: s de repetibilidad en cada carga',
+  'parametros.cobertura.metodo': 'Regla: cálculo de k',
+  'parametros.cobertura.probabilidad': 'Regla: probabilidad de cobertura',
+  'parametros.cobertura.k': 'Regla: k fijo',
+  'parametros.redondeoU.cifras': 'Regla: cifras de U',
+  'parametros.redondeoU.sentido': 'Regla: redondeo de U',
+  'parametros.aire.formula': 'Regla: fórmula del aire',
+  'parametros.excentricidad.metodo': 'Regla: método de excentricidad',
+  'parametros.conformidad.bandaGuarda': 'Regla conservadora: banda de guarda',
+  'parametros.conformidad.riesgoUmbral': 'Riesgo: umbral que se escribe «menor que»',
+  'parametros.empServicio.factor': 'emp en servicio: factor',
+  'parametros.claseSugerida.regla': 'Regla: clase sugerida',
+  'parametros.usp.tolerancia': 'USP: tolerancia',
+  'parametros.usp.cargaEvaluacion': 'USP: carga de evaluación',
+  'parametros.usp.sMinimaEnD': 'USP: s mínima',
+  'parametros.usp.factorS': 'USP: factor de s',
+  'parametros.usp.divisorPesas': 'USP: divisor para las pesas',
   'parametros.empuje': 'Incertidumbre del empuje',
   'parametros.kD': 'Factor de deriva kD',
   'parametros.conveccion.activa': 'Convección: se aplica',
@@ -117,12 +168,19 @@ export const etiquetaRuta = (ruta) => {
   return conFila ? `${etiqueta} · fila ${filas[0]}` : etiqueta;
 };
 
-/** Valor para leer en una diferencia. */
-export const textoValor = (valor) => {
+// Nombres de las opciones para leer las diferencias («ENCIERRAN» → «Ensayos que encierran la carga»).
+const NOMBRES_OPCION = Object.fromEntries([REPETIBILIDAD, COBERTURA, SENTIDO_U, AIRE, EXCENTRICIDAD, CLASE_SUGERIDA]
+  .flat().map(o => [o.value, o.label]));
+
+/** Valor para leer en una diferencia; con la ruta, en la unidad en que se escribe. */
+export const textoValor = (valor, ruta = null) => {
   if (valor == null) return 'vacío';
   if (typeof valor === 'boolean') return valor ? 'Sí' : 'No';
+  if (typeof valor === 'string' && NOMBRES_OPCION[valor]) return NOMBRES_OPCION[valor];
+  const regla = ruta ? NUMEROS[rutaGenerica(ruta)] : null;
+  if (typeof valor === 'number' && regla?.escala) return `${escribirNumero(Number((valor / regla.escala).toPrecision(12)))} ${regla.unidad}`;
   if (typeof valor === 'number') return String(valor).replace('.', ',');
-  if (Array.isArray(valor)) return valor.length ? valor.map(textoValor).join('; ') : 'ninguno';
+  if (Array.isArray(valor)) return valor.length ? valor.map(v => textoValor(v)).join('; ') : 'ninguno';
   return String(valor);
 };
 
@@ -187,9 +245,11 @@ export const validar = (contenido) => {
     const regla = NUMEROS[generica];
     if (regla) {
       if (valor == null && regla.vacio) continue;
+      // Los límites en la unidad en que se escriben (p. ej. % y no fracción).
+      const limite = v => escribirNumero(regla.escala ? Number((v / regla.escala).toPrecision(12)) : v);
       if (typeof valor !== 'number' || !Number.isFinite(valor)) problemas[ruta] = 'Debe ser un número.';
-      else if (valor < regla.min) problemas[ruta] = `Debe ser al menos ${escribirNumero(regla.min)}.`;
-      else if (valor > regla.max) problemas[ruta] = `Debe ser como máximo ${escribirNumero(regla.max)}.`;
+      else if (valor < regla.min) problemas[ruta] = `Debe ser al menos ${limite(regla.min)}.`;
+      else if (valor > regla.max) problemas[ruta] = `Debe ser como máximo ${limite(regla.max)}.`;
       continue;
     }
     const lista = LISTAS[generica.replace(/\[\]$/, '')];
@@ -211,6 +271,26 @@ export const validar = (contenido) => {
   }
   if (contenido?.parametros?.densidades && !contenido.parametros.densidades.length) problemas['parametros.densidades'] = 'Hace falta al menos un material.';
   return problemas;
+};
+
+/**
+ * Avisos de coherencia entre las reglas y los textos del certificado (no
+ * impiden guardar): el texto «Incertidumbre» debe decir lo que se calcula.
+ */
+export const avisosMetodo = (contenido) => {
+  const p = contenido?.parametros;
+  const texto = String(contenido?.textos?.incertidumbre || '');
+  if (!p?.cobertura) return [];
+  const avisos = [];
+  if (p.cobertura.metodo === 'FIJO') {
+    if (/student|grados efectivos/i.test(texto)) avisos.push('El texto «Incertidumbre» del certificado habla de la t de Student y los grados efectivos de libertad, pero k es fijo: corrígelo en «Textos del certificado».');
+  } else {
+    const probabilidad = escribirNumero(Number((p.cobertura.probabilidad * 100).toPrecision(12)));
+    // El número completo: «95» no está dentro de «95,45».
+    const mencion = new RegExp(`(^|[^0-9,])${probabilidad}(?![0-9]|,[0-9])`);
+    if (!mencion.test(texto)) avisos.push(`El texto «Incertidumbre» del certificado no menciona el ${probabilidad} % de probabilidad de cobertura: corrígelo en «Textos del certificado».`);
+  }
+  return avisos;
 };
 
 /** Lee y escribe un valor por ruta (inmutable). */

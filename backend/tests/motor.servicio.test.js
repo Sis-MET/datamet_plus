@@ -114,7 +114,7 @@ test('emp NB 23001: sin clase se usa la sugerida por la R76 hasta confirmarla; c
   assert.equal(sinClase.clase.valor, 'III');
   assert.equal(sinClase.clase.registrada, false);
   assert.equal(sinClase.clase.requerida, true);
-  assert.deepEqual(sinClase.clase.sugerida, { valor: 'III', n: 3000, e: 0.5, enTabla: true });
+  assert.deepEqual(sinClase.clase.sugerida, { valor: 'III', n: 3000, e: 0.5, enTabla: true, regla: 'TABLA_3' });
   // 1000 kg: 2 000 e → 2 × 1 e = 1 kg.
   assert.equal(sinClase.puntos[2].tolerancia, 1);
   assert.equal(sinClase.puntos[2].conformidad.evaluada, true);

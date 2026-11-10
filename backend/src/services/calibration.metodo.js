@@ -11,10 +11,13 @@
  * con su historial.
  *
  * La versión 1 es la configuración inicial del sistema (fase 0): se crea la
- * primera vez que se abre la pantalla y el jefe la aprueba ahí. Lo que cambia
- * el método validado (probabilidad de cobertura, redondeo, fórmula del aire,
- * método de excentricidad, regla conservadora) no se edita aquí: pide un
- * cambio en el código con su validación (7.11.2).
+ * primera vez que se abre la pantalla y el jefe la aprueba ahí. Las reglas de
+ * cálculo (s de repetibilidad, factor de cobertura, redondeo de U, fórmula
+ * del aire, excentricidad, banda de guarda, emp en servicio, clase sugerida,
+ * USP ⟨41⟩) se eligen aquí entre opciones ya programadas y probadas, con sus
+ * valores; las fórmulas quedan en el código, validadas con los ejemplos de
+ * las guías (7.11.2). Una regla nueva entra a las versiones guardadas antes
+ * con el valor que reproduce el cálculo de entonces.
  */
 const { z } = require('zod');
 const { getPool, sql } = require('../config/db');
@@ -26,10 +29,6 @@ const { TEXTOS } = require('./calibration.certificado');
 const CLASES_PESAS = ['E1', 'E2', 'F1', 'F2', 'M1', 'M2', 'M3'];
 const SISTEMA = 'SISTEMA';
 
-const FIJOS = Object.freeze((({ cobertura, redondeoU, formulaAire, excentricidad, reglaConservadora }) => ({
-  cobertura, redondeoU, formulaAire, excentricidad, reglaConservadora,
-}))(motor.CONFIGURACION_V1));
-
 // ─── Contenido de una versión ──────────────────────────────────────────────
 
 /** Contenido de la versión 1: la configuración inicial del sistema (fase 0). */
@@ -37,6 +36,14 @@ const contenidoInicial = () => {
   const c = motor.CONFIGURACION_V1;
   return structuredClone({
     parametros: {
+      repetibilidad: c.repetibilidad,
+      cobertura: c.cobertura,
+      redondeoU: c.redondeoU,
+      aire: c.aire,
+      excentricidad: c.excentricidad,
+      conformidad: c.conformidad,
+      empServicio: c.empServicio,
+      claseSugerida: c.claseSugerida,
       empuje: c.empuje,
       kD: c.kD,
       conveccion: {
@@ -48,6 +55,7 @@ const contenidoInicial = () => {
       avisos: c.avisos,
       enUso: c.enUso,
       pesadaMinima: c.pesadaMinima,
+      usp: c.usp,
       densidades: c.densidades,
     },
     textos: TEXTOS,
@@ -61,8 +69,25 @@ const texto = max => z.string({ error: 'Falta el texto.' }).trim().min(1, 'No pu
 const serie = (min, max, largo) => z.array(numero(min, max)).min(1, 'Hace falta al menos un valor.').max(largo, `Admite hasta ${largo} valores.`)
   .transform(lista => [...new Set(lista)].sort((a, b) => a - b));
 
+const opcion = (lista, mensaje) => z.enum(lista, { error: mensaje });
+
 const esquema = z.object({
   parametros: z.object({
+    repetibilidad: z.object({ regla: opcion(motor.REGLAS_REPETIBILIDAD, 'Elige la regla de la s de repetibilidad.') }).strict(),
+    cobertura: z.object({
+      metodo: opcion(motor.METODOS_COBERTURA, 'Elige cómo se calcula k.'),
+      probabilidad: numero(0.9, 0.999),
+      k: numero(1, 4),
+    }).strict(),
+    redondeoU: z.object({
+      cifras: z.number({ error: 'Debe ser un número.' }).int('Debe ser 1, 2 o 3.').min(1, 'Debe ser 1, 2 o 3.').max(3, 'Debe ser 1, 2 o 3.'),
+      sentido: opcion(motor.SENTIDOS_REDONDEO, 'Elige hacia arriba o al más cercano.'),
+    }).strict(),
+    aire: z.object({ formula: opcion(Object.keys(motor.FORMULAS_AIRE), 'Elige la fórmula de la densidad del aire.') }).strict(),
+    excentricidad: z.object({ metodo: opcion(motor.METODOS_EXCENTRICIDAD, 'Elige el método 1 o el 3.') }).strict(),
+    conformidad: z.object({ bandaGuarda: numero(0, 3), riesgoUmbral: numero(0.001, 0.5) }).strict(),
+    empServicio: z.object({ factor: numero(1, 3) }).strict(),
+    claseSugerida: z.object({ regla: opcion(motor.REGLAS_CLASE, 'Elige la regla de la clase sugerida.') }).strict(),
     empuje: z.enum(['5a', '5b'], { error: 'Elige 7.1.2-5a o 7.1.2-5b.' }),
     kD: numero(1, 3),
     conveccion: z.object({
@@ -80,6 +105,13 @@ const esquema = z.object({
       fracciones: serie(0.001, 1, 12),
     }).strict(),
     pesadaMinima: z.object({ exactitudes: serie(0.0001, 0.5, 10), factores: serie(1, 20, 10) }).strict(),
+    usp: z.object({
+      tolerancia: numero(0.0001, 0.05),
+      cargaEvaluacion: numero(0.001, 1),
+      sMinimaEnD: numero(0, 2),
+      factorS: numero(1, 4),
+      divisorPesas: numero(1, 10),
+    }).strict(),
     densidades: z.array(z.object({
       material: texto(60),
       claves: z.array(texto(40)).min(1, 'Hace falta al menos una palabra clave.').max(10, 'Admite hasta 10 palabras clave.'),
@@ -131,7 +163,14 @@ const configuracionMotor = (version, contenido) => {
   const p = contenido.parametros;
   return {
     version,
-    ...FIJOS,
+    repetibilidad: { ...p.repetibilidad },
+    cobertura: { ...p.cobertura },
+    redondeoU: { ...p.redondeoU },
+    aire: { ...p.aire },
+    excentricidad: { ...p.excentricidad },
+    conformidad: { ...p.conformidad },
+    empServicio: { ...p.empServicio },
+    claseSugerida: { ...p.claseSugerida },
     empuje: p.empuje,
     kD: p.kD,
     conveccion: {
@@ -144,6 +183,7 @@ const configuracionMotor = (version, contenido) => {
     avisos: { ...p.avisos },
     enUso: { ...p.enUso, fracciones: [...p.enUso.fracciones] },
     pesadaMinima: { exactitudes: [...p.pesadaMinima.exactitudes], factores: [...p.pesadaMinima.factores] },
+    usp: { ...p.usp },
     densidades: p.densidades.map(d => ({ ...d, claves: [...d.claves] })),
   };
 };
@@ -339,7 +379,6 @@ const getMetodo = async (user) => conMigracion(async () => {
   const borrador = versiones.find(v => v.estado === 'BORRADOR');
   const pendiente = porAprobar(versiones);
   return {
-    fijos: FIJOS,
     vigente: vigente ? { ...meta(vigente), contenido: vigente.contenido } : null,
     borrador: borrador ? {
       ...meta(borrador),
@@ -469,7 +508,6 @@ const aprobar = async (user, { revision, motivo = null }) => conMigracion(async 
 
 module.exports = {
   CLASES_PESAS,
-  FIJOS,
   aprobar,
   autoresDe,
   completar,

@@ -218,3 +218,31 @@ test('quien redacta o edita no aprueba; el borrador se puede descartar', async (
   // La siguiente versión no reutiliza el número de la descartada.
   assert.deepEqual(await metodo.crearBorrador(tecnica, { motivo: 'De nuevo' }), { version: 3 });
 });
+
+test('reglas de cálculo: opciones conocidas y valores dentro de sus límites', () => {
+  const contenido = metodo.contenidoInicial();
+  const con = parametros => ({ ...contenido, parametros: { ...contenido.parametros, ...parametros } });
+  const valido = metodo.validarContenido(con({
+    repetibilidad: { regla: 'MAYOR' },
+    cobertura: { metodo: 'FIJO', probabilidad: 0.95, k: 2 },
+    redondeoU: { cifras: 1, sentido: 'CERCANO' },
+    aire: { formula: 'APROXIMADA' },
+    excentricidad: { metodo: 'METODO_1' },
+    conformidad: { bandaGuarda: 0.5, riesgoUmbral: 0.1 },
+    empServicio: { factor: 1 },
+    claseSugerida: { regla: 'POR_N' },
+    usp: { tolerancia: 0.0005, cargaEvaluacion: 0.1, sMinimaEnD: 0.41, factorS: 2, divisorPesas: 3 },
+  }));
+  const motorConf = metodo.configuracionMotor(4, valido);
+  assert.equal(motorConf.repetibilidad.regla, 'MAYOR');
+  assert.deepEqual(motorConf.cobertura, { metodo: 'FIJO', probabilidad: 0.95, k: 2 });
+  assert.equal(motorConf.usp.tolerancia, 0.0005);
+  assert.throws(() => metodo.validarContenido(con({ repetibilidad: { regla: 'MEDIA' } })), /parametros\.repetibilidad\.regla/);
+  assert.throws(() => metodo.validarContenido(con({ redondeoU: { cifras: 2.5, sentido: 'ARRIBA' } })), /1, 2 o 3/);
+  assert.throws(() => metodo.validarContenido(con({ cobertura: { metodo: 'T_STUDENT', probabilidad: 0.5, k: 2 } })), /al menos 0\.9/);
+  assert.throws(() => metodo.validarContenido(con({ empServicio: { factor: 5 } })), /como máximo 3/);
+  // Una versión guardada antes de las reglas las recibe con el valor que reproduce su cálculo.
+  const viejo = metodo.contenidoInicial();
+  for (const clave of ['repetibilidad', 'cobertura', 'redondeoU', 'aire', 'excentricidad', 'conformidad', 'empServicio', 'claseSugerida', 'usp']) delete viejo.parametros[clave];
+  assert.deepEqual(metodo.configuracionMotor(1, metodo.completar(viejo)), structuredClone(motor.CONFIGURACION_V1));
+});

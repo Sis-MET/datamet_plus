@@ -85,7 +85,8 @@ function Campo({ columna, etiqueta, editor, editable, columnas, compacto = false
         aria-label={nombre}
         inputMode={NUMERICOS.has(columnas?.[columna]?.tipo) ? 'decimal' : undefined}
         autoComplete="off"
-        className={cn('field font-medium tabular-nums', compacto ? 'h-9 rounded-lg px-2.5 text-[13px]' : 'h-10', marca)}
+        // A la altura de las listas desplegables (Dropdown md, h-11) para que la fila quede pareja.
+        className={cn('field font-medium tabular-nums', compacto ? 'h-9 rounded-lg px-2.5 text-[13px]' : 'h-11', marca)}
       />
     );
   }
@@ -151,18 +152,20 @@ function Datos({ filas }) {
 }
 
 /**
- * Sin clase en el registro y con emp NB 23001 pedido: la que sugiere la R76
- * (Tabla 3) con e y n = Max/e. El cálculo ya la usa, pero hay que confirmarla.
+ * Sin clase en el registro y con emp NB 23001 pedido: la que sugiere la regla
+ * del método (R76 Tabla 3, o solo n = Max/e como el libro). El cálculo ya la
+ * usa, pero hay que confirmarla.
  */
 function ClaseSugerida({ calculo, editor, editable, unidad }) {
   const s = calculo?.clase?.sugerida;
   if (!s || !calculo.clase.requerida || editor.clase?.valor) return null;
+  const porN = s.regla === 'POR_N';
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-warning/35 bg-warning/[0.06] px-3.5 py-2.5">
       <AlertTriangle className="h-4 w-4 flex-none text-warning" aria-hidden="true" />
       <p className="min-w-0 flex-1 text-[12.5px] text-fg">
-        Se sugiere la <strong>clase {s.valor}</strong> por la OIML R76 (Tabla 3): e = {numero(s.e)} {unidad} y n = Max/e = {numero(s.n)}
-        {s.enTabla ? '' : ' (fuera de la tabla: elegida por n, como el libro)'}. El cálculo ya la usa para el emp NB 23001, pero hay que confirmarla para enviar a revisión.
+        Se sugiere la <strong>clase {s.valor}</strong> {porN ? 'por n = Max/e, como el libro' : 'por la OIML R76 (Tabla 3)'}: e = {numero(s.e)} {unidad} y n = Max/e = {numero(s.n)}
+        {porN || s.enTabla ? '' : ' (fuera de la tabla: elegida por n, como el libro)'}. El cálculo ya la usa para el emp NB 23001, pero hay que confirmarla para enviar a revisión.
       </p>
       {editable && (
         <button
@@ -294,7 +297,7 @@ function ToleranciasCliente({ editor, editable, criterio, unidad }) {
 }
 
 /** Lo que interpreta DataMET+ en cada sección, debajo de los datos. */
-function contexto(id, { data, m, unidad, onPuntosAcordados, puedeAcordar, editable, onAnexo, editor }) {
+function contexto(id, { data, m, unidad, onPuntosAcordados, puedeAcordar, editable, onAnexo, onUsp, editor }) {
   switch (id) {
     case 'servicio':
       return (
@@ -391,9 +394,27 @@ function contexto(id, { data, m, unidad, onPuntosAcordados, puedeAcordar, editab
           />
           <span className="text-[12.5px]">
             <span className="block font-semibold text-fg">Agregar el anexo de información adicional (a pedido del cliente)</span>
-            <span className="block text-fg-muted">Incertidumbre de una pesada en uso, incertidumbre global y pesada mínima (EURAMET 7.4, 7.5 y G). Va en una hoja aparte que no forma parte del certificado.</span>
+            <span className="block text-fg-muted">Incertidumbre de una pesada en uso, incertidumbre global y pesada mínima (EURAMET 7.4, 7.5 y G), y las condiciones del instrumento y la instalación que revisó el técnico. Va en una hoja aparte que no forma parte del certificado.</span>
           </span>
         </label>
+        {(data.datos.anexo === true || data.datos.usp === true) && (
+          <label className={cn('ml-7 flex items-start gap-3 rounded-xl bg-surface-2/50 px-3.5 py-3', editable && data.datos.anexo === true && 'cursor-pointer')}>
+            <input
+              type="checkbox"
+              checked={data.datos.usp === true}
+              disabled={!editable || data.datos.anexo !== true}
+              onChange={event => onUsp(event.target.checked)}
+              className="mt-0.5 h-4 w-4 flex-none accent-fg"
+            />
+            <span className="text-[12.5px]">
+              <span className="block font-semibold text-fg">Incluir la evaluación USP ⟨41⟩ (balanzas de uso farmacéutico)</span>
+              <span className="block text-fg-muted">
+                Repetibilidad, exactitud, adecuación de las pesas y peso mínimo de muestra, con los límites de «Método de cálculo».
+                {data.datos.anexo !== true && ' Va dentro del anexo: agrégalo para que salga.'}
+              </span>
+            </span>
+          </label>
+        )}
         </div>
       );
     default:
@@ -402,7 +423,7 @@ function contexto(id, { data, m, unidad, onPuntosAcordados, puedeAcordar, editab
 }
 
 /** Una sección del registro: avisos, datos corregibles en el lugar y lo que DataMET+ interpreta. */
-function Seccion({ meta, data, editor, editable, avisos, onPuntosAcordados, puedeAcordar, onAnexo }) {
+function Seccion({ meta, data, editor, editable, avisos, onPuntosAcordados, puedeAcordar, onAnexo, onUsp }) {
   const m = data.modelo;
   const valores = Object.fromEntries(Object.keys(data.fuente).map(c => [c, comoValor(editor.valor(c))]));
   const campos = camposDeSeccion(meta.id, valores);
@@ -427,7 +448,7 @@ function Seccion({ meta, data, editor, editable, avisos, onPuntosAcordados, pued
       {campos.clase && <div className="mt-4"><Clase editor={editor} editable={editable} origenes={data.origenesClase} calculo={data.calculo} unidad={m.instrumento.unidad} /></div>}
       {campos.tablas.map(tabla => <TablaEditable key={tabla.titulo} tabla={tabla} editor={editor} editable={editable} columnas={data.columnas} />)}
       {(() => {
-        const extra = contexto(meta.id, { data, m, unidad: m.instrumento.unidad, onPuntosAcordados, puedeAcordar, editable, onAnexo, editor });
+        const extra = contexto(meta.id, { data, m, unidad: m.instrumento.unidad, onPuntosAcordados, puedeAcordar, editable, onAnexo, onUsp, editor });
         return extra ? <div className="mt-4">{extra}</div> : null;
       })()}
     </section>
@@ -460,7 +481,7 @@ export function IndiceSecciones({ porSeccion }) {
 }
 
 /** Las secciones del registro en el orden de RECA. */
-export function SeccionesRegistro({ data, editor, editable, porSeccion, onPuntosAcordados, puedeAcordar, onAnexo }) {
+export function SeccionesRegistro({ data, editor, editable, porSeccion, onPuntosAcordados, puedeAcordar, onAnexo, onUsp }) {
   return SECCIONES.map(meta => (
     <Seccion
       key={meta.id}
@@ -472,6 +493,7 @@ export function SeccionesRegistro({ data, editor, editable, porSeccion, onPuntos
       onPuntosAcordados={onPuntosAcordados}
       puedeAcordar={puedeAcordar}
       onAnexo={onAnexo}
+      onUsp={onUsp}
     />
   ));
 }

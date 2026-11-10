@@ -49,6 +49,7 @@ const FIJAS = {
   regla_aceptacion: 'Regla de decisión', mant_soporte: 'Mantenimiento del soporte', venta_pesas: 'Venta de pesas',
   reemplazo: 'Reemplazo', observaciones: 'Observaciones',
   anexo: 'Anexo de información adicional',
+  usp: 'Evaluación USP ⟨41⟩ en el anexo',
   tolerancias: 'Tolerancias del cliente por rango',
 };
 

@@ -106,7 +106,8 @@ export function RegistroPagina({ codigo, canEdit, onVolver }) {
   const load = useCallback(() => calibrationApi.registro(codigo), [codigo]);
   const { data, error, reload } = useResource(load);
   const editor = useRegistroEditor(data);
-  const [tab, setTab] = useState('datos');
+  // «#calculo» en la dirección (desde Emitidos) abre «Cómo se calcula».
+  const [tab, setTab] = useState(() => (typeof window !== 'undefined' && window.location.hash === '#calculo' ? 'calculo' : 'datos'));
   const [modelo, setModeloEstado] = useState(leerModelo);
   const [emisionVista, setEmisionVista] = useState(null);
   const [confirmar, setConfirmar] = useState(null);
@@ -281,6 +282,8 @@ export function RegistroPagina({ codigo, canEdit, onVolver }) {
                 onPuntosAcordados={() => setPuntos(true)}
                 puedeAcordar={canEdit}
                 onAnexo={valor => guardarDirecto({ anexo: valor }, valor ? 'Se agrega el anexo de información adicional' : 'Se quita el anexo de información adicional')
+                  .catch(failure => toast.error(failure.message))}
+                onUsp={valor => guardarDirecto({ usp: valor }, valor ? 'Se agrega la evaluación USP ⟨41⟩ al anexo' : 'Se quita la evaluación USP ⟨41⟩ del anexo')
                   .catch(failure => toast.error(failure.message))}
               />
             </>

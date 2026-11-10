@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  conRuta, diferencias, escribirLista, escribirNumero, etiquetaRuta, leerLista, leerNumero, leerRuta, textoValor, tocaRuta, validar,
+  avisosMetodo, conRuta, diferencias, escribirLista, escribirNumero, etiquetaRuta, leerLista, leerNumero, leerRuta, textoValor, tocaRuta, validar,
 } from './metodo';
 
 const contenido = () => ({
@@ -65,5 +65,24 @@ describe('configuración del método', () => {
     });
     expect(validar(conRuta(contenido(), 'parametros.enUso.fracciones', [0.5, 2]))).toEqual({ 'parametros.enUso.fracciones': 'Cada valor entre 0,1 y 100.' });
     expect(validar(conRuta(contenido(), 'parametros.densidades[0].claves', ['']))).toEqual({ 'parametros.densidades[0].claves[0]': 'No puede quedar vacío.' });
+  });
+
+  it('reglas de cálculo: opciones con su nombre, porcentajes en % y avisos de coherencia', () => {
+    expect(textoValor('MAYOR')).toBe('La mayor de todos');
+    expect(textoValor(0.9545, 'parametros.cobertura.probabilidad')).toBe('95,45 %');
+    expect(textoValor(0.001, 'parametros.usp.tolerancia')).toBe('0,1 %');
+    expect(etiquetaRuta('parametros.repetibilidad.regla')).toBe('Regla: s de repetibilidad en cada carga');
+    const c = contenido();
+    c.parametros.cobertura = { metodo: 'T_STUDENT', probabilidad: 0.85, k: 2 };
+    c.parametros.usp = { tolerancia: 0.001, cargaEvaluacion: 0.05, sMinimaEnD: 0.41, factorS: 2, divisorPesas: 3 };
+    // El límite se dice en la unidad en que se escribe.
+    expect(validar(c)['parametros.cobertura.probabilidad']).toBe('Debe ser al menos 90.');
+    c.textos.incertidumbre = 'k para una probabilidad de cobertura de aproximadamente 95,45 % (t de Student con los grados efectivos de libertad).';
+    c.parametros.cobertura.probabilidad = 0.9545;
+    expect(avisosMetodo(c)).toEqual([]);
+    c.parametros.cobertura.probabilidad = 0.95;
+    expect(avisosMetodo(c)[0]).toMatch(/no menciona el 95 %/);
+    c.parametros.cobertura.metodo = 'FIJO';
+    expect(avisosMetodo(c)[0]).toMatch(/k es fijo/);
   });
 });

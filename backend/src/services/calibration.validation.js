@@ -270,6 +270,7 @@ const schemas = {
     // Carga armada a mano por punto: claves de las piezas; null vuelve a la regla.
     composiciones: z.record(z.string().regex(/^\d{1,2}$/), z.array(z.string().min(3).max(120)).max(100).nullable()).optional(),
     anexo: z.boolean().optional(),
+    usp: z.boolean().optional(),
     // Tolerancia absoluta del cliente por rango de carga; null o [] las quita.
     tolerancias: toleranciasRango,
     motivo: optionalText(500),
@@ -287,6 +288,7 @@ const schemas = {
     }).nullable().optional(),
     composiciones: z.record(z.string().regex(/^\d{1,2}$/), z.array(z.string().min(3).max(120)).max(100).nullable()).optional(),
     anexo: z.boolean().optional(),
+    usp: z.boolean().optional(),
     // Tolerancia absoluta del cliente por rango de carga; null o [] las quita.
     tolerancias: toleranciasRango,
   }),

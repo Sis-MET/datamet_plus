@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AlertTriangle, Info } from 'lucide-react';
 import { cn } from '../../../../shared/utils/cn';
 import { REGLAS } from '../../domain/servicios';
-import { textoNominal } from '../../domain/registro';
+import { etiquetaColumna, textoNominal } from '../../domain/registro';
 import {
   cifras, decimalesDe, fijo, grados, porcentaje, presupuesto, textoComposicion,
 } from '../../domain/explicacion';
@@ -45,13 +45,14 @@ const alCuadrado = (valor) => {
 function Aire({ calculo }) {
   const { aire, empuje, conveccion } = calculo;
   const c = aire.condiciones || {};
+  const aproximada = aire.formula === 'APROXIMADA';
   return (
-    <Paso numero={1} titulo="Densidad del aire y empuje sobre las pesas" norma="EURAMET cg-18 A1.1 (CIPM-2007), A3 y 7.1.2">
+    <Paso numero={1} titulo="Densidad del aire y empuje sobre las pesas" norma={`EURAMET cg-18 ${aproximada ? 'A1.1-1 (fórmula aproximada)' : 'A1.1 (CIPM-2007)'}, A3 y 7.1.2`}>
       <p>
         Condiciones del servicio (promedio del inicio y el fin, corregidas con el certificado del termohigrómetro{calculo.termohigrometro ? ` ${calculo.termohigrometro}` : ''}):
         {' '}<strong>t = {fijo(c.t, 1)} °C</strong>, <strong>HR = {fijo(c.hr, 0)} %</strong>, <strong>p = {fijo(c.p, 1)} hPa</strong>.
       </p>
-      <Formula resultado={`${fijo(aire.rho, 4)} kg/m³`}>ρa (CIPM-2007)</Formula>
+      <Formula resultado={`${fijo(aire.rho, 4)} kg/m³`}>ρa ({aproximada ? 'fórmula aproximada' : 'CIPM-2007'})</Formula>
       <Nota>
         u(ρa) = {cifras(aire.u, 2)} kg/m³, con la incertidumbre del termohigrómetro y la variación entre el inicio y el fin. Como ρa está lejos de
         ρ₀ = 1,2 kg/m³ (la de referencia de la masa convencional), cada pesa «pesa» distinto que en su certificado: se corrige el empuje.
@@ -97,19 +98,25 @@ function Repetibilidad({ calculo, unidad }) {
           </tbody>
         </table>
       </div>
-      <Nota>En cada punto se usa la s del ensayo más cercano por encima y por debajo de la carga (la mayor de las dos). Con pocas lecturas, ν es chico y eso sube k.</Nota>
+      <Nota>
+        {calculo.reglas?.repetibilidad === 'MAYOR'
+          ? 'En cada punto se usa la mayor s de todos los ensayos (regla del método, como el libro).'
+          : 'En cada punto se usa la s del ensayo más cercano por encima y por debajo de la carga (la mayor de las dos).'}
+        {' '}Con pocas lecturas, ν es chico y eso sube k.
+      </Nota>
     </Paso>
   );
 }
 
 function Excentricidad({ calculo, unidad }) {
   const ecc = calculo.excentricidad;
+  const metodo1 = ecc.metodo === 'METODO_1';
   return (
-    <Paso numero={3} titulo="Excentricidad" norma="EURAMET cg-18 5.3 (método 3), 6.3-2 y 7.1.1-10">
+    <Paso numero={3} titulo="Excentricidad" norma={`EURAMET cg-18 5.3 (método ${metodo1 ? '1' : '3'}), ${metodo1 ? '6.3-1' : '6.3-2'} y 7.1.1-10`}>
       {ecc.diferencias.length ? (
         <>
           <p>
-            Carga {textoNominal(ecc.carga)} {unidad} en el centro y en las demás posiciones, volviendo a cero entre una y otra; diferencias con el centro:
+            Carga {textoNominal(ecc.carga)} {unidad} en el centro y en las demás posiciones{metodo1 ? '' : ', volviendo a cero entre una y otra (se resta el retorno)'}; diferencias con el centro:
             {' '}{ecc.diferencias.map(d => cifras(d, 3)).join('; ')} {unidad}.
           </p>
           <Formula resultado={cifras(ecc.uRel, 3)}>
@@ -140,7 +147,12 @@ function FilasPresupuesto({ titulo, filas, unidad }) {
   );
 }
 
-function Punto({ punto, modelo, unidad }) {
+function Punto({ punto, modelo, unidad, reglas = {}, clase = null }) {
+  const cobertura = reglas.cobertura || { metodo: 'T_STUDENT', probabilidad: 0.9545 };
+  const redondeo = reglas.redondeo || { cifras: 2, sentido: 'ARRIBA' };
+  const banda = reglas.bandaGuarda ?? 1;
+  const kFijo = cobertura.metodo === 'FIJO';
+  const probabilidad = `${String(Number((cobertura.probabilidad * 100).toPrecision(6))).replace('.', ',')} %`;
   const dec = decimalesDe(punto.rango?.d || 1);
   const masa = punto.masa;
   const p = presupuesto(punto);
@@ -207,15 +219,20 @@ function Punto({ punto, modelo, unidad }) {
         <Formula resultado={`${cifras(punto.u, 3)} ${unidad}`}>u(E) = √( u²(I) + u²(m_ref) ) = √( {alCuadrado(punto.uIndicacion)} + {alCuadrado(punto.uReferencia)} )</Formula>
         {p.mayor && <Nota>Lo que más pesa en este punto: <strong className="text-fg">{p.mayor.etiqueta.toLowerCase()}</strong> ({porcentaje(p.mayor.aporte)} de u²(E)).</Nota>}
         <Formula resultado={grados(punto.nuEff)}>ν_eff = u⁴(E) / Σ( uᵢ⁴ / νᵢ )</Formula>
-        <Formula resultado={fijo(punto.k, 2)}>k = t(95,45 %; ν_eff)</Formula>
+        <Formula resultado={fijo(punto.k, 2)}>{kFijo ? 'k fijo (configuración del método)' : `k = t(${probabilidad}; ν_eff)`}</Formula>
         <Nota>
-          {punto.k > 2.005
-            ? 'k sale mayor que 2 porque la repetibilidad tiene pocas lecturas y pesa en u(E): se usa la t de Student, no k = 2 fijo.'
-            : 'Con muchos grados de libertad efectivos, k queda en 2.'}
+          {kFijo
+            ? 'El método usa el mismo k en todos los puntos, sin mirar los grados de libertad.'
+            : punto.k > 2.005
+              ? 'k sale mayor que 2 porque la repetibilidad tiene pocas lecturas y pesa en u(E): se usa la t de Student, no k = 2 fijo.'
+              : `Con muchos grados de libertad efectivos, k queda en ${fijo(punto.k, 2)}.`}
         </Nota>
         <Formula resultado={`${cifras(punto.U, 4)} ${unidad}`}>U = k · u(E) = {fijo(punto.k, 2)} · {cifras(punto.u, 3)}</Formula>
         <div className="rounded-xl border border-info/30 bg-info/5 px-3.5 py-2.5">
-          <p className="text-[12.5px] text-fg-muted">En el certificado: U con dos cifras significativas, redondeada hacia arriba, y el error al mismo decimal (GUM 7.2.6).</p>
+          <p className="text-[12.5px] text-fg-muted">
+            En el certificado: U con {redondeo.cifras === 1 ? 'una cifra significativa' : `${redondeo.cifras === 3 ? 'tres' : 'dos'} cifras significativas`},
+            {' '}{redondeo.sentido === 'CERCANO' ? 'redondeada al más cercano' : 'redondeada hacia arriba'}, y el error al mismo decimal (GUM 7.2.6).
+          </p>
           <p className="mt-1 text-[15px] font-semibold tabular-nums text-fg">
             E = {fijo(pres.error, pres.decimales)} {unidad}  ·  U = {fijo(pres.U, pres.decimales)} {unidad}  ·  k = {fijo(pres.k, 2)}
           </p>
@@ -226,12 +243,16 @@ function Punto({ punto, modelo, unidad }) {
         {conf?.evaluada ? (
           <>
             <p>
-              Tolerancia T = ±{cifras(punto.tolerancia, 3)} {unidad} ({modelo.criterio?.empNB23001 ? `emp en servicio de la NB 23001 para la clase ${modelo.instrumento.clase?.valor || '—'}` : `${fijo(modelo.criterio?.toleranciaCliente, 3)} % pedido por el cliente`}),
+              Tolerancia T = ±{cifras(punto.tolerancia, 3)} {unidad} ({modelo.criterio?.empNB23001
+                ? `emp en servicio de la NB 23001 para la clase ${clase?.valor || modelo.instrumento.clase?.valor || '—'}${clase?.valor && !clase.registrada ? ' (sugerida, sin confirmar)' : ''}${(reglas.factorEmp ?? 2) !== 2 ? ` (${fijo(reglas.factorEmp, 2)} × el de verificación, regla del método)` : ''}`
+                : modelo.criterio?.toleranciaCliente > 0 ? `${fijo(modelo.criterio?.toleranciaCliente, 3)} % pedido por el cliente` : 'tolerancia por rango pedida por el cliente'}),
               regla {REGLAS[regla]?.toLowerCase() || regla}.
             </p>
             <Formula resultado={conf.conforme ? 'conforme' : 'no conforme'}>
               {regla === 'CONSERVADORA'
-                ? `|E| + U ≤ T  →  ${cifras(Math.abs(punto.error), 3)} + ${cifras(punto.U, 3)} ≤ ${cifras(punto.tolerancia, 3)}`
+                ? (banda === 1
+                  ? `|E| + U ≤ T  →  ${cifras(Math.abs(punto.error), 3)} + ${cifras(punto.U, 3)} ≤ ${cifras(punto.tolerancia, 3)}`
+                  : `|E| + ${fijo(banda, 2)} · U ≤ T  →  ${cifras(Math.abs(punto.error), 3)} + ${cifras(banda * punto.U, 3)} ≤ ${cifras(punto.tolerancia, 3)}`)
                 : `|E| ≤ T  →  ${cifras(Math.abs(punto.error), 3)} ≤ ${cifras(punto.tolerancia, 3)}`}
             </Formula>
             <Nota>Probabilidad de que el error real esté fuera de la tolerancia (riesgo de la decisión): {porcentaje(conf.riesgo)}.</Nota>
@@ -248,9 +269,271 @@ function Punto({ punto, modelo, unidad }) {
   );
 }
 
+const REGLA_S = {
+  ENCIERRAN: 'La mayor s de los dos ensayos que encierran cada carga (EURAMET 7.1.1).',
+  MAYOR: 'La mayor s de todos los ensayos, en todo el rango (como el libro F-VMET-02-7.2).',
+};
+const conComa = (valor, n = 6) => String(Number(Number(valor).toPrecision(n))).replace('.', ',');
+
+/** Una tabla chica con encabezado, para los datos registrados. */
+function Tabla({ cabeza, filas }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[12.5px] tabular-nums">
+        <thead className="text-left text-fg-muted">
+          <tr>{cabeza.map((c, i) => <th key={`${c}-${i}`} className="py-1 pr-3 font-medium">{c}</th>)}</tr>
+        </thead>
+        <tbody>
+          {filas.map((fila, f) => (
+            <tr key={f} className="border-t border-line/70">
+              {fila.map((celda, i) => <td key={i} className="py-1 pr-3">{celda}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Bloque({ titulo, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-fg-muted">{titulo}</p>
+      {children}
+    </div>
+  );
+}
+
 /**
- * Pestaña «Cómo se calcula»: el cálculo del certificado paso a paso con los
- * números de este servicio, con la ecuación de EURAMET de cada paso.
+ * Las reglas de la configuración del método con que se calcula este
+ * certificado (Calibración › Método de cálculo), en palabras.
+ */
+function ReglasAplicadas({ calculo, modelo }) {
+  const r = calculo.reglas || {};
+  const cobertura = r.cobertura || { metodo: 'T_STUDENT', probabilidad: 0.9545 };
+  const redondeo = r.redondeo || { cifras: 2, sentido: 'ARRIBA' };
+  const criterio = modelo.criterio || {};
+  const regla = criterio.regla || 'NINGUNA';
+  const banda = r.bandaGuarda ?? 1;
+  const convMetodo = calculo.metodo?.conveccion;
+  const claseTexto = `${calculo.clase?.valor || '—'}${calculo.clase?.valor && !calculo.clase.registrada ? ' (sugerida, sin confirmar)' : ''}`;
+  let tolerancia = 'Sin tolerancia: no se declara la conformidad.';
+  if (criterio.empNB23001) tolerancia = `emp en servicio de la NB 23001: ${conComa(r.factorEmp ?? 2)} × el de verificación inicial de la OIML R76 (Tabla 6), con la clase ${claseTexto}.`;
+  else if (criterio.toleranciaCliente > 0) tolerancia = `${conComa(criterio.toleranciaCliente)} % de la carga, pedido por el cliente.`;
+  else if (criterio.toleranciasRango?.length) tolerancia = 'Por rango de carga, pedida por el cliente.';
+  let decision = '';
+  if (regla === 'CONSERVADORA') decision = `: conforme si |E| + ${banda === 1 ? '' : `${conComa(banda)} · `}U ≤ T`;
+  else if (regla === 'SIMPLE') decision = ': conforme si |E| ≤ T';
+  let conveccion = 'No se incluye.';
+  if (calculo.conveccion) conveccion = `Con ΔT = ${fijo(calculo.conveccion.deltaT, 0)} K según la estabilización registrada (EURAMET 7.1.2-13).`;
+  else if (convMetodo?.activa) conveccion = `Solo en pesas ${(convMetodo.clases || []).join(', ')}: no aplica a este servicio.`;
+  const cifrasU = redondeo.cifras === 1 ? 'Una cifra significativa' : `${redondeo.cifras === 3 ? 'Tres' : 'Dos'} cifras significativas`;
+  const filas = [
+    ['Desviación estándar en cada carga', REGLA_S[r.repetibilidad] || REGLA_S.ENCIERRAN],
+    ['Factor de cobertura k', cobertura.metodo === 'FIJO'
+      ? `Fijo: k = ${fijo(cobertura.k, 2)} en todos los puntos.`
+      : `t de Student con los grados efectivos de libertad, para ${conComa(cobertura.probabilidad * 100)} % de probabilidad de cobertura (EURAMET 7.3).`],
+    ['Redondeo de U', `${cifrasU}, ${redondeo.sentido === 'CERCANO' ? 'al más cercano' : 'hacia arriba'}; el error con los mismos decimales.`],
+    ['Densidad del aire', calculo.aire?.formula === 'APROXIMADA' ? 'Fórmula aproximada (EURAMET A1.1-1).' : 'CIPM-2007 (EURAMET A1.1).'],
+    ['Empuje del aire', calculo.empuje?.metodo === '5a'
+      ? 'Incertidumbre por 7.1.2-5a.'
+      : 'Incertidumbre por 7.1.2-5b con la densidad del aire de la calibración de las pesas (ρa1) si se conoce; si no, 7.1.2-5a.'],
+    ['Deriva de las pesas', `D = ${conComa(calculo.empuje?.kD ?? 1)} · U del certificado de la pesa (EURAMET 7.1.2-10).`],
+    ['Convección', conveccion],
+    ['Excentricidad', calculo.excentricidad?.metodo === 'METODO_1'
+      ? 'Método 1: diferencia directa con el centro (EURAMET 6.3-1).'
+      : 'Método 3: se resta el retorno a cero de cada posición (EURAMET 6.3-2).'],
+    ['Tolerancia', tolerancia],
+    ['Regla de decisión', `${REGLAS[regla] || regla}, pedida por el cliente${decision}.`],
+  ];
+  if (calculo.clase?.sugerida) {
+    filas.push(['Clase sugerida', calculo.clase.sugerida.regla === 'POR_N' ? 'Por n = Max/e, como el libro.' : 'Por la Tabla 3 de la OIML R76 (e y n = Max/e).']);
+  }
+  return (
+    <section aria-labelledby="reglas-aplicadas" className="card p-4 shadow-card sm:p-5">
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <h3 id="reglas-aplicadas" className="text-sm font-semibold text-fg">Reglas del método con que se calcula</h3>
+        {calculo.metodo && (
+          <ToneBadge tone={calculo.metodo.aprobada ? 'success' : 'warning'}>
+            Versión {calculo.metodo.version}{calculo.metodo.aprobada ? '' : ' (sin aprobar)'}
+          </ToneBadge>
+        )}
+      </div>
+      <p className="mb-3 text-[12.5px] text-fg-muted">
+        Las fija el laboratorio en Calibración › Método de cálculo. Un certificado aprobado, autorizado o emitido conserva la versión con la que se aprobó.
+      </p>
+      <dl className="grid gap-x-4 gap-y-1.5 text-[12.5px] sm:grid-cols-[max-content_1fr]">
+        {filas.map(([dato, texto]) => (
+          <div key={dato} className="contents">
+            <dt className="text-fg-muted">{dato}</dt>
+            <dd className="text-fg">{texto}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+const vacio = valor => (valor == null || valor === '' ? 'vacío' : String(valor));
+
+/** Lo que se registró en el servicio (ServiceMET con las correcciones del registro). */
+function DatosRegistrados({ data, calculo, unidad }) {
+  const m = data.modelo;
+  const momento = (x = {}) => [
+    x.hora || '—',
+    x.t != null ? `${conComa(x.t)} °C` : '—',
+    x.hr != null ? `${conComa(x.hr)} %` : '—',
+    x.p != null ? `${conComa(x.p)} hPa` : '—',
+  ];
+  const ensayos = (m.repetibilidad?.ensayos || []).map(e => ({ ...e, leidas: (e.lecturas || []).filter(l => l.indicacion != null) })).filter(e => e.leidas.length);
+  const lecturasMax = Math.max(0, ...ensayos.map(e => e.leidas.length));
+  const posiciones = (m.excentricidad?.posiciones || []).filter(p => p.indicacion != null);
+  const puntos = m.errores?.puntos || [];
+  const correcciones = data.correcciones || [];
+  const origen = data.origenesClase?.[m.instrumento.clase?.origen];
+  let clase = 'no declarada';
+  if (m.instrumento.clase?.valor) clase = `${m.instrumento.clase.valor}${origen ? ` (${origen.toLowerCase()})` : ''}`;
+  else if (calculo.clase?.valor) clase = `${calculo.clase.valor} (sugerida, sin confirmar)`;
+  const valores = j => (j.verificado ? 'Verificados' : 'Sin verificar');
+  return (
+    <section aria-labelledby="datos-registrados" className="card p-4 shadow-card sm:p-5">
+      <h3 id="datos-registrados" className="text-sm font-semibold text-fg">Datos registrados</h3>
+      <p className="mb-3 mt-0.5 text-[12.5px] text-fg-muted">
+        Los de ServiceMET{correcciones.length ? `, con ${correcciones.length === 1 ? 'la corrección' : `las ${correcciones.length} correcciones`} del registro` : ''}. Son los que entran al cálculo.
+      </p>
+      <div className="flex flex-col gap-4">
+        <Bloque titulo="Instrumento">
+          <Tabla
+            cabeza={['Rango', 'Max', 'd', 'e']}
+            filas={(m.instrumento.rangos || []).map((r, i) => [i + 1, `${textoNominal(r.max)} ${unidad}`, `${textoNominal(r.d)} ${unidad}`, r.e ? `${textoNominal(r.e)} ${unidad}` : '—'])}
+          />
+          <p className="text-[12.5px] text-fg">Clase: {clase}.</p>
+        </Bloque>
+        <Bloque titulo="Patrones">
+          <Tabla
+            cabeza={['Código', 'Clase', 'Certificado vigente', 'Valores del certificado']}
+            filas={[
+              ...(calculo.juegos || []).map(j => [j.codigo, j.clase || '—', j.certificado || 'Sin certificado vigente', j.piezas ? valores(j) : 'Sin piezas: valor nominal']),
+              ...(calculo.termohigrometro ? [[calculo.termohigrometro, 'Termohigrómetro', '—', '—']] : []),
+            ]}
+          />
+        </Bloque>
+        <Bloque titulo="Condiciones ambientales">
+          <Tabla cabeza={['', 'Hora', 'Temperatura', 'Humedad', 'Presión']} filas={[['Inicio', ...momento(m.ambiente?.inicio)], ['Fin', ...momento(m.ambiente?.fin)]]} />
+        </Bloque>
+        {ensayos.length > 0 && (
+          <Bloque titulo="Repetibilidad (indicaciones)">
+            <Tabla
+              cabeza={['Carga', ...Array.from({ length: lecturasMax }, (_, i) => `${i + 1}`)]}
+              filas={ensayos.map(e => [
+                `${textoNominal(e.carga)} ${unidad}`,
+                ...Array.from({ length: lecturasMax }, (_, i) => (e.leidas[i] ? textoNominal(e.leidas[i].indicacion) : '')),
+              ])}
+            />
+          </Bloque>
+        )}
+        {posiciones.length > 0 && (
+          <Bloque titulo={`Excentricidad (carga ${textoNominal(m.excentricidad.carga)} ${unidad})`}>
+            <Tabla
+              cabeza={['Posición', 'Indicación', 'Retorno a cero']}
+              filas={posiciones.map(p => [p.posicion, textoNominal(p.indicacion), p.retorno != null ? textoNominal(p.retorno) : '—'])}
+            />
+          </Bloque>
+        )}
+        <Bloque titulo="Ensayo de error">
+          <Tabla
+            cabeza={['Punto', 'Carga', 'Indicación', 'Retorno a cero']}
+            filas={puntos.map(p => [p.n, `${textoNominal(p.carga)} ${unidad}`, p.indicacion != null ? textoNominal(p.indicacion) : '—', p.retorno != null ? textoNominal(p.retorno) : '—'])}
+          />
+        </Bloque>
+        {correcciones.length > 0 && (
+          <Bloque titulo="Corregido en el registro">
+            <ul className="flex flex-col gap-0.5 text-[12.5px]">
+              {correcciones.map(c => (
+                <li key={c.columna}>
+                  {c.tipo === 'composicion' ? `Carga del punto ${c.n}` : etiquetaColumna(c.columna)}:{' '}
+                  <span className="text-fg-muted line-through decoration-fg-subtle/60">{vacio(c.original)}</span>
+                  {' → '}
+                  <span className="font-medium text-fg">{vacio(c.corregido)}</span>
+                </li>
+              ))}
+            </ul>
+          </Bloque>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Los resultados de todos los puntos; cada fila abre su detalle (pasos 4 a 6). */
+function TodosLosPuntos({ calculo, unidad, elegido, onElegir }) {
+  const conformidad = (p) => {
+    const c = p.conformidad;
+    if (!c?.evaluada) return <span className="text-fg-muted">No aplica</span>;
+    return <span className={c.conforme ? 'text-success' : 'font-semibold text-danger'}>{c.conforme ? 'Conforme' : 'No conforme'}</span>;
+  };
+  return (
+    <section aria-labelledby="todos-los-puntos" className="card p-4 shadow-card sm:p-5">
+      <h3 id="todos-los-puntos" className="text-sm font-semibold text-fg">Resultados de todos los puntos</h3>
+      <p className="mb-3 mt-0.5 text-[12.5px] text-fg-muted">
+        E y U como salen en el certificado; masas e indicaciones en {unidad}. Elige un punto para ver su cálculo completo (pasos 4 a 6).
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12.5px] tabular-nums">
+          <thead className="text-left text-fg-muted">
+            <tr>
+              {['Punto', 'Carga', 'm_ref', 'I', 'E', 'u(E)', 'ν_eff', 'k', 'U', 'T', 'Conformidad'].map(c => <th key={c} className="py-1 pr-3 font-medium">{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {calculo.puntos.map((p) => {
+              if (!p.calculado) {
+                return (
+                  <tr key={p.n} className="border-t border-line/70 text-fg-muted">
+                    <td className="py-1 pr-3">{p.n}</td>
+                    <td className="py-1 pr-3">{textoNominal(p.carga)}</td>
+                    <td colSpan={9} className="py-1 pr-3">No se calcula: {(p.motivo || 'sin datos').toLowerCase()}.</td>
+                  </tr>
+                );
+              }
+              const dec = decimalesDe(p.rango?.d || 1);
+              const pres = p.presentacion;
+              return (
+                <tr key={p.n} className={cn('border-t border-line/70', p.n === elegido && 'bg-info/10')}>
+                  <td className="py-1 pr-3">
+                    <button
+                      type="button"
+                      onClick={() => onElegir(p.n)}
+                      aria-label={`Ver el cálculo del punto ${p.n}`}
+                      className="font-semibold text-info underline-offset-4 hover:underline"
+                    >
+                      {p.n}
+                    </button>
+                  </td>
+                  <td className="py-1 pr-3">{textoNominal(p.carga)}</td>
+                  <td className="py-1 pr-3">{fijo(p.mref, dec + 2)}</td>
+                  <td className="py-1 pr-3">{fijo(p.indicacion, dec + 1)}</td>
+                  <td className="py-1 pr-3 font-semibold">{fijo(pres.error, pres.decimales)}</td>
+                  <td className="py-1 pr-3">{cifras(p.u, 3)}</td>
+                  <td className="py-1 pr-3">{grados(p.nuEff)}</td>
+                  <td className="py-1 pr-3">{fijo(p.k, 2)}</td>
+                  <td className="py-1 pr-3 font-semibold">{fijo(pres.U, pres.decimales)}</td>
+                  <td className="py-1 pr-3">{p.tolerancia > 0 ? cifras(p.tolerancia, 3) : '—'}</td>
+                  <td className="py-1 pr-3">{conformidad(p)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Pestaña «Cómo se calcula»: el cálculo de este certificado con sus datos
+ * registrados, las reglas del método con que se calcula y, paso a paso, las
+ * ecuaciones de EURAMET con los números del servicio, para cada punto.
  */
 export function ComoSeCalcula({ data }) {
   const calculo = data.calculo;
@@ -259,6 +542,13 @@ export function ComoSeCalcula({ data }) {
   const puntos = (calculo?.puntos || []).filter(x => x.calculado);
   const [n, setN] = useState(puntos[0]?.n ?? null);
   const punto = puntos.find(x => x.n === n) || puntos[0];
+  const detalleRef = useRef(null);
+  const elegir = (numero) => {
+    setN(numero);
+    requestAnimationFrame(() => detalleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+  const numero = data.certificado?.numero;
+  const emision = data.certificado?.emision;
 
   if (!calculo?.calculado || !punto) {
     const error = calculo?.avisos?.find(a => a.nivel === 'error');
@@ -270,21 +560,25 @@ export function ComoSeCalcula({ data }) {
     );
   }
 
+  const instrumento = [modelo.instrumento.tipo, modelo.instrumento.marca, modelo.instrumento.modelo].filter(Boolean).join(' · ');
   return (
     <div className="flex flex-col gap-4">
       <section className="card p-4 shadow-card sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold text-fg">Cómo se calcula este certificado</h3>
-          {calculo.metodo && (
-            <ToneBadge tone={calculo.metodo.aprobada ? 'success' : 'warning'}>
-              Método v{calculo.metodo.version}{calculo.metodo.aprobada ? '' : ' (sin aprobar)'}
-            </ToneBadge>
-          )}
+          <h3 className="text-sm font-semibold text-fg">
+            Cómo se calcula el certificado{numero ? ` N.º ${numero}` : ''}{emision ? ` (emisión ${String(emision).padStart(2, '0')})` : ''}
+          </h3>
           {calculo.provisional && <ToneBadge tone="warning">Provisional</ToneBadge>}
         </div>
+        <p className="mt-1 text-[12.5px] text-fg">
+          {instrumento}
+          {modelo.instrumento.serie ? ` · serie ${modelo.instrumento.serie}` : ''}
+          {modelo.instrumento.codigoMetrica ? ` · ID ${modelo.instrumento.codigoMetrica}` : ''}
+          {modelo.servicio.fecha ? ` · calibrado el ${modelo.servicio.fecha}` : ''}
+        </p>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-fg-muted">
-          Con los datos guardados del registro y los certificados vigentes de los patrones en la fecha del servicio. Sigue EURAMET cg-18 v4.0 y la GUM;
-          entre paréntesis va la ecuación de la guía. Los valores intermedios no se redondean: solo se redondea al presentar.
+          Con los datos registrados de este servicio, los certificados vigentes de los patrones en la fecha del servicio y las reglas del método de su versión.
+          Sigue EURAMET cg-18 v4.0 y la GUM; entre paréntesis va la ecuación de la guía. Los valores intermedios no se redondean: solo se redondea al presentar.
         </p>
         {calculo.provisional && (
           <p className="mt-2 flex items-start gap-2 text-[12.5px] text-warning">
@@ -294,11 +588,16 @@ export function ComoSeCalcula({ data }) {
         )}
       </section>
 
+      <ReglasAplicadas calculo={calculo} modelo={modelo} />
+      <DatosRegistrados data={data} calculo={calculo} unidad={unidad} />
+
       <Aire calculo={calculo} />
       <Repetibilidad calculo={calculo} unidad={unidad} />
       <Excentricidad calculo={calculo} unidad={unidad} />
 
-      <div className="sticky top-[calc(var(--topbar-height)+8px)] z-10 rounded-2xl border border-line bg-surface/95 px-3 py-2.5 shadow-card backdrop-blur">
+      <TodosLosPuntos calculo={calculo} unidad={unidad} elegido={punto.n} onElegir={elegir} />
+
+      <div ref={detalleRef} className="sticky top-[calc(var(--topbar-height)+8px)] z-10 scroll-mt-24 rounded-2xl border border-line bg-surface/95 px-3 py-2.5 shadow-card backdrop-blur">
         <p className="mb-1.5 text-[12px] font-medium text-fg-muted">Los pasos 4 a 6 se hacen en cada punto del ensayo de errores. Elige uno:</p>
         <div role="group" aria-label="Punto del ensayo" className="flex flex-wrap gap-1.5">
           {puntos.map(x => (
@@ -315,7 +614,7 @@ export function ComoSeCalcula({ data }) {
         </div>
       </div>
 
-      <Punto key={punto.n} punto={punto} modelo={modelo} unidad={unidad} />
+      <Punto key={punto.n} punto={punto} modelo={modelo} unidad={unidad} reglas={calculo.reglas} clase={calculo.clase} />
     </div>
   );
 }

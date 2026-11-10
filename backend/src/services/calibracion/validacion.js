@@ -355,7 +355,52 @@ const casoG3 = () => {
   };
 };
 
-const CASOS = [casoGum, casoAire, casoH1, casoH2, casoH3, casoG1, casoG2, casoG3];
+/**
+ * Las opciones que el laboratorio elige en la configuración del método
+ * (Calibración › Método de cálculo), frente a la tabla G.2 de la GUM, los
+ * datos de la Guía SIM G2 y la R76, o su cálculo a mano.
+ */
+const casoOpciones = () => {
+  const s1 = motor.repetibilidad(G2.s1);
+  const s2 = motor.repetibilidad(G2.s2);
+  const ensayos = [{ carga: 10000, ...s1 }, { carga: 30000, ...s2 }];
+  const posiciones = [{ indicacion: 100, retorno: 0 }, { indicacion: 100.3, retorno: 0.1 }, { indicacion: 99.8, retorno: -0.1 }];
+  const lecturas = { inicio: { t: 18, hr: 40, p: 650 }, fin: { t: 20, hr: 44, p: 652 } };
+  const conservadora = { error: 0.5, U: 0.4, k: 2, tolerancia: 1, regla: 'CONSERVADORA' };
+  const usp = motor.evaluarUSP({
+    rangos: [{ max: 600, d: 0.01 }], ensayos: [{ carga: 500, s: 0.0115 }], puntos: [], pesadaMinima: { exactitudes: [0.001], factores: [2] },
+  });
+  return {
+    id: 'opciones-metodo',
+    fuente: 'GUM tabla G.2; Guía SIM G2; OIML R76 Tablas 3 y 6; cálculo a mano',
+    titulo: 'Opciones de la configuración del método',
+    nota: 'Cada opción que se puede elegir en Calibración › Método de cálculo, con su resultado esperado. Las opciones por omisión son las de los demás casos.',
+    filas: [
+      igual('k al 95 % para ν = 4', motor.factorCobertura(4, { probabilidad: 0.95 }), 2.78),
+      igual('k al 95 % para ν = 10', motor.factorCobertura(10, { probabilidad: 0.95 }), 2.23),
+      igual('k al 95 % para ν = ∞', motor.factorCobertura(Infinity, { probabilidad: 0.95 }), 1.96),
+      igual('k fijo (2) con ν = 4', motor.factorCobertura(4, { metodo: 'FIJO', k: 2 }), 2),
+      igual('U = 0,000931: 2 cifras hacia arriba', motor.redondearIncertidumbre(0.000931).valor, 0.00094),
+      igual('U = 0,000931: 2 cifras al más cercano', motor.redondearIncertidumbre(0.000931, { sentido: 'CERCANO' }).valor, 0.00093),
+      igual('U = 0,000931: 1 cifra hacia arriba', motor.redondearIncertidumbre(0.000931, { cifras: 1 }).valor, 0.001),
+      relativa('s en 10 000 g, ensayos que encierran (G2)', motor.repetibilidadPara(10000, ensayos).s, 1.095, 1e-3, 'g'),
+      relativa('s en 10 000 g, la mayor de todos (G2)', motor.repetibilidadPara(10000, ensayos, 'MAYOR').s, 2.739, 1e-3, 'g'),
+      absoluta('ΔIecc máx, método 3 (con retorno)', motor.excentricidad({ posiciones, carga: 100 }).maxima, 0.2, 1e-9, 'g', '±10⁻⁹'),
+      absoluta('ΔIecc máx, método 1 (sin retorno)', motor.excentricidad({ posiciones, carga: 100, metodo: 'METODO_1' }).maxima, 0.3, 1e-9, 'g', '±10⁻⁹'),
+      igual('emp en servicio, clase III, 600 e, factor 2', motor.empEnServicio({ carga: 600, clase: 'III', e: 1 }), 2, 'e'),
+      igual('emp en servicio, clase III, 600 e, factor 1', motor.empEnServicio({ carga: 600, clase: 'III', e: 1 }, 1), 1, 'e'),
+      igual('|E| + 1·U ≤ T con E = 0,5, U = 0,4, T = 1', motor.conformidad(conservadora).conforme, true),
+      igual('|E| + 1,5·U ≤ T con E = 0,5, U = 0,4, T = 1', motor.conformidad({ ...conservadora, bandaGuarda: 1.5 }).conforme, false),
+      igual('Clase de 50 g, e = 0,01 g, por la Tabla 3', motor.claseSugerida([{ max: 50, d: 0.01, e: 0.01 }], 1).valor, 'II'),
+      igual('Clase de 50 g, e = 0,01 g, solo por n', motor.claseSugerida([{ max: 50, d: 0.01, e: 0.01 }], 1, 'POR_N').valor, 'III'),
+      absoluta('ρa con la fórmula aproximada (19 °C, 42 %, 651 hPa)', motor.aireDeCalibracion({ ...lecturas, formula: 'APROXIMADA' }).rho, motor.densidadAproximada({ t: 19, hr: 42, p: 651 }), 1e-12, 'kg/m³', '±10⁻¹²'),
+      absoluta('USP: 2·s/m con s = 0,0115 g y m = 30 g', usp.repetibilidad.valor * 100, (2 * 0.0115 * 100) / 30, 1e-12, '%', '±10⁻¹²'),
+      absoluta('USP: peso mínimo con SF = 2 y 0,10 %', usp.pesoMinimo.filas[0].valores[0], 46, 1e-9, 'g', '±10⁻⁹'),
+    ],
+  };
+};
+
+const CASOS = [casoGum, casoAire, casoH1, casoH2, casoH3, casoG1, casoG2, casoG3, casoOpciones];
 
 /** Corre todos los casos con el motor actual. */
 const ejecutarValidacion = () => {

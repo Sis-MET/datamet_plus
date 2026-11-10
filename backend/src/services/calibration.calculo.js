@@ -65,7 +65,12 @@ const calcularModelo = async (modelo, { composiciones = null } = {}, { version =
     return nominales.length ? { min: Math.min(...nominales), max: Math.max(...nominales) } : null;
   };
   return {
-    metodo: { version: metodoUsado.version, aprobada: metodoUsado.aprobada },
+    metodo: {
+      version: metodoUsado.version,
+      aprobada: metodoUsado.aprobada,
+      // Para explicar la convección aunque no se aplique a este servicio.
+      conveccion: metodoUsado.motor.conveccion ? { activa: metodoUsado.motor.conveccion.activa, clases: metodoUsado.motor.conveccion.clases } : null,
+    },
     termohigrometro: termohigrometro?.codigo || null,
     juegos: juegos.map(j => ({
       codigo: j.codigo, clase: j.clase, piezas: j.piezas.length, rangoMg: rangoMg(j.piezas), certificado: j.certificado, verificado: j.verificado,

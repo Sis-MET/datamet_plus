@@ -17,15 +17,23 @@ const repetibilidad = (lecturas) => {
   return { n, media: iguales ? valores[0] : media, s, nu: n - 1 };
 };
 
+// Reglas para elegir la s de cada indicación (configuración del método).
+const REGLAS_REPETIBILIDAD = ['ENCIERRAN', 'MAYOR'];
+
 /**
- * s que corresponde a una indicación: con varios ensayos, el mayor de los dos
- * que encierran la indicación (7.1.1.3); fuera de ellos, el del extremo.
+ * s que corresponde a una indicación según la regla del método:
+ * - ENCIERRAN (EURAMET 7.1.1): con varios ensayos, el mayor de los dos que
+ *   encierran la indicación; fuera de ellos, el del extremo.
+ * - MAYOR (libro F-VMET-02-7.2): el mayor de todos los ensayos, en todo el
+ *   rango; más conservador.
  * ensayos: [{ carga, s, nu }] (sin los que no tienen s).
  */
-const repetibilidadPara = (indicacion, ensayos) => {
+const repetibilidadPara = (indicacion, ensayos, regla = 'ENCIERRAN') => {
   const validos = ensayos.filter(e => e.s != null).sort((a, b) => a.carga - b.carga);
   if (!validos.length) return null;
   if (validos.length === 1) return validos[0];
+  // Con s iguales gana el de menos lecturas (menos grados de libertad): el más conservador.
+  if (regla === 'MAYOR') return validos.reduce((max, e) => (e.s > max.s || (e.s === max.s && e.nu < max.nu) ? e : max));
   if (indicacion <= validos[0].carga) return validos[0];
   if (indicacion >= validos[validos.length - 1].carga) return validos[validos.length - 1];
   const arriba = validos.findIndex(e => e.carga >= indicacion);
@@ -33,17 +41,22 @@ const repetibilidadPara = (indicacion, ensayos) => {
   return a.s >= b.s ? a : b;
 };
 
+const METODOS_EXCENTRICIDAD = ['METODO_3', 'METODO_1'];
+
 /**
- * Excentricidad por el método 3 (decisión 11; EURAMET 5.3 y 6.3-2):
- * ΔIecc,i = (ILi − I0i) − IL1, con I0i el retorno a cero tras retirar la carga
- * de la posición i. urel(δIecc) = |ΔIecc,i|máx / (2·Lecc·√3)  (7.1.1-11).
+ * Excentricidad (EURAMET 5.3 y 6.3), según el método del procedimiento:
+ * - METODO_3 (decisión 11): ΔIecc,i = (ILi − I0i) − IL1, con I0i el retorno a
+ *   cero tras retirar la carga de la posición i (6.3-2).
+ * - METODO_1: ΔIecc,i = ILi − IL1, sin restar el retorno (6.3-1).
+ * urel(δIecc) = |ΔIecc,i|máx / (2·Lecc·√3)  (7.1.1-11).
  * posiciones: [{ indicacion, retorno }] empezando por el centro (posición 1).
  */
-const excentricidad = ({ posiciones, carga }) => {
+const excentricidad = ({ posiciones, carga, metodo = 'METODO_3' }) => {
   const validas = posiciones.filter(p => p.indicacion != null);
   if (validas.length < 2 || !(carga > 0)) return { diferencias: [], maxima: 0, uRel: 0 };
   const centro = validas[0].indicacion;
-  const diferencias = validas.slice(1).map(p => (p.indicacion - (p.retorno || 0)) - centro);
+  const conRetorno = metodo !== 'METODO_1';
+  const diferencias = validas.slice(1).map(p => (p.indicacion - (conRetorno ? (p.retorno || 0) : 0)) - centro);
   const maxima = Math.max(...diferencias.map(Math.abs));
   return { diferencias, maxima, uRel: maxima / (2 * carga * Math.sqrt(3)) };
 };
@@ -69,6 +82,8 @@ const componentesIndicacion = (indicacion, { d0, dI, s, nuS, uRelEcc = 0, aproba
 };
 
 module.exports = {
+  METODOS_EXCENTRICIDAD,
+  REGLAS_REPETIBILIDAD,
   componentesIndicacion,
   excentricidad,
   repetibilidad,

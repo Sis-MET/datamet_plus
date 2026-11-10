@@ -122,6 +122,7 @@ Object.assign(registros, {
   columnasCalibracion: async () => new Map(),
   normalizarFuente: () => ({}),
   huellaDe: () => 'H',
+  coincideHuella: (_datos, huella) => huella === 'H',
   modeloCorregido: async () => ({ modelo: structuredClone(modelo), avisos: [] }),
   calcularModelo: async () => structuredClone(calculo),
   historial: async (_r, _id, accion, datos) => { estado.historial.push({ accion, ...datos }); },

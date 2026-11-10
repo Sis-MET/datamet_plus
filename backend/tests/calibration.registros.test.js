@@ -140,3 +140,27 @@ test('con emp NB 23001 pedido, la clase tiene que estar en el registro para envi
   assert.equal(faltaClase(modelo, { clase: { valor: 'III', origen: 'DEDUCIDA' } }, calculo), null);
   assert.equal(faltaClase({ criterio: { empNB23001: false } }, { clase: null }, calculo), null);
 });
+
+test('huella: un registro enviado antes de los campos nuevos (USP, tolerancias) no aparece cambiado', () => {
+  const { coincideHuella, huellaDe, datosDe, planUsp } = require('../src/services/calibration.registros');
+  const fuente = { lin1: 100, ind1: 100.1 };
+  // Así se guardaba la huella antes: sin «tolerancias» ni «usp».
+  const antes = { columnas: { ind1: 100.2 }, clase: null, composiciones: {}, anexo: true };
+  const huellaVieja = huellaDe({ fuente, datos: antes });
+  const ahora = datosDe(JSON.stringify(antes));
+  assert.equal(ahora.usp, false);
+  assert.deepEqual(ahora.tolerancias, []);
+  assert.equal(coincideHuella({ fuente, datos: ahora }, huellaVieja), true);
+  assert.equal(coincideHuella({ fuente, datos: ahora }, huellaDe({ fuente, datos: ahora })), true);
+  // Con las tolerancias vacías, pero ya con el campo (antes de la USP).
+  const { usp, ...conTolerancias } = ahora;
+  assert.equal(usp, false);
+  assert.equal(coincideHuella({ fuente, datos: ahora }, huellaDe({ fuente, datos: conTolerancias })), true);
+  // Un cambio real sí se nota.
+  assert.equal(coincideHuella({ fuente, datos: { ...ahora, usp: true } }, huellaVieja), false);
+  assert.equal(coincideHuella({ fuente, datos: { ...ahora, columnas: { ind1: 100.3 } } }, huellaVieja), false);
+  assert.equal(coincideHuella({ fuente, datos: ahora }, null), false);
+  // Pedido de la USP con su historial.
+  assert.deepEqual(planUsp(false, true), { usp: true, cambio: { campo: 'usp', antes: 'No', despues: 'Sí' } });
+  assert.deepEqual(planUsp(true, undefined), { usp: true, cambio: null });
+});

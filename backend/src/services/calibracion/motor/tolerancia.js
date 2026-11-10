@@ -1,11 +1,13 @@
 /**
  * Tolerancia y conformidad del error de indicación.
  *
- * emp NB 23001: el emp en servicio de la OIML R76-1 (doble del de
- * verificación inicial, 3.5.2) por clase y escalón e (Tabla 6). Regla de
- * decisión simple (|E| ≤ T) o conservadora (|E| + U ≤ T) (decisión 7;
- * NB/ISO/IEC 17025 7.8.6). Riesgo bilateral de que el error real esté fuera de
- * ±T con u(E) = U/k.
+ * emp NB 23001: el emp en servicio de la OIML R76-1 (por omisión, el doble
+ * del de verificación inicial, 3.5.2) por clase y escalón e (Tabla 6). Regla
+ * de decisión simple (|E| ≤ T) o conservadora (|E| + w ≤ T, con la banda de
+ * guarda w = factor·U; factor 1 por omisión: decisión 7; NB/ISO/IEC 17025
+ * 7.8.6). Riesgo bilateral de que el error real esté fuera de ±T con
+ * u(E) = U/k. El factor del emp, el de la banda y la regla de la clase
+ * sugerida los fija la configuración del método.
  */
 const { normalAcumulada } = require('./estadistica');
 
@@ -23,10 +25,13 @@ const empVerificacion = ({ carga, clase, e }) => {
   return 1.5 * e;
 };
 
-/** emp en servicio (NB 23001 = R76 3.5.2): el doble del de verificación inicial. */
-const empEnServicio = (datos) => {
+/**
+ * emp en servicio (NB 23001 = R76 3.5.2): el de verificación inicial por un
+ * factor (2 por omisión: el doble).
+ */
+const empEnServicio = (datos, factor = 2) => {
   const emp = empVerificacion(datos);
-  return emp == null ? null : 2 * emp;
+  return emp == null ? null : factor * emp;
 };
 
 /**
@@ -66,16 +71,20 @@ const ORDEN_CLASES = ['IIII', 'III', 'II', 'I'];
 const dentro = (valor, min, max) => valor >= min * (1 - 1e-9) && valor <= max * (1 + 1e-9);
 // La regla del libro F-VMET-02-7.2: solo por n.
 const clasePorN = n => (n <= 1000 ? 'IIII' : n <= 10000 ? 'III' : n <= 100000 ? 'II' : 'I');
+const REGLAS_CLASE = ['TABLA_3', 'POR_N'];
 
 /**
- * Clase sugerida cuando el instrumento no la tiene registrada: la que admiten
- * todos sus rangos según la Tabla 3 de la R76 (e y n = Max/e, con e o, si no
- * hay, d); si admiten varias, la de menor exactitud, que es la que elegía el
- * libro por n. Si ninguna cumple la tabla, la del libro por n del rango mayor.
+ * Clase sugerida cuando el instrumento no la tiene registrada, según la regla
+ * del método:
+ * - TABLA_3: la que admiten todos sus rangos según la Tabla 3 de la R76 (e y
+ *   n = Max/e, con e o, si no hay, d); si admiten varias, la de menor
+ *   exactitud, que es la que elegía el libro por n. Si ninguna cumple la
+ *   tabla, la del libro por n del rango mayor.
+ * - POR_N: como el libro, solo por n = Max/e del rango mayor.
  * Es una propuesta: el ingeniero la confirma (origen DEDUCIDA) o la corrige.
  * rangos: [{ max, d, e }] en la unidad del instrumento; gPorUnidad: g por unidad.
  */
-const claseSugerida = (rangos, gPorUnidad) => {
+const claseSugerida = (rangos, gPorUnidad, regla = 'TABLA_3') => {
   const validos = (rangos || []).filter(r => r.max > 0 && (r.e > 0 || r.d > 0));
   if (!validos.length || !(gPorUnidad > 0)) return null;
   const porRango = validos.map((r) => {
@@ -87,25 +96,28 @@ const claseSugerida = (rangos, gPorUnidad) => {
   });
   const comunes = ORDEN_CLASES.filter(c => porRango.every(r => r.candidatas.has(c)));
   const mayor = porRango[porRango.length - 1];
+  const porN = regla === 'POR_N';
   return {
-    valor: comunes[0] || clasePorN(mayor.n),
+    valor: (!porN && comunes[0]) || clasePorN(mayor.n),
     n: Math.round(mayor.n),
     e: mayor.e,
-    enTabla: comunes.length > 0,
+    enTabla: !porN && comunes.length > 0,
+    regla: porN ? 'POR_N' : 'TABLA_3',
   };
 };
 
 /**
  * Conformidad de un punto con su tolerancia T.
- * regla: 'SIMPLE' (|E| ≤ T) o 'CONSERVADORA' (|E| + U ≤ T).
+ * regla: 'SIMPLE' (|E| ≤ T) o 'CONSERVADORA' (|E| + w ≤ T, con la banda de
+ * guarda w = bandaGuarda·U; 1 por omisión).
  * riesgo: probabilidad de que el error real esté fuera de ±T con una normal
  * de media E y desviación u = U/k.
  */
-const conformidad = ({ error, U, k, tolerancia, regla }) => {
+const conformidad = ({ error, U, k, tolerancia, regla, bandaGuarda = 1 }) => {
   if (!(tolerancia > 0) || !['SIMPLE', 'CONSERVADORA'].includes(regla)) {
     return { evaluada: false, conforme: null, margen: null, riesgo: null };
   }
-  const exigido = Math.abs(error) + (regla === 'CONSERVADORA' ? U : 0);
+  const exigido = Math.abs(error) + (regla === 'CONSERVADORA' ? bandaGuarda * U : 0);
   const u = k > 0 ? U / k : 0;
   const riesgo = u > 0
     ? normalAcumulada((-tolerancia - error) / u) + (1 - normalAcumulada((tolerancia - error) / u))
@@ -120,6 +132,7 @@ const conformidad = ({ error, U, k, tolerancia, regla }) => {
 };
 
 module.exports = {
+  REGLAS_CLASE,
   claseSugerida,
   conformidad,
   empEnServicio,

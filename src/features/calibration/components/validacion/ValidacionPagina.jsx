@@ -13,6 +13,8 @@ import { ToneBadge } from '../primitives';
 const fechaHora = iso => (iso ? new Date(iso).toLocaleString('es-BO', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const valor = (v, decimales = null) => {
   if (v == null) return '—';
+  if (typeof v === 'boolean') return v ? 'Sí' : 'No';
+  if (typeof v === 'string') return v;
   if (decimales != null && typeof v === 'number') return v.toFixed(decimales).replace('.', ',');
   return typeof v === 'number' && Number.isInteger(v) ? String(v) : cifras(v, 4);
 };
@@ -127,7 +129,7 @@ export function ValidacionPagina() {
       <div className="min-w-0">
         <h2 className="text-xl font-semibold text-fg">Validación del motor de cálculo</h2>
         <p className="mt-1 max-w-3xl text-[13px] text-fg-muted">
-          Los ejemplos publicados de EURAMET cg-18 v4.0 (Anexo H), de la Guía SIM (Apéndice G) y la tabla G.2 de la GUM se recalculan con el motor de cálculo que está corriendo, y cada valor se compara con el de la guía según un criterio declarado (NB/ISO/IEC 17025, 7.11.2 y 7.11.6). Son los mismos casos de las pruebas automáticas.
+          Los ejemplos publicados de EURAMET cg-18 v4.0 (Anexo H), de la Guía SIM (Apéndice G) y la tabla G.2 de la GUM se recalculan con el motor de cálculo que está corriendo, y cada valor se compara con el de la guía según un criterio declarado (NB/ISO/IEC 17025, 7.11.2 y 7.11.6). El último caso prueba cada opción que se puede elegir en «Método de cálculo». Son los mismos casos de las pruebas automáticas.
         </p>
       </div>
 

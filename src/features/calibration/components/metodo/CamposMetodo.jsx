@@ -24,12 +24,17 @@ export function EdicionMetodo({ value, children }) {
 const MARCAS = { pendiente: 'cc-campo-pendiente', cambiado: 'cc-campo-corregido' };
 const TITULO_MARCA = { pendiente: 'Sin guardar', cambiado: 'Distinto de la versión anterior' };
 
-function Campo({ ruta, etiqueta, ayuda, error, htmlFor, children, className }) {
+/**
+ * Un campo con su etiqueta, ayuda y error. Suelto lleva la marca a su
+ * izquierda (con relleno); `enLinea` (en una fila de tabla, que ya se marca
+ * entera) va sin relleno para alinearse con los demás campos de la fila.
+ */
+function Campo({ ruta, etiqueta, ayuda, error, htmlFor, children, className, enLinea = false }) {
   const { marca, problema } = useEdicion();
   const m = marca(ruta);
   const mensaje = error || problema(ruta);
   return (
-    <div className={cn('-ml-3 rounded-r-lg py-1 pl-3', MARCAS[m], className)} title={TITULO_MARCA[m]}>
+    <div className={cn(enLinea ? null : cn('-ml-3 rounded-r-lg py-1 pl-3', MARCAS[m]), className)} title={enLinea ? undefined : TITULO_MARCA[m]}>
       {etiqueta && <label htmlFor={htmlFor} className="field-label">{etiqueta}</label>}
       {children}
       {ayuda && <p className="mt-1 text-[11.5px] leading-snug text-fg-muted">{ayuda}</p>}
@@ -49,17 +54,20 @@ function useTexto(valor, escribir) {
   return { texto, setTexto, setVisto };
 }
 
-export function CampoNumero({ ruta, etiqueta, ayuda, unidad, placeholder, className, anchoInput = 'w-32' }) {
+export function CampoNumero({ ruta, etiqueta, ayuda, unidad, placeholder, className, anchoInput = 'w-32', enLinea = false }) {
   const { valor, cambiar, editable } = useEdicion();
   const id = useId();
   const regla = NUMEROS[rutaGenerica(ruta)] || {};
   const actual = valor(ruta);
-  const { texto, setTexto, setVisto } = useTexto(actual, escribirNumero);
+  // Con escala se escribe en otra unidad que la guardada (p. ej. 95,45 % → 0,9545).
+  const aPantalla = v => escribirNumero(v != null && regla.escala ? Number((v / regla.escala).toPrecision(12)) : v);
+  const aGuardar = n => (n != null && regla.escala ? Number((n * regla.escala).toPrecision(12)) : n);
+  const { texto, setTexto, setVisto } = useTexto(actual, aPantalla);
   const leido = leerNumero(texto);
   const error = Number.isNaN(leido) ? 'Escribe un número (con coma o punto).' : leido == null && !regla.vacio ? 'Falta el valor.' : null;
   const medida = unidad ?? regla.unidad;
   return (
-    <Campo ruta={ruta} etiqueta={etiqueta} ayuda={ayuda} error={error} htmlFor={id} className={className}>
+    <Campo ruta={ruta} etiqueta={etiqueta} ayuda={ayuda} error={error} htmlFor={id} className={className} enLinea={enLinea}>
       <div className="flex items-center gap-2">
         <input
           id={id}
@@ -72,7 +80,7 @@ export function CampoNumero({ ruta, etiqueta, ayuda, unidad, placeholder, classN
             const nuevo = event.target.value;
             setTexto(nuevo);
             const n = leerNumero(nuevo);
-            if (!Number.isNaN(n) && (n != null || regla.vacio)) { setVisto(n); cambiar(ruta, n); }
+            if (!Number.isNaN(n) && (n != null || regla.vacio)) { setVisto(aGuardar(n)); cambiar(ruta, aGuardar(n)); }
           }}
           className={cn('field h-9 rounded-lg text-[13px] tabular-nums', anchoInput, error && 'field-invalid')}
         />
@@ -134,6 +142,12 @@ export function CampoTexto({ ruta, etiqueta, ayuda, filas = 3 }) {
   );
 }
 
+/** Muestra su contenido solo si el valor de la ruta es el indicado. */
+export function Si({ ruta, igual, children }) {
+  const { valor } = useEdicion();
+  return valor(ruta) === igual ? children : null;
+}
+
 export function CampoOpciones({ ruta, etiqueta, opciones }) {
   const { valor, cambiar, editable } = useEdicion();
   const actual = valor(ruta);
@@ -184,10 +198,10 @@ export function CampoClases({ ruta, etiqueta, ayuda }) {
   );
 }
 
-function BotonFila({ etiqueta, onClick, disabled, children }) {
+function BotonFila({ etiqueta, onClick, disabled, className, children }) {
   return (
     <button type="button" aria-label={etiqueta} title={etiqueta} onClick={onClick} disabled={disabled}
-      className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-30">
+      className={cn('flex h-8 w-8 flex-none items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-30', className)}>
       {children}
     </button>
   );
@@ -211,8 +225,8 @@ export function TablaEstabilizacion() {
         {filas.map((fila, i) => (
           <div key={i} className="flex flex-wrap items-start gap-2">
             <CampoTextoCorto ruta={`${ruta}[${i}].texto`} etiqueta={`Estabilización, fila ${i + 1}`} className="min-w-[200px] flex-1" />
-            <CampoNumero ruta={`${ruta}[${i}].deltaT`} />
-            {editable && <BotonFila etiqueta={`Quitar la fila ${i + 1}`} onClick={() => cambiar(ruta, filas.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" aria-hidden="true" /></BotonFila>}
+            <CampoNumero ruta={`${ruta}[${i}].deltaT`} enLinea />
+            {editable && <BotonFila etiqueta={`Quitar la fila ${i + 1}`} className="mt-0.5" onClick={() => cambiar(ruta, filas.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" aria-hidden="true" /></BotonFila>}
           </div>
         ))}
         {!filas.length && <p className="text-[12.5px] text-fg-muted">Sin filas: se usa el ΔT sin dato.</p>}

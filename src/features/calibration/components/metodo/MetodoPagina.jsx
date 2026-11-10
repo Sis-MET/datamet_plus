@@ -1,30 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, BadgeCheck, FilePenLine, History, Loader2, Lock, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { AlertCircle, BadgeCheck, FilePenLine, History, Loader2, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../../shared/utils/cn';
 import { Button } from '../../../../shared/components/ui/Button';
 import { useResource } from '../../../system/hooks/useResource';
 import { calibrationApi } from '../../api/calibration';
 import {
-  ACCIONES_METODO, EMPUJE, ESTADOS_VERSION, FIJOS, conRuta, diferencias, etiquetaRuta, leerRuta, textoValor, tocaRuta, validar,
+  ACCIONES_METODO, AIRE, CIFRAS_U, CLASE_SUGERIDA, COBERTURA, EMPUJE, ESTADOS_VERSION, EXCENTRICIDAD, REPETIBILIDAD, SENTIDO_U,
+  avisosMetodo, conRuta, diferencias, etiquetaRuta, leerRuta, textoValor, tocaRuta, validar,
 } from '../../domain/metodo';
 import { CancelButton, PrimaryButton, Segmented, ToneBadge } from '../primitives';
 import { ReasonModal } from '../ReasonModal';
 import {
-  CampoClases, CampoInterruptor, CampoLista, CampoNumero, CampoOpciones, CampoTexto, EdicionMetodo, ListaTextos, TablaDensidades, TablaEstabilizacion,
+  CampoClases, CampoInterruptor, CampoLista, CampoNumero, CampoOpciones, CampoTexto, EdicionMetodo, ListaTextos, Si, TablaDensidades, TablaEstabilizacion,
 } from './CamposMetodo';
 
 const fechaHora = iso => (iso ? new Date(/Z$/.test(iso) ? iso : `${iso}Z`).toLocaleString('es-BO', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const fecha = iso => (iso ? new Date(/Z$/.test(iso) ? iso : `${iso}Z`).toLocaleDateString('es-BO', { dateStyle: 'medium' }) : '—');
 
 const SECCIONES = [
-  { id: 'calculo', label: 'Cálculo', rutas: ['parametros.empuje', 'parametros.kD'] },
+  {
+    id: 'calculo',
+    label: 'Cálculo',
+    rutas: ['parametros.repetibilidad', 'parametros.cobertura', 'parametros.redondeoU', 'parametros.aire', 'parametros.excentricidad', 'parametros.empuje', 'parametros.kD'],
+  },
+  { id: 'conformidad', label: 'Conformidad', rutas: ['parametros.conformidad', 'parametros.empServicio', 'parametros.claseSugerida'] },
   { id: 'conveccion', label: 'Convección', rutas: ['parametros.conveccion'] },
   { id: 'densidades', label: 'Densidades', rutas: ['parametros.densidades'] },
   { id: 'avisos', label: 'Avisos', rutas: ['parametros.avisos'] },
   { id: 'uso', label: 'En uso y pesada mínima', rutas: ['parametros.enUso', 'parametros.pesadaMinima'] },
+  { id: 'usp', label: 'USP ⟨41⟩', rutas: ['parametros.usp'] },
   { id: 'textos', label: 'Textos del certificado', rutas: ['textos'] },
 ];
+const S = Object.fromEntries(SECCIONES.map(s => [s.id, s]));
 
 function Seccion({ meta, titulo, descripcion, cambios, children }) {
   const n = cambios.filter(d => meta.rutas.some(r => d.ruta === r || d.ruta.startsWith(`${r}.`) || d.ruta.startsWith(`${r}[`))).length;
@@ -41,37 +49,57 @@ function Seccion({ meta, titulo, descripcion, cambios, children }) {
 }
 
 /** Las secciones editables (o de solo lectura) de una versión. */
-function Secciones({ fijos, cambios }) {
+function Secciones({ cambios, avisos = [] }) {
   return (
     <>
-      <Seccion meta={SECCIONES[0]} cambios={cambios} descripcion="Las fórmulas siguen EURAMET cg-18 v4.0 y no se editan aquí; estos parámetros eligen entre las opciones que la guía permite.">
+      <Seccion meta={S.calculo} titulo="Reglas de cálculo" cambios={cambios} descripcion="Las fórmulas están programadas y validadas con los ejemplos de EURAMET, la Guía SIM y la GUM (ver Validación); aquí el laboratorio elige entre las opciones que las guías permiten y fija sus valores. La primera opción de cada regla es la de la versión 1.">
+        {avisos.length > 0 && (
+          <ul className="flex flex-col gap-1.5" role="status">
+            {avisos.map(a => (
+              <li key={a} className="flex items-start gap-2 rounded-xl border border-warning/35 bg-warning/[0.06] px-3 py-2 text-[12.5px] text-fg">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-warning" aria-hidden="true" /> {a}
+              </li>
+            ))}
+          </ul>
+        )}
+        <CampoOpciones ruta="parametros.repetibilidad.regla" etiqueta="Desviación estándar de repetibilidad en cada carga" opciones={REPETIBILIDAD} />
+        <CampoOpciones ruta="parametros.cobertura.metodo" etiqueta="Factor de cobertura k" opciones={COBERTURA} />
+        <Si ruta="parametros.cobertura.metodo" igual="T_STUDENT">
+          <CampoNumero ruta="parametros.cobertura.probabilidad" etiqueta="Probabilidad de cobertura" ayuda="95,45 % es la de EURAMET 7.3 (k = 2 con muchos grados de libertad); 95 % da k = 1,96." />
+        </Si>
+        <Si ruta="parametros.cobertura.metodo" igual="FIJO">
+          <CampoNumero ruta="parametros.cobertura.k" etiqueta="k fijo" ayuda="El que se imprime en todos los puntos." />
+        </Si>
+        <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+          <CampoOpciones ruta="parametros.redondeoU.cifras" etiqueta="Cifras significativas de U" opciones={CIFRAS_U} />
+          <CampoOpciones ruta="parametros.redondeoU.sentido" etiqueta="Redondeo de U" opciones={SENTIDO_U} />
+        </div>
+        <p className="-mt-2 text-[11.5px] text-fg-muted">El error se imprime con los mismos decimales que U.</p>
+        <CampoOpciones ruta="parametros.aire.formula" etiqueta="Densidad del aire" opciones={AIRE} />
+        <CampoOpciones ruta="parametros.excentricidad.metodo" etiqueta="Excentricidad" opciones={EXCENTRICIDAD} />
         <CampoOpciones ruta="parametros.empuje" etiqueta="Incertidumbre del empuje del aire" opciones={EMPUJE} />
         <CampoNumero ruta="parametros.kD" etiqueta="Factor de deriva kD" ayuda="Límite de la deriva D = kD·U del certificado de la pesa (EURAMET 7.1.2-10), entre 1 y 3." />
-        <div className="rounded-xl border border-line bg-surface-2 px-3.5 py-3">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-fg"><Lock className="h-3.5 w-3.5" aria-hidden="true" /> Fijo en el código (validado con los ejemplos de EURAMET y la Guía SIM)</p>
-          <dl className="mt-2 grid gap-x-4 gap-y-1.5 text-[12.5px] sm:grid-cols-[max-content_1fr]">
-            {FIJOS.map(f => (
-              <div key={f.clave} className="contents">
-                <dt className="text-fg-muted">{f.etiqueta}</dt>
-                <dd className="text-fg">{f.texto(fijos?.[f.clave])}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
       </Seccion>
 
-      <Seccion meta={SECCIONES[1]} cambios={cambios} descripcion="Con pesas a distinta temperatura que el aire (EURAMET 7.1.2-13, Anexo F). El ΔT sale del tiempo de estabilización que registra ServiceMET; el texto se compara sin tildes ni mayúsculas.">
+      <Seccion meta={S.conformidad} titulo="Tolerancia y conformidad" cambios={cambios} descripcion="Cómo se arma el emp NB 23001 y cómo se decide la conformidad (NB/ISO/IEC 17025 7.8.6). La regla de cada servicio (simple o conservadora) la pide el cliente en ServiceMET.">
+        <CampoNumero ruta="parametros.empServicio.factor" etiqueta="emp en servicio" ayuda="El emp de verificación inicial de la OIML R76 (Tabla 6) por este factor. La NB 23001 y la R76 (3.5.2) usan el doble: 2." />
+        <CampoNumero ruta="parametros.conformidad.bandaGuarda" etiqueta="Banda de guarda de la regla conservadora" ayuda="Conforme si |E| + factor · U ≤ T. Con 1: |E| + U ≤ T (decisión 7); con 0 queda igual que la regla simple." />
+        <CampoNumero ruta="parametros.conformidad.riesgoUmbral" etiqueta="Riesgo que se escribe «menor que»" ayuda="Por debajo de este riesgo el certificado escribe «< 5,00» en vez del valor." />
+        <CampoOpciones ruta="parametros.claseSugerida.regla" etiqueta="Clase sugerida cuando el instrumento no la tiene" opciones={CLASE_SUGERIDA} />
+      </Seccion>
+
+      <Seccion meta={S.conveccion} cambios={cambios} descripcion="Con pesas a distinta temperatura que el aire (EURAMET 7.1.2-13, Anexo F). El ΔT sale del tiempo de estabilización que registra ServiceMET; el texto se compara sin tildes ni mayúsculas.">
         <CampoInterruptor ruta="parametros.conveccion.activa" etiqueta="Incluir la convección" ayuda="En las pesas de las clases elegidas, con el límite de la tabla F2.1." />
         <CampoClases ruta="parametros.conveccion.clases" etiqueta="Clases de pesas" ayuda="EURAMET la pide en F1 o mejores." />
         <TablaEstabilizacion />
         <CampoNumero ruta="parametros.conveccion.deltaTSinDato" etiqueta="ΔT sin dato de estabilización" />
       </Seccion>
 
-      <Seccion meta={SECCIONES[2]} titulo="Densidades por material" cambios={cambios} descripcion="Cuando la pieza no tiene su densidad medida, se supone la del material (OIML R111 B.7). Gana la primera fila con una palabra clave contenida en el material: el orden importa.">
+      <Seccion meta={S.densidades} titulo="Densidades por material" cambios={cambios} descripcion="Cuando la pieza no tiene su densidad medida, se supone la del material (OIML R111 B.7). Gana la primera fila con una palabra clave contenida en el material: el orden importa.">
         <TablaDensidades />
       </Seccion>
 
-      <Seccion meta={SECCIONES[3]} cambios={cambios} descripcion="Umbrales de los avisos que ve el revisor; no cambian el resultado.">
+      <Seccion meta={S.avisos} cambios={cambios} descripcion="Umbrales de los avisos que ve el revisor; no cambian el resultado.">
         <div className="grid gap-x-4 gap-y-3 sm:grid-cols-3">
           <CampoNumero ruta="parametros.avisos.excentricidadEnD" etiqueta="Excentricidad mayor que" ayuda="Diferencia máxima de excentricidad." />
           <CampoNumero ruta="parametros.avisos.lecturaVsCargaEnD" etiqueta="Lectura lejos de la carga" ayuda="Indicación frente a la carga aplicada." />
@@ -79,7 +107,7 @@ function Secciones({ fijos, cambios }) {
         </div>
       </Seccion>
 
-      <Seccion meta={SECCIONES[4]} cambios={cambios} descripcion="Información adicional del anexo, que no forma parte del certificado (EURAMET 7.4, 7.5 y Anexo G). Son supuestos del lugar de uso y se declaran en el anexo.">
+      <Seccion meta={S.uso} cambios={cambios} descripcion="Información adicional del anexo, que no forma parte del certificado (EURAMET 7.4, 7.5 y Anexo G). Son supuestos del lugar de uso y se declaran en el anexo.">
         <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
           <CampoNumero ruta="parametros.enUso.k" etiqueta="Factor de cobertura en uso" />
           <CampoNumero ruta="parametros.enUso.deltaT" etiqueta="Variación de temperatura del lugar" />
@@ -88,10 +116,20 @@ function Secciones({ fijos, cambios }) {
         </div>
         <CampoLista ruta="parametros.enUso.fracciones" etiqueta="Cargas de la tabla en uso" ayuda="Porcentajes de Max, separados por punto y coma." />
         <CampoLista ruta="parametros.pesadaMinima.exactitudes" etiqueta="Exactitudes de la pesada mínima" ayuda="Porcentajes, separados por punto y coma." />
-        <CampoLista ruta="parametros.pesadaMinima.factores" etiqueta="Factores de seguridad" ayuda="Separados por punto y coma." />
+        <CampoLista ruta="parametros.pesadaMinima.factores" etiqueta="Factores de seguridad" ayuda="Separados por punto y coma. También son los del peso mínimo de muestra de la USP ⟨41⟩." />
       </Seccion>
 
-      <Seccion meta={SECCIONES[5]} titulo="Textos del certificado" cambios={cambios} descripcion="Van en los dos modelos del certificado. Los ya emitidos conservan el texto con el que se autorizaron.">
+      <Seccion meta={S.usp} titulo="Evaluación USP ⟨41⟩" cambios={cambios} descripcion="Para clientes farmacéuticos: va en el anexo cuando el registro la pide, como la hoja INCO del libro. Los valores iniciales son los que usaba el libro.">
+        <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
+          <CampoNumero ruta="parametros.usp.tolerancia" etiqueta="Tolerancia" ayuda="Límite de la repetibilidad (factor · s / carga) y del error en la exactitud." />
+          <CampoNumero ruta="parametros.usp.cargaEvaluacion" etiqueta="Carga de evaluación" ayuda="Carga de la repetibilidad y menor carga de la exactitud." />
+          <CampoNumero ruta="parametros.usp.factorS" etiqueta="Factor de la desviación estándar" ayuda="Se compara factor · s / carga con la tolerancia." />
+          <CampoNumero ruta="parametros.usp.sMinimaEnD" etiqueta="Desviación estándar mínima" ayuda="Si la s medida es menor, se usa esta." />
+          <CampoNumero ruta="parametros.usp.divisorPesas" etiqueta="Divisor para las pesas" ayuda="Las pesas son adecuadas si su U (k = 2) no supera la tolerancia dividida por este número." />
+        </div>
+      </Seccion>
+
+      <Seccion meta={S.textos} titulo="Textos del certificado" cambios={cambios} descripcion="Van en los dos modelos del certificado. Los ya emitidos conservan el texto con el que se autorizaron.">
         <CampoTexto ruta="textos.metodo" etiqueta="Método" />
         <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
           <CampoTexto ruta="textos.fechaEmision" etiqueta="Fecha de emisión" filas={2} />
@@ -124,7 +162,7 @@ function ListaCambios({ cambios, pendientes = [], vacio }) {
             {etiquetaRuta(c.ruta)}
           </p>
           <p className="mt-0.5 break-words text-fg-muted">
-            <span className="line-through decoration-fg-subtle/60">{textoValor(c.antes)}</span> → <span className="text-fg">{textoValor(c.despues)}</span>
+            <span className="line-through decoration-fg-subtle/60">{textoValor(c.antes, c.ruta)}</span> → <span className="text-fg">{textoValor(c.despues, c.ruta)}</span>
           </p>
         </li>
       ))}
@@ -230,7 +268,7 @@ function HistorialMetodo({ data }) {
               {item.motivo && <p className="text-[12.5px] text-fg">{item.motivo}</p>}
               {item.cambios.length > 0 && (
                 <ul className="mt-1 flex flex-col gap-0.5 text-[12px] text-fg-muted">
-                  {item.cambios.map(c => <li key={c.ruta}>{etiquetaRuta(c.ruta)}: {textoValor(c.antes)} → <span className="font-medium text-fg">{textoValor(c.despues)}</span></li>)}
+                  {item.cambios.map(c => <li key={c.ruta}>{etiquetaRuta(c.ruta)}: {textoValor(c.antes, c.ruta)} → <span className="font-medium text-fg">{textoValor(c.despues, c.ruta)}</span></li>)}
                 </ul>
               )}
             </li>
@@ -262,6 +300,7 @@ export function MetodoPagina() {
   const pendientes = useMemo(() => (edicion && borrador ? diferencias(borrador.contenido, edicion) : []), [edicion, borrador]);
   const frenteBase = useMemo(() => (vistaActual === 'borrador' && mostrado ? diferencias(baseContenido, mostrado) : []), [vistaActual, baseContenido, mostrado]);
   const problemas = useMemo(() => (editable && mostrado ? validar(mostrado) : {}), [editable, mostrado]);
+  const avisos = useMemo(() => (mostrado ? avisosMetodo(mostrado) : []), [mostrado]);
   const nProblemas = Object.keys(problemas).length;
 
   const contexto = useMemo(() => ({
@@ -336,7 +375,7 @@ export function MetodoPagina() {
       <div className="min-w-0">
         <h2 className="text-xl font-semibold text-fg">Configuración del método</h2>
         <p className="mt-1 max-w-3xl text-[13px] text-fg-muted">
-          Parámetros, tablas y textos del certificado de balanzas, por versión. Cada versión nueva se redacta como borrador y la aprueba el jefe de Calibración; quien la redacta no la aprueba (NB/ISO/IEC 17025, 7.11.2).
+          Reglas de cálculo, parámetros, tablas y textos del certificado de balanzas, por versión: el laboratorio los define sin cambiar el programa. Cada versión nueva se redacta como borrador y la aprueba el jefe de Calibración; quien la redacta no la aprueba (NB/ISO/IEC 17025, 7.11.2).
         </p>
       </div>
 
@@ -358,7 +397,7 @@ export function MetodoPagina() {
               <p className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-[13px] text-fg-muted">Solo el personal de Calibración edita el borrador.</p>
             )}
             <EdicionMetodo value={contexto}>
-              <Secciones fijos={data.fijos} cambios={vistaActual === 'borrador' ? frenteBase : []} />
+              <Secciones cambios={vistaActual === 'borrador' ? frenteBase : []} avisos={avisos} />
             </EdicionMetodo>
           </div>
           <aside className="min-w-0" aria-label="Cambios de la versión">

@@ -54,7 +54,7 @@ libro `registro.xlsm` (copia de un ingeniero, v.24, 233 certificados en CARE) y
 | CERT | Certificado | Modelo actual (mismo diseño) y modelo sugerido | ✔ |
 | CERT: lista de revisión al pie (fechas, errores coherentes, U según d y ascendente, decimales del gráfico, formato, alertas, conformidad, «Rev. por») | Marcas «SÍ» a mano | Revisión y aprobación con avisos automáticos (error > 4d, U > 3d, excentricidad > 2d) | ⚠ no hay aviso de «U no ascendente» ni de días entre calibración y emisión |
 | GUARDARARCHIVO | PDF en `PC-EMIN\<año>\` | PDF firmado archivado en `CAL_DOCUMENTOS_DIR\<año>\` con su huella | ✔ |
-| INCO | USP ⟨41⟩, pesada mínima, curvas, aportes a la varianza, condiciones del instrumento | Anexo con incertidumbre en uso y pesada mínima (EURAMET) | ✖ falta USP ⟨41⟩ y condiciones (§4) |
+| INCO | USP ⟨41⟩, pesada mínima, curvas, aportes a la varianza, condiciones del instrumento | Anexo con incertidumbre en uso, pesada mínima (EURAMET), USP ⟨41⟩ a pedido y condiciones del instrumento | ✔ (§4) |
 | TRAZ | Por SECA: patrones usados, certificado y enlace a su PDF en OneDrive | Patrones y certificados en cada registro y en Equipos › Patrones, sin enlace al PDF | ⚠ a confirmar si se usa en auditorías |
 | COMP | Comparación interlaboratorio 2022 | — | fuera de alcance |
 | Access (EQPE, EQTE, EQUI_VIGENTE, ICLI, PERS) | Datos maestros | Gestor de equipos, piezas y valores, puntos acordados, usuarios | ✔ (falta cargar los datos, §3.4) |
@@ -126,7 +126,7 @@ en el campo «%», y el ingeniero lo corrigió en el libro: DataMET+ lo tomaría
 como 0,1 % de la carga. Hay que agregar las tolerancias por rango al registro
 (como dato del cliente, 7.8.2.2) y al motor.
 
-### 3.3 Regla de la s de repetibilidad
+### 3.3 Regla de la s de repetibilidad — resuelto, ver §4
 
 DataMET+ sigue EURAMET 7.1.1 (la mayor de las dos s que encierran la carga);
 el libro usa la mayor de todas, más conservador. La U baja hasta ~45 % en
@@ -143,7 +143,7 @@ configurable en Calibración › Método (con su aprobación).
   piezas y valores (`patrones:importar` desde el libro) antes de comparar los
   valores finales.
 
-### 3.5 Información complementaria (INCO)
+### 3.5 Información complementaria (INCO) — resuelto, ver §4
 
 - **USP ⟨41⟩**: repetibilidad (2s/m ≤ 0,10 %, con s ≥ 0,41 d, en el 5 % de
   Max), exactitud de 5 % a 100 % de Max (error ≤ 0,10 % del valor nominal),
@@ -192,6 +192,35 @@ empuje del libro con el signo invertido, el error se corre lo suficiente.
 Hay que volver a compararlas con las piezas y los valores de los patrones
 cargados. Las demás diferencias de tolerancia son datos que el ingeniero
 cambió en el libro (otra e, otra selección de puntos, el criterio del cliente).
+
+## 4.1 El laboratorio define el método (2026-11-10)
+
+A pedido del usuario, para que el laboratorio no dependa del programador, las
+decisiones que el libro y DataMET+ resolvían distinto se eligen en
+**Calibración › Método de cálculo** (versión nueva, aprobada por el jefe):
+
+- **s de repetibilidad en cada carga:** la de los ensayos que encierran la
+  carga (EURAMET 7.1.1, la de la versión 1) o la mayor de todos (la del
+  libro). Con la del libro la U sube en las cargas bajas (§3.3).
+- **k:** t de Student con la probabilidad elegida (95,45 % por omisión; el
+  libro usaba 95 %) o k fijo.
+- **Redondeo de U** (cifras y sentido), **fórmula del aire**, **método de
+  excentricidad**, **factor del emp en servicio**, **banda de guarda** de la
+  regla conservadora, **umbral del riesgo** y **regla de la clase sugerida**
+  (Tabla 3 de la R76 o solo n, como el libro).
+
+Son opciones entre cálculos ya programados, cada una con su prueba y su fila
+en Validación; no se escriben fórmulas libres, para que cambiar la
+configuración no obligue a revalidar el programa.
+
+**Anexo (hoja INCO):** a pedido en cada registro, la **evaluación USP ⟨41⟩**
+(repetibilidad, exactitud, adecuación de las pesas y peso mínimo de muestra,
+con los límites que fija el laboratorio; por omisión los del libro) y siempre
+las **condiciones del instrumento y la instalación** que revisó el técnico. La
+gráfica de aportes a la varianza sigue en «Cómo se calcula».
+
+Los valores de los certificados de los patrones los carga el personal de
+Calibración en producción (§3.4).
 
 ## 5. Cómo se hizo
 

@@ -310,7 +310,7 @@ export function CalibrationPage() {
         />
       )}
       {tab === 'emitidos' && (
-        <EmitidosPanel onAbrir={codigo => navegar(rutaDe('calibration', 'certificados', codigo), { transicion: 'panel', alCambiar: () => window.scrollTo({ top: 0 }) })} />
+        <EmitidosPanel onAbrir={(codigo, pestana) => navegar(`${rutaDe('calibration', 'certificados', codigo)}${pestana ? `#${pestana}` : ''}`, { transicion: 'panel', alCambiar: () => window.scrollTo({ top: 0 }) })} />
       )}
       {tab === 'certificados' && (
         <>

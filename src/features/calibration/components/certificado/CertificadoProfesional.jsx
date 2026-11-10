@@ -447,6 +447,69 @@ const bloquesDe = (c) => {
         </>
       ),
     });
+    // USP ⟨41⟩ (si el cliente la pidió) y condiciones del instrumento: A.3 y A.4.
+    const u = a.usp;
+    if (u) {
+      bloques.push({
+        id: 'anexo-usp-repetibilidad',
+        render: () => (
+          <>
+            <h2 className="cp-h2" style={{ marginTop: '3mm' }}><span>A.3</span> Evaluación según la USP ⟨41⟩ (balanzas de uso farmacéutico)</h2>
+            <p className="cp-texto"><strong>Repetibilidad</strong></p>
+            <table className="cp-tabla" style={{ marginBottom: '2mm' }}>
+              <tbody>{u.repetibilidad.map(f => <tr key={f.dato}><td className="cp-izq">{f.dato}</td><td>{f.destacado ? <strong>{f.valor}</strong> : f.valor}</td></tr>)}</tbody>
+            </table>
+          </>
+        ),
+      });
+      bloques.push({
+        id: 'anexo-usp-exactitud',
+        render: () => (
+          <>
+            <p className="cp-texto"><strong>Exactitud y adecuación de las pesas</strong></p>
+            <p className="cp-texto cp-suave">{u.exactitud.rango}</p>
+            {u.exactitud.vacia ? <p className="cp-texto">{u.exactitud.vacia}</p> : (
+              <table className="cp-tabla" style={{ marginBottom: '2mm' }}>
+                <thead><tr><th>Carga</th><th>Error</th><th>Tolerancia</th><th>Exactitud</th><th>U de las pesas</th><th>Límite de las pesas</th><th>Pesas</th></tr></thead>
+                <tbody>
+                  {u.exactitud.filas.map(f => <tr key={f.carga}><td>{f.carga}</td><td>{f.error}</td><td>{f.limite}</td><td>{f.resultado}</td><td>{f.Upesas}</td><td>{f.limitePesas}</td><td>{f.pesas}</td></tr>)}
+                </tbody>
+              </table>
+            )}
+          </>
+        ),
+      });
+      bloques.push({
+        id: 'anexo-usp-peso',
+        render: () => (
+          <>
+            <p className="cp-texto"><strong>Peso mínimo de muestra</strong></p>
+            <table className="cp-tabla">
+              <thead>
+                <tr><th rowSpan={2}>Exactitud requerida</th><th colSpan={u.pesoMinimo.factores.length}>Factor de seguridad</th></tr>
+                <tr>{u.pesoMinimo.factores.map(f => <th key={f}>{f}</th>)}</tr>
+              </thead>
+              <tbody>{u.pesoMinimo.filas.map(f => <tr key={f.exactitud}><td>{f.exactitud}</td>{f.valores.map((v, i) => <td key={i}>{v}</td>)}</tr>)}</tbody>
+            </table>
+            <p className="cp-texto cp-suave" style={{ marginTop: '1.5mm' }}>{u.pesoMinimo.nota}</p>
+          </>
+        ),
+      });
+    }
+    if (a.condiciones) {
+      bloques.push({
+        id: 'anexo-condiciones',
+        render: () => (
+          <>
+            <h2 className="cp-h2" style={{ marginTop: '3mm' }}><span>{u ? 'A.4' : 'A.3'}</span> Condiciones del instrumento y de la instalación</h2>
+            <table className="cp-tabla">
+              <thead><tr><th className="cp-izq">Condición</th><th>Estado</th><th className="cp-izq">Observación</th></tr></thead>
+              <tbody>{a.condiciones.map(f => <tr key={f.condicion}><td className="cp-izq">{f.condicion}</td><td>{f.estado}</td><td className="cp-izq">{f.observacion}</td></tr>)}</tbody>
+            </table>
+          </>
+        ),
+      });
+    }
   }
   return bloques;
 };

@@ -139,3 +139,42 @@ test('anexo de información adicional solo a pedido: incertidumbre en uso y pesa
   const numeros = fila01.filter(v => v !== '—').map(v => Number(v.replace(' g', '').replace(',', '.')));
   assert.deepEqual([...numeros].sort((x, y) => x - y), numeros);
 });
+
+test('anexo con la USP ⟨41⟩ (a pedido) y las condiciones que revisó el técnico', () => {
+  const { modelo } = modeloDeFila(fila({
+    emp: 'Sí', vibracion: 'Bueno', nivelacion: 'Malo', nivelacion_comentario: 'Burbuja fuera del círculo', tiempo_estab: 'Mayor a 30 minutos',
+  }));
+  modelo.instrumento.clase = { valor: 'II', origen: 'PLACA' };
+  const calculo = calcular(modelo);
+  assert.ok(calculo.usp);
+  const sinUsp = contenidoCertificado({ modelo, calculo, anexo: true }).contenido.anexo;
+  assert.equal(sinUsp.usp, null);
+  assert.deepEqual(sinUsp.condiciones, [
+    { condicion: 'Estabilización de las pesas', estado: 'Mayor a 30 minutos', observacion: '' },
+    { condicion: 'Vibración', estado: 'Bueno', observacion: '' },
+    { condicion: 'Nivelación', estado: 'Malo', observacion: 'Burbuja fuera del círculo' },
+  ]);
+  // Sin anexo no hay USP aunque se pida.
+  assert.equal(contenidoCertificado({ modelo, calculo, usp: true }).contenido.anexo, null);
+  const { usp } = contenidoCertificado({ modelo, calculo, anexo: true, usp: true }).contenido.anexo;
+  assert.match(usp.titulo, /USP ⟨41⟩/);
+  // m = 5 % de 600 g; la s medida (0,0058 g) es mayor que 0,41 · d.
+  assert.equal(usp.repetibilidad[0].valor, '30 g (5 % de Max)');
+  assert.equal(usp.repetibilidad[5].valor, '≤ 0,1 %');
+  assert.match(usp.repetibilidad[6].valor, /^(APROBADO|REPROBADO)$/);
+  // Exactitud solo entre 30 g y 600 g: el punto de 100 g y el de 500 g.
+  assert.deepEqual(usp.exactitud.filas.map(f => f.carga), ['100 g', '500 g']);
+  assert.equal(usp.exactitud.filas[0].limite, '± 0,1 g');
+  assert.equal(usp.pesoMinimo.filas.length, 6);
+});
+
+test('riesgo bajo el umbral del método', () => {
+  const { modelo } = modeloDeFila(fila({ emp: 'Sí' }));
+  modelo.instrumento.clase = { valor: 'III', origen: 'PLACA' };
+  const calculo = calcular(modelo);
+  // Riesgos conocidos: 0,3 % y 3 %.
+  const puntos = calculo.puntos.map((p, i) => ({ ...p, conformidad: { ...p.conformidad, evaluada: true, conforme: true, riesgo: i === 0 ? 0.003 : 0.03 } }));
+  const riesgos = c => contenidoCertificado({ modelo, calculo: c }).contenido.errores.filas.map(f => f.riesgo);
+  assert.deepEqual(riesgos({ ...calculo, puntos }), ['< 5,00', '< 5,00']);
+  assert.deepEqual(riesgos({ ...calculo, puntos, reglas: { ...calculo.reglas, riesgoUmbral: 0.01 } }), ['< 1,00', '3,00']);
+});

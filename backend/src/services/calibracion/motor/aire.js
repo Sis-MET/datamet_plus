@@ -103,7 +103,8 @@ const corregirLectura = (valor, puntos = []) => {
  * lecturas: { inicio: {t, hr, p}, fin: {t, hr, p} } (ya corregidas por el
  * certificado del termohigrómetro); certificado: { t: {U, k}, hr: {U, k}, p: {U, k} }.
  */
-const aireDeCalibracion = ({ inicio, fin, certificado = {} }) => {
+const aireDeCalibracion = ({ inicio, fin, certificado = {}, formula = 'CIPM-2007' }) => {
+  const { densidad, uRel } = FORMULAS_AIRE[formula] || FORMULAS_AIRE['CIPM-2007'];
   const media = (campo) => {
     const valores = [inicio?.[campo], fin?.[campo]].filter(v => v != null && Number.isFinite(v));
     return valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
@@ -117,29 +118,41 @@ const aireDeCalibracion = ({ inicio, fin, certificado = {} }) => {
     hr: incertidumbreLectura({ ...certificado.hr, inicio: inicio?.hr, fin: fin?.hr }),
     p: incertidumbreLectura({ ...certificado.p, inicio: inicio?.p, fin: fin?.p }),
   };
-  const rho = densidadCIPM2007(condiciones);
+  const rho = densidad(condiciones);
   // Sensibilidades por diferencias centrales.
   const pasos = { t: 0.01, hr: 0.1, p: 0.1 };
   const sensibilidad = Object.fromEntries(Object.entries(pasos).map(([campo, paso]) => {
-    const arriba = densidadCIPM2007({ ...condiciones, [campo]: condiciones[campo] + paso });
-    const abajo = densidadCIPM2007({ ...condiciones, [campo]: condiciones[campo] - paso });
+    const arriba = densidad({ ...condiciones, [campo]: condiciones[campo] + paso });
+    const abajo = densidad({ ...condiciones, [campo]: condiciones[campo] - paso });
     return [campo, (arriba - abajo) / (2 * paso)];
   }));
   const componentes = [
     { fuente: 't', u: Math.abs(sensibilidad.t) * u.t },
     { fuente: 'hr', u: Math.abs(sensibilidad.hr) * u.hr },
     { fuente: 'p', u: Math.abs(sensibilidad.p) * u.p },
-    { fuente: 'formula', u: U_REL_CIPM * rho },
+    { fuente: 'formula', u: uRel * rho },
   ];
   const uRho = Math.sqrt(componentes.reduce((suma, c) => suma + c.u * c.u, 0));
-  return { rho, u: uRho, condiciones, incertidumbres: u, sensibilidad, componentes };
+  return { rho, u: uRho, formula: FORMULAS_AIRE[formula] ? formula : 'CIPM-2007', condiciones, incertidumbres: u, sensibilidad, componentes };
 };
 
+// Fórmulas de la densidad del aire que el método puede elegir, con la
+// incertidumbre relativa de cada una.
+const FORMULAS_AIRE = {
+  'CIPM-2007': { densidad: densidadCIPM2007, uRel: U_REL_CIPM },
+  APROXIMADA: { densidad: densidadAproximada, uRel: U_REL_APROXIMADA },
+};
+
+/** Densidad del aire con la fórmula elegida (para ρa1 de las pesas). */
+const densidadAire = (condiciones, formula = 'CIPM-2007') => (FORMULAS_AIRE[formula] || FORMULAS_AIRE['CIPM-2007']).densidad(condiciones);
+
 module.exports = {
+  FORMULAS_AIRE,
   U_REL_APROXIMADA,
   U_REL_CIPM,
   aireDeCalibracion,
   corregirLectura,
+  densidadAire,
   densidadAproximada,
   densidadCIPM2007,
   incertidumbreLectura,

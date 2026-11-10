@@ -138,30 +138,42 @@ const gradosEfectivos = (componentes) => {
 /** Combina en cuadratura componentes no correlacionadas (GUM 5.1.2). */
 const combinar = (componentes) => Math.sqrt(componentes.reduce((suma, c) => suma + c.u * c.u, 0));
 
+const METODOS_COBERTURA = ['T_STUDENT', 'FIJO'];
+
 /**
- * Factor de cobertura para el 95,45 % con νeff (decisión 2), redondeado a dos
- * decimales como se imprime; con él se calcula U para que k·u = U cuadre.
+ * Factor de cobertura, redondeado a dos decimales como se imprime; con él se
+ * calcula U para que k·u = U cuadre. Según la configuración del método:
+ * - T_STUDENT (decisión 2): t de Student con νeff para la probabilidad de
+ *   cobertura (95,45 % por omisión; EURAMET 7.3 y Anexo B).
+ * - FIJO: el k que fija el laboratorio, sin mirar νeff.
+ * opciones: { metodo, probabilidad, k }.
  */
-const factorCobertura = (nuEfectivos) => Math.round(tStudent(Math.max(1, nuEfectivos)) * 100) / 100;
+const factorCobertura = (nuEfectivos, { metodo = 'T_STUDENT', probabilidad = COBERTURA, k = 2 } = {}) => {
+  if (metodo === 'FIJO') return k;
+  return Math.round(tStudent(Math.max(1, nuEfectivos), probabilidad) * 100) / 100;
+};
 
 // ─── Redondeo ──────────────────────────────────────────────────────────────
 
+const SENTIDOS_REDONDEO = ['ARRIBA', 'CERCANO'];
+
 /**
- * U con dos cifras significativas redondeadas hacia arriba (decisión 3; GUM
- * 7.2.6 admite redondear hacia arriba). Devuelve el valor y sus decimales.
+ * U con n cifras significativas (decisión 3: dos, hacia arriba; GUM 7.2.6
+ * admite redondear hacia arriba). sentido: ARRIBA o CERCANO (al más cercano,
+ * la mitad hacia arriba). Devuelve el valor y sus decimales.
  */
-const redondearIncertidumbre = (u) => {
+const redondearIncertidumbre = (u, { cifras: n = 2, sentido = 'ARRIBA' } = {}) => {
   if (!(u > 0)) return { valor: 0, decimales: 0 };
   let exponente = Math.floor(Math.log10(u));
-  let escala = 10 ** (1 - exponente);
+  let escala = 10 ** (n - 1 - exponente);
   // El margen evita subir por el ruido del punto flotante (0,000 93 × 10⁵ = 93,000…01).
-  let cifras = Math.ceil(u * escala - 1e-9);
-  if (cifras >= 100) {
+  let cifras = sentido === 'CERCANO' ? Math.round(u * escala + 1e-9) : Math.ceil(u * escala - 1e-9);
+  if (cifras >= 10 ** n) {
     exponente += 1;
     escala /= 10;
-    cifras = 10;
+    cifras = 10 ** (n - 1);
   }
-  const decimales = Math.max(0, 1 - exponente);
+  const decimales = Math.max(0, n - 1 - exponente);
   return { valor: Number((cifras / escala).toFixed(decimales)), decimales };
 };
 
@@ -175,6 +187,8 @@ const redondearA = (valor, decimales) => {
 
 module.exports = {
   COBERTURA,
+  METODOS_COBERTURA,
+  SENTIDOS_REDONDEO,
   combinar,
   factorCobertura,
   gradosEfectivos,
