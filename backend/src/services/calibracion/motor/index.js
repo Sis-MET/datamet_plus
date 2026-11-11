@@ -19,6 +19,15 @@ const uso = require('./uso');
 const usp = require('./usp');
 
 /**
+ * Cómo se decide si una pesa patrón es apta para su clase con su certificado:
+ * - R111: U (k = 2) ≤ emp/3 (5.2) y |corrección| ≤ emp − U (5.3).
+ * - SUMA_EMP: criterio del laboratorio, |corrección| + U ≤ emp (la 5.3); la 5.2
+ *   queda a la vista como dato, sin aviso. Para cuando ningún laboratorio del
+ *   país reporta U ≤ emp/3 (por ejemplo, IBMETRO en E2).
+ */
+const CRITERIOS_APTITUD_PESAS = ['R111', 'SUMA_EMP'];
+
+/**
  * Configuración del método, versión 1 (docs/calibracion-plan-implementacion.md,
  * «Configuración inicial»). El laboratorio la cambia por versiones en
  * Calibración › Método de cálculo: valores y opciones entre cálculos ya
@@ -55,10 +64,13 @@ const CONFIGURACION_V1 = Object.freeze({
   usp: usp.USP_INICIAL,
   // Densidad supuesta por material si la pieza no la trae (R111 B.7).
   densidades: referencia.DENSIDADES_INICIALES,
+  // Aptitud de las pesas patrón: la de la OIML R111 hasta que el laboratorio elija otra.
+  pesas: { aptitud: 'R111' },
 });
 
 module.exports = {
   CONFIGURACION_V1,
+  CRITERIOS_APTITUD_PESAS,
   ...aire,
   ...cargas,
   ...error,

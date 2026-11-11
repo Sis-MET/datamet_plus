@@ -243,18 +243,22 @@ const subencabezado = 'whitespace-nowrap px-2 pb-2 pt-0.5 text-left text-[11.5px
 /**
  * Una condición de la R111 para una pieza (5.2 o 5.3): marca y comparación
  * («0,003 > 0,002667»). Nunca solo el color: la marca ✓/✗ y el signo dicen lo
- * mismo. Sin datos para decidir, una raya.
+ * mismo. Si el criterio del método no la exige y no se cumple, va como dato
+ * (ⓘ, en gris), sin alerta. Sin datos para decidir, una raya.
  */
 function Condicion({ condicion }) {
   if (!condicion) return <span className="text-[13px] text-fg-subtle">—</span>;
-  const Icono = condicion.cumple ? Check : X;
+  const dato = condicion.exigida === false && !condicion.cumple;
+  const Icono = condicion.cumple ? Check : dato ? Info : X;
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12.5px] tabular-nums" title={condicion.detalle}>
-      <Icono className={cn('h-4 w-4 flex-none', condicion.cumple ? 'text-success' : 'text-danger')} aria-hidden="true" />
-      <span className={condicion.cumple ? 'text-fg-muted' : 'font-semibold text-fg'}>
+      <Icono className={cn('h-4 w-4 flex-none', condicion.cumple ? 'text-success' : dato ? 'text-fg-subtle' : 'text-danger')} aria-hidden="true" />
+      <span className={condicion.cumple || dato ? 'text-fg-muted' : 'font-semibold text-fg'}>
         {condicion.valor} {condicion.cumple ? '≤' : '>'} {condicion.limite}
       </span>
-      <span className="sr-only">{condicion.cumple ? `cumple la ${condicion.norma}` : `no cumple la ${condicion.norma}`}</span>
+      <span className="sr-only">
+        {condicion.cumple ? `cumple la ${condicion.norma}` : dato ? `no cumple la ${condicion.norma}, que el criterio del laboratorio no exige` : `no cumple la ${condicion.norma}`}
+      </span>
     </span>
   );
 }
@@ -501,6 +505,8 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
 
   const editable = canEdit && data?.equipo.estado === 'ACTIVO';
   const disabled = !editable || saving;
+  // Criterio de aptitud de las pesas del método vigente (R111 o el del laboratorio).
+  const criterio = data?.criterioPesas || 'R111';
 
   const inicial = useMemo(() => (data ? JSON.stringify(armarEnvio(estadoInicial(data), data).body) : null), [data]);
   const envio = useMemo(() => (form && data ? armarEnvio(form, data) : null), [form, data]);
@@ -869,18 +875,21 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                         <th rowSpan={2} className={encabezado}>U (mg)</th>
                         <th rowSpan={2} className={encabezado}>k</th>
                         <th rowSpan={2} className={encabezado}>Documento</th>
-                        <th colSpan={4} className={cn(encabezado, 'pb-1')}>Apta (R111)</th>
+                        <th colSpan={4} className={cn(encabezado, 'pb-1')}>{criterio === 'SUMA_EMP' ? 'Apta (criterio del laboratorio)' : 'Apta (R111)'}</th>
                         <th rowSpan={2} className={encabezado}><span className="sr-only">Avisos</span></th>
                       </tr>
                       <tr>
-                        <th className={subencabezado} title="R111 5.2: la U (k = 2) del certificado no debe superar un tercio del emp de la clase">
-                          5.2 · U ≤ emp/3
+                        <th className={subencabezado} title={criterio === 'SUMA_EMP'
+                          ? 'R111 5.2: la U (k = 2) no debe superar un tercio del emp. El criterio del laboratorio no lo exige: se muestra como dato.'
+                          : 'R111 5.2: la U (k = 2) del certificado no debe superar un tercio del emp de la clase'}
+                        >
+                          5.2 · U ≤ emp/3{criterio === 'SUMA_EMP' && <span className="font-normal"> (dato)</span>}
                         </th>
                         <th className={subencabezado} title="R111 5.3: la corrección no debe superar el emp menos la U">
                           5.3 · |corr.| ≤ emp − U
                         </th>
                         <th className={subencabezado}>Resultado</th>
-                        <th className={subencabezado} title="La clase más exacta de la R111 en la que la pieza cumple 5.2 y 5.3 con los valores de su certificado">
+                        <th className={subencabezado} title="La clase más exacta de la R111 en la que la pieza es apta con los valores de su certificado, con el criterio del método">
                           Clase que cumple
                         </th>
                       </tr>
@@ -900,6 +909,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                           correccion: valor.correccion,
                           u: valor.u,
                           k: valor.k,
+                          criterio,
                         });
                         const cumpleComo = claseQueCumple({
                           r111: data.r111,
@@ -907,6 +917,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                           correccion: valor.correccion,
                           u: valor.u,
                           k: valor.k,
+                          criterio,
                         });
                         return (
                           <tr key={fila.key} className="border-t border-line">
@@ -946,9 +957,18 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
               ) : null}
               {form.tipo === 'PESAS' && piezasActivas.length > 0 && (
                 <p className="cal-hint -mt-2">
-                  «Apta» se calcula con la clase del juego y los valores del certificado: U (k = 2) ≤ emp/3 y |corrección| ≤ emp − U
-                  (OIML R111, 5.2 y 5.3); hacen falta las dos y cada una tiene su columna, en mg. Pasa el cursor para ver las cuentas.
-                  «Clase que cumple» es la clase más exacta que respalda el certificado de cada pieza.
+                  {criterio === 'SUMA_EMP' ? (
+                    <>
+                      «Apta» sigue el criterio del laboratorio elegido en Método de cálculo: |corrección| + U ≤ emp (la columna 5.3).
+                      La 5.2 de la R111 (U ≤ emp/3) se muestra como dato y no genera aviso. Pasa el cursor para ver las cuentas.
+                    </>
+                  ) : (
+                    <>
+                      «Apta» se calcula con la clase del juego y los valores del certificado: U (k = 2) ≤ emp/3 y |corrección| ≤ emp − U
+                      (OIML R111, 5.2 y 5.3); hacen falta las dos y cada una tiene su columna, en mg. Pasa el cursor para ver las cuentas.
+                    </>
+                  )}
+                  {' '}«Clase que cumple» es la clase más exacta que respalda el certificado de cada pieza.
                   Una pieza no apta igual se usa con su corrección y su U del certificado, pero no puede presentarse con esa clase.
                 </p>
               )}

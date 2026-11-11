@@ -111,6 +111,19 @@ test('completar: lo guardado manda y lo nuevo del código entra con su valor ini
   assert.equal(completo.textos.datosCliente, metodo.contenidoInicial().textos.datosCliente);
 });
 
+test('el criterio de aptitud de las pesas: R111 en las versiones anteriores y SUMA_EMP si el laboratorio lo elige', () => {
+  // Una versión guardada antes de la regla queda con la R111, como se calculaba entonces.
+  const anterior = metodo.contenidoInicial();
+  delete anterior.parametros.pesas;
+  assert.deepEqual(metodo.completar(anterior).parametros.pesas, { aptitud: 'R111' });
+  // El laboratorio elige su criterio en una versión nueva; solo se aceptan las opciones programadas.
+  const nueva = structuredClone(metodo.contenidoInicial());
+  nueva.parametros.pesas.aptitud = 'SUMA_EMP';
+  assert.equal(metodo.validarContenido(nueva).parametros.pesas.aptitud, 'SUMA_EMP');
+  nueva.parametros.pesas.aptitud = 'UN_MEDIO';
+  assert.throws(() => metodo.validarContenido(nueva), /criterio de aptitud de las pesas/);
+});
+
 test('diferencias por ruta entre dos versiones', () => {
   const antes = metodo.contenidoInicial();
   const despues = structuredClone(antes);

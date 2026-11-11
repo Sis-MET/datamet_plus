@@ -139,12 +139,14 @@ const claseSugerida = (codigo) => {
 };
 
 /**
- * Pieza apta para su clase según la OIML R111, solo con los valores de su
- * certificado: U (k = 2) ≤ emp/3 (5.2) y |corrección| ≤ emp − U (5.3).
+ * Pieza apta para su clase solo con los valores de su certificado. Con el
+ * criterio R111 (el inicial): U (k = 2) ≤ emp/3 (5.2) y |corrección| ≤ emp − U
+ * (5.3). Con SUMA_EMP, el que puede elegir el laboratorio en el método:
+ * |corrección| + U ≤ emp (la 5.3); la 5.2 se informa pero no decide.
  * Devuelve { apta, emp, u2, cumpleU, cumpleCorreccion }; apta es null si no se
  * puede decidir (sin clase, valor nominal que la clase no tiene o sin valores).
  */
-const aptaR111 = ({ clase, nominalMg, correccionMg, uMg, k }) => {
+const aptaR111 = ({ clase, nominalMg, correccionMg, uMg, k, criterio = 'R111' }) => {
   const emp = clase ? empR111(clase, nominalMg) : null;
   const numeros = [correccionMg, uMg, k].map(v => (v == null || v === '' ? Number.NaN : Number(v)));
   if (emp === null || numeros.some(v => !Number.isFinite(v)) || !(numeros[2] > 0)) {
@@ -155,15 +157,17 @@ const aptaR111 = ({ clase, nominalMg, correccionMg, uMg, k }) => {
   const u2 = (u / kValor) * 2;
   const cumpleU = u2 <= emp / 3 + 1e-12;
   const cumpleCorreccion = Math.abs(correccion) <= emp - u2 + 1e-12;
-  return { apta: cumpleU && cumpleCorreccion, emp, u2, cumpleU, cumpleCorreccion };
+  const apta = criterio === 'SUMA_EMP' ? cumpleCorreccion : cumpleU && cumpleCorreccion;
+  return { apta, emp, u2, cumpleU, cumpleCorreccion };
 };
 
 /**
  * Avisos de un juego de pesas según la OIML R111 (no bloquean el registro):
  * piezas sin valores, U mayor que un tercio del emp (5.2), masa convencional
- * fuera de emp − U (5.3) y densidad fuera de la Tabla 5.
+ * fuera de emp − U (5.3) y densidad fuera de la Tabla 5. Con el criterio del
+ * laboratorio (SUMA_EMP) la 5.2 queda como dato, sin alerta.
  */
-const avisosPesas = ({ clase, piezas, valores }) => {
+const avisosPesas = ({ clase, piezas, valores, criterio = 'R111' }) => {
   const avisos = [];
   const porPieza = new Map(valores.map(valor => [piezaKey(valor), valor]));
   for (const pieza of piezas.filter(item => item.activa)) {
@@ -180,7 +184,9 @@ const avisosPesas = ({ clase, piezas, valores }) => {
     } else if (emp !== null) {
       const { u2, cumpleU, cumpleCorreccion } = aptaR111({ clase, nominalMg: pieza.nominalMg, ...valor });
       if (cumpleU === false) {
-        avisos.push({ tipo: 'aviso', pieza: key, mensaje: `${label}: U (k = 2) = ${decimal(u2)} mg supera un tercio del emp de ${clase} (${decimal(emp / 3)} mg; R111 5.2).` });
+        avisos.push(criterio === 'SUMA_EMP'
+          ? { tipo: 'info', pieza: key, mensaje: `${label}: U (k = 2) = ${decimal(u2)} mg supera un tercio del emp de ${clase} (${decimal(emp / 3)} mg; R111 5.2); el criterio del laboratorio no lo exige.` }
+          : { tipo: 'aviso', pieza: key, mensaje: `${label}: U (k = 2) = ${decimal(u2)} mg supera un tercio del emp de ${clase} (${decimal(emp / 3)} mg; R111 5.2).` });
       }
       if (cumpleCorreccion === false) {
         avisos.push({ tipo: 'aviso', pieza: key, mensaje: `${label}: la corrección ${decimal(valor.correccionMg)} mg sale de ± (emp − U) = ± ${decimal(Math.max(emp - u2, 0))} mg (R111 5.3).` });
@@ -461,8 +467,10 @@ const getPatron = async (equipoId, user = null) => {
   // Se carga aquí: calibration.metodo depende de este módulo.
   const { motor } = await require('./calibration.metodo').configuracionVigente();
   const materiales = (motor.densidades || []).map(({ material, claves, rho, u }) => ({ material, claves, rho, u }));
+  // Criterio de aptitud de las pesas que eligió el laboratorio en el método vigente.
+  const criterio = motor.pesas?.aptitud || 'R111';
   let avisos = [];
-  if (tipo === 'PESAS' && equipo.certFecha) avisos = avisosPesas({ clase, piezas, valores: datos.valores });
+  if (tipo === 'PESAS' && equipo.certFecha) avisos = avisosPesas({ clase, piezas, valores: datos.valores, criterio });
   if (tipo === 'AMBIENTE' && equipo.certFecha) avisos = avisosAmbiente({ puntos: datos.puntos });
 
   return {
@@ -483,7 +491,8 @@ const getPatron = async (equipoId, user = null) => {
       ente: equipo.enteCalibrador,
     } : null,
     transcripcion: datos.cabecera,
-    valores: datos.valores.map(valor => ({ ...valor, apta: aptaR111({ clase, ...valor }).apta })),
+    valores: datos.valores.map(valor => ({ ...valor, apta: aptaR111({ clase, ...valor, criterio }).apta })),
+    criterioPesas: criterio,
     puntos: datos.puntos,
     // Para calcular «Apta» mientras se escribe, con la clase elegida.
     r111: { clases: CLASES, emp: EMP_TABLA },
@@ -588,7 +597,7 @@ const savePiezas = async (createRequest, equipoId, piezas, usuario) => {
   };
 };
 
-const writeTranscripcion = async (createRequest, certificadoId, piezas, datos, clase, usuario, existe) => {
+const writeTranscripcion = async (createRequest, certificadoId, piezas, datos, clase, usuario, existe, criterio = 'R111') => {
   const porClave = new Map(piezas.map(pieza => [piezaKey(pieza), pieza]));
   for (const valor of datos.valores) {
     const pieza = porClave.get(piezaKey(valor));
@@ -606,8 +615,8 @@ const writeTranscripcion = async (createRequest, certificadoId, piezas, datos, c
       .input('pid', sql.Int, porClave.get(piezaKey(valor)).id)
       .input('documento', sql.NVarChar(40), valor.documento || null)
       .input('k', sql.Decimal(5, 2), valor.k)
-      // Apta para su clase, calculada con los valores del certificado (R111 5.2 y 5.3).
-      .input('conforme', sql.Bit, aptaR111({ clase, ...valor }).apta);
+      // Apta para su clase con los valores del certificado, según el criterio del método vigente.
+      .input('conforme', sql.Bit, aptaR111({ clase, ...valor, criterio }).apta);
     pesoInput(request, 'correccion', valor.correccionMg);
     pesoInput(request, 'u', valor.uMg);
     await request.query(`
@@ -711,7 +720,9 @@ const savePatron = async (equipoId, data, actor) => withTransaction(async (creat
     const despues = transcripcionVersion(data.certificado);
     if (!antes || !same(antes, despues)) {
       if (antes && !data.motivo) throw httpError(400, 'Escribe el motivo del cambio: los valores de este certificado ya estaban transcritos.');
-      await writeTranscripcion(createRequest, certificadoId, piezas, data.certificado, nuevaConfig.clase, who.usuario, Boolean(previo.cabecera));
+      const { motor } = await require('./calibration.metodo').configuracionVigente();
+      await writeTranscripcion(createRequest, certificadoId, piezas, data.certificado, nuevaConfig.clase, who.usuario, Boolean(previo.cabecera),
+        motor.pesas?.aptitud || 'R111');
       const cantidad = data.tipo === 'PESAS' ? `${despues.valores.length} piezas` : `${despues.puntos.length} puntos`;
       await logAction(
         createRequest,

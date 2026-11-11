@@ -110,6 +110,28 @@ test('«Apta» se calcula con la clase y los valores del certificado (R111 5.2 y
   assert.equal(aptaR111({ clase: 'F1', nominalMg: 1 * KG, correccionMg: 0, uMg: 1, k: 0 }).apta, null);
 });
 
+test('con el criterio del laboratorio solo decide |corrección| + U ≤ emp y la 5.2 queda como dato', () => {
+  // E2-003, 10 mg (IBMETRO): U = 0,003 mg supera emp/3 = 0,00267 mg, pero 0,002 + 0,003 ≤ 0,008.
+  const pieza = { clase: 'E2', nominalMg: 10, correccionMg: 0.002, uMg: 0.003, k: 2 };
+  assert.equal(aptaR111(pieza).apta, false);
+  assert.deepEqual(aptaR111({ ...pieza, criterio: 'SUMA_EMP' }), { apta: true, emp: 0.008, u2: 0.003, cumpleU: false, cumpleCorreccion: true });
+  // La suma que se pasa del emp no es apta con ningún criterio.
+  assert.equal(aptaR111({ ...pieza, correccionMg: 0.006, criterio: 'SUMA_EMP' }).apta, false);
+
+  const piezas = [{ nominalMg: 10, identificacion: '', activa: true, densidad: 7950, densidadU: 60 }];
+  const valores = [{ nominalMg: 10, identificacion: '', correccionMg: 0.002, uMg: 0.003, k: 2 }];
+  const r111 = avisosPesas({ clase: 'E2', piezas, valores });
+  assert.deepEqual(r111.map(a => a.tipo), ['aviso']);
+  assert.match(r111[0].mensaje, /supera un tercio del emp de E2/);
+  // Con el criterio del laboratorio no hay alerta: queda informado.
+  const laboratorio = avisosPesas({ clase: 'E2', piezas, valores, criterio: 'SUMA_EMP' });
+  assert.deepEqual(laboratorio.map(a => a.tipo), ['info']);
+  assert.match(laboratorio[0].mensaje, /el criterio del laboratorio no lo exige/);
+  // Si la suma pasa el emp, sí alerta.
+  const fuera = avisosPesas({ clase: 'E2', piezas, valores: [{ ...valores[0], correccionMg: 0.006 }], criterio: 'SUMA_EMP' });
+  assert.ok(fuera.some(a => a.tipo === 'aviso' && /R111 5\.3/.test(a.mensaje)));
+});
+
 test('una corrección justo en el límite emp − U no avisa', () => {
   const piezas = [{ nominalMg: 1 * KG, identificacion: '', activa: true, densidad: 7950, densidadU: 140 }];
   const valores = [{ nominalMg: 1 * KG, identificacion: '', correccionMg: 4, uMg: 1, k: 2 }];

@@ -6,7 +6,7 @@ import { Button } from '../../../../shared/components/ui/Button';
 import { useResource } from '../../../system/hooks/useResource';
 import { calibrationApi } from '../../api/calibration';
 import {
-  ACCIONES_METODO, AIRE, CIFRAS_U, CLASE_SUGERIDA, COBERTURA, EMPUJE, ESTADOS_VERSION, EXCENTRICIDAD, REPETIBILIDAD, SENTIDO_U,
+  ACCIONES_METODO, AIRE, APTITUD_PESAS, CIFRAS_U, CLASE_SUGERIDA, COBERTURA, EMPUJE, ESTADOS_VERSION, EXCENTRICIDAD, REPETIBILIDAD, SENTIDO_U,
   avisosMetodo, conRuta, diferencias, etiquetaRuta, leerRuta, textoValor, tocaRuta, validar,
 } from '../../domain/metodo';
 import { CancelButton, PrimaryButton, Segmented, ToneBadge } from '../primitives';
@@ -26,6 +26,7 @@ const SECCIONES = [
   },
   { id: 'conformidad', label: 'Conformidad', rutas: ['parametros.conformidad', 'parametros.empServicio', 'parametros.claseSugerida'] },
   { id: 'conveccion', label: 'Convección', rutas: ['parametros.conveccion'] },
+  { id: 'pesas', label: 'Pesas patrón', rutas: ['parametros.pesas'] },
   { id: 'densidades', label: 'Densidades', rutas: ['parametros.densidades'] },
   { id: 'avisos', label: 'Avisos', rutas: ['parametros.avisos'] },
   { id: 'uso', label: 'En uso y pesada mínima', rutas: ['parametros.enUso', 'parametros.pesadaMinima'] },
@@ -93,6 +94,10 @@ function Secciones({ cambios, avisos = [] }) {
         <CampoClases ruta="parametros.conveccion.clases" etiqueta="Clases de pesas" ayuda="EURAMET la pide en F1 o mejores." />
         <TablaEstabilizacion />
         <CampoNumero ruta="parametros.conveccion.deltaTSinDato" etiqueta="ΔT sin dato de estabilización" />
+      </Seccion>
+
+      <Seccion meta={S.pesas} titulo="Aptitud de las pesas patrón" cambios={cambios} descripcion="Cómo se decide si una pesa es apta para su clase con los valores de su certificado (Equipos › Patrones). No cambia el cálculo: las pesas se usan siempre con su corrección y su U del certificado (EURAMET 7.1.2).">
+        <CampoOpciones ruta="parametros.pesas.aptitud" etiqueta="Criterio de aptitud" opciones={APTITUD_PESAS} />
       </Seccion>
 
       <Seccion meta={S.densidades} titulo="Densidades por material" cambios={cambios} descripcion="Cuando la pieza no tiene su densidad medida, se supone la del material (OIML R111 B.7). Gana la primera fila con una palabra clave contenida en el material: el orden importa.">

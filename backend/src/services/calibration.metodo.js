@@ -14,7 +14,7 @@
  * primera vez que se abre la pantalla y el jefe la aprueba ahí. Las reglas de
  * cálculo (s de repetibilidad, factor de cobertura, redondeo de U, fórmula
  * del aire, excentricidad, banda de guarda, emp en servicio, clase sugerida,
- * USP ⟨41⟩) se eligen aquí entre opciones ya programadas y probadas, con sus
+ * USP ⟨41⟩, aptitud de las pesas patrón) se eligen aquí entre opciones ya programadas y probadas, con sus
  * valores; las fórmulas quedan en el código, validadas con los ejemplos de
  * las guías (7.11.2). Una regla nueva entra a las versiones guardadas antes
  * con el valor que reproduce el cálculo de entonces.
@@ -57,6 +57,7 @@ const contenidoInicial = () => {
       pesadaMinima: c.pesadaMinima,
       usp: c.usp,
       densidades: c.densidades,
+      pesas: c.pesas,
     },
     textos: TEXTOS,
   });
@@ -118,6 +119,7 @@ const esquema = z.object({
       rho: numero(500, 25000),
       u: numero(0, 2000),
     }).strict()).min(1, 'Hace falta al menos un material.').max(30, 'Admite hasta 30 materiales.'),
+    pesas: z.object({ aptitud: opcion(motor.CRITERIOS_APTITUD_PESAS, 'Elige el criterio de aptitud de las pesas patrón.') }).strict(),
   }).strict(),
   textos: z.object({
     metodo: texto(1000),
@@ -185,6 +187,7 @@ const configuracionMotor = (version, contenido) => {
     pesadaMinima: { exactitudes: [...p.pesadaMinima.exactitudes], factores: [...p.pesadaMinima.factores] },
     usp: { ...p.usp },
     densidades: p.densidades.map(d => ({ ...d, claves: [...d.claves] })),
+    pesas: { ...p.pesas },
   };
 };
 

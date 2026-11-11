@@ -159,6 +159,13 @@ Desde la pestaña Equipos y la ficha de cada equipo:
   del plan y de las alertas; su historial se conserva.
 - **Historial:** certificados, verificaciones realizadas y cada cambio
   (`CAL_EQUIPOS_HISTORIAL`).
+- **Pesas patrón:** la ficha del patrón muestra por pieza la OIML R111 5.2
+  (U ≤ emp/3) y 5.3 (|corrección| ≤ emp − U), si es apta y la clase que cumple.
+  El criterio de aptitud lo elige el laboratorio en Método de cálculo
+  (`parametros.pesas.aptitud`): `R111` exige las dos; `SUMA_EMP` («|corrección|
+  + U ≤ emp») solo avisa si falla la 5.3 y muestra la 5.2 como dato. Las
+  versiones anteriores del método quedan con `R111`. El cálculo no cambia: las
+  pesas se usan siempre con su corrección y su U del certificado.
 
 Si otro sistema cambia el certificado directamente en `DATA_EQUIPOS_CAL`, el
 módulo lo archiva como `EXTERNO` antes de reemplazarlo.

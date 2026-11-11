@@ -128,13 +128,15 @@ export const empR111 = (r111, clase, nominalMg) => {
 
 /**
  * Pieza apta para su clase solo con los valores de su certificado (la misma
- * regla que el servidor, aptaR111): U (k = 2) ≤ emp/3 (R111 5.2) y
- * |corrección| ≤ emp − U (5.3). apta es null si no se puede decidir; `motivo`
- * lo explica en una frase; `condiciones` trae las dos por separado (5.2 y 5.3,
- * con su valor, su límite y si se cumple) para mostrarlas cada una en su
- * columna, y `fallas` las que no se cumplen.
+ * regla que el servidor, aptaR111). Con el criterio R111: U (k = 2) ≤ emp/3
+ * (5.2) y |corrección| ≤ emp − U (5.3). Con SUMA_EMP (criterio del laboratorio
+ * en el método): |corrección| + U ≤ emp; la 5.2 se muestra pero no decide.
+ * apta es null si no se puede decidir; `motivo` lo explica en una frase;
+ * `condiciones` trae las dos por separado (5.2 y 5.3, con su valor, su límite,
+ * si se cumple y si se exige) para mostrarlas cada una en su columna, y
+ * `fallas` las exigidas que no se cumplen.
  */
-export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k }) => {
+export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k, criterio = 'R111' }) => {
   if (!clase) return { apta: null, motivo: 'Elige la clase del juego para calcularla.' };
   const emp = empR111(r111, clase, nominalMg);
   if (emp == null) return { apta: null, motivo: `La clase ${clase} no tiene este valor nominal (R111, Tabla 1).` };
@@ -153,18 +155,21 @@ export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k }) => {
   ];
   // Valores para leer, en mg y con 4 cifras significativas.
   const cifra = valor => formatNumber(Number(valor.toPrecision(4)));
+  const exigeU = criterio !== 'SUMA_EMP';
   const condiciones = [
     {
       norma: '5.2',
+      exigida: exigeU,
       cumple: cumpleU,
       valor: cifra(u2),
       limite: cifra(emp / 3),
       detalle: cumpleU
         ? `U (k = 2) = ${mg(u2)} no supera emp/3 = ${mg(emp / 3)}: la incertidumbre alcanza para la clase ${clase}.`
-        : `U (k = 2) = ${mg(u2)} supera emp/3 = ${mg(emp / 3)}: la incertidumbre del certificado es grande para la clase ${clase}.`,
+        : `U (k = 2) = ${mg(u2)} supera emp/3 = ${mg(emp / 3)}: ${exigeU ? `la incertidumbre del certificado es grande para la clase ${clase}` : 'la R111 lo pide para declarar la clase, pero el criterio del laboratorio no lo exige'}.`,
     },
     {
       norma: '5.3',
+      exigida: true,
       cumple: cumpleCorreccion,
       valor: cifra(Math.abs(c)),
       limite: cifra(Math.max(emp - u2, 0)),
@@ -174,29 +179,31 @@ export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k }) => {
     },
   ];
   const fallas = [
-    ...(cumpleU ? [] : [{ norma: '5.2', texto: 'U > emp/3', detalle: `La incertidumbre del certificado (${mg(u2)}) supera emp/3 (${mg(emp / 3)}).` }]),
+    ...(cumpleU || !exigeU ? [] : [{ norma: '5.2', texto: 'U > emp/3', detalle: `La incertidumbre del certificado (${mg(u2)}) supera emp/3 (${mg(emp / 3)}).` }]),
     ...(cumpleCorreccion ? [] : [{ norma: '5.3', texto: '|corr.| > emp − U', detalle: `La corrección (${mg(Math.abs(c))}) supera emp − U (${mg(Math.max(emp - u2, 0))}).` }]),
   ];
   return {
-    apta: cumpleU && cumpleCorreccion, emp, u2, cumpleU, cumpleCorreccion, condiciones, fallas, motivo: `emp ${clase}: ${mg(emp)}. ${motivos.join('; ')}.`,
+    apta: (cumpleU || !exigeU) && cumpleCorreccion, emp, u2, cumpleU, cumpleCorreccion, condiciones, fallas,
+    motivo: `emp ${clase}: ${mg(emp)}. ${motivos.join('; ')}.${exigeU ? '' : ' Criterio del laboratorio: decide |corrección| + U ≤ emp; la 5.2 es solo un dato.'}`,
   };
 };
 
 /**
  * La clase más exacta de la R111 que cumple la pieza con los valores de su
  * certificado: recorre las clases en su orden (E1, E2, F1, F2, M1…) y se queda
- * con la primera en la que cumple 5.2 y 5.3 para ese valor nominal. Sirve para
+ * con la primera en la que es apta para ese valor nominal, con el mismo
+ * criterio que «Apta» (R111: 5.2 y 5.3; SUMA_EMP: |corrección| + U ≤ emp). Sirve para
  * saber qué clase respalda el certificado cuando no alcanza la del juego (por
  * ejemplo, una U del laboratorio que no llega a E2 pero sí a F1).
  * { calculable, clase }: calculable es false si faltan la corrección, la U o
  * el k; clase es null si no cumple ninguna.
  */
-export const claseQueCumple = ({ r111, nominalMg, correccion, u, k }) => {
+export const claseQueCumple = ({ r111, nominalMg, correccion, u, k, criterio = 'R111' }) => {
   const [c, uValor, kValor] = [correccion, u, k].map(parseNumber);
   if (![c, uValor, kValor].every(Number.isFinite) || !(kValor > 0) || !Number.isFinite(nominalMg)) {
     return { calculable: false, clase: null };
   }
-  const clase = (r111?.clases || []).find(candidata => aptaPieza({ r111, clase: candidata, nominalMg, correccion, u, k }).apta === true);
+  const clase = (r111?.clases || []).find(candidata => aptaPieza({ r111, clase: candidata, nominalMg, correccion, u, k, criterio }).apta === true);
   return { calculable: true, clase: clase ?? null };
 };
 

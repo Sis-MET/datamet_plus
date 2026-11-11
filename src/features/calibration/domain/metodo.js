@@ -52,6 +52,12 @@ export const CLASE_SUGERIDA = [
   { value: 'POR_N', label: 'Solo por n', descripcion: 'Como el libro: por n = Max/e del rango mayor (hasta 1 000: IIII; 10 000: III; 100 000: II; más: I).' },
 ];
 
+/** Criterio de aptitud de las pesas patrón (el mismo que el backend: motor.CRITERIOS_APTITUD_PESAS). */
+export const APTITUD_PESAS = [
+  { value: 'R111', label: 'OIML R111 (5.2 y 5.3)', descripcion: 'Apta si U (k = 2) ≤ emp/3 y |corrección| ≤ emp − U. Es lo que pide la R111 para declarar la clase.' },
+  { value: 'SUMA_EMP', label: 'Criterio del laboratorio: |corrección| + U ≤ emp', descripcion: 'Solo avisa si la corrección más la U supera el emp de la clase. La comparación con emp/3 (5.2) se sigue mostrando como dato, sin aviso; útil cuando ningún laboratorio del país reporta U ≤ emp/3.' },
+];
+
 export const EMPUJE = [
   { value: '5b', label: '7.1.2-5b', descripcion: 'Con la densidad del aire de la calibración de las pesas (ρa1) cuando se conoce; más exacta en altura.' },
   { value: '5a', label: '7.1.2-5a', descripcion: 'Solo con la densidad del aire y de la pesa.' },
@@ -146,6 +152,7 @@ const ETIQUETAS = {
   'parametros.enUso.fracciones[]': 'En uso: carga de la tabla',
   'parametros.pesadaMinima.exactitudes[]': 'Pesada mínima: exactitud',
   'parametros.pesadaMinima.factores[]': 'Pesada mínima: factor de seguridad',
+  'parametros.pesas.aptitud': 'Regla: aptitud de las pesas patrón',
   'parametros.densidades': 'Densidades por material',
   'parametros.densidades[].material': 'Densidad: material',
   'parametros.densidades[].claves': 'Densidad: palabras clave',
@@ -169,7 +176,7 @@ export const etiquetaRuta = (ruta) => {
 };
 
 // Nombres de las opciones para leer las diferencias («ENCIERRAN» → «Ensayos que encierran la carga»).
-const NOMBRES_OPCION = Object.fromEntries([REPETIBILIDAD, COBERTURA, SENTIDO_U, AIRE, EXCENTRICIDAD, CLASE_SUGERIDA]
+const NOMBRES_OPCION = Object.fromEntries([REPETIBILIDAD, COBERTURA, SENTIDO_U, AIRE, EXCENTRICIDAD, CLASE_SUGERIDA, APTITUD_PESAS]
   .flat().map(o => [o.value, o.label]));
 
 /** Valor para leer en una diferencia; con la ruta, en la unidad en que se escribe. */

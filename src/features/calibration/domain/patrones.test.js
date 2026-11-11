@@ -158,6 +158,23 @@ describe('«Apta» según la OIML R111', () => {
     expect([claseInferior(tabla, 'F1', 'E2'), claseInferior(tabla, 'E1', 'E2'), claseInferior(tabla, 'E2', 'E2')]).toEqual([true, false, false]);
   });
 
+  it('con el criterio del laboratorio decide |corrección| + U ≤ emp y la 5.2 queda como dato', () => {
+    const tabla = { clases: ['E1', 'E2', 'F1'], emp: [[10, 0.003, 0.008, 0.025]] };
+    const pieza = { r111: tabla, clase: 'E2', nominalMg: 10, correccion: '0,002', u: '0,003', k: '2' };
+    const r111 = aptaPieza(pieza);
+    const laboratorio = aptaPieza({ ...pieza, criterio: 'SUMA_EMP' });
+    expect([r111.apta, laboratorio.apta]).toEqual([false, true]);
+    expect(laboratorio.condiciones.map(c => [c.norma, c.exigida, c.cumple])).toEqual([['5.2', false, false], ['5.3', true, true]]);
+    expect(laboratorio.fallas).toEqual([]);
+    expect(laboratorio.condiciones[0].detalle).toMatch(/el criterio del laboratorio no lo exige/);
+    expect(laboratorio.motivo).toMatch(/Criterio del laboratorio/);
+    // La clase que cumple sigue el mismo criterio: E2 con el del laboratorio, F1 con la R111.
+    expect(claseQueCumple({ ...pieza, criterio: 'SUMA_EMP' }).clase).toBe('E2');
+    expect(claseQueCumple(pieza).clase).toBe('F1');
+    // Si la suma se pasa del emp, no es apta con ningún criterio.
+    expect(aptaPieza({ ...pieza, correccion: '0,006', criterio: 'SUMA_EMP' }).apta).toBe(false);
+  });
+
   it('no decide sin clase, sin el valor nominal en la tabla o sin valores', () => {
     expect(aptaPieza({ r111: R111, clase: '', nominalMg: 1e6, correccion: '0', u: '1', k: '2' }).apta).toBeNull();
     expect(aptaPieza({ r111: R111, clase: 'F1', nominalMg: 3e6, correccion: '0', u: '1', k: '2' }).motivo).toMatch(/no tiene este valor nominal/);
