@@ -85,6 +85,7 @@ export const APP_VIEWS = {
         ],
       },
       { id: 'alertas', label: 'Alertas' },
+      { id: 'tiempos', label: 'Tiempos de servicio', visible: veTiempos('calibracion') },
       { id: 'cumplimiento', label: 'Cumplimiento' },
       // Versiones de la app de los técnicos y su aprobación (17025, 7.11.2).
       { id: 'servicemet', label: 'Versiones ServiceMET' },

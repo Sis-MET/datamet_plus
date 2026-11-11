@@ -28,6 +28,8 @@ router.get('/registros/:codigo/certificado', controller.getCertificado);
 router.get('/registros/:codigo/emisiones/:emision/pdf', controller.abrirCertificadoPdf);
 // Certificados emitidos: cada n.º con sus emisiones (libro de certificados).
 router.get('/emitidos', controller.listEmitidos);
+// Tiempos de servicio del personal (KPI): el jefe del área y Sistemas.
+router.get('/tiempos', controller.getTiempos);
 // Estado de los patrones para los certificados y su uso en los servicios del año.
 router.get('/patrones/estado', controller.getEstadoPatrones);
 // Validación del motor con los ejemplos publicados y sus evidencias registradas.

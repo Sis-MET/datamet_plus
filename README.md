@@ -232,6 +232,22 @@ y sus reglas en la skill `.claude/skills/nb-iso-17025`: cuando un cambio
 resuelva una brecha, actualiza el catálogo y sus pruebas. Los requisitos están
 resumidos con palabras propias; ante una duda manda el texto de la norma.
 
+### Tiempos de servicio
+
+Sección **Tiempos de servicio** (`GET /api/calibracion/tiempos?desde=&hasta=`), el
+mismo panel que en Soporte técnico: indicadores comparados con el período
+anterior, horas por mes, horas por rango de capacidad máxima (hasta 1 kg, de 1
+a 60 kg, de 60 kg a 1 500 kg y más) y una tarjeta por técnico. La ven el jefe de
+Calibración y Sistemas.
+
+- **Inicio:** `hora_inicio` del servicio (si falta, `hora`, la de las
+  condiciones ambientales iniciales). **Fin:** `hora_fin`, la de las
+  condiciones ambientales finales, que se toman al terminar; si el registro
+  del servicio la corrigió, vale la corregida.
+- El técnico se reconoce contra `DATA_USERS` como en el registro del
+  servicio, así sus variantes («Ing. Jorge Ortuño R.», «JORGE ORTUNO») suman
+  juntas; «Usuario sin datos» queda como *Sin identificar*.
+
 ### Alertas
 
 Cada serie usa los avisos generales o los suyos propios: días de anticipación y
@@ -466,7 +482,7 @@ consulta a otra área, se agrega en `MODULOS[...].consulta` de
 
 ### Tiempos de servicio
 
-Sección **Tiempos de servicio** (panel compartido en
+Sección **Tiempos de servicio** (también en Calibración, con el mismo panel,
 `src/features/tiempos`): los KPI del personal a partir de la hora de inicio y
 la hora final de cada servicio (`GET /api/soporte/tiempos?desde=&hasta=`, hasta
 tres años). La ven el jefe del área y Sistemas; el backend lo comprueba.

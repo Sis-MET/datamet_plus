@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { horaTexto, leerPeriodo } = require('../src/services/tiempos');
 const soporte = require('../src/services/soporte.tiempos');
+const calibracion = require('../src/services/calibration.tiempos');
 const { CLAVES_TIPO, TIPOS } = require('../src/services/soporte.tipos');
 
 test('el período se valida: fechas ISO, en orden y hasta tres años', () => {
@@ -36,4 +37,47 @@ test('Soporte: los 8 tipos vigentes del período con la OTST del informe', () =>
     codigo: 'C-1', grupo: 'MPR', orden: '26-0103-11-S01', fecha: '2026-02-09', inicio: '10:25', fin: '11:02',
     tecnico: 'Jorge De La Rocha', cliente: 'MONOPOL', planta: null, codMetrica: '0103-11-004', equipo: 'BALANZA',
   });
+});
+
+test('Calibración: capacidad en kg y su rango', () => {
+  assert.equal(calibracion.capacidadKg({ cap_max1: 220, unidades: 'g' }), 0.22);
+  assert.equal(calibracion.capacidadKg({ cap_max1: 30, cap_max2: 60, unidades: 'kg' }), 60);
+  assert.equal(calibracion.capacidadKg({ cap_max1: 3, unidades: 't' }), 3000);
+  assert.equal(calibracion.capacidadKg({ cap_max1: null, unidades: 'kg' }), null);
+  assert.equal(calibracion.capacidadKg({ cap_max1: 10, unidades: 'lb' }), null);
+  assert.equal(calibracion.rangoDe(0.22), 'HASTA_1KG');
+  assert.equal(calibracion.rangoDe(1), 'HASTA_1KG');
+  assert.equal(calibracion.rangoDe(60), 'HASTA_60KG');
+  assert.equal(calibracion.rangoDe(600), 'HASTA_1500KG');
+  assert.equal(calibracion.rangoDe(60000), 'MAS_1500KG');
+  assert.equal(calibracion.rangoDe(null), 'SIN_CAPACIDAD');
+  assert.deepEqual(calibracion.GRUPOS.map(g => g.id), ['HASTA_1KG', 'HASTA_60KG', 'HASTA_1500KG', 'MAS_1500KG', 'SIN_CAPACIDAD']);
+});
+
+test('Calibración: el técnico se reconoce en DATA_USERS y vale la hora final corregida', () => {
+  const usuarios = [
+    { id: 16, usuario: 'Ortuño', nombre1: 'Jorge', apellido1: 'Ortuño', apellido2: 'Ramirez', inicial: 'JOR', estado: 'ACTIVO' },
+    { id: 19, usuario: 'Galvez', nombre1: 'Antonio', apellido1: 'Galvez', apellido2: 'Flores', inicial: 'AGF', estado: 'ACTIVO' },
+  ];
+  const hora = (h, m) => new Date(Date.UTC(1970, 0, 1, h, m));
+  const fila = {
+    codigo_registro: 'C-1', seca: '0032-11-C20-26', fecha_servicio: new Date('2026-08-13T00:00:00Z'),
+    hora_inicio: hora(14, 17), hora: hora(14, 17), hora_fin: hora(14, 18), personal: 'Ing. Jorge Ortuño R.',
+    cliente: 'CBN', planta: 'LP', cod_metrica: '0032-11-001', tipo_equipo: 'BALANZA', cap_max1: 30, unidades: 'kg', registro_datos: null,
+  };
+  const base = calibracion.mapServicio(fila, usuarios);
+  assert.deepEqual([base.tecnico, base.grupo, base.orden, base.inicio, base.fin], ['Jorge Ortuño Ramirez', 'HASTA_60KG', '0032-11-C20-26', '14:17', '14:18']);
+  // Variantes del mismo técnico suman juntas.
+  assert.equal(calibracion.mapServicio({ ...fila, personal: 'JORGE ORTUNO' }, usuarios).tecnico, 'Jorge Ortuño Ramirez');
+  // ServiceMET sin técnico: sin identificar.
+  assert.equal(calibracion.mapServicio({ ...fila, personal: 'Usuario sin datos' }, usuarios).tecnico, null);
+  // Desconocido: el nombre escrito, sin título.
+  assert.equal(calibracion.mapServicio({ ...fila, personal: 'Pas. Kevin Aguilar  .' }, usuarios).tecnico, 'Kevin Aguilar');
+  // La hora final corregida en el registro reemplaza a la de ServiceMET.
+  const corregida = calibracion.mapServicio({ ...fila, registro_datos: JSON.stringify({ columnas: { hora_fin: '15:05' } }) }, usuarios);
+  assert.equal(corregida.fin, '15:05');
+  // Sin hora_inicio vale la de las condiciones iniciales (corregida si la hay).
+  const sinInicio = calibracion.mapServicio({ ...fila, hora_inicio: null, registro_datos: JSON.stringify({ columnas: { hora: '14:10' } }) }, usuarios);
+  assert.equal(sinInicio.inicio, '14:10');
+  assert.equal(calibracion.mapServicio({ ...fila, registro_datos: '{roto' }, usuarios).fin, '14:18');
 });

@@ -73,6 +73,8 @@ export const calibrationApi = {
   guardarAprobadores: (body) => write(api.put(`${BASE}/configuracion/aprobadores`, body)).then(response => response.data),
   // Libro de certificados emitidos (cada n.º con sus emisiones).
   emitidos: () => unwrap(api.get(`${BASE}/emitidos`)),
+  // Tiempos de servicio del personal (KPI) entre dos fechas (AAAA-MM-DD).
+  tiempos: ({ desde, hasta }) => unwrap(api.get(`${BASE}/tiempos`, { desde, hasta }, { timeout: 60000 })),
   // Validación del motor con los ejemplos publicados y sus evidencias (migración 022).
   validacion: (version) => unwrap(api.get(`${BASE}/validacion`, { version })),
   evidenciaValidacion: (id) => unwrap(api.get(`${BASE}/validacion/evidencias/${id}`)),

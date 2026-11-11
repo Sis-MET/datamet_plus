@@ -53,13 +53,14 @@ import { MetodoPagina } from './components/metodo/MetodoPagina';
 import { EmitidosPanel } from './components/emitidos/EmitidosPanel';
 import { PatronesPanel } from './components/patrones/PatronesPanel';
 import { ValidacionPagina } from './components/validacion/ValidacionPagina';
+import { TiemposPanel } from '../tiempos/components/TiemposPanel';
 import './calibration.css';
 
 const TAB_KEY = 'datamet_cal_tab';
 const VIEW_KEY = 'datamet_cal_view';
-const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'emitidos', 'patrones', 'alertas', 'cumplimiento', 'metodo', 'validacion', 'servicemet'];
+const TABS = ['cronograma', 'equipos', 'actividades', 'certificados', 'emitidos', 'patrones', 'alertas', 'tiempos', 'cumplimiento', 'metodo', 'validacion', 'servicemet'];
 // Secciones que no muestran el plan anual.
-const SIN_PLAN = new Set(['servicemet', 'certificados', 'emitidos', 'patrones', 'metodo', 'validacion']);
+const SIN_PLAN = new Set(['servicemet', 'certificados', 'emitidos', 'patrones', 'metodo', 'validacion', 'tiempos']);
 const VIEWS = ['anio', 'mes', 'agenda'];
 
 const STATUS_FILTERS = [
@@ -307,6 +308,14 @@ export function CalibrationPage() {
           version={historyVersion}
           onPiezas={equipoId => setSub({ type: 'patron', equipoId })}
           onEquipos={() => navegar(rutaDe('calibration', 'equipos'), { transicion: 'panel' })}
+        />
+      )}
+      {/* Tiempos de servicio del personal (KPI): el jefe del área y Sistemas. */}
+      {tab === 'tiempos' && (
+        <TiemposPanel
+          area="calibracion"
+          cargar={calibrationApi.tiempos}
+          onAbrir={servicio => navegar(rutaDe('calibration', 'certificados', servicio.codigo), { transicion: 'panel', alCambiar: () => window.scrollTo({ top: 0 }) })}
         />
       )}
       {tab === 'emitidos' && (

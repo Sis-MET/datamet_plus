@@ -72,12 +72,18 @@ describe('acceso a los apartados por área', () => {
     expect(findSection('soporte', 'avisos', comercial)).toBeNull();
   });
 
-  it('los tiempos de servicio de Soporte los ven su jefe y Sistemas', () => {
+  it('los tiempos de servicio los ven el jefe de cada área y Sistemas', () => {
     const secciones = (user, id) => getNavigation(user).find(view => view.id === id).sections.map(section => section.id);
     expect(secciones({ ...soporte, cargo: 'Jefe de Area' }, 'soporte')).toContain('tiempos');
     expect(secciones({ ...soporte, cargo: 'Técnico 3' }, 'soporte')).not.toContain('tiempos');
+    expect(secciones({ ...calibracion, cargo: 'Jefe de Área' }, 'calibration')).toContain('tiempos');
+    expect(secciones({ ...calibracion, cargo: 'Técnico' }, 'calibration')).not.toContain('tiempos');
+    // El jefe de otra área no ve los de Calibración (ni entra al apartado).
+    expect(secciones({ ...soporte, cargo: 'Jefe de Area' }, 'soporte')).toContain('tiempos');
+    expect(getNavigation({ ...soporte, cargo: 'Jefe de Area' }).find(view => view.id === 'calibration').sections).toEqual([]);
     expect(secciones(sistemas, 'soporte')).toContain('tiempos');
-    expect(findSection('soporte', 'tiempos', sistemas)?.label).toBe('Tiempos de servicio');
+    expect(secciones(sistemas, 'calibration')).toContain('tiempos');
+    expect(findSection('calibration', 'tiempos', sistemas)?.label).toBe('Tiempos de servicio');
   });
 
   it('la configuración de Soporte técnico solo la ve su jefe de área', () => {

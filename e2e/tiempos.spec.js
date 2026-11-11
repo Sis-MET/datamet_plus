@@ -161,6 +161,22 @@ test('el jefe de Soporte mide los tiempos del personal, filtra por técnico y ex
   await page.screenshot({ path: '.impeccable/review/tiempos-soporte-movil.png', fullPage: true });
 });
 
+test('el jefe de Calibración ve los tiempos por rango de capacidad', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await preparar(page, 'calibracion');
+  await page.goto('/calibracion/tiempos');
+
+  await expect(page.getByRole('heading', { name: 'Tiempos de servicio', level: 2 })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('condiciones ambientales finales', { exact: false })).toBeVisible();
+  await expect(page.getByText('Horas de servicio', { exact: true })).toBeVisible({ timeout: 30000 });
+  const grupos = page.getByRole('region', { name: 'Horas por capacidad máxima' });
+  await expect(grupos.getByRole('button', { name: /Hasta 1 kg/ })).toBeVisible();
+  await expect(grupos.getByRole('button', { name: /Sin capacidad registrada/ })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Personal' }).getByRole('article')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: /Abrir registro/ }).first()).toBeVisible();
+  await page.screenshot({ path: '.impeccable/review/tiempos-calibracion-desktop.png', fullPage: true });
+});
+
 test('con «reducir movimiento» las columnas y las cifras aparecen ya en su valor', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
