@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowedView, canUseView, findSection, getNavigation, managesCalibration } from './navigation';
+import { allowedView, canUseView, findSection, getNavigation, managesCalibration, soloConsulta } from './navigation';
 
 const calibracion = { area: 'Calibración', acceso_cron: '2' };
 const soporte = { area: 'Soporte Técnico', acceso_cron: 2 };
@@ -13,10 +13,10 @@ describe('acceso a los apartados por área', () => {
     expect(canUseView('soporte', soporte)).toBe(true);
     expect(canUseView('soporte', { area: ' soporte tecnico ' })).toBe(true);
     expect(canUseView('soporte', calibracion)).toBe(false);
-    for (const view of ['calibration', 'soporte', 'ivmet']) {
-      expect(canUseView(view, sistemas)).toBe(true);
-      expect(canUseView(view, comercial)).toBe(false);
-    }
+    for (const view of ['calibration', 'soporte', 'ivmet']) expect(canUseView(view, sistemas)).toBe(true);
+    for (const view of ['calibration', 'ivmet']) expect(canUseView(view, comercial)).toBe(false);
+    // Comercial consulta Soporte técnico (informes emitidos y próximos servicios).
+    expect(canUseView('soporte', comercial)).toBe(true);
     // Gestión IvMET: por ahora solo Sistemas, aunque el área coincida con algo.
     expect(canUseView('ivmet', { area: 'Sistemas', acceso_cron: '2' })).toBe(false);
     // Los demás apartados son de todos.
@@ -29,7 +29,7 @@ describe('acceso a los apartados por área', () => {
     const ids = menu.map(view => view.id);
     expect(ids).toEqual(expect.arrayContaining(['rim', 'calendar', 'calibration', 'soporte', 'ivmet']));
     expect(ids).not.toContain('changes');
-    expect(menu.filter(view => view.locked).map(view => view.id)).toEqual(['calibration', 'soporte', 'ivmet']);
+    expect(menu.filter(view => view.locked).map(view => view.id)).toEqual(['calibration', 'ivmet']);
     expect(getNavigation(sistemas).some(view => view.locked)).toBe(false);
     expect(getNavigation(soporte).filter(view => view.locked).map(view => view.id)).toEqual(['calibration', 'ivmet']);
   });
@@ -53,7 +53,23 @@ describe('acceso a los apartados por área', () => {
   });
 
   it('un apartado con candado no despliega secciones', () => {
-    expect(getNavigation(comercial).filter(view => view.sections.length).map(view => view.id)).toEqual(['rim']);
+    expect(getNavigation(comercial).filter(view => view.sections.length).map(view => view.id)).toEqual(['rim', 'soporte']);
+  });
+
+  it('Comercial solo consulta Soporte técnico: informes emitidos y próximos servicios', () => {
+    const vista = (user) => getNavigation(user).find(view => view.id === 'soporte');
+    expect(soloConsulta('soporte', comercial)).toBe(true);
+    expect(soloConsulta('soporte', { ...comercial, cargo: 'Jefe de Area' })).toBe(true);
+    expect(soloConsulta('soporte', soporte)).toBe(false);
+    expect(soloConsulta('soporte', { ...comercial, acceso_cron: '3' })).toBe(false);
+    expect(soloConsulta('calibration', comercial)).toBe(false);
+    expect(vista(comercial).consulta).toBe(true);
+    expect(vista(comercial).sections.map(s => [s.id, s.label])).toEqual([['informes', 'Informes emitidos'], ['proximos', 'Próximos servicios']]);
+    // Ni el jefe de Comercial ve Avisos, Tiempos o Configuración.
+    expect(vista({ ...comercial, cargo: 'Jefe de Area' }).sections.map(s => s.id)).toEqual(['informes', 'proximos']);
+    expect(vista(soporte).consulta).toBe(false);
+    expect(findSection('soporte', 'informes', comercial)?.label).toBe('Informes emitidos');
+    expect(findSection('soporte', 'avisos', comercial)).toBeNull();
   });
 
   it('la configuración de Soporte técnico solo la ve su jefe de área', () => {

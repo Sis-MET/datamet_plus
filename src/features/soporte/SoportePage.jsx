@@ -17,6 +17,17 @@ const ABIERTO = 'datamet_soporte_informe';
 const AGRUPAR = 'datamet_soporte_agrupar';
 const PESTANA = 'datamet_soporte_pestana';
 const PESTANAS = ['informes', 'proximos', 'avisos', 'configuracion'];
+// Las que ve también quien solo consulta (Comercial); las demás esperan los permisos.
+const DE_CONSULTA = ['informes', 'proximos'];
+
+/** ¿Puede ver la pestaña? null mientras no llegan los permisos. */
+const pestanaHabilitada = (pestana, permisos) => {
+  if (DE_CONSULTA.includes(pestana)) return true;
+  if (!permisos) return null;
+  if (permisos.consulta) return false;
+  if (pestana === 'configuracion') return permisos.configurarAprobadores === true;
+  return true;
+};
 
 /** Informe que quedó abierto, si sigue siendo válido: se reabre al volver a Soporte. */
 const leerAbierto = () => {
@@ -56,8 +67,9 @@ export function SoportePage() {
     },
   });
   const { data: permisos } = useResource(soporteApi.permisos);
-  const configurar = permisos?.configurarAprobadores === true;
-  const pestana = pestanaRuta === 'configuracion' && !configurar ? 'informes' : pestanaRuta;
+  const consulta = permisos?.consulta === true;
+  const habilitada = pestanaHabilitada(pestanaRuta, permisos);
+  const pestana = habilitada === false ? 'informes' : habilitada === null ? null : pestanaRuta;
   const [tipoAbierto, codigoAbierto] = detalle;
   const abierto = detalle.length === 2 && PLANTILLAS[tipoAbierto] ? { tipo: tipoAbierto, codigo: codigoAbierto } : null;
 
@@ -96,7 +108,7 @@ export function SoportePage() {
   return (
     <main className={`mx-auto flex w-full flex-col gap-4 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 ${ancho}`}>
       <div className="vt-panel flex flex-col gap-4">
-      {!abierto && pestana === 'configuracion' && configurar && <AprobadoresPanel />}
+      {!abierto && pestana === 'configuracion' && <AprobadoresPanel />}
       {abierto && (
         <InformeEditor key={`${abierto.tipo}:${abierto.codigo}`} tipo={abierto.tipo} codigo={abierto.codigo} onVolver={cerrar} />
       )}
@@ -105,6 +117,7 @@ export function SoportePage() {
       {pestana === 'avisos' && <div hidden={Boolean(abierto)}><AvisosPanel onAbrirInforme={abrir} /></div>}
       {!abierto && pestana === 'informes' && (
         <InformesLista
+          consulta={consulta}
           filtros={filtros}
           page={page}
           agrupar={agrupar}

@@ -183,6 +183,52 @@ test('cambiar la OTST exige motivo, recalcula el número y cada revisión conser
   assert.equal(JSON.parse(almacen.informe.datos).otst, 'OT-002');
 });
 
+test('Comercial consulta solo la revisión emitida y no puede modificar el informe', async () => {
+  reset();
+  const comercialUser = { id: 3, usuario: 'comercial', acceso_cron: 2 };
+  const comercial = () => { personal = { area: 'Comercial', cargo: 'Auxiliar Comercial', nombre: 'Comercial', activo: true }; };
+
+  comercial();
+  const permisos = await informes.permisos(comercialUser);
+  assert.deepEqual([permisos.editar, permisos.aprobar, permisos.consulta], [false, false, true]);
+  // Pendiente o en borrador: todavía no existe para Comercial.
+  await assert.rejects(informes.getInforme('MPR', 'ST-001', comercialUser), e => e.statusCode === 404 && /no se emitió/.test(e.message));
+  await assert.rejects(informes.guardarCambios('MPR', 'ST-001', { ...version(), cambios: { comentario_general: 'Cambio' } }, comercialUser),
+    e => e.statusCode === 403);
+
+  tecnico();
+  await informes.guardarCambios('MPR', 'ST-001', { ...version(), cambios: { comentario_general: 'Rev. 0 entregada.' } }, usuario);
+  comercial();
+  await assert.rejects(informes.getInforme('MPR', 'ST-001', comercialUser), e => e.statusCode === 404);
+
+  tecnico();
+  await informes.enviarValidacion('MPR', 'ST-001', version(), usuario);
+  await aprobar();
+  await informes.emitirInforme('MPR', 'ST-001', version(), usuario);
+  // El área abre la Rev. 1 y cambia datos y OTST en el borrador.
+  await informes.abrirRevision('MPR', 'ST-001', { ...version(), motivo: 'Corrección pedida por el cliente' }, usuario);
+  await informes.guardarCambios('MPR', 'ST-001', { ...version(), cambios: { comentario_general: 'Borrador de la Rev. 1' } }, usuario);
+  await informes.cambiarOtst('MPR', 'ST-001', { ...version(), otst: 'OT-009', motivo: 'ServiceMET registró la OTST de otra visita.' }, usuario);
+  assert.equal(almacen.informe.estado, 'EN_REVISION');
+
+  comercial();
+  const visto = await informes.getInforme('MPR', 'ST-001', comercialUser);
+  assert.equal(visto.consulta, true);
+  assert.equal(visto.estado, 'EMITIDO');
+  assert.equal(visto.revision, 0);
+  assert.equal(visto.revisionAbierta, null);
+  assert.equal(visto.datos.comentario_general, 'Rev. 0 entregada.');
+  assert.deepEqual([visto.numero, visto.otst], ['OT-001-001', 'OT-001']);
+  assert.deepEqual(visto.historial, []);
+  assert.deepEqual(visto.acciones, { editar: false, aprobar: false, redaccion: false });
+  assert.equal(visto.trazabilidad.actualizadoPor, null);
+  assert.deepEqual(visto.revisiones.map(copia => copia.revision), [0]);
+  // El área sigue viendo su borrador.
+  tecnico();
+  const area = await informes.getInforme('MPR', 'ST-001', usuario);
+  assert.deepEqual([area.estado, area.datos.comentario_general, area.numero], ['EN_REVISION', 'Borrador de la Rev. 1', 'OT-009-001']);
+});
+
 test('un delegado aprueba y su revocación, baja o cambio de área se aplican en la siguiente solicitud', async () => {
   reset();
   personal.aprobador_delegado = 1;

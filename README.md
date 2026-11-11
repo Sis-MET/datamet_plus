@@ -10,7 +10,7 @@ Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, num
 - **Evidencias:** Subida de fotos con drag & drop y previsualización.
 - **Diseño con la marca Métrica:** la paleta del sitio de Métrica (blanco hueso, amarillo y azul METTLER TOLEDO) en tokens de `src/index.css`, con tema claro y oscuro (sigue al sistema hasta que se elige uno desde la barra superior), tipografía Figtree autoalojada y vidrio solo en capas flotantes (barra superior, menús, avisos).
 - **Barra lateral:** módulos, sesión y cierre de sesión; se oculta o muestra con `Ctrl+B` (`⌘B` en macOS) y en móvil se abre como panel.
-- **Acceso por área:** todos ven Calibración, Soporte técnico y Gestión IvMET en la barra lateral, pero solo los usa el personal de su área (Calibración, Soporte Técnico; IvMET por ahora solo Sistemas). Sistemas, que en `DATA_USERS` es el nivel 3 (`acceso_cron = 3`), entra a todos para revisar errores. Quien no es del área ve un candado en el menú y, al abrirlo, el apartado difuminado con un aviso; el apartado no se monta ni pide datos, y el backend responde 403 (`AREA_ACCESS_DENIED`) a sus rutas (`backend/src/services/access.areas.js`).
+- **Acceso por área:** todos ven Calibración, Soporte técnico y Gestión IvMET en la barra lateral, pero solo los usa el personal de su área (Calibración, Soporte Técnico; IvMET por ahora solo Sistemas). Sistemas, que en `DATA_USERS` es el nivel 3 (`acceso_cron = 3`), entra a todos para revisar errores. Quien no es del área ve un candado en el menú y, al abrirlo, el apartado difuminado con un aviso; el apartado no se monta ni pide datos, y el backend responde 403 (`AREA_ACCESS_DENIED`) a sus rutas (`backend/src/services/access.areas.js`). **Comercial solo consulta Soporte técnico:** ve los informes emitidos y los próximos servicios, sin modificar nada (ver *Consulta de Comercial*).
 - **Responsive:** Adaptable a dispositivos móviles y escritorio.
 - **Gestión IvMET:** panel administrativo para clientes contratados, licencias, planes y revisión del catálogo sincronizado.
 - **Cronograma del personal:** actividades por persona y vehículo. Escriben los niveles 2 y 3 y los jefes de área. Los jefes de área (cargo «Jefe de Area», sin importar tildes ni mayúsculas) editan libremente todas las actividades: también las de fechas pasadas y las que reservan un vehículo a nombre de otra persona. El resto del nivel 2 edita de hoy en adelante y solo sus propias reservas de vehículo; Sistemas (nivel 3), todo. El servidor aplica las mismas reglas (`vehicleReservation.policy.js`).
@@ -441,6 +441,28 @@ Para «Mejorar redacción», en `backend/.env`:
 
 La clave no va en variables `VITE_` ni en el repositorio: el navegador llama
 a `/api/soporte/redaccion` y el backend llama a Gemini.
+
+### Consulta de Comercial
+
+El área Comercial (`DATA_USERS.area = 'Comercial'`) abre Soporte técnico en
+modo consulta, con dos secciones:
+
+- **Informes emitidos:** solo los informes emitidos, en la revisión que tiene
+  el cliente. Si el área abrió una revisión nueva, Comercial sigue viendo la
+  emitida (datos, fotos, número y OTST de su copia), nunca el borrador. Los
+  abre para verlos, imprimirlos o descargar una copia; abre los PDF ya
+  guardados en el archivo del área, pero no guarda en él. No ve el historial
+  interno, la validación ni quién editó.
+- **Próximos servicios:** la línea de tiempo y la ficha de cada equipo, sin
+  registrar seguimiento; desde la ficha abre solo los informes emitidos.
+
+El backend lo hace cumplir: en `soporte.routes.js` solo las rutas de lectura
+del router `consulta` admiten ese nivel y todo lo demás exige el área
+(`soloArea`), así una ruta nueva queda cerrada a Comercial por omisión. La
+lista, el detalle y los PDF filtran lo que no está emitido (404). Para dar
+consulta a otra área, se agrega en `MODULOS[...].consulta` de
+`backend/src/services/access.areas.js` y en `APP_VIEWS.soporte.consulta` de
+`src/shared/components/layout/navigation.js`.
 
 ### Próximos servicios
 

@@ -128,12 +128,93 @@ const mapDetalle = ({ tipo, codigo, fuente, informe, fotos, historial, columnas,
   };
 };
 
+/** Informes que ve quien solo consulta: los emitidos (también con una revisión en borrador). */
+const PUBLICADOS = new Set(['EMITIDO', 'EN_REVISION']);
+const esPublicado = (informe) => PUBLICADOS.has(informe?.estado);
+
+const NO_EMITIDO = 'Ese informe todavía no se emitió: desde Comercial se consultan solo los informes emitidos.';
+
+/** Exige que el informe esté emitido (para quien solo consulta). */
+const exigirPublicado = async (tipo, codigo) => {
+  const informe = await leerInforme(tipo, codigo);
+  if (!esPublicado(informe)) throw httpError(404, NO_EMITIDO);
+  return informe;
+};
+
+/**
+ * Fotos de una revisión emitida tal como se entregó: las de la copia, en su
+ * orden y con su descripción (las fotos nunca se borran, solo se quitan).
+ */
+const fotosDeCopia = async (informeId, fotosCopia) => {
+  const ids = fotosCopia.map(foto => Number(foto.id)).filter(Number.isInteger);
+  if (ids.length === 0) return [];
+  const request = getPool().request().input('informe', sql.Int, informeId);
+  ids.forEach((id, index) => request.input(`f${index}`, sql.Int, id));
+  const result = await request.query(`
+    SELECT id, nombre, tipo, contenido, subido_por, subido_en FROM dbo.ST_INFORMES_FOTOS
+    WHERE informe_id = @informe AND id IN (${ids.map((_, index) => `@f${index}`).join(', ')});`);
+  const porId = new Map(result.recordset.map(row => [row.id, row]));
+  return fotosCopia
+    .filter(foto => porId.has(Number(foto.id)))
+    .map(foto => ({ ...porId.get(Number(foto.id)), orden: foto.orden, descripcion: foto.descripcion ?? null }));
+};
+
+/**
+ * Lo que ve quien solo consulta (Comercial): la revisión emitida vigente tal
+ * como se entregó, aunque el área tenga abierta la siguiente en borrador. Sin
+ * el historial interno, la validación ni quién la editó.
+ */
+const getInformeConsulta = async (tipo, codigo, informe, columnas) => {
+  if (!esPublicado(informe)) throw httpError(404, NO_EMITIDO);
+  const revision = informe.revision ?? 0;
+  const copia = await revisiones.leerCopia(getPool().request(), informe.id, revision);
+  // Sin copia (emitido antes de que se guardaran) solo sirve lo vigente si no hay borrador encima.
+  if (!copia && informe.estado !== 'EMITIDO') {
+    throw httpError(404, 'La revisión emitida de este informe no está disponible. Pida una copia al área de Soporte Técnico.');
+  }
+  const [fuente, fotos, copias] = await Promise.all([
+    copia ? copia.fuente : leerFuente(tipo, codigo, columnas),
+    copia
+      ? fotosDeCopia(informe.id, copia.fotos)
+      : getPool().request().input('id', sql.Int, informe.id).query(`
+        SELECT id, orden, descripcion, nombre, tipo, contenido, subido_por, subido_en
+        FROM dbo.ST_INFORMES_FOTOS WHERE informe_id = @id AND quitada_en IS NULL
+        ORDER BY orden, id;`).then(result => result.recordset),
+    revisiones.listarCopias(getPool().request(), informe.id),
+  ]);
+  const emitido = {
+    ...informe,
+    estado: 'EMITIDO',
+    numero: copia?.numero || informe.numero,
+    datos: copia ? JSON.stringify(copia.datos) : informe.datos,
+  };
+  const detalle = mapDetalle({
+    tipo, codigo, fuente, informe: emitido, fotos, historial: [], columnas, nombres: new Map(),
+    editar: false, copias: copias.filter(item => item.revision <= revision),
+  });
+  return {
+    ...detalle,
+    consulta: true,
+    trazabilidad: {
+      creadoPor: null,
+      creadoEn: null,
+      actualizadoPor: null,
+      actualizadoEn: null,
+      emitidoPor: copia?.emitidoPor || (informe.emitido_por ? { usuario: informe.emitido_por, nombre: null } : null),
+      emitidoEn: copia?.emitidoEn || iso(informe.emitido_en),
+    },
+    fotos: detalle.fotos.map(foto => ({ ...foto, subidoPor: null })),
+    validacion: { estado: 'APROBADO', enviadaPor: null, enviadaEn: null, resueltaPor: null, resueltaEn: null, observacion: null },
+  };
+};
+
 const getInforme = async (tipo, codigo, user) => {
   const columnas = await columnasDe(tipo);
   const [informe, actor] = await Promise.all([
     leerInforme(tipo, codigo),
     permisos(user),
   ]);
+  if (actor.consulta) return getInformeConsulta(tipo, codigo, informe, columnas);
   // Un PDF emitido usa la fuente congelada al emitir, incluso si ServiceMET
   // repone después el servicio. Los cambios se revisan al abrir otra revisión.
   const publicada = informe?.estado === 'EMITIDO'
@@ -170,6 +251,7 @@ const getInforme = async (tipo, codigo, user) => {
 const getRevision = async (tipo, codigo, revision) => {
   const informe = await leerInforme(tipo, codigo);
   if (!informe) throw httpError(404, 'El informe no existe.');
+  // Toda copia es de una revisión emitida, así que quien solo consulta también la ve.
   const copia = await revisiones.leerCopia(getPool().request(), informe.id, revision);
   if (!copia) throw httpError(404, `No hay copia de la Rev. ${revision}: el informe se emitió antes de que se guardaran.`);
   const ids = copia.fotos.map(foto => foto.id);
@@ -203,4 +285,4 @@ const getRevision = async (tipo, codigo, revision) => {
   };
 };
 
-module.exports = { getInforme, getRevision, leerFuente, leerInforme, mapDetalle, nombresDe };
+module.exports = { esPublicado, exigirPublicado, getInforme, getRevision, leerFuente, leerInforme, mapDetalle, nombresDe };

@@ -60,12 +60,18 @@ const CLAVE_GRUPO_SQL = {
 
 /**
  * Servicios con su informe. `o.otst` es la OTST vigente: la que corrigió el
- * área (ST_INFORMES.datos.otst) o, si no, la de ServiceMET (`f.otst`).
+ * área (ST_INFORMES.datos.otst) o, si no, la de ServiceMET (`f.otst`). Para
+ * quien solo consulta (`consulta`) cuentan la OTST y el número de la revisión
+ * emitida (`rv`), no los de una revisión abierta en borrador.
  */
-const fromInformes = (tipos) => `
+const fromInformes = (tipos, { consulta = false } = {}) => `
   FROM (${tipos.map(fuenteDe).join('\n  UNION ALL')}) f
-  LEFT JOIN dbo.ST_INFORMES i ON i.tipo = f.tipo AND i.codigo_registro = f.codigo_registro
-  CROSS APPLY (SELECT COALESCE(NULLIF(LTRIM(RTRIM(JSON_VALUE(i.datos, '$.otst'))), N''), f.otst) AS otst) o`;
+  LEFT JOIN dbo.ST_INFORMES i ON i.tipo = f.tipo AND i.codigo_registro = f.codigo_registro${consulta ? `
+  LEFT JOIN dbo.ST_INFORMES_REVISIONES rv ON rv.informe_id = i.id AND rv.revision = i.revision` : ''}
+  CROSS APPLY (SELECT COALESCE(NULLIF(LTRIM(RTRIM(JSON_VALUE(${consulta ? 'COALESCE(rv.datos, i.datos)' : 'i.datos'}, '$.otst'))), N''), f.otst) AS otst) o`;
+
+/** Número del informe; para quien solo consulta, el de la revisión emitida. */
+const numeroSql = ({ consulta = false } = {}) => (consulta ? `COALESCE(rv.numero, ${NUMERO_SQL})` : NUMERO_SQL);
 
 /**
  * WHERE de la lista. Con `conTipo` / `conEstado` en false omite ese filtro
@@ -80,7 +86,7 @@ const buildWhere = (filtros, { conTipo = true, conEstado = true } = {}) => {
     add('q', sql.NVarChar(200), `%${escapeLike(filtros.q)}%`);
     // La OTST anterior también encuentra el informe.
     const columnas = ['f.codigo_registro', 'o.otst', 'f.otst', 'f.cliente', 'f.planta', 'f.cod_metrica', 'f.serie',
-      'f.personal', 'f.tipo_equipo', 'f.marca', 'f.modelo', `(${NUMERO_SQL})`];
+      'f.personal', 'f.tipo_equipo', 'f.marca', 'f.modelo', `(${numeroSql(filtros)})`];
     where.push(`(${columnas.map(columna => `${columna} LIKE @q ESCAPE '\\'`).join(' OR ')})`);
   }
   if (filtros.cliente) {
@@ -112,6 +118,8 @@ const buildWhere = (filtros, { conTipo = true, conEstado = true } = {}) => {
     add('estado', sql.VarChar(20), filtros.estado);
     where.push(`${ESTADO_SQL} = @estado`);
   }
+  // Quien solo consulta ve los informes emitidos (también con una revisión abierta).
+  if (filtros.consulta) where.push(`i.estado IN ('EMITIDO', 'EN_REVISION')`);
   if (filtros.validacion) {
     add('validacion', sql.VarChar(20), filtros.validacion);
     where.push(`ISNULL(i.validacion_estado, 'BORRADOR') = @validacion AND ISNULL(i.estado, 'BORRADOR') <> 'EMITIDO'`);
@@ -130,12 +138,12 @@ const buildListQuery = (filtros) => {
       text: `
         SELECT f.tipo, f.codigo_registro, o.otst, f.fecha_servicio, f.personal, f.cliente, f.planta,
           f.cod_metrica, f.tipo_equipo, f.marca, f.modelo, f.serie,
-          ${NUMERO_SQL} AS numero,
+          ${numeroSql(filtros)} AS numero,
           ${ESTADO_SQL} AS estado,
           i.id AS informe_id, i.revision, i.actualizado_en, i.emitido_en, i.validacion_estado,
           (SELECT COUNT(*) FROM dbo.ST_INFORMES_FOTOS ft WHERE ft.informe_id = i.id AND ft.quitada_en IS NULL) AS fotos,
           COUNT(*) OVER () AS total
-        ${fromInformes(tiposFila)}
+        ${fromInformes(tiposFila, filtros)}
         ${where}
         ORDER BY ${filtros.por === 'otst'
           // Dentro de una OTST, en el orden de los instrumentos (001, 002…).
@@ -147,7 +155,7 @@ const buildListQuery = (filtros) => {
     counts: {
       text: `
         SELECT f.tipo, ${ESTADO_SQL} AS estado, COUNT(*) AS cantidad
-        ${fromInformes(CLAVES_TIPO)}
+        ${fromInformes(CLAVES_TIPO, filtros)}
         ${conteo.where}
         GROUP BY f.tipo, ${ESTADO_SQL};`,
       params: conteo.params,
@@ -168,7 +176,7 @@ const buildGroupsQuery = (filtros) => {
     WITH base AS (
       SELECT f.tipo, o.otst, f.tecnico_clave, f.cliente, f.planta, f.fecha_servicio,
         ${clave} AS clave, ${ESTADO_SQL} AS estado
-      ${fromInformes(filtros.tipo ? [filtros.tipo] : CLAVES_TIPO)}
+      ${fromInformes(filtros.tipo ? [filtros.tipo] : CLAVES_TIPO, filtros)}
       ${where}
     )`;
   return {
@@ -268,54 +276,74 @@ const runQuery = (query, request = getPool().request()) => {
   return request.query(query.text);
 };
 
-const listInformes = async (filtros, user) => {
+/**
+ * Quien solo consulta (Comercial) ve los informes emitidos y no filtra por
+ * estado ni por validación: esos filtros se ignoran.
+ */
+const filtrosDe = (filtros, actor) => (actor?.consulta
+  ? { ...filtros, consulta: true, estado: undefined, validacion: undefined }
+  : filtros);
+
+/** Para quien consulta, un informe con una revisión en borrador sigue siendo el emitido. */
+const comoEmitido = (item) => ({ ...item, estado: 'EMITIDO', validacionEstado: 'BORRADOR', actualizadoEn: item.emitidoEn });
+const estadosEmitidos = (estados) => ({
+  PENDIENTE: 0, BORRADOR: 0, EMITIDO: (estados.EMITIDO || 0) + (estados.EN_REVISION || 0), EN_REVISION: 0,
+});
+
+const listInformes = async (filtrosPedidos, user) => {
+  const actor = await permisos(user);
+  const filtros = filtrosDe(filtrosPedidos, actor);
   const query = buildListQuery(filtros);
-  const [rows, counts, actor] = await Promise.all([
-    runQuery(query.rows),
-    runQuery(query.counts),
-    permisos(user),
-  ]);
+  const [rows, counts] = await Promise.all([runQuery(query.rows), runQuery(query.counts)]);
+  const resumen = mapResumen(counts.recordset, filtros);
   return {
-    items: rows.recordset.map(mapFila),
+    items: rows.recordset.map(mapFila).map(item => (actor.consulta ? comoEmitido(item) : item)),
     total: rows.recordset[0]?.total ?? 0,
     page: filtros.page,
     pageSize: filtros.pageSize,
-    resumen: mapResumen(counts.recordset, filtros),
-    acciones: { editar: actor.editar },
+    resumen: actor.consulta ? { ...resumen, estados: estadosEmitidos(resumen.estados) } : resumen,
+    acciones: { editar: actor.editar, consulta: actor.consulta },
   };
 };
 
 /** Lista agrupada por OTST o por técnico. */
-const listGrupos = async (filtros, user) => {
+const listGrupos = async (filtrosPedidos, user) => {
+  const actor = await permisos(user);
+  const filtros = filtrosDe(filtrosPedidos, actor);
   const query = buildGroupsQuery(filtros);
   const { counts } = buildListQuery({ ...filtros, grupo: undefined });
-  const [grupos, conteos, actor] = await Promise.all([
-    runQuery(query.grupos),
-    runQuery(counts),
-    permisos(user),
-  ]);
+  const [grupos, conteos] = await Promise.all([runQuery(query.grupos), runQuery(counts)]);
   const claves = grupos.recordset.map(row => row.clave);
   const detalle = claves.length ? (await runQuery(query.detalle(claves))).recordset : [];
+  const resumen = mapResumen(conteos.recordset, filtros);
   return {
     por: filtros.por,
-    grupos: grupos.recordset.map(row => mapGrupo(row, detalle)),
+    grupos: grupos.recordset.map(row => mapGrupo(row, detalle))
+      .map(grupo => (actor.consulta ? { ...grupo, estados: estadosEmitidos(grupo.estados) } : grupo)),
     total: grupos.recordset[0]?.total_grupos ?? 0,
     totalInformes: grupos.recordset[0]?.total_informes ?? 0,
     page: filtros.page,
     pageSize: filtros.pageSize,
-    resumen: mapResumen(conteos.recordset, filtros),
-    acciones: { editar: actor.editar },
+    resumen: actor.consulta ? { ...resumen, estados: estadosEmitidos(resumen.estados) } : resumen,
+    acciones: { editar: actor.editar, consulta: actor.consulta },
   };
 };
 
-/** Clientes y técnicos con servicios, para el panel de filtros. */
-const getFiltros = async () => {
+/**
+ * Clientes y técnicos con servicios, para el panel de filtros. Para quien
+ * solo consulta, los que tienen algún informe emitido.
+ */
+const getFiltros = async (user) => {
+  const actor = user ? await permisos(user) : {};
+  const fuente = `(${CLAVES_TIPO.map(fuenteDe).join('\n UNION ALL')}) f${actor.consulta ? `
+    INNER JOIN dbo.ST_INFORMES i ON i.tipo = f.tipo AND i.codigo_registro = f.codigo_registro
+      AND i.estado IN ('EMITIDO', 'EN_REVISION')` : ''}`;
   const result = await getPool().request().query(`
     SELECT DISTINCT 'cliente' AS clase, LTRIM(RTRIM(f.cliente)) AS valor
-    FROM (${CLAVES_TIPO.map(fuenteDe).join('\n UNION ALL')}) f WHERE NULLIF(LTRIM(RTRIM(f.cliente)), N'') IS NOT NULL
+    FROM ${fuente} WHERE NULLIF(LTRIM(RTRIM(f.cliente)), N'') IS NOT NULL
     UNION
     SELECT DISTINCT 'tecnico', f.tecnico_clave
-    FROM (${CLAVES_TIPO.map(fuenteDe).join('\n UNION ALL')}) f WHERE f.tecnico_clave IS NOT NULL;`);
+    FROM ${fuente} WHERE f.tecnico_clave IS NOT NULL;`);
   const de = (clase) => result.recordset
     .filter(row => row.clase === clase)
     .map(row => row.valor)
@@ -331,6 +359,9 @@ module.exports = {
   buildGroupsQuery,
   buildListQuery,
   claveTecnico,
+  claveTecnicoSql,
+  filtrosDe,
+  fuenteDe,
   getFiltros,
   listGrupos,
   listInformes,

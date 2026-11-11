@@ -1,29 +1,41 @@
 const express = require('express');
 const controller = require('../controllers/soporte.controller');
 const { protect } = require('../middleware/auth.middleware');
-const { requireArea } = require('../middleware/area.middleware');
+const { requireArea, soloArea } = require('../middleware/area.middleware');
+
+// Lo que también consulta Comercial: los informes emitidos (con sus PDF y
+// revisiones) y los próximos servicios, sin modificar nada. Los servicios
+// filtran lo que ve quien solo consulta (solo informes emitidos).
+const consulta = express.Router();
+consulta.get('/permisos', controller.permisos);
+consulta.get('/documentos/:id/pdf', controller.abrirDocumento);
+consulta.get('/informes', controller.listInformes);
+consulta.get('/informes/filtros', controller.getFiltros);
+consulta.get('/informes/grupos', controller.listGrupos);
+consulta.get('/informes/:tipo/:codigo', controller.getInforme);
+consulta.get('/informes/:tipo/:codigo/documentos', controller.documentos);
+consulta.get('/informes/:tipo/:codigo/revisiones/:revision', controller.getRevision);
+consulta.get('/proximos', controller.proximosPlan);
+consulta.get('/proximos/resumen', controller.proximosResumen);
+consulta.get('/proximos/equipos/:codMetrica', controller.proximosEquipo);
 
 const router = express.Router();
 
-// Todo el apartado: área Soporte Técnico y Sistemas (nivel 3). El resto del
-// personal lo ve bloqueado en la aplicación.
-router.use(protect, requireArea('soporte'));
+// Área Soporte Técnico y Sistemas (nivel 3); Comercial solo las rutas de
+// `consulta`. Todo lo que no está ahí es solo del área. El resto del personal
+// ve el apartado bloqueado en la aplicación.
+router.use(protect, requireArea('soporte', { consulta: true }));
+router.use(consulta);
+router.use(soloArea('soporte'));
 
-router.get('/permisos', controller.permisos);
 router.get('/configuracion/aprobadores', controller.aprobadores);
 router.put('/configuracion/aprobadores', controller.guardarAprobadores);
 
 router.get('/documentos/carpetas', controller.carpetas);
-router.get('/documentos/:id/pdf', controller.abrirDocumento);
-router.get('/informes/:tipo/:codigo/documentos', controller.documentos);
 router.post('/informes/:tipo/:codigo/documentos', express.raw({ type: 'application/pdf', limit: '30mb' }), controller.guardarDocumento);
 
-router.get('/informes', controller.listInformes);
-router.get('/informes/filtros', controller.getFiltros);
-router.get('/informes/grupos', controller.listGrupos);
 // Sugerencia de redacción con Google Gemini.
 router.post('/redaccion', controller.redaccion);
-router.get('/informes/:tipo/:codigo', controller.getInforme);
 router.post('/informes/:tipo/:codigo/cambios', controller.guardarCambios);
 // Cambio de OTST con su motivo (cambia el número del informe).
 router.post('/informes/:tipo/:codigo/otst', controller.cambiarOtst);
@@ -35,16 +47,12 @@ router.post('/informes/:tipo/:codigo/validacion/retirar', controller.retirarVali
 router.post('/informes/:tipo/:codigo/revision', controller.abrirRevision);
 router.post('/informes/:tipo/:codigo/revision/cancelar', controller.cancelarRevision);
 router.post('/informes/:tipo/:codigo/reemision', controller.reemitir);
-router.get('/informes/:tipo/:codigo/revisiones/:revision', controller.getRevision);
 router.post('/informes/:tipo/:codigo/fotos', controller.agregarFoto);
 router.post('/informes/:tipo/:codigo/fotos/orden', controller.ordenarFotos);
 router.put('/informes/:tipo/:codigo/fotos/:fotoId', controller.editarFoto);
 router.post('/informes/:tipo/:codigo/fotos/:fotoId/quitar', controller.quitarFoto);
 
-// Próximos servicios sugeridos por los técnicos y su seguimiento.
-router.get('/proximos', controller.proximosPlan);
-router.get('/proximos/resumen', controller.proximosResumen);
-router.get('/proximos/equipos/:codMetrica', controller.proximosEquipo);
+// Seguimiento de los próximos servicios sugeridos por los técnicos.
 router.post('/proximos/seguimiento', controller.registrarSeguimiento);
 
 // Avisos por correo de los próximos servicios.

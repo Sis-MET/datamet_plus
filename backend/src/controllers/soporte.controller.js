@@ -74,7 +74,7 @@ module.exports = {
     if (!filtros.por) throw Object.assign(new Error('Indique cómo agrupar: otst o tecnico.'), { statusCode: 400 });
     return informes.listGrupos(filtros, req.user);
   }),
-  getFiltros: handle(() => informes.getFiltros()),
+  getFiltros: handle(req => informes.getFiltros(req.user)),
   redaccion: handle(req => informes.sugerirRedaccion(parse('redaccion', req.body), req.user)),
   getInforme: handle((req) => {
     const { tipo, codigo } = clave(req);

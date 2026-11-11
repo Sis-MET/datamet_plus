@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
-  AlertCircle, Camera, ChevronDown, ChevronLeft, ChevronRight, FileText, Hash, List, Search, SlidersHorizontal, UserRound, X,
+  AlertCircle, Camera, ChevronDown, ChevronLeft, ChevronRight, FileText, Hash, Info, List, Search, SlidersHorizontal, UserRound, X,
 } from 'lucide-react';
 import { Button } from '../../../shared/components/ui/Button';
 import { cn } from '../../../shared/utils/cn';
@@ -54,7 +54,7 @@ function Busqueda({ value, onChange }) {
   );
 }
 
-function PanelFiltros({ id, filtros, opciones, onChange }) {
+function PanelFiltros({ id, filtros, opciones, onChange, consulta = false }) {
   const baseId = useId();
   const campo = (key, label, control) => (
     <div className="min-w-0">
@@ -64,7 +64,7 @@ function PanelFiltros({ id, filtros, opciones, onChange }) {
   );
   return (
     <section id={id} aria-label="Filtros de los informes" className="card grid gap-x-4 gap-y-3 p-4 shadow-card sm:grid-cols-2 lg:grid-cols-4">
-      {campo('validacion', 'Validación del informe', (
+      {!consulta && campo('validacion', 'Validación del informe', (
         <Dropdown id={`${baseId}-validacion`} ariaLabel="Validación" value={filtros.validacion || ''}
           onChange={validacion => onChange({ validacion })}
           options={[{ value: '', label: 'Todas las validaciones' }, ...Object.entries(ESTADOS_VALIDACION).map(([value, meta]) => ({ value, label: meta.label }))]} />
@@ -119,7 +119,7 @@ const ETIQUETA_FILTRO = {
   hasta: (v) => `Hasta ${formatoFecha(v)}`,
 };
 
-function Filtros({ filtros, opciones, resumen, total, agrupar, onAgrupar, onChange, onClear }) {
+function Filtros({ filtros, opciones, resumen, total, agrupar, onAgrupar, onChange, onClear, consulta = false }) {
   const [abierto, setAbierto] = useState(false);
   const [reinicio, setReinicio] = useState(0);
   const panelId = useId();
@@ -173,10 +173,11 @@ function Filtros({ filtros, opciones, resumen, total, agrupar, onAgrupar, onChan
         ))}
       </div>
 
-      {abierto && <PanelFiltros id={panelId} filtros={filtros} opciones={opciones} onChange={onChange} />}
+      {abierto && <PanelFiltros id={panelId} filtros={filtros} opciones={opciones} onChange={onChange} consulta={consulta} />}
 
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
-        <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
+        {/* Quien solo consulta ve únicamente los emitidos: no filtra por estado. */}
+        {!consulta && <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
           {Object.entries(ESTADOS_INFORME).map(([value, estado]) => {
             const conteo = resumen?.estados?.[value] ?? 0;
             return (
@@ -195,7 +196,7 @@ function Filtros({ filtros, opciones, resumen, total, agrupar, onAgrupar, onChan
               </button>
             );
           })}
-        </div>
+        </div>}
         {hayFiltros(filtros) && (
           <button
             type="button"
@@ -492,7 +493,7 @@ function ContenidoGrupo({ grupo, por, filtros, onOpen }) {
   );
 }
 
-function Grupo({ grupo, por, filtros, abierto, onToggle, onOpen }) {
+function Grupo({ grupo, por, filtros, abierto, onToggle, onOpen, consulta = false }) {
   const contenidoId = useId();
   return (
     <section className="card overflow-hidden shadow-card">
@@ -515,7 +516,7 @@ function Grupo({ grupo, por, filtros, abierto, onToggle, onOpen }) {
           <span className="hidden flex-none text-[12.5px] font-medium tabular-nums text-fg-muted sm:block">
             {plural(grupo.total, ['informe', 'informes'])}
           </span>
-          <BarraEstados estados={grupo.estados} total={grupo.total} />
+          {!consulta && <BarraEstados estados={grupo.estados} total={grupo.total} />}
         </button>
       </h3>
       {abierto && (
@@ -545,9 +546,10 @@ function Esqueleto() {
 /**
  * Lista de los servicios de Soporte técnico que subió ServiceMET, con el
  * estado de su informe, agrupada por OTST, por técnico o sin agrupar. Al
- * abrir uno se edita y se imprime.
+ * abrir uno se edita y se imprime. Con `consulta` (Comercial) el servidor
+ * manda solo los informes emitidos, que se abren para verlos e imprimirlos.
  */
-export function InformesLista({ filtros, page, agrupar, abiertos, onFiltros, onPage, onAgrupar, onAbiertos, onOpen }) {
+export function InformesLista({ filtros, page, agrupar, abiertos, onFiltros, onPage, onAgrupar, onAbiertos, onOpen, consulta = false }) {
   const agrupado = agrupar !== 'ninguno';
   const load = useCallback(() => (agrupado
     ? soporteApi.grupos({ ...activos(filtros), por: agrupar, page, pageSize: GRUPOS_POR_PAGINA })
@@ -586,9 +588,20 @@ export function InformesLista({ filtros, page, agrupar, abiertos, onFiltros, onP
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="sr-only">Informes de soporte técnico</h2>
+      <h2 className="sr-only">{consulta ? 'Informes emitidos de soporte técnico' : 'Informes de soporte técnico'}</h2>
+
+      {consulta && (
+        <p className="flex items-start gap-2 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-[13px] text-fg-muted">
+          <Info className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
+          <span>
+            Informes emitidos por Soporte Técnico, en la revisión que tiene el cliente. Puede verlos, imprimirlos y
+            descargarlos; si alguno necesita una corrección, pídala al área.
+          </span>
+        </p>
+      )}
 
       <Filtros
+        consulta={consulta}
         filtros={filtros}
         opciones={opciones}
         resumen={data?.resumen}
@@ -613,10 +626,15 @@ export function InformesLista({ filtros, page, agrupar, abiertos, onFiltros, onP
       {!data && !error && <Esqueleto />}
 
       {vacio && (
-        <EmptyState icon={FileText} title={hayFiltros(filtros) ? 'Ningún informe coincide con los filtros' : 'Todavía no hay servicios de soporte'}>
+        <EmptyState
+          icon={FileText}
+          title={hayFiltros(filtros) ? 'Ningún informe coincide con los filtros'
+            : consulta ? 'Todavía no hay informes emitidos' : 'Todavía no hay servicios de soporte'}
+        >
           {hayFiltros(filtros)
             ? 'Cambie o limpie los filtros para ver otros informes.'
-            : 'Los servicios aparecen aquí cuando el técnico los sube desde ServiceMET.'}
+            : consulta ? 'Los informes aparecen aquí cuando Soporte Técnico los emite.'
+              : 'Los servicios aparecen aquí cuando el técnico los sube desde ServiceMET.'}
         </EmptyState>
       )}
 
@@ -645,6 +663,7 @@ export function InformesLista({ filtros, page, agrupar, abiertos, onFiltros, onP
                 abierto={abiertos.has(claveGrupo(grupo))}
                 onToggle={() => alternar(grupo)}
                 onOpen={onOpen}
+                consulta={consulta}
               />
             ))}
           </div>

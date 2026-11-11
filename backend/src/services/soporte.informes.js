@@ -33,7 +33,7 @@ const {
   normalizarFuente,
   planCambios,
 } = require('./soporte.columnas');
-const { exigirEditor, permisos, puedeEditarArea } = require('./soporte.permisos');
+const { exigirEditor, exigirLector, permisos, puedeEditarArea } = require('./soporte.permisos');
 const {
   buildGroupsQuery,
   buildListQuery,
@@ -45,7 +45,7 @@ const {
   mapGrupo,
   mapResumen,
 } = require('./soporte.lista');
-const { getInforme, getRevision, leerFuente, leerInforme, mapDetalle } = require('./soporte.detalle');
+const { esPublicado, exigirPublicado, getInforme, getRevision, leerFuente, leerInforme, mapDetalle } = require('./soporte.detalle');
 const {
   CONFLICTO,
   LIMPIAR_VALIDACION,
@@ -517,6 +517,7 @@ module.exports = {
   planCambios,
   // Permisos.
   exigirEditor,
+  exigirLector,
   permisos,
   puedeEditarArea,
   // Lista.
@@ -530,6 +531,8 @@ module.exports = {
   mapGrupo,
   mapResumen,
   // Detalle.
+  esPublicado,
+  exigirPublicado,
   getInforme,
   getRevision,
   mapDetalle,

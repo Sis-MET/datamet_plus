@@ -133,3 +133,28 @@ test('controla permisos, borrados y cambios externos antes de entregar el PDF', 
   await assert.rejects(sinConfigurar.carpetas('', user), status(503));
   await assert.rejects(crearArchivo(path.join(root, 'no-existe')).listar(), status(503));
 });
+
+test('quien solo consulta abre los PDF emitidos de informes emitidos, nunca un borrador', async t => {
+  const { servicio, repositorio, rows } = await fixture(t);
+  const emitido = await servicio.guardar('MPR', 'ST-001', meta(), pdf, user);
+  // Un borrador registrado (de antes de que se rechazaran) tampoco se muestra.
+  rows().push({ ...rows()[0], id: '00000000-0000-4000-8000-000000000001', borrador: true, nombre: 'Borrador.pdf' });
+  const consulta = { usuario: 'comercial', consulta: true };
+  const publicados = new Set(['MPR:ST-001']);
+  repositorio.lector = async (actor, clave) => {
+    if (actor.autorizado) return { consulta: false };
+    if (!actor.consulta) throw Object.assign(new Error('Sin permiso'), { statusCode: 403 });
+    if (clave && !publicados.has(`${clave.tipo}:${clave.codigo}`)) throw Object.assign(new Error('No emitido'), { statusCode: 404 });
+    return { consulta: true };
+  };
+  assert.deepEqual((await servicio.listar('MPR', 'ST-001', consulta)).documentos.map(d => d.id), [emitido.id]);
+  assert.equal((await servicio.listar('MPR', 'ST-001', user)).documentos.length, 2);
+  assert.deepEqual((await servicio.abrir(emitido.id, consulta)).contenido, pdf);
+  await assert.rejects(servicio.abrir('00000000-0000-4000-8000-000000000001', consulta), status(404));
+  publicados.clear();
+  await assert.rejects(servicio.abrir(emitido.id, consulta), status(404));
+  await assert.rejects(servicio.listar('MPR', 'ST-001', consulta), status(404));
+  await assert.rejects(servicio.listar('MPR', 'ST-001', { usuario: 'otro' }), status(403));
+  // Guardar sigue siendo del área.
+  await assert.rejects(servicio.guardar('MPR', 'ST-001', meta({ nombre: 'Otro.pdf' }), pdf, consulta), status(403));
+});

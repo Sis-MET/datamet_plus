@@ -25,15 +25,27 @@ const presentar = row => ({ id: row.id, nombre: row.nombre, carpeta: row.carpeta
 // Inyección del repositorio para comprobar disco/registro sin una BD operativa.
 function crearServicio({ raiz, repositorio }) {
   const archivo = crearArchivo(raiz);
+  /**
+   * Quién lee el archivo: el área (todo) o quien solo consulta (Comercial),
+   * que ve únicamente los PDF de las revisiones emitidas de informes emitidos.
+   * `clave` ({ tipo, codigo }) comprueba además el informe.
+   */
+  const lector = async (user, clave) => {
+    if (repositorio.lector) return repositorio.lector(user, clave);
+    if (clave) await repositorio.contexto(clave.tipo, clave.codigo, user);
+    else await repositorio.autorizar(user);
+    return { consulta: false };
+  };
   return {
     async carpetas(carpeta, user) {
       await repositorio.autorizar(user);
       return archivo.listar(carpeta);
     },
     async listar(tipo, codigo, user) {
-      await repositorio.contexto(tipo, codigo, user);
+      const { consulta } = await lector(user, { tipo, codigo });
       if (!archivo.configurado) return { configurado: false, documentos: [] };
-      return { configurado: true, nombreRaiz: path.basename(raiz), documentos: (await repositorio.listar(tipo, codigo)).map(presentar) };
+      const filas = (await repositorio.listar(tipo, codigo)).filter(row => !(consulta && row.borrador));
+      return { configurado: true, nombreRaiz: path.basename(raiz), documentos: filas.map(presentar) };
     },
     async guardar(tipo, codigo, query, contenido, user) {
       const meta = metadatos(query);
@@ -70,9 +82,10 @@ function crearServicio({ raiz, repositorio }) {
       }
     },
     async abrir(id, user) {
-      await repositorio.autorizar(user);
+      const { consulta } = await lector(user);
       const row = await repositorio.buscar(uuid(id));
-      if (!row) throw error(404, 'No se encontró el PDF guardado.');
+      if (!row || (consulta && row.borrador)) throw error(404, 'No se encontró el PDF guardado.');
+      if (consulta) await lector(user, { tipo: row.tipo, codigo: row.codigo_registro });
       const destino = await archivo.resolver(row.carpeta);
       if (destino.raizHuella !== row.raiz_huella) throw error(409, 'La ubicación del archivo del área cambió. Solicite revisar la configuración del servidor.');
       const pdf = await archivo.leer(row.carpeta, row.nombre);
@@ -90,6 +103,15 @@ function repositorioSql() {
   return {
     autorizar: informes.exigirEditor,
     contexto: (tipo, codigo, user, meta, factory) => informes.contextoArchivo(tipo, codigo, user, meta, factory),
+    async lector(user, clave) {
+      const actor = await informes.exigirLector(user);
+      if (actor.editar) {
+        if (clave) await informes.contextoArchivo(clave.tipo, clave.codigo, user);
+        return { consulta: false };
+      }
+      if (clave) await informes.exigirPublicado(clave.tipo, clave.codigo);
+      return { consulta: true };
+    },
     transaccion: withTransaction,
     async listar(tipo, codigo) {
       const result = await request().input('tipo', sql.VarChar(10), tipo).input('codigo', sql.NVarChar(100), codigo)

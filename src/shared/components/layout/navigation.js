@@ -6,12 +6,15 @@ const normalizeArea = (value) => String(value || '')
   .trim()
   .toLowerCase();
 
+/** Jefe de un área por su área y su cargo («Jefe de Area», sin importar tildes ni espacios). */
+const esJefeDe = (areaId) => (user) => normalizeArea(user?.area) === areaId
+  && normalizeArea(user?.cargo).replace(/\s+/g, ' ') === 'jefe de area';
+
 /**
  * Jefe de Soporte Técnico: el único que ve la configuración de aprobadores.
  * Es solo para el menú; la página y el backend lo vuelven a comprobar.
  */
-const esJefeSoporte = (user) => normalizeArea(user?.area) === 'soporte tecnico'
-  && normalizeArea(user?.cargo).replace(/\s+/g, ' ') === 'jefe de area';
+const esJefeSoporte = esJefeDe('soporte tecnico');
 
 // Módulos de la aplicación. `inNav` refleja los accesos visibles en la barra
 // lateral: Salidas del personal solo se abre desde una vista guardada.
@@ -96,6 +99,12 @@ export const APP_VIEWS = {
       { id: 'avisos', label: 'Avisos' },
       { id: 'configuracion', label: 'Configuración', visible: esJefeSoporte },
     ],
+    // Comercial solo consulta: los informes emitidos y los próximos servicios.
+    consulta: {
+      areas: ['comercial'],
+      secciones: ['informes', 'proximos'],
+      etiquetas: { informes: 'Informes emitidos' },
+    },
     badgeSection: 'proximos',
   },
   ivmet: {
@@ -145,14 +154,26 @@ export const isSystemAdmin = (user) => String(user?.acceso_cron) === '3';
 export const canManageIvmet = isSystemAdmin;
 
 /**
+ * ¿El usuario solo consulta el apartado? Un área de `consulta` (Comercial en
+ * Soporte técnico) lo abre sin editar y solo con algunas secciones.
+ */
+export const soloConsulta = (view, user) => {
+  const config = APP_VIEWS[view];
+  if (!config?.consulta || isSystemAdmin(user)) return false;
+  const area = normalizeArea(user?.area);
+  return area !== config.area?.id && config.consulta.areas.includes(area);
+};
+
+/**
  * Los apartados de un área (`area`) los ve todo el personal, pero solo los
- * usan esa área y Sistemas; los demás ven el aviso de acceso restringido. El
- * backend vuelve a comprobarlo en cada petición.
+ * usan esa área y Sistemas (y, para consultar, las áreas de `consulta`); los
+ * demás ven el aviso de acceso restringido. El backend vuelve a comprobarlo en
+ * cada petición.
  */
 export const canUseView = (view, user) => {
   const area = APP_VIEWS[view]?.area;
   if (!area) return true;
-  return isSystemAdmin(user) || (area.id !== null && normalizeArea(user?.area) === area.id);
+  return isSystemAdmin(user) || (area.id !== null && normalizeArea(user?.area) === area.id) || soloConsulta(view, user);
 };
 
 /**
@@ -179,10 +200,16 @@ export function getNavigation(user) {
     .filter(view => view.inNav && (!view.requiresAdmin || isSystemAdmin(user)))
     .map((view) => {
       const locked = !canUseView(view.id, user);
+      const consulta = soloConsulta(view.id, user);
       const sections = locked
         ? []
-        : (view.sections || []).filter(section => !section.visible || section.visible(user));
-      return { ...view, locked, sections };
+        : (view.sections || [])
+          .filter(section => !consulta || view.consulta.secciones.includes(section.id))
+          .filter(section => !section.visible || section.visible(user))
+          .map(section => (consulta && view.consulta.etiquetas?.[section.id]
+            ? { ...section, label: view.consulta.etiquetas[section.id] }
+            : section));
+      return { ...view, locked, consulta, sections };
     });
 }
 

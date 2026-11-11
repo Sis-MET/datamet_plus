@@ -441,7 +441,7 @@ const getAlertSettings = async (user) => {
     contactos,
     envios,
     historial,
-    permisos: { editar: actor.editar },
+    permisos: { editar: actor.editar, consulta: actor.consulta === true },
     correo: { ...mailStatus(), alertasActivas: env.soporte.alertsEnabled },
   };
 };
@@ -496,7 +496,7 @@ const getPlan = async ({ anio, user }) => {
     hoy,
     anio,
     ajustes: { alertaDias: ajustes.alertaDias, alertaFrecuencia: ajustes.alertaFrecuencia },
-    permisos: { editar: actor.editar },
+    permisos: { editar: actor.editar, consulta: actor.consulta === true },
     resumen: resumen(equipos, alertas),
     equipos: equipos.filter(equipo => conEventos.has(equipo.id)).map(publicarEquipo),
     eventos,
@@ -524,7 +524,7 @@ const getEquipo = async (codMetrica, user) => {
   return {
     hoy,
     ajustes: { alertaDias: ajustes.alertaDias, alertaFrecuencia: ajustes.alertaFrecuencia },
-    permisos: { editar: actor.editar },
+    permisos: { editar: actor.editar, consulta: actor.consulta === true },
     equipo: { ...equipo, servicios: [...equipo.servicios].reverse(), proximo: equipo.proximo ? sinAlerta(equipo.proximo) : null },
     seguimiento: seguimiento.map(publicarGestion).reverse(),
   };

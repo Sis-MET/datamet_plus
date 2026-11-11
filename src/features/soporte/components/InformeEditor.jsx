@@ -262,6 +262,8 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
   const plantilla = PLANTILLAS[tipo];
   const secciones = useMemo(() => seccionesEditor(plantilla), [plantilla]);
   const editable = Boolean(informe?.acciones?.editar);
+  // Comercial: la revisión emitida vigente, sin historial interno ni archivo del área.
+  const consulta = Boolean(informe?.consulta);
   const emitido = informe?.estado === 'EMITIDO';
   const enRevision = informe?.estado === 'EN_REVISION';
   // Un informe emitido no se edita: primero se abre una revisión.
@@ -470,7 +472,11 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
           notas: notasRevision(copia.revisiones),
         },
       };
-      if (modo === 'pdf') setDestinoServidor({ ...copiaDoc, revision, version: informe.version });
+      if (modo === 'pdf' && !editable) {
+        // Sin acceso al archivo del área: una copia en esta computadora.
+        const destino = await pedirDestino(copiaDoc.titulo);
+        if (destino !== undefined) setGuardandoPdf({ destino, documento: copiaDoc.documento, titulo: copiaDoc.titulo });
+      } else if (modo === 'pdf') setDestinoServidor({ ...copiaDoc, revision, version: informe.version });
       else setRevisionDoc(copiaDoc);
     } catch (failure) {
       toast.error(failure.message);
@@ -513,9 +519,10 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
     { value: 'vista', label: 'Vista previa', icon: <Eye className="h-4 w-4" aria-hidden="true" /> },
     {
       value: 'historial',
-      label: 'Historial',
+      // Quien consulta no ve el historial interno: solo las revisiones emitidas.
+      label: consulta ? 'Revisiones' : 'Historial',
       icon: <History className="h-4 w-4" aria-hidden="true" />,
-      count: informe.historial.length || undefined,
+      count: (consulta ? informe.revisiones?.length : informe.historial.length) || undefined,
     },
   ];
 
@@ -561,15 +568,17 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
               {imprimiendo ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Printer className="h-4 w-4" aria-hidden="true" />}
               Imprimir
             </Button>
-            <Button
-              variant="secondary"
-              onClick={guardarPdf}
-              disabled={!emitido || Boolean(guardandoPdf) || cantidadPendientes > 0}
-              title={!emitido ? 'Apruebe y emita el informe antes de guardar el PDF' : cantidadPendientes > 0 ? 'Guarde los cambios antes de guardar el PDF' : 'Guardar el informe como PDF en la carpeta que elija'}
-            >
-              <FolderOpen className="h-4 w-4" aria-hidden="true" />
-              Guardar PDF
-            </Button>
+            {editable && (
+              <Button
+                variant="secondary"
+                onClick={guardarPdf}
+                disabled={!emitido || Boolean(guardandoPdf) || cantidadPendientes > 0}
+                title={!emitido ? 'Apruebe y emita el informe antes de guardar el PDF' : cantidadPendientes > 0 ? 'Guarde los cambios antes de guardar el PDF' : 'Guardar el informe como PDF en la carpeta que elija'}
+              >
+                <FolderOpen className="h-4 w-4" aria-hidden="true" />
+                Guardar PDF
+              </Button>
+            )}
             <Button variant="ghost" onClick={descargarCopia} disabled={!emitido || Boolean(guardandoPdf) || cantidadPendientes > 0} title={!emitido ? 'Apruebe y emita el informe antes de descargar' : 'Descargar una copia en esta computadora'}>
               <Download className="h-4 w-4" aria-hidden="true" /> Descargar copia
             </Button>
@@ -613,7 +622,9 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
       {!editable && (
         <p className="flex items-center gap-2 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-[13px] text-fg-muted">
           <Info className="h-4 w-4 flex-none" aria-hidden="true" />
-          Solo lectura: los informes los editan el área de Soporte Técnico y Sistemas. Puede verlos, imprimirlos y guardarlos en PDF.
+          {consulta
+            ? `Informe emitido${informe.revision > 0 ? ` · Rev. ${informe.revision}` : ''}: es la versión que tiene el cliente. Puede verlo, imprimirlo y descargar una copia; si necesita una corrección, pídala a Soporte Técnico.`
+            : 'Solo lectura: los informes los editan el área de Soporte Técnico y Sistemas. Puede verlos, imprimirlos y guardarlos en PDF.'}
         </p>
       )}
 
@@ -657,13 +668,16 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
         </section>
       )}
 
-      {emitido && archivo && !cargandoArchivo && !errorArchivo && !pdfVigente && <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm text-fg">
+      {editable && emitido && archivo && !cargandoArchivo && !errorArchivo && !pdfVigente && <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm text-fg">
         <FolderOpen className="h-5 w-5 shrink-0" aria-hidden="true" />
         <p className="min-w-0 flex-1"><strong>PDF pendiente de guardar.</strong> El informe ya está emitido. Elija una carpeta para guardar esta revisión.</p>
         <Button variant="secondary" onClick={guardarPdf}>Elegir carpeta</Button>
       </div>}
-      <DocumentosPanel documentos={documentos} nombreRaiz={archivo?.nombreRaiz} error={errorArchivo} cargando={cargandoArchivo}
-        onRecargar={recargarArchivo} onAbrir={setPdfAbierto} />
+      {/* Quien solo consulta no guarda en el archivo del área: lo ve solo si ya hay PDF. */}
+      {(editable || documentos.length > 0) && (
+        <DocumentosPanel documentos={documentos} nombreRaiz={archivo?.nombreRaiz} error={errorArchivo} cargando={cargandoArchivo}
+          onRecargar={recargarArchivo} onAbrir={setPdfAbierto} />
+      )}
 
       <Segmented
         label="Partes del informe"
@@ -695,7 +709,7 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
                 onImprimir={revision => cargarRevision(revision, 'imprimir')}
                 onPdf={revision => cargarRevision(revision, 'pdf')}
               />
-              <HistorialPanel informe={informe} plantilla={plantilla} />
+              {!consulta && <HistorialPanel informe={informe} plantilla={plantilla} />}
             </>
           )}
           {tab === 'vista' && <VistaPrevia {...documento} />}
@@ -796,7 +810,8 @@ export function InformeEditor({ tipo, codigo, onVolver }) {
         onClose={() => setDestinoServidor(null)} onGuardado={recargarArchivo} />}
       {pdfAbierto && <PdfGuardadoModal key={pdfAbierto.id} documento={pdfAbierto} onClose={() => setPdfAbierto(null)} />}
       {guardandoPdf && (
-        <GuardadoPdf {...documento} titulo={titulo} destino={guardandoPdf.destino} onTerminar={() => setGuardandoPdf(null)} />
+        <GuardadoPdf {...(guardandoPdf.documento || documento)} titulo={guardandoPdf.titulo || titulo}
+          destino={guardandoPdf.destino} onTerminar={() => setGuardandoPdf(null)} />
       )}
       {revisionDoc?.modo === 'imprimir' && (
         <Impresion {...revisionDoc.documento} titulo={revisionDoc.titulo} onTerminar={() => setRevisionDoc(null)} />

@@ -230,6 +230,31 @@ test('la lista une los 8 servicios vigentes y filtra con parámetros', () => {
   assert.match(soloMpa.counts.text, /DATA_SERVICIOS_DATOS_RVD/);
 });
 
+test('quien solo consulta ve los emitidos con el número y la OTST de la revisión emitida', () => {
+  const { filtrosDe } = require('../src/services/soporte.lista');
+  // Comercial no filtra por estado ni por validación: siempre los emitidos.
+  const pedidos = filtros({ estado: 'borrador', validacion: 'PENDIENTE', q: '26-0015' });
+  const consulta = filtrosDe(pedidos, { consulta: true });
+  assert.equal(consulta.consulta, true);
+  assert.equal(consulta.estado, undefined);
+  assert.equal(consulta.validacion, undefined);
+  assert.equal(filtrosDe(pedidos, { consulta: false }), pedidos);
+
+  const query = buildListQuery(consulta);
+  assert.match(query.rows.text, /i\.estado IN \('EMITIDO', 'EN_REVISION'\)/);
+  assert.match(query.counts.text, /i\.estado IN \('EMITIDO', 'EN_REVISION'\)/);
+  assert.match(query.rows.text, /LEFT JOIN dbo\.ST_INFORMES_REVISIONES rv ON rv\.informe_id = i\.id AND rv\.revision = i\.revision/);
+  assert.match(query.rows.text, /COALESCE\(rv\.numero, /);
+  assert.match(query.rows.text, /JSON_VALUE\(COALESCE\(rv\.datos, i\.datos\), '\$\.otst'\)/);
+  assert.equal(params(query.rows).estado, undefined);
+  assert.equal(params(query.rows).validacion, undefined);
+  assert.match(buildGroupsQuery({ ...consulta, por: 'otst' }).grupos.text, /i\.estado IN \('EMITIDO', 'EN_REVISION'\)/);
+
+  // El área ve todo, sin la copia de la revisión.
+  const area = buildListQuery(filtros());
+  assert.doesNotMatch(area.rows.text, /ST_INFORMES_REVISIONES|i\.estado IN/);
+});
+
 test('los conteos de un chip respetan el filtro del otro', () => {
   const rows = [
     { tipo: 'MPR', estado: 'PENDIENTE', cantidad: 5 },

@@ -1,6 +1,6 @@
-/** Quién edita, emite y aprueba los informes de Soporte técnico. */
+/** Quién edita, emite, aprueba y consulta los informes de Soporte técnico. */
 const { getPool, sql } = require('../config/db');
-const { permiteArea } = require('./access.areas');
+const { permiteArea, permiteConsulta } = require('./access.areas');
 const { httpError } = require('./soporte.validation');
 const aprobacion = require('./soporte.aprobacion');
 
@@ -21,11 +21,24 @@ const datosUsuario = async (user) => {
     autorizado: row.aprobador_delegado === 1 || row.aprobador_delegado === true, activo: Boolean(result.recordset[0]) };
 };
 
-const permisos = async (user) => {
-  const { area, nombre, cargo, activo, autorizado } = await datosUsuario(user);
-  return { editar: activo && puedeEditarArea(area, user?.acceso_cron), aprobar: activo && aprobacion.puedeAprobar({ area, cargo, autorizado }),
-    configurarAprobadores: activo && aprobacion.esJefeArea({ area, cargo }), nombre };
+/**
+ * Permisos del usuario en Soporte técnico a partir de su fila de DATA_USERS.
+ * `consulta`: un área que solo consulta (Comercial) ve los informes emitidos
+ * y los próximos servicios, sin modificar.
+ */
+const permisosDe = ({ area, nombre, cargo, activo, autorizado }, user) => {
+  const editar = activo && puedeEditarArea(area, user?.acceso_cron);
+  const jefe = activo && aprobacion.esJefeArea({ area, cargo });
+  return {
+    editar,
+    aprobar: activo && aprobacion.puedeAprobar({ area, cargo, autorizado }),
+    configurarAprobadores: jefe,
+    consulta: activo && !editar && permiteConsulta('soporte', { area }),
+    nombre,
+  };
 };
+
+const permisos = async (user) => permisosDe(await datosUsuario(user), user);
 
 const exigirEditor = async (user) => {
   const actor = await permisos(user);
@@ -36,4 +49,11 @@ const exigirEditor = async (user) => {
   };
 };
 
-module.exports = { exigirEditor, permisos, puedeEditarArea };
+/** Quien lee informes: el área (todo) o quien solo consulta (solo los emitidos). */
+const exigirLector = async (user) => {
+  const actor = await permisos(user);
+  if (!actor.editar && !actor.consulta) throw httpError(403, 'Este apartado es del área de Soporte Técnico.');
+  return actor;
+};
+
+module.exports = { exigirEditor, exigirLector, permisos, permisosDe, puedeEditarArea };

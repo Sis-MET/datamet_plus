@@ -206,12 +206,21 @@ function TarjetaProximo({ equipo, hoy, editar, onSaved }) {
   );
 }
 
-/** Servicios del equipo, del más reciente al más antiguo, con lo que sugirió cada uno. */
-function Servicios({ servicios, onAbrirInforme }) {
+// Para quien solo consulta, un informe con una revisión abierta sigue siendo el emitido.
+const EMITIDOS = new Set(['EMITIDO', 'EN_REVISION']);
+
+/**
+ * Servicios del equipo, del más reciente al más antiguo, con lo que sugirió
+ * cada uno. Quien solo consulta (Comercial) abre únicamente los informes emitidos.
+ */
+function Servicios({ servicios, onAbrirInforme, consulta = false }) {
   return (
     <ul className="flex flex-col divide-y divide-line">
       {servicios.map((servicio) => {
-        const estadoInforme = ESTADOS_INFORME[servicio.estadoInforme];
+        const emitido = EMITIDOS.has(servicio.estadoInforme);
+        const estadoInforme = consulta
+          ? (emitido ? ESTADOS_INFORME.EMITIDO : null)
+          : ESTADOS_INFORME[servicio.estadoInforme];
         const sugerencia = ESTADO_SUGERENCIA[servicio.sugerencia];
         return (
           <li key={`${servicio.tipo}:${servicio.codigo}`} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
@@ -235,13 +244,17 @@ function Servicios({ servicios, onAbrirInforme }) {
             </div>
             <div className="flex flex-none flex-col items-end gap-1.5">
               {sugerencia && <ToneBadge tone={sugerencia.tone}>{sugerencia.label}</ToneBadge>}
-              <button
-                type="button"
-                onClick={() => onAbrirInforme({ tipo: servicio.tipo, codigo: servicio.codigo })}
-                className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted underline decoration-fg/30 underline-offset-4 hover:text-fg"
-              >
-                <FileText className="h-3.5 w-3.5" aria-hidden="true" /> Abrir informe
-              </button>
+              {consulta && !emitido ? (
+                <span className="text-xs text-fg-subtle">Informe sin emitir</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onAbrirInforme({ tipo: servicio.tipo, codigo: servicio.codigo })}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted underline decoration-fg/30 underline-offset-4 hover:text-fg"
+                >
+                  <FileText className="h-3.5 w-3.5" aria-hidden="true" /> Abrir informe
+                </button>
+              )}
             </div>
           </li>
         );
@@ -342,6 +355,7 @@ export function EquipoFicha({ codMetrica, onClose, onAbrirInforme }) {
                 <ModalSection title="Servicios del equipo" description={`${equipo.servicios.length} ${equipo.servicios.length === 1 ? 'servicio registrado' : 'servicios registrados'} en ServiceMET.`}>
                   <Servicios
                     servicios={equipo.servicios}
+                    consulta={data.permisos.consulta === true}
                     onAbrirInforme={(informe) => {
                       close();
                       onAbrirInforme(informe);
