@@ -13,6 +13,8 @@ import {
   UNIDADES_MASA,
   VERIFICACION,
   aptaPieza,
+  claseInferior,
+  claseQueCumple,
   cambiarExpresion,
   densidadSupuestaDe,
   esPegadoMultiple,
@@ -212,6 +214,27 @@ const armarEnvio = (form, data) => {
 };
 
 // ─── Celdas ────────────────────────────────────────────────────────────────
+
+/**
+ * La clase más exacta que respalda el certificado de la pieza. Si es menos
+ * exacta que la del juego, va resaltada (con su explicación al pasar el
+ * cursor); si alcanza la del juego o una mejor, en texto normal.
+ */
+function ClaseQueCumple({ resultado, claseJuego, r111 }) {
+  if (!resultado.calculable) return <span className="text-[13px] text-fg-subtle">—</span>;
+  if (!resultado.clase) {
+    return <span className="whitespace-nowrap text-[12.5px] font-medium text-danger" title="Con estos valores no cumple ninguna clase de la R111 para su valor nominal.">Ninguna</span>;
+  }
+  if (claseJuego && claseInferior(r111, resultado.clase, claseJuego)) {
+    return (
+      <span title={`Con este certificado no cumple ${claseJuego}; cumple ${resultado.clase}.`}>
+        <ToneBadge tone="warning">{resultado.clase}</ToneBadge>
+        <span className="sr-only">: no cumple {claseJuego}</span>
+      </span>
+    );
+  }
+  return <span className="text-[13px] font-medium tabular-nums text-fg">{resultado.clase}</span>;
+}
 
 const celda = 'field h-9 rounded-lg px-2.5 text-[13px] tabular-nums';
 const encabezado = 'whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-semibold uppercase tracking-[0.04em] text-fg-muted';
@@ -838,7 +861,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                 piezasActivas.length === 0 ? (
                   <Nota>Agrega las piezas del juego para transcribir sus valores.</Nota>
                 ) : (
-                  <Tabla minWidth={960}>
+                  <Tabla minWidth={1060}>
                     <thead className="bg-surface-2/60">
                       <tr>
                         <th rowSpan={2} className={encabezado}>Pieza</th>
@@ -846,7 +869,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                         <th rowSpan={2} className={encabezado}>U (mg)</th>
                         <th rowSpan={2} className={encabezado}>k</th>
                         <th rowSpan={2} className={encabezado}>Documento</th>
-                        <th colSpan={3} className={cn(encabezado, 'pb-1')}>Apta (R111)</th>
+                        <th colSpan={4} className={cn(encabezado, 'pb-1')}>Apta (R111)</th>
                         <th rowSpan={2} className={encabezado}><span className="sr-only">Avisos</span></th>
                       </tr>
                       <tr>
@@ -857,6 +880,9 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                           5.3 · |corr.| ≤ emp − U
                         </th>
                         <th className={subencabezado}>Resultado</th>
+                        <th className={subencabezado} title="La clase más exacta de la R111 en la que la pieza cumple 5.2 y 5.3 con los valores de su certificado">
+                          Clase que cumple
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -870,6 +896,13 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                         const apta = aptaPieza({
                           r111: data.r111,
                           clase: form.clase,
+                          nominalMg: Number.isFinite(nominal) ? toMg(nominal, fila.unidad) : Number.NaN,
+                          correccion: valor.correccion,
+                          u: valor.u,
+                          k: valor.k,
+                        });
+                        const cumpleComo = claseQueCumple({
+                          r111: data.r111,
                           nominalMg: Number.isFinite(nominal) ? toMg(nominal, fila.unidad) : Number.NaN,
                           correccion: valor.correccion,
                           u: valor.u,
@@ -896,6 +929,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                                 </span>
                               )}
                             </td>
+                            <td className="px-2 py-1.5"><ClaseQueCumple resultado={cumpleComo} claseJuego={form.clase} r111={data.r111} /></td>
                             <td className="px-2 py-1.5">
                               {serios.length > 0 && (
                                 <span title={serios.map(aviso => aviso.mensaje).join('\n')} className="inline-flex text-warning">
@@ -914,6 +948,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                 <p className="cal-hint -mt-2">
                   «Apta» se calcula con la clase del juego y los valores del certificado: U (k = 2) ≤ emp/3 y |corrección| ≤ emp − U
                   (OIML R111, 5.2 y 5.3); hacen falta las dos y cada una tiene su columna, en mg. Pasa el cursor para ver las cuentas.
+                  «Clase que cumple» es la clase más exacta que respalda el certificado de cada pieza.
                   Una pieza no apta igual se usa con su corrección y su U del certificado, pero no puede presentarse con esa clase.
                 </p>
               )}

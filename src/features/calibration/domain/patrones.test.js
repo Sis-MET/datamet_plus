@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   aptaPieza,
   cambiarExpresion,
+  claseInferior,
+  claseQueCumple,
   densidadSupuestaDe,
   empR111,
   esPegadoMultiple,
@@ -139,6 +141,21 @@ describe('«Apta» según la OIML R111', () => {
     // Las dos.
     const ambas = aptaPieza({ r111: tabla, clase: 'E2', nominalMg: 10, correccion: '0,006', u: '0,004', k: '2' });
     expect(ambas.fallas.map(f => [f.norma, f.texto])).toEqual([['5.2', 'U > emp/3'], ['5.3', '|corr.| > emp − U']]);
+  });
+
+  it('encuentra la clase más exacta que cumple la pieza con su certificado', () => {
+    const tabla = { clases: ['E1', 'E2', 'F1', 'F2'], emp: [[10, 0.003, 0.008, 0.025, 0.08], [20, 0.003, 0.010, 0.03, 0.10]] };
+    const pieza = (nominalMg, correccion, u) => claseQueCumple({ r111: tabla, nominalMg, correccion, u, k: '2' });
+    // E2-003: con U = 0,003 mg, 10 mg no llega a E2 pero sí a F1; 20 mg sí es E2.
+    expect(pieza(10, '0,002', '0,003')).toEqual({ calculable: true, clase: 'F1' });
+    expect(pieza(20, '-0,001', '0,003')).toEqual({ calculable: true, clase: 'E2' });
+    // Con una U chica cumple hasta E1.
+    expect(pieza(10, '0,001', '0,001')).toEqual({ calculable: true, clase: 'E1' });
+    // Una corrección enorme no cabe en ninguna.
+    expect(pieza(10, '0,2', '0,003')).toEqual({ calculable: true, clase: null });
+    // Sin valores no se calcula.
+    expect(pieza(10, '', '0,003')).toEqual({ calculable: false, clase: null });
+    expect([claseInferior(tabla, 'F1', 'E2'), claseInferior(tabla, 'E1', 'E2'), claseInferior(tabla, 'E2', 'E2')]).toEqual([true, false, false]);
   });
 
   it('no decide sin clase, sin el valor nominal en la tabla o sin valores', () => {

@@ -182,6 +182,30 @@ export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k }) => {
   };
 };
 
+/**
+ * La clase más exacta de la R111 que cumple la pieza con los valores de su
+ * certificado: recorre las clases en su orden (E1, E2, F1, F2, M1…) y se queda
+ * con la primera en la que cumple 5.2 y 5.3 para ese valor nominal. Sirve para
+ * saber qué clase respalda el certificado cuando no alcanza la del juego (por
+ * ejemplo, una U del laboratorio que no llega a E2 pero sí a F1).
+ * { calculable, clase }: calculable es false si faltan la corrección, la U o
+ * el k; clase es null si no cumple ninguna.
+ */
+export const claseQueCumple = ({ r111, nominalMg, correccion, u, k }) => {
+  const [c, uValor, kValor] = [correccion, u, k].map(parseNumber);
+  if (![c, uValor, kValor].every(Number.isFinite) || !(kValor > 0) || !Number.isFinite(nominalMg)) {
+    return { calculable: false, clase: null };
+  }
+  const clase = (r111?.clases || []).find(candidata => aptaPieza({ r111, clase: candidata, nominalMg, correccion, u, k }).apta === true);
+  return { calculable: true, clase: clase ?? null };
+};
+
+/** ¿La clase `a` es menos exacta que `b`? (en el orden de la Tabla 1: E1 la más exacta). */
+export const claseInferior = (r111, a, b) => {
+  const clases = r111?.clases || [];
+  return clases.indexOf(a) > clases.indexOf(b) && clases.indexOf(b) >= 0;
+};
+
 // ─── Materiales (tabla de densidades del método) ────────────────────────────
 
 const sinAcentos = (texto) => String(texto ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
