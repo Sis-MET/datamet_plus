@@ -190,7 +190,7 @@ test('Comercial consulta solo la revisión emitida y no puede modificar el infor
 
   comercial();
   const permisos = await informes.permisos(comercialUser);
-  assert.deepEqual([permisos.editar, permisos.aprobar, permisos.consulta], [false, false, true]);
+  assert.deepEqual([permisos.editar, permisos.aprobar, permisos.consulta, permisos.tiempos], [false, false, true, false]);
   // Pendiente o en borrador: todavía no existe para Comercial.
   await assert.rejects(informes.getInforme('MPR', 'ST-001', comercialUser), e => e.statusCode === 404 && /no se emitió/.test(e.message));
   await assert.rejects(informes.guardarCambios('MPR', 'ST-001', { ...version(), cambios: { comentario_general: 'Cambio' } }, comercialUser),

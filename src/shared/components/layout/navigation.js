@@ -16,6 +16,12 @@ const esJefeDe = (areaId) => (user) => normalizeArea(user?.area) === areaId
  */
 const esJefeSoporte = esJefeDe('soporte tecnico');
 
+/**
+ * Tiempos de servicio del personal (KPI): los ven el jefe del área y
+ * Sistemas. Solo para el menú; el backend lo vuelve a comprobar.
+ */
+const veTiempos = (areaId) => (user) => isSystemAdmin(user) || esJefeDe(areaId)(user);
+
 // Módulos de la aplicación. `inNav` refleja los accesos visibles en la barra
 // lateral: Salidas del personal solo se abre desde una vista guardada.
 // `sections` son las pestañas del apartado (/<apartado>/<sección>): en la
@@ -97,6 +103,7 @@ export const APP_VIEWS = {
       { id: 'informes', label: 'Informes' },
       { id: 'proximos', label: 'Próximos servicios' },
       { id: 'avisos', label: 'Avisos' },
+      { id: 'tiempos', label: 'Tiempos de servicio', visible: veTiempos('soporte tecnico') },
       { id: 'configuracion', label: 'Configuración', visible: esJefeSoporte },
     ],
     // Comercial solo consulta: los informes emitidos y los próximos servicios.

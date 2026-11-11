@@ -1,0 +1,182 @@
+/*
+ * Tiempos de servicio (Soporte técnico y Calibración). Una sola serie en el
+ * gráfico: el azul METTLER de la marca, validado para cada tema (contraste
+ * ≥ 3:1 sobre la superficie y croma suficiente para no leerse gris).
+ */
+:root {
+  --tiempos-serie: 40 104 182; /* #2868b6 */
+  /*
+   * Un color por tipo de servicio o rango de capacidad, en orden fijo.
+   * Validados sobre la superficie blanca (CVD ΔE ≥ 9, visión normal ≥ 19);
+   * tres quedan bajo 3:1, así que cada uno va siempre con su nombre y valor.
+   */
+  --serie-1: 42 120 214;
+  --serie-2: 235 104 52;
+  --serie-3: 27 175 122;
+  --serie-4: 237 161 0;
+  --serie-5: 232 123 164;
+  --serie-6: 0 131 0;
+  --serie-7: 98 80 214;
+  --serie-8: 227 73 72;
+  --serie-otros: 160 158 150;
+}
+
+/* Oscuro: sus propios pasos, validados sobre el azul noche (todos ≥ 3:1). */
+.dark {
+  --tiempos-serie: 91 147 214; /* #5b93d6 */
+  --serie-1: 57 135 229;
+  --serie-2: 217 89 38;
+  --serie-3: 25 158 112;
+  --serie-4: 201 133 0;
+  --serie-5: 213 81 129;
+  --serie-6: 0 131 0;
+  --serie-7: 144 133 233;
+  --serie-8: 230 103 103;
+  --serie-otros: 108 120 140;
+}
+
+.tiempos-chip {
+  background: rgb(var(--c-accent) / 0.1);
+  color: rgb(var(--c-accent));
+}
+
+.dark .tiempos-chip {
+  background: rgb(var(--c-accent) / 0.22);
+  color: rgb(var(--c-fg));
+}
+
+.tiempos-avatar {
+  background: rgb(var(--c-accent) / 0.1);
+  color: rgb(var(--c-accent));
+}
+
+.dark .tiempos-avatar {
+  background: rgb(var(--c-accent) / 0.3);
+  color: rgb(var(--c-fg));
+}
+
+.tiempos-sparkline {
+  fill: rgb(var(--tiempos-serie) / 0.32);
+}
+
+.dark .tiempos-sparkline {
+  fill: rgb(var(--tiempos-serie) / 0.45);
+}
+
+.tiempos-sparkline.is-ultimo {
+  fill: rgb(var(--tiempos-serie));
+}
+
+.tiempos-barra {
+  fill: rgb(var(--tiempos-serie));
+  transition: opacity 120ms ease;
+}
+
+.tiempos-barra.is-activa {
+  opacity: 0.82;
+}
+
+.tiempos-foco {
+  fill: rgb(var(--c-fg) / 0.045);
+}
+
+.tiempos-columna:focus-visible .tiempos-foco {
+  fill: none;
+  stroke: rgb(var(--c-focus));
+  stroke-width: 2;
+}
+
+.tiempos-grilla {
+  stroke: rgb(var(--c-line));
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.tiempos-base {
+  stroke: rgb(var(--c-line-strong));
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.tiempos-eje {
+  fill: rgb(var(--c-fg-subtle));
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tiempos-valor {
+  fill: rgb(var(--c-fg));
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOVIMIENTO
+   Las columnas y las miniaturas se interpolan con un solo reloj compartido
+   (graficos.js) y las cifras escriben su texto sin pasar por React. Aquí, solo
+   propiedades que mueve el compositor (transform y opacity): barras que crecen
+   y cambian de escala, textos que aparecen y el globo del gráfico. Las
+   tarjetas se deslizan con FLIP (flip.js). «Reducir movimiento» lo apaga todo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Cada tarjeta se maqueta y se pinta por su cuenta: lo que cambia dentro no
+   obliga a rehacer el resto de la página. */
+.tiempos-tarjeta,
+.tiempos-mezcla {
+  contain: layout paint;
+}
+
+/* Barras por tipo: ancho completo y escala horizontal (sin volver a maquetar). */
+.tiempos-escala {
+  transform-origin: left center;
+  transition: transform 380ms var(--ease-out-expo);
+  animation: tiempos-crece-x 460ms var(--ease-out-expo) 40ms backwards;
+}
+
+/* Partes de la mezcla: su ancho cambia dentro de una barra contenida. */
+.tiempos-ancho {
+  transition: width 360ms var(--ease-out-expo);
+}
+
+.tiempos-crece-x {
+  transform-origin: left center;
+  animation: tiempos-crece-x 460ms var(--ease-out-expo) 40ms backwards;
+}
+
+@keyframes tiempos-crece-x {
+  from { transform: scaleX(0); }
+}
+
+.tiempos-aparece {
+  animation: tiempos-aparece 220ms var(--ease-out-expo) backwards;
+}
+
+@keyframes tiempos-aparece {
+  from { opacity: 0; transform: translateY(3px); }
+}
+
+.tiempos-tooltip {
+  transform: translate(-50%, -100%);
+  transition: left 120ms var(--ease-out-expo), top 120ms var(--ease-out-expo);
+  animation: tiempos-globo 140ms var(--ease-out-expo) backwards;
+}
+
+@keyframes tiempos-globo {
+  from { opacity: 0; transform: translate(-50%, calc(-100% + 4px)) scale(0.97); }
+}
+
+.tiempos-marca {
+  animation: tiempos-marca 260ms ease-out backwards;
+}
+
+@keyframes tiempos-marca {
+  from { opacity: 0; }
+}
+
+/* Al filtrar u ordenar, las tarjetas se deslizan con FLIP (flip.js). */
+
+@media (forced-colors: active) {
+  .tiempos-barra {
+    fill: CanvasText;
+  }
+}

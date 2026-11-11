@@ -2,6 +2,7 @@ const informes = require('../services/soporte.informes');
 const proximos = require('../services/soporte.proximos');
 const documentos = require('../services/soporte.documentos');
 const aprobadores = require('../services/soporte.aprobadores');
+const tiempos = require('../services/soporte.tiempos');
 const { leerClave, leerEquipo, leerRevision, parse } = require('../services/soporte.validation');
 const { recordFailure } = require('../services/system.failures');
 
@@ -75,6 +76,8 @@ module.exports = {
     return informes.listGrupos(filtros, req.user);
   }),
   getFiltros: handle(req => informes.getFiltros(req.user)),
+  // Tiempos de servicio del personal (KPI): el jefe del área y Sistemas.
+  tiempos: handle(req => tiempos.getTiempos(req.query, req.user)),
   redaccion: handle(req => informes.sugerirRedaccion(parse('redaccion', req.body), req.user)),
   getInforme: handle((req) => {
     const { tipo, codigo } = clave(req);

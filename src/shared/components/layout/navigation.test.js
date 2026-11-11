@@ -72,6 +72,14 @@ describe('acceso a los apartados por área', () => {
     expect(findSection('soporte', 'avisos', comercial)).toBeNull();
   });
 
+  it('los tiempos de servicio de Soporte los ven su jefe y Sistemas', () => {
+    const secciones = (user, id) => getNavigation(user).find(view => view.id === id).sections.map(section => section.id);
+    expect(secciones({ ...soporte, cargo: 'Jefe de Area' }, 'soporte')).toContain('tiempos');
+    expect(secciones({ ...soporte, cargo: 'Técnico 3' }, 'soporte')).not.toContain('tiempos');
+    expect(secciones(sistemas, 'soporte')).toContain('tiempos');
+    expect(findSection('soporte', 'tiempos', sistemas)?.label).toBe('Tiempos de servicio');
+  });
+
   it('la configuración de Soporte técnico solo la ve su jefe de área', () => {
     const secciones = (user) => getNavigation(user).find(view => view.id === 'soporte').sections.map(section => section.id);
     expect(secciones({ ...soporte, cargo: 'Jefe de  Área' })).toContain('configuracion');

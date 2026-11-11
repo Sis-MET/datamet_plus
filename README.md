@@ -464,6 +464,38 @@ consulta a otra área, se agrega en `MODULOS[...].consulta` de
 `backend/src/services/access.areas.js` y en `APP_VIEWS.soporte.consulta` de
 `src/shared/components/layout/navigation.js`.
 
+### Tiempos de servicio
+
+Sección **Tiempos de servicio** (panel compartido en
+`src/features/tiempos`): los KPI del personal a partir de la hora de inicio y
+la hora final de cada servicio (`GET /api/soporte/tiempos?desde=&hasta=`, hasta
+tres años). La ven el jefe del área y Sistemas; el backend lo comprueba.
+
+- **Duración:** hora final menos hora de inicio, tal como las registró el
+  técnico en ServiceMET (en DataMET+ no se corrigen). Sin alguna de las dos,
+  con la final igual o anterior a la de inicio, o con más de 12 h, el servicio
+  queda en **Horas por revisar** y no entra en los promedios.
+- **Indicadores** del período, cada uno comparado con el período anterior
+  equivalente (lo que va del año con el mismo tramo del año pasado; un mes con
+  el anterior; lo demás con uno igual de largo justo antes): horas de
+  servicio, servicios, media por jornada (horas de servicio por día con
+  servicios de cada técnico) y media por servicio.
+- **Por mes** (horas, servicios o media por servicio) y **horas por tipo de
+  servicio**; al pulsar un tipo se filtra todo el panel.
+- **Una tarjeta por técnico:** horas totales y su variación, media por
+  jornada, por servicio y por mes, sus horas mes a mes, en qué tipos de
+  servicio las usó y «vs. área»: cuánto más o menos tarda que la mediana del
+  área en los mismos tipos (desde 5 servicios medidos). Las variantes del
+  nombre («Tec. Elvis Villca .») se agrupan como en la lista de informes.
+- **Servicios del período** con sus horas y **Exportar CSV** (para Excel).
+- **Movimiento:** las columnas crecen al entrar y, al cambiar de filtro,
+  período o métrica, pasan de su altura anterior a la nueva; las cifras
+  cuentan hasta su valor y, al filtrar u ordenar, las tarjetas que sobran se
+  desvanecen y las demás se deslizan a su lugar (FLIP, solo con `transform`).
+  Un solo reloj de animación para todo el panel y cifras que se escriben sin
+  pasar por React lo mantienen a 60 cuadros por segundo. Con «reducir
+  movimiento» del sistema todo aparece ya en su valor.
+
 ### Próximos servicios
 
 En casi todos los servicios el técnico llena «Fecha próximo servicio

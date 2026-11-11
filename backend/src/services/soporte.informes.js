@@ -33,7 +33,7 @@ const {
   normalizarFuente,
   planCambios,
 } = require('./soporte.columnas');
-const { exigirEditor, exigirLector, permisos, puedeEditarArea } = require('./soporte.permisos');
+const { exigirEditor, exigirLector, exigirTiempos, permisos, puedeEditarArea } = require('./soporte.permisos');
 const {
   buildGroupsQuery,
   buildListQuery,
@@ -518,6 +518,7 @@ module.exports = {
   // Permisos.
   exigirEditor,
   exigirLector,
+  exigirTiempos,
   permisos,
   puedeEditarArea,
   // Lista.

@@ -8,6 +8,7 @@ import { useResource } from '../system/hooks/useResource';
 import { InformesLista } from './components/InformesLista';
 import { AvisosPanel } from './components/proximos/AvisosPanel';
 import { ProximosPanel } from './components/proximos/ProximosPanel';
+import { TiemposPanel } from '../tiempos/components/TiemposPanel';
 import { AGRUPACIONES, filtrosVacios } from './domain/informe';
 import { PLANTILLAS } from './domain/plantillas';
 import '../calibration/calibration.css';
@@ -16,7 +17,7 @@ import './soporte.css';
 const ABIERTO = 'datamet_soporte_informe';
 const AGRUPAR = 'datamet_soporte_agrupar';
 const PESTANA = 'datamet_soporte_pestana';
-const PESTANAS = ['informes', 'proximos', 'avisos', 'configuracion'];
+const PESTANAS = ['informes', 'proximos', 'avisos', 'tiempos', 'configuracion'];
 // Las que ve también quien solo consulta (Comercial); las demás esperan los permisos.
 const DE_CONSULTA = ['informes', 'proximos'];
 
@@ -26,6 +27,7 @@ const pestanaHabilitada = (pestana, permisos) => {
   if (!permisos) return null;
   if (permisos.consulta) return false;
   if (pestana === 'configuracion') return permisos.configurarAprobadores === true;
+  if (pestana === 'tiempos') return permisos.tiempos === true;
   return true;
 };
 
@@ -115,6 +117,15 @@ export function SoportePage() {
       {/* Se ocultan (sin desmontarse) mientras hay un informe abierto: al volver conservan año, filtros y vista. */}
       {pestana === 'proximos' && <div hidden={Boolean(abierto)}><ProximosPanel onAbrirInforme={abrir} /></div>}
       {pestana === 'avisos' && <div hidden={Boolean(abierto)}><AvisosPanel onAbrirInforme={abrir} /></div>}
+      {pestana === 'tiempos' && (
+        <div hidden={Boolean(abierto)}>
+          <TiemposPanel
+            area="soporte"
+            cargar={soporteApi.tiempos}
+            onAbrir={servicio => abrir({ tipo: servicio.grupo, codigo: servicio.codigo })}
+          />
+        </div>
+      )}
       {!abierto && pestana === 'informes' && (
         <InformesLista
           consulta={consulta}

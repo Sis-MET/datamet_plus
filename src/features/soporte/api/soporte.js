@@ -55,6 +55,9 @@ export const soporteApi = {
   // Responde la ficha del equipo actualizada.
   seguimiento: (body) => unwrap(api.post('/soporte/proximos/seguimiento', body, { timeout: 30000 })).then(avisar),
 
+  // Tiempos de servicio del personal (KPI) entre dos fechas (AAAA-MM-DD).
+  tiempos: ({ desde, hasta }) => unwrap(api.get('/soporte/tiempos', { desde, hasta }, { timeout: 60000 })),
+
   // Avisos por correo.
   avisos: () => unwrap(api.get('/soporte/avisos')),
   personal: () => unwrap(api.get('/soporte/avisos/personal')),

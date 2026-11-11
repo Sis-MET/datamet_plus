@@ -31,6 +31,9 @@ router.use(soloArea('soporte'));
 router.get('/configuracion/aprobadores', controller.aprobadores);
 router.put('/configuracion/aprobadores', controller.guardarAprobadores);
 
+// Tiempos de servicio del personal (KPI): el jefe del área y Sistemas.
+router.get('/tiempos', controller.tiempos);
+
 router.get('/documentos/carpetas', controller.carpetas);
 router.post('/informes/:tipo/:codigo/documentos', express.raw({ type: 'application/pdf', limit: '30mb' }), controller.guardarDocumento);
 

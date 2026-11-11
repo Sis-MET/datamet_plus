@@ -1,6 +1,6 @@
 /** Quién edita, emite, aprueba y consulta los informes de Soporte técnico. */
 const { getPool, sql } = require('../config/db');
-const { permiteArea, permiteConsulta } = require('./access.areas');
+const { esSistemas, permiteArea, permiteConsulta } = require('./access.areas');
 const { httpError } = require('./soporte.validation');
 const aprobacion = require('./soporte.aprobacion');
 
@@ -24,7 +24,8 @@ const datosUsuario = async (user) => {
 /**
  * Permisos del usuario en Soporte técnico a partir de su fila de DATA_USERS.
  * `consulta`: un área que solo consulta (Comercial) ve los informes emitidos
- * y los próximos servicios, sin modificar.
+ * y los próximos servicios, sin modificar. `tiempos`: los tiempos de servicio
+ * del personal (KPI) los ven el jefe del área y Sistemas.
  */
 const permisosDe = ({ area, nombre, cargo, activo, autorizado }, user) => {
   const editar = activo && puedeEditarArea(area, user?.acceso_cron);
@@ -34,6 +35,7 @@ const permisosDe = ({ area, nombre, cargo, activo, autorizado }, user) => {
     aprobar: activo && aprobacion.puedeAprobar({ area, cargo, autorizado }),
     configurarAprobadores: jefe,
     consulta: activo && !editar && permiteConsulta('soporte', { area }),
+    tiempos: activo && (jefe || esSistemas(user)),
     nombre,
   };
 };
@@ -56,4 +58,10 @@ const exigirLector = async (user) => {
   return actor;
 };
 
-module.exports = { exigirEditor, exigirLector, permisos, permisosDe, puedeEditarArea };
+const exigirTiempos = async (user) => {
+  const actor = await permisos(user);
+  if (!actor.tiempos) throw httpError(403, 'Los tiempos de servicio del personal los ven el jefe de Soporte Técnico y Sistemas.');
+  return actor;
+};
+
+module.exports = { exigirEditor, exigirLector, exigirTiempos, permisos, permisosDe, puedeEditarArea };
