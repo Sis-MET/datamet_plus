@@ -116,6 +116,29 @@ describe('«Apta» según la OIML R111', () => {
     const grande = aptaPieza({ r111: R111, clase: 'F1', nominalMg: 1e6, correccion: '0', u: '2', k: '2' });
     expect([grande.apta, grande.cumpleU, grande.cumpleCorreccion]).toEqual([false, false, true]);
     expect(grande.motivo).toBe('emp F1: 5 mg. U (k = 2) = 2 mg > emp/3 = 1,667 mg (5.2); |corrección| = 0 mg ≤ emp − U = 3 mg (5.3).');
+    expect(grande.fallas.map(f => f.norma)).toEqual(['5.2']);
+  });
+
+  it('dice qué condición falla: la incertidumbre, la corrección o las dos', () => {
+    const tabla = { clases: ['E2', 'F1'], emp: [[10, 0.008, 0.025]] };
+    // E2-003, 10 mg (LP-CC-M-0221-2026): la corrección cabe, pero U = 0,003 > 0,008/3.
+    const soloU = aptaPieza({ r111: tabla, clase: 'E2', nominalMg: 10, correccion: '0,002', u: '0,003', k: '2' });
+    expect([soloU.apta, soloU.cumpleU, soloU.cumpleCorreccion]).toEqual([false, false, true]);
+    expect(soloU.fallas).toEqual([{ norma: '5.2', texto: 'U > emp/3', detalle: 'La incertidumbre del certificado (0,003 mg) supera emp/3 (0,002667 mg).' }]);
+    // Cada condición por separado, para su columna.
+    expect(soloU.condiciones.map(c => [c.norma, c.cumple, c.valor, c.limite])).toEqual([
+      ['5.2', false, '0,003', '0,002667'],
+      ['5.3', true, '0,002', '0,005'],
+    ]);
+    expect(soloU.condiciones[0].detalle).toMatch(/supera emp\/3 = 0,002667 mg: la incertidumbre del certificado es grande para la clase E2/);
+    // La misma pieza como F1 sí cumple.
+    expect(aptaPieza({ r111: tabla, clase: 'F1', nominalMg: 10, correccion: '0,002', u: '0,003', k: '2' })).toMatchObject({ apta: true, fallas: [] });
+    // Solo la corrección.
+    const soloCorreccion = aptaPieza({ r111: tabla, clase: 'E2', nominalMg: 10, correccion: '-0,007', u: '0,002', k: '2' });
+    expect(soloCorreccion.fallas.map(f => f.norma)).toEqual(['5.3']);
+    // Las dos.
+    const ambas = aptaPieza({ r111: tabla, clase: 'E2', nominalMg: 10, correccion: '0,006', u: '0,004', k: '2' });
+    expect(ambas.fallas.map(f => [f.norma, f.texto])).toEqual([['5.2', 'U > emp/3'], ['5.3', '|corr.| > emp − U']]);
   });
 
   it('no decide sin clase, sin el valor nominal en la tabla o sin valores', () => {

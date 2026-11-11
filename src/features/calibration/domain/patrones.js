@@ -130,7 +130,9 @@ export const empR111 = (r111, clase, nominalMg) => {
  * Pieza apta para su clase solo con los valores de su certificado (la misma
  * regla que el servidor, aptaR111): U (k = 2) ≤ emp/3 (R111 5.2) y
  * |corrección| ≤ emp − U (5.3). apta es null si no se puede decidir; `motivo`
- * lo explica en una frase.
+ * lo explica en una frase; `condiciones` trae las dos por separado (5.2 y 5.3,
+ * con su valor, su límite y si se cumple) para mostrarlas cada una en su
+ * columna, y `fallas` las que no se cumplen.
  */
 export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k }) => {
   if (!clase) return { apta: null, motivo: 'Elige la clase del juego para calcularla.' };
@@ -149,7 +151,35 @@ export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k }) => {
     `U (k = 2) = ${mg(u2)} ${cumpleU ? '≤' : '>'} emp/3 = ${mg(emp / 3)} (5.2)`,
     `|corrección| = ${mg(Math.abs(c))} ${cumpleCorreccion ? '≤' : '>'} emp − U = ${mg(Math.max(emp - u2, 0))} (5.3)`,
   ];
-  return { apta: cumpleU && cumpleCorreccion, emp, u2, cumpleU, cumpleCorreccion, motivo: `emp ${clase}: ${mg(emp)}. ${motivos.join('; ')}.` };
+  // Valores para leer, en mg y con 4 cifras significativas.
+  const cifra = valor => formatNumber(Number(valor.toPrecision(4)));
+  const condiciones = [
+    {
+      norma: '5.2',
+      cumple: cumpleU,
+      valor: cifra(u2),
+      limite: cifra(emp / 3),
+      detalle: cumpleU
+        ? `U (k = 2) = ${mg(u2)} no supera emp/3 = ${mg(emp / 3)}: la incertidumbre alcanza para la clase ${clase}.`
+        : `U (k = 2) = ${mg(u2)} supera emp/3 = ${mg(emp / 3)}: la incertidumbre del certificado es grande para la clase ${clase}.`,
+    },
+    {
+      norma: '5.3',
+      cumple: cumpleCorreccion,
+      valor: cifra(Math.abs(c)),
+      limite: cifra(Math.max(emp - u2, 0)),
+      detalle: cumpleCorreccion
+        ? `|corrección| = ${mg(Math.abs(c))} no supera emp − U = ${mg(Math.max(emp - u2, 0))}: la corrección cabe en la tolerancia.`
+        : `|corrección| = ${mg(Math.abs(c))} supera emp − U = ${mg(Math.max(emp - u2, 0))}: la corrección no cabe en la tolerancia.`,
+    },
+  ];
+  const fallas = [
+    ...(cumpleU ? [] : [{ norma: '5.2', texto: 'U > emp/3', detalle: `La incertidumbre del certificado (${mg(u2)}) supera emp/3 (${mg(emp / 3)}).` }]),
+    ...(cumpleCorreccion ? [] : [{ norma: '5.3', texto: '|corr.| > emp − U', detalle: `La corrección (${mg(Math.abs(c))}) supera emp − U (${mg(Math.max(emp - u2, 0))}).` }]),
+  ];
+  return {
+    apta: cumpleU && cumpleCorreccion, emp, u2, cumpleU, cumpleCorreccion, condiciones, fallas, motivo: `emp ${clase}: ${mg(emp)}. ${motivos.join('; ')}.`,
+  };
 };
 
 // ─── Materiales (tabla de densidades del método) ────────────────────────────

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Info, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Info, Plus, ShieldCheck, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
 import { calibrationApi } from '../api/calibration';
@@ -215,6 +215,26 @@ const armarEnvio = (form, data) => {
 
 const celda = 'field h-9 rounded-lg px-2.5 text-[13px] tabular-nums';
 const encabezado = 'whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-semibold uppercase tracking-[0.04em] text-fg-muted';
+const subencabezado = 'whitespace-nowrap px-2 pb-2 pt-0.5 text-left text-[11.5px] font-semibold text-fg-muted';
+
+/**
+ * Una condición de la R111 para una pieza (5.2 o 5.3): marca y comparación
+ * («0,003 > 0,002667»). Nunca solo el color: la marca ✓/✗ y el signo dicen lo
+ * mismo. Sin datos para decidir, una raya.
+ */
+function Condicion({ condicion }) {
+  if (!condicion) return <span className="text-[13px] text-fg-subtle">—</span>;
+  const Icono = condicion.cumple ? Check : X;
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12.5px] tabular-nums" title={condicion.detalle}>
+      <Icono className={cn('h-4 w-4 flex-none', condicion.cumple ? 'text-success' : 'text-danger')} aria-hidden="true" />
+      <span className={condicion.cumple ? 'text-fg-muted' : 'font-semibold text-fg'}>
+        {condicion.valor} {condicion.cumple ? '≤' : '>'} {condicion.limite}
+      </span>
+      <span className="sr-only">{condicion.cumple ? `cumple la ${condicion.norma}` : `no cumple la ${condicion.norma}`}</span>
+    </span>
+  );
+}
 
 function Celda({ value, onChange, onPaste, disabled, label, numeric = true, className }) {
   return (
@@ -818,16 +838,25 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                 piezasActivas.length === 0 ? (
                   <Nota>Agrega las piezas del juego para transcribir sus valores.</Nota>
                 ) : (
-                  <Tabla minWidth={720}>
+                  <Tabla minWidth={960}>
                     <thead className="bg-surface-2/60">
                       <tr>
-                        <th className={encabezado}>Pieza</th>
-                        <th className={encabezado}>Corrección (mg)</th>
-                        <th className={encabezado}>U (mg)</th>
-                        <th className={encabezado}>k</th>
-                        <th className={encabezado}>Documento</th>
-                        <th className={encabezado}>Apta (R111)</th>
-                        <th className={encabezado}><span className="sr-only">Avisos</span></th>
+                        <th rowSpan={2} className={encabezado}>Pieza</th>
+                        <th rowSpan={2} className={encabezado}>Corrección (mg)</th>
+                        <th rowSpan={2} className={encabezado}>U (mg)</th>
+                        <th rowSpan={2} className={encabezado}>k</th>
+                        <th rowSpan={2} className={encabezado}>Documento</th>
+                        <th colSpan={3} className={cn(encabezado, 'pb-1')}>Apta (R111)</th>
+                        <th rowSpan={2} className={encabezado}><span className="sr-only">Avisos</span></th>
+                      </tr>
+                      <tr>
+                        <th className={subencabezado} title="R111 5.2: la U (k = 2) del certificado no debe superar un tercio del emp de la clase">
+                          5.2 · U ≤ emp/3
+                        </th>
+                        <th className={subencabezado} title="R111 5.3: la corrección no debe superar el emp menos la U">
+                          5.3 · |corr.| ≤ emp − U
+                        </th>
+                        <th className={subencabezado}>Resultado</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -855,11 +884,14 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                             <td className="px-2 py-1.5"><Celda value={valor.u} onChange={(u) => setValor(fila.key, { u })} onPaste={pegarValor(indice, 'u')} disabled={disabled} label={`U de ${pieza}`} className="w-24" /></td>
                             <td className="px-2 py-1.5"><Celda value={valor.k} onChange={(k) => setValor(fila.key, { k })} onPaste={pegarValor(indice, 'k')} disabled={disabled} label={`k de ${pieza}`} className="w-14" /></td>
                             <td className="px-2 py-1.5"><Celda numeric={false} value={valor.documento} onChange={(documento) => setValor(fila.key, { documento })} onPaste={pegarValor(indice, 'documento')} disabled={disabled} label={`Documento de ${pieza}`} className="w-40" /></td>
-                            <td className="px-3 py-1.5" title={apta.motivo}>
+                            {/* Cada condición en su columna (5.2 y 5.3) y, al final, el resultado: apta si cumple las dos. */}
+                            <td className="px-2 py-1.5"><Condicion condicion={apta.condiciones?.[0]} /></td>
+                            <td className="px-2 py-1.5"><Condicion condicion={apta.condiciones?.[1]} /></td>
+                            <td className="px-2 py-1.5" title={apta.motivo}>
                               {apta.apta == null ? (
                                 <span className="text-[13px] text-fg-subtle" aria-label={`${pieza}: ${apta.motivo}`}>—</span>
                               ) : (
-                                <span aria-label={`${pieza}: ${apta.apta ? 'apta' : 'no apta'}. ${apta.motivo}`}>
+                                <span aria-label={`${pieza}: ${apta.apta ? 'apta' : `no apta, no cumple la ${apta.fallas.map(f => f.norma).join(' ni la ')}`}. ${apta.motivo}`}>
                                   <ToneBadge tone={apta.apta ? 'success' : 'danger'}>{apta.apta ? 'Sí' : 'No'}</ToneBadge>
                                 </span>
                               )}
@@ -881,7 +913,8 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
               {form.tipo === 'PESAS' && piezasActivas.length > 0 && (
                 <p className="cal-hint -mt-2">
                   «Apta» se calcula con la clase del juego y los valores del certificado: U (k = 2) ≤ emp/3 y |corrección| ≤ emp − U
-                  (OIML R111, 5.2 y 5.3). Pasa el cursor sobre el resultado para ver las cuentas.
+                  (OIML R111, 5.2 y 5.3); hacen falta las dos y cada una tiene su columna, en mg. Pasa el cursor para ver las cuentas.
+                  Una pieza no apta igual se usa con su corrección y su U del certificado, pero no puede presentarse con esa clase.
                 </p>
               )}
               {form.tipo !== 'PESAS' && (
