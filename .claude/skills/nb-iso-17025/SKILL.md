@@ -261,10 +261,11 @@ Revisa la pestaña Cumplimiento para el estado actual. Resumen de lo hecho:
   exige motivo; las verificaciones exigen resultado y hoja de datos; un segundo
   usuario revisa certificados y verificaciones (`calibration.history.js`).
 - **7.11.2 (migración 007):** Control de cambios (`APP_CAMBIOS`), al pie de
-  la barra lateral para el nivel 3. Cada versión nueva registra sus cambios,
-  los valida y los aprueba antes de desplegarse; la versión en uso sale de
-  `package.json`. Al terminar un cambio, regístralo ahí (o en la siembra de
-  la migración que lo acompañe).
+  la barra lateral para el nivel 3 y el jefe de área de Calibración. Cada
+  versión nueva registra sus cambios; Sistemas los valida y el jefe de área de
+  Calibración los aprueba (nunca quien validó) antes de desplegarse; la versión
+  en uso sale de `package.json`. Al terminar un cambio, regístralo ahí (o en la
+  siembra de la migración que lo acompañe).
 - **7.11.2 ServiceMET (migración 014):** Calibración › Versiones ServiceMET
   (`CAL_SERVICEMET_VERSIONES`). Cada versión de la app de los técnicos la
   registra y valida Sistemas, y la aprueba solo el jefe de área de

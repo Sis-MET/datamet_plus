@@ -578,6 +578,7 @@ const REQUISITOS = [
         origen: 'DATOS',
         evidencias: [
           'Control de cambios registra cada cambio con su descripción, impacto y referencias, y su paso por validación, aprobación e implementación; cada paso queda en su historial.',
+          'Registra, valida e implementa Sistemas; aprueba o rechaza solo el jefe de área de Calibración, nunca quien validó, y solo aprueba un cambio con validación conforme.',
           'El código queda en el control de versiones (git) y los cambios de la base son migraciones numeradas registradas en SCHEMA_MIGRATIONS.',
           'Un cambio aprobado ya no se edita: cualquier ajuste es un cambio nuevo.',
         ],

@@ -82,7 +82,15 @@ function ControlSteps({ cambio, onStep }) {
             <p>{rechazado ? 'Rechazado' : 'Aprobado'} por {byWhen(cambio.aprobadoPor, cambio.aprobadoEn)}</p>
             {cambio.aprobacionObs && <p className="mt-1 whitespace-pre-line text-fg">{cambio.aprobacionObs}</p>}
           </>
-        ) : <p>{acciones.aprobar ? 'Listo para decidir.' : 'Requiere una validación conforme.'}</p>}
+        ) : (
+          <p>
+            {acciones.aprobar
+              ? 'Listo para decidir.'
+              : validado && !rechazado
+                ? 'Lo aprueba o rechaza el jefe de área de Calibración.'
+                : 'Requiere una validación conforme de Sistemas.'}
+          </p>
+        )}
         {acciones.aprobar && (
           <button type="button" onClick={() => onStep('aprobacion')} className={actionButton}>Aprobar o rechazar</button>
         )}

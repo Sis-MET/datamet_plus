@@ -4,7 +4,7 @@ import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-
 import { Sidebar } from './shared/components/layout/Sidebar';
 import { Topbar } from './shared/components/layout/Topbar';
 import { Footer } from './shared/components/layout/Footer';
-import { APP_VIEWS, allowedView, canUseView, findSection, isSystemAdmin, managesCalibration } from './shared/components/layout/navigation';
+import { APP_VIEWS, allowedView, canUseView, findSection, isSystemAdmin, managesCalibration, veControlCambios } from './shared/components/layout/navigation';
 import { RestrictedArea } from './shared/components/layout/RestrictedArea';
 import { useSidebar } from './shared/hooks/useSidebar';
 import { useTheme } from './shared/context/ThemeContext';
@@ -310,7 +310,9 @@ function App() {
       case 'departures':
         return <DeparturesPage />;
       case 'changes':
-        return isSystemAdmin(currentUser) ? <ChangeControlPage /> : <RimPage currentUser={currentUser} />;
+        return veControlCambios(currentUser)
+          ? <ChangeControlPage puedeRegistrar={isSystemAdmin(currentUser)} />
+          : <RimPage currentUser={currentUser} />;
       case 'failures':
         return isSystemAdmin(currentUser) ? <FailureLogPage /> : <RimPage currentUser={currentUser} />;
       case 'rim':

@@ -30,8 +30,8 @@ const handle = (action) => async (req, res, next) => {
 };
 
 module.exports = {
-  listCambios: handle(() => changes.listCambios()),
-  getCambio: handle(req => changes.getCambio(readId(req.params.id))),
+  listCambios: handle(req => changes.listCambios(req.user)),
+  getCambio: handle(req => changes.getCambio(readId(req.params.id), req.user)),
   createCambio: handle(req => changes.createCambio(parse('cambio', req.body), req.user)),
   updateCambio: handle(req => changes.updateCambio(readId(req.params.id), parse('cambio', req.body), req.user)),
   validarCambio: handle(req => changes.validarCambio(readId(req.params.id), parse('validacionCambio', req.body), req.user)),

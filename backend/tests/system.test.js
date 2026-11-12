@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { fingerprint, routeOf } = require('../src/services/system.failures');
-const { mapCambio } = require('../src/services/system.changes');
+const { aprobarCambio, mapCambio, permisosCambios } = require('../src/services/system.changes');
 const { parse } = require('../src/services/system.validation');
 
 test('agrupa las repeticiones de una falla aunque cambien los ids', () => {
@@ -36,6 +36,32 @@ test('el flujo de un cambio habilita cada paso en su momento', () => {
   // Un cambio en uso registrado a posteriori: se valida, se aprueba y se le completa la fecha.
   const enUso = mapCambio(fila({ estado: 'IMPLEMENTADO', a_posteriori: true }));
   assert.deepEqual(enUso.acciones, { editar: true, validar: true, aprobar: false, implementar: true });
+});
+
+const sistemas = { usuario: 'sistemas', acceso_cron: '3', area: 'Sistemas', cargo: 'Técnico' };
+const jefeCalibracion = { usuario: 'jefe', acceso_cron: '1', area: 'Calibración', cargo: 'Jefe de Area' };
+const tecnicoCalibracion = { usuario: 'tecnico', acceso_cron: '1', area: 'Calibración', cargo: 'Técnico' };
+const jefeSoporte = { usuario: 'jefe-st', acceso_cron: '1', area: 'Soporte Técnico', cargo: 'Jefe de Área' };
+
+test('Sistemas registra, valida e implementa; el jefe de Calibración aprueba', () => {
+  assert.deepEqual(permisosCambios(sistemas), { ver: true, registrar: true, validar: true, aprobar: false, implementar: true });
+  assert.deepEqual(permisosCambios(jefeCalibracion), { ver: true, registrar: false, validar: false, aprobar: true, implementar: false });
+  for (const otro of [tecnicoCalibracion, jefeSoporte, null]) {
+    assert.deepEqual(permisosCambios(otro), { ver: false, registrar: false, validar: false, aprobar: false, implementar: false });
+  }
+  // Cada uno ve solo sus pasos.
+  const validado = fila({ estado: 'VALIDADO', validacion_resultado: 'CONFORME' });
+  assert.deepEqual(mapCambio(validado, permisosCambios(jefeCalibracion)).acciones, { editar: false, validar: false, aprobar: true, implementar: false });
+  assert.deepEqual(mapCambio(validado, permisosCambios(sistemas)).acciones, { editar: true, validar: true, aprobar: false, implementar: false });
+  const aprobado = fila({ estado: 'APROBADO', validacion_resultado: 'CONFORME', aprobado_por: 'jefe' });
+  assert.equal(mapCambio(aprobado, permisosCambios(sistemas)).acciones.implementar, true);
+  assert.equal(mapCambio(aprobado, permisosCambios(jefeCalibracion)).acciones.implementar, false);
+});
+
+test('solo el jefe de Calibración aprueba o rechaza un cambio', async () => {
+  // Rechaza antes de tocar la base: Sistemas ya no aprueba.
+  await assert.rejects(aprobarCambio(1, { decision: 'APROBAR' }, sistemas), { statusCode: 403 });
+  await assert.rejects(aprobarCambio(1, { decision: 'RECHAZAR' }, tecnicoCalibracion), { statusCode: 403 });
 });
 
 test('cerrar una falla exige la acción inmediata y la correctiva', () => {

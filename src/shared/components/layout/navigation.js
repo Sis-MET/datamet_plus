@@ -22,6 +22,13 @@ const esJefeSoporte = esJefeDe('soporte tecnico');
  */
 const veTiempos = (areaId) => (user) => isSystemAdmin(user) || esJefeDe(areaId)(user);
 
+/**
+ * Control de cambios: Sistemas registra, valida e implementa; el jefe de área
+ * de Calibración entra para aprobar o rechazar. Solo para el menú; el backend
+ * lo vuelve a comprobar en cada paso.
+ */
+export const veControlCambios = (user) => isSystemAdmin(user) || esJefeDe('calibracion')(user);
+
 // Módulos de la aplicación. `inNav` refleja los accesos visibles en la barra
 // lateral: Salidas del personal solo se abre desde una vista guardada.
 // `sections` son las pestañas del apartado (/<apartado>/<sección>): en la
@@ -141,6 +148,8 @@ export const APP_VIEWS = {
     inNav: true,
     group: 'system',
     requiresAdmin: true,
+    // Además de Sistemas, el jefe de área de Calibración, que aprueba.
+    access: veControlCambios,
   },
   failures: {
     id: 'failures',
@@ -155,11 +164,15 @@ export const APP_VIEWS = {
 
 /**
  * Sistemas: el nivel 3, la administración del sistema. Entra a todos los
- * apartados y es el único que ve Control de cambios y Registro de fallas.
+ * apartados y es el único que ve Registro de fallas; Control de cambios lo
+ * comparte con el jefe de área de Calibración.
  */
 export const isSystemAdmin = (user) => String(user?.acceso_cron) === '3';
 
 export const canManageIvmet = isSystemAdmin;
+
+/** ¿Abre el apartado? Los de Sistemas, solo el nivel 3 o quien diga su `access`. */
+const puedeAbrir = (config, user) => !config.requiresAdmin || isSystemAdmin(user) || Boolean(config.access?.(user));
 
 /**
  * ¿El usuario solo consulta el apartado? Un área de `consulta` (Comercial en
@@ -192,7 +205,7 @@ export const canUseView = (view, user) => {
 export const allowedView = (view, user) => {
   const config = APP_VIEWS[view];
   if (!config) return 'rim';
-  if (config.requiresAdmin && !isSystemAdmin(user)) return 'rim';
+  if (!puedeAbrir(config, user)) return 'rim';
   return view;
 };
 
@@ -205,7 +218,7 @@ export const managesCalibration = (user) => canUseView('calibration', user);
  */
 export function getNavigation(user) {
   return Object.values(APP_VIEWS)
-    .filter(view => view.inNav && (!view.requiresAdmin || isSystemAdmin(user)))
+    .filter(view => view.inNav && puedeAbrir(view, user))
     .map((view) => {
       const locked = !canUseView(view.id, user);
       const consulta = soloConsulta(view.id, user);

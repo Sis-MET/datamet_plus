@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowedView, canUseView, findSection, getNavigation, managesCalibration, soloConsulta } from './navigation';
+import { allowedView, canUseView, findSection, getNavigation, managesCalibration, soloConsulta, veControlCambios } from './navigation';
 
 const calibracion = { area: 'Calibración', acceso_cron: '2' };
 const soporte = { area: 'Soporte Técnico', acceso_cron: 2 };
@@ -40,6 +40,20 @@ describe('acceso a los apartados por área', () => {
     expect(allowedView('changes', comercial)).toBe('rim');
     expect(allowedView('changes', sistemas)).toBe('changes');
     expect(allowedView('inexistente', sistemas)).toBe('rim');
+  });
+
+  it('el jefe de Calibración entra a Control de cambios para aprobar, no a Registro de fallas', () => {
+    const jefeCalibracion = { area: 'Calibración', cargo: 'Jefe de Area', acceso_cron: '1' };
+    const jefeSoporte = { area: 'Soporte Técnico', cargo: 'Jefe de Área', acceso_cron: '1' };
+    expect(veControlCambios(jefeCalibracion)).toBe(true);
+    expect(veControlCambios(sistemas)).toBe(true);
+    for (const otro of [calibracion, jefeSoporte, comercial, null]) expect(veControlCambios(otro)).toBe(false);
+    expect(allowedView('changes', jefeCalibracion)).toBe('changes');
+    expect(allowedView('failures', jefeCalibracion)).toBe('rim');
+    expect(allowedView('changes', calibracion)).toBe('rim');
+    const sistema = getNavigation(jefeCalibracion).filter(view => view.group === 'system').map(view => view.id);
+    expect(sistema).toEqual(['changes']);
+    expect(getNavigation(jefeSoporte).some(view => view.group === 'system')).toBe(false);
   });
 
   it('cada apartado despliega sus secciones, que son las pestañas de su página', () => {

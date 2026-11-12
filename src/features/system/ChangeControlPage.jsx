@@ -43,6 +43,7 @@ function StepTrack({ cambio }) {
   );
 }
 
+/** onCreate solo para Sistemas: el jefe de Calibración entra a aprobar, no registra. */
 function VersionSummary({ cambios, onCreate }) {
   const status = versionStatus(cambios, APP_VERSION);
   const aprobada = status.total > 0 && status.pendientes === 0;
@@ -66,12 +67,15 @@ function VersionSummary({ cambios, onCreate }) {
                 : `${status.pendientes} de sus ${status.total} cambios aún no se validan o aprueban. Hazlo antes de ponerla en producción.`}
           </p>
         </div>
-        <Button onClick={onCreate} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4" aria-hidden="true" /> Registrar cambio
-        </Button>
+        {onCreate && (
+          <Button onClick={onCreate} className="w-full sm:w-auto">
+            <Plus className="h-4 w-4" aria-hidden="true" /> Registrar cambio
+          </Button>
+        )}
       </div>
       <p className="mt-4 border-t border-line pt-3 text-xs leading-relaxed text-fg-subtle">
         NB/ISO/IEC 17025 · 7.11.2: todo cambio del sistema, incluida su configuración, se documenta, se valida y se aprueba antes de implementarse.
+        Sistemas registra, valida e implementa; el jefe de área de Calibración aprueba o rechaza.
       </p>
     </section>
   );
@@ -123,7 +127,7 @@ function ListSkeleton() {
  * Control de cambios del sistema (NB/ISO/IEC 17025, 7.11.2): qué cambió en
  * cada versión y en qué paso está (validación, aprobación, implementación).
  */
-export function ChangeControlPage() {
+export function ChangeControlPage({ puedeRegistrar = false }) {
   const { data: cambios, error, reload } = useResource(systemApi.cambios);
   const [filtro, setFiltro] = useState(null);
   const [query, setQuery] = useState('');
@@ -152,7 +156,7 @@ export function ChangeControlPage() {
         </div>
       )}
 
-      {cambios && <VersionSummary cambios={cambios} onCreate={() => setFicha({ type: 'nuevo' })} />}
+      {cambios && <VersionSummary cambios={cambios} onCreate={puedeRegistrar ? () => setFicha({ type: 'nuevo' }) : null} />}
 
       {cambios && (
         <div className="flex flex-wrap items-center gap-2">

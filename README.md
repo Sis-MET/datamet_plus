@@ -575,13 +575,16 @@ frontend. Mientras no haya destinatarios no sale ningún correo.
 
 ## Control de cambios y registro de fallas
 
-Dos apartados al pie de la barra lateral, sobre el usuario, solo para el nivel 3
-(migración `007`, rutas `/api/sistema/*`):
+Dos apartados al pie de la barra lateral, sobre el usuario, para el nivel 3
+(migración `007`, rutas `/api/sistema/*`). Control de cambios lo ve también el
+jefe de área de Calibración, que aprueba o rechaza los cambios:
 
 - **Control de cambios** (NB/ISO/IEC 17025, 7.11.2): cada cambio del sistema
   (módulo, mejora, corrección, seguridad, base de datos o configuración) se
   documenta, se valida (qué se probó, con qué datos y el resultado), se aprueba
-  y recién entonces se implementa. Cada paso queda en `APP_CAMBIOS_HISTORIAL`;
+  y recién entonces se implementa. Sistemas registra, edita, valida e
+  implementa; el jefe de área de Calibración aprueba o rechaza, nunca quien
+  validó (como las versiones de ServiceMET). Cada paso queda en `APP_CAMBIOS_HISTORIAL`;
   un cambio aprobado ya no se edita. Los cambios se agrupan por versión y la
   cabecera indica si la versión en uso (`package.json`) tiene todos sus
   cambios aprobados. La migración siembra lo implementado según el historial
