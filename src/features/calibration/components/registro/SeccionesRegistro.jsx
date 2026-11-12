@@ -112,7 +112,7 @@ function TablaEditable({ tabla, editor, editable, columnas }) {
       <div className="overflow-x-auto rounded-xl border border-line">
         <table className="w-full border-collapse text-[13px]">
           <thead className="bg-surface-2/60">
-            <tr className="text-[11px] uppercase tracking-[0.04em] text-fg-muted">
+            <tr className="text-[11.5px] text-fg-muted">
               <th className="px-2.5 py-2 text-left font-semibold"> </th>
               {tabla.columnas.map(c => <th key={c} className="px-2 py-2 text-left font-semibold">{c}</th>)}
             </tr>

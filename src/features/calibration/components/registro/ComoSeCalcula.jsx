@@ -133,7 +133,7 @@ function FilasPresupuesto({ titulo, filas, unidad }) {
   if (!filas.length) return null;
   return (
     <>
-      <tr><td colSpan={5} className="pb-1 pt-2.5 text-[11.5px] font-semibold uppercase tracking-wide text-fg-muted">{titulo}</td></tr>
+      <tr><td colSpan={5} className="pb-1 pt-2.5 text-[12px] font-semibold text-fg-muted">{titulo}</td></tr>
       {filas.map(f => (
         <tr key={`${f.grupo}-${f.fuente}`} className="border-t border-line/70">
           <td className="py-1 pr-3">{f.etiqueta}<span className="block font-mono text-[11px] text-fg-muted">{f.formula} · {f.ecuacion}</span></td>
@@ -298,7 +298,7 @@ function Tabla({ cabeza, filas }) {
 function Bloque({ titulo, children }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-fg-muted">{titulo}</p>
+      <p className="text-[12px] font-semibold text-fg-muted">{titulo}</p>
       {children}
     </div>
   );

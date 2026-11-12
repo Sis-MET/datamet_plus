@@ -28,7 +28,7 @@ function Presupuesto({ punto, unidad, renderComposicion }) {
     <div className="bg-surface-2/40 px-3 py-3">
       <table className="w-full text-[12.5px]">
         <thead>
-          <tr className="text-[11px] uppercase tracking-[0.04em] text-fg-muted">
+          <tr className="text-[11.5px] text-fg-muted">
             <th className="px-2 py-1 text-left font-semibold">Componente</th>
             <th className="px-2 py-1 text-right font-semibold">u ({unidad})</th>
             <th className="px-2 py-1 text-right font-semibold">ν</th>
@@ -142,7 +142,7 @@ export function CalculoServicio({ data, renderComposicion = null }) {
         <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-xs">
           <table className="w-full border-collapse text-[13px]">
             <thead className="bg-surface-2/60">
-              <tr className="text-[11.5px] uppercase tracking-[0.04em] text-fg-muted">
+              <tr className="text-[12px] text-fg-muted">
                 <th className="px-3 py-2 text-right font-semibold">N.º</th>
                 <th className="px-3 py-2 text-right font-semibold">Carga</th>
                 <th className="px-3 py-2 text-right font-semibold">Indicación</th>
