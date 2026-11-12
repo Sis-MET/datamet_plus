@@ -152,11 +152,34 @@ const sameUser = (a, b) => Boolean(a && b) && String(a).trim().toUpperCase() ===
 const conflictingAuthor = (reviewer, authors) => (authors || [])
   .find(author => (reviewer || []).some(identity => sameUser(identity, author))) || null;
 
+/** Instante de una fecha guardada en UTC («2026-11-06T13:26:01», con o sin Z). */
+const instante = (en) => {
+  const t = en ? Date.parse(`${String(en).replace(/Z$/, '')}Z`) : Number.NaN;
+  return Number.isFinite(t) ? t : -Infinity;
+};
+
+/**
+ * Quién hizo el último cambio de un registro entre sus autores, cada uno con
+ * su fecha ([{ usuario, en }], en el orden en que ocurren los pasos); null si
+ * no hay ninguno. Solo esa persona queda fuera de la revisión: quien registró
+ * o completó antes puede revisar lo que agregó otro.
+ */
+const ultimoAutor = (autores) => {
+  let ultimo = null;
+  for (const autor of autores || []) {
+    if (!autor?.usuario) continue;
+    // Con la misma fecha gana el paso posterior de la lista.
+    if (!ultimo || instante(autor.en) >= instante(ultimo.en)) ultimo = autor;
+  }
+  return ultimo?.usuario || null;
+};
+
 module.exports = {
   AJUSTES_LABELS,
   EVENT_LABELS,
   PROGRAMA_LABELS,
   conflictingAuthor,
+  ultimoAutor,
   describeChanges,
   describeEventChanges,
   describePlanChanges,

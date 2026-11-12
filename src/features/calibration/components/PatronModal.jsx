@@ -892,7 +892,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                 <div className="rounded-xl border border-warning/35 bg-warning/[0.06] px-3.5 py-3">
                   <p className="text-[13px] font-semibold text-fg">Pendiente de verificación</p>
                   <p className="mt-0.5 text-[12.5px] leading-snug text-fg-muted">
-                    Transcrito por {data.transcripcion?.transcritoPor || '—'}. Otra persona debe comparar los valores con el certificado original antes de que el cálculo los use.
+                    Transcrito por {data.transcripcion?.transcritoPor || '—'}. Alguien distinto de quien hizo el último cambio debe comparar los valores con el certificado original antes de que el cálculo los use.
                   </p>
                   {editable && (verificacion.puedeRevisar ? (
                     verificando ? (

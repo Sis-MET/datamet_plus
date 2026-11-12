@@ -6,8 +6,8 @@
  *
  * Reemplaza lo que el libro F-VMET-02-7.2 copia de Access (EQUI_VIGENTE y
  * VALORES). Los valores cuelgan del certificado vigente (CAL_CERTIFICADOS):
- * cambiarlos lo deja pendiente de revisión y quien los transcribió no puede
- * revisarlos (NB/ISO/IEC 17025, 7.11.6). Cada cambio guarda en el historial
+ * cambiarlos lo deja pendiente de revisión y quien hizo el último cambio no
+ * puede revisarlos (NB/ISO/IEC 17025, 7.11.6). Cada cambio guarda en el historial
  * del equipo la versión anterior y la nueva completas (7.5.2).
  */
 const { getPool, sql } = require('../config/db');
@@ -20,7 +20,7 @@ const {
   loadEquipo,
   logAction,
 } = require('./calibration.equipment');
-const { conflictingAuthor } = require('./calibration.history');
+const { conflictingAuthor, ultimoAutor } = require('./calibration.history');
 
 // ─── OIML R111-1:2004 ──────────────────────────────────────────────────────
 
@@ -359,7 +359,8 @@ const findVigente = async (createRequest, equipo) => {
     .input('fecha', sql.Date, equipo.certFecha)
     .input('numero', sql.NVarChar(100), equipo.certificado || '')
     .query(`
-      SELECT TOP 1 id, registrado_por, corregido_por, revisado_por,
+      SELECT TOP 1 id, registrado_por, CONVERT(varchar(23), registrado_en, 126) AS registrado_en,
+        corregido_por, CONVERT(varchar(23), corregido_en, 126) AS corregido_en, revisado_por,
         CONVERT(varchar(19), revisado_en, 126) AS revisado_en, revision_obs
       FROM dbo.CAL_CERTIFICADOS
       WHERE equipo_id = @eid AND cert_fecha = @fecha AND anulado = 0 AND ISNULL(certificado, '') = @numero
@@ -374,7 +375,7 @@ const loadTranscripcion = async (createRequest, certificadoId, { lock = false } 
   const hint = lock ? 'WITH (UPDLOCK, HOLDLOCK)' : '';
   const cabecera = await createRequest().input('cid', sql.Int, certificadoId).query(`
     SELECT temperatura, humedad, presion, temperatura_u, humedad_u, presion_u, condiciones_k,
-      observaciones, transcrito_por, CONVERT(varchar(19), transcrito_en, 126) AS transcrito_en, version
+      observaciones, transcrito_por, CONVERT(varchar(23), transcrito_en, 126) AS transcrito_en, version
     FROM dbo.CAL_CERT_TRANSCRIPCION ${hint} WHERE certificado_id = @cid
   `);
   const valores = await createRequest().input('cid', sql.Int, certificadoId).query(`
@@ -439,14 +440,17 @@ const verificacionDe = ({ vigente, transcripcion, who }) => {
       observaciones: clean(vigente.revision_obs),
     };
   }
-  const autor = conflictingAuthor(
-    [who.usuario, who.registro],
-    [clean(vigente?.registrado_por), clean(vigente?.corregido_por), transcripcion.transcritoPor]
-  );
+  // Solo quien hizo el último cambio (registrar, corregir o transcribir) queda fuera.
+  const ultimo = ultimoAutor([
+    { usuario: clean(vigente?.registrado_por), en: vigente?.registrado_en },
+    { usuario: clean(vigente?.corregido_por), en: vigente?.corregido_en },
+    { usuario: transcripcion.transcritoPor, en: transcripcion.transcritoEn },
+  ]);
+  const autor = conflictingAuthor([who.usuario, who.registro], [ultimo]);
   return {
     estado: 'PENDIENTE',
     puedeRevisar: !autor,
-    motivo: autor ? 'Registraste o transcribiste este certificado: debe verificarlo otra persona.' : null,
+    motivo: autor ? 'Hiciste el último cambio de este certificado o de sus valores: debe verificarlo otra persona.' : null,
   };
 };
 

@@ -19,7 +19,7 @@ const {
   mapEquipo,
   withTransaction,
 } = require('./calibration.db');
-const { conflictingAuthor, describeChanges } = require('./calibration.history');
+const { conflictingAuthor, describeChanges, ultimoAutor } = require('./calibration.history');
 
 const ESTADO_ACTIVO = 'ACTIVO';
 // DESACTIVADO es el valor que ya usan DATA_USERS y DATA_ACTIVOS; "BAJA
@@ -325,8 +325,8 @@ const registrarCertificado = async (id, data, actor) => withTransaction(async (c
 });
 
 /**
- * Quién transcribió los valores del certificado (migración 016); null si no
- * hay valores o la migración aún no se aplicó.
+ * Quién transcribió los valores del certificado y cuándo ({ usuario, en },
+ * migración 016); null si no hay valores o la migración aún no se aplicó.
  */
 const findTranscriptor = async (createRequest, certificadoId) => {
   if (!certificadoId) return null;
@@ -334,10 +334,22 @@ const findTranscriptor = async (createRequest, certificadoId) => {
     .input('cid', sql.Int, certificadoId)
     .query(`
       IF OBJECT_ID('dbo.CAL_CERT_TRANSCRIPCION', 'U') IS NOT NULL
-        SELECT transcrito_por FROM dbo.CAL_CERT_TRANSCRIPCION WHERE certificado_id = @cid
+        SELECT transcrito_por, CONVERT(varchar(23), transcrito_en, 126) AS transcrito_en
+        FROM dbo.CAL_CERT_TRANSCRIPCION WHERE certificado_id = @cid
     `);
-  return clean(result.recordset?.[0]?.transcrito_por);
+  const row = result.recordset?.[0];
+  return row ? { usuario: clean(row.transcrito_por), en: row.transcrito_en || null } : null;
 };
+
+/**
+ * Quien hizo el último cambio del certificado o de sus valores: el único que
+ * no puede revisarlo (registrar, corregir y transcribir, en ese orden).
+ */
+const ultimoEditorCertificado = (cert, transcripcion) => ultimoAutor([
+  { usuario: cert.registradoPor, en: cert.registradoEn },
+  { usuario: cert.corregidoPor, en: cert.corregidoEn },
+  transcripcion,
+]);
 
 /** Fila del historial con todos sus datos. */
 const loadCertificateRow = async (createRequest, certId) => {
@@ -345,7 +357,8 @@ const loadCertificateRow = async (createRequest, certId) => {
     .input('cid', sql.Int, certId)
     .query(`
       SELECT id, certificado, CONVERT(varchar(10), cert_fecha, 23) AS cert_fecha, cert_periodo,
-        ente_calibrador, observaciones, registrado_por, corregido_por, revisado_por
+        ente_calibrador, observaciones, registrado_por, CONVERT(varchar(23), registrado_en, 126) AS registrado_en,
+        corregido_por, CONVERT(varchar(23), corregido_en, 126) AS corregido_en, revisado_por
       FROM dbo.CAL_CERTIFICADOS WITH (UPDLOCK) WHERE id = @cid
     `);
   const row = result.recordset[0];
@@ -357,7 +370,9 @@ const loadCertificateRow = async (createRequest, certId) => {
     ente: clean(row.ente_calibrador),
     observaciones: clean(row.observaciones),
     registradoPor: clean(row.registrado_por),
+    registradoEn: row.registrado_en || null,
     corregidoPor: clean(row.corregido_por),
+    corregidoEn: row.corregido_en || null,
     revisadoPor: clean(row.revisado_por),
   } : null;
 };
@@ -421,7 +436,8 @@ const corregirCertificado = async (id, data, actor) => withTransaction(async (cr
 
 /**
  * Un segundo usuario compara el certificado vigente con el original (7.5.1 y
- * 7.11.6). Quien lo registró o lo corrigió no puede revisarlo.
+ * 7.11.6). Quien hizo el último cambio (registrarlo, corregirlo o transcribir
+ * sus valores) no puede revisarlo; quien lo completó antes, sí.
  */
 const revisarCertificado = async (id, { observaciones }, actor) => withTransaction(async (createRequest) => {
   const equipo = await loadEquipo(createRequest, id, { lock: true });
@@ -433,9 +449,9 @@ const revisarCertificado = async (id, { observaciones }, actor) => withTransacti
   const currentId = await archiveCurrentIfMissing(createRequest, equipo, null);
   const current = await loadCertificateRow(createRequest, currentId);
   if (current.revisadoPor) throw httpError(409, `Este certificado ya lo revisó ${current.revisadoPor}.`);
-  const transcriptor = await findTranscriptor(createRequest, currentId);
-  if (conflictingAuthor([who.usuario, who.registro], [current.registradoPor, current.corregidoPor, transcriptor])) {
-    throw httpError(409, 'La revisión la debe hacer otra persona: tú registraste, corregiste o transcribiste los valores de este certificado.');
+  const transcripcion = await findTranscriptor(createRequest, currentId);
+  if (conflictingAuthor([who.usuario, who.registro], [ultimoEditorCertificado(current, transcripcion)])) {
+    throw httpError(409, 'La revisión la debe hacer otra persona: tú hiciste el último cambio de este certificado o de sus valores.');
   }
 
   await createRequest()
@@ -538,11 +554,12 @@ const reviewState = (vigente, who) => {
   if (vigente.revisadoPor) {
     return { estado: 'REVISADO', revisadoPor: vigente.revisadoPor, revisadoEn: vigente.revisadoEn, observaciones: vigente.revisionObs };
   }
-  const autor = conflictingAuthor([who.usuario, who.registro], [vigente.registradoPor, vigente.corregidoPor, vigente.transcritoPor]);
+  const ultimo = ultimoEditorCertificado(vigente, vigente.transcritoPor ? { usuario: vigente.transcritoPor, en: vigente.transcritoEn } : null);
+  const autor = conflictingAuthor([who.usuario, who.registro], [ultimo]);
   return {
     estado: 'PENDIENTE',
     puedeRevisar: !autor,
-    motivo: autor ? 'Lo registraste, corregiste o transcribiste tú: debe revisarlo otra persona.' : null,
+    motivo: autor ? 'Hiciste el último cambio de este certificado o de sus valores: debe revisarlo otra persona.' : null,
   };
 };
 
@@ -560,8 +577,8 @@ const getEquipoHistorial = async (id, user = null) => {
         CONVERT(varchar(10), cert_fechaven, 23) AS cert_fechaven, ente_calibrador, observaciones,
         origen, anulado, motivo_anulacion, anulado_por,
         CONVERT(varchar(19), anulado_en, 126) AS anulado_en,
-        registrado_por, CONVERT(varchar(19), registrado_en, 126) AS registrado_en,
-        corregido_por, CONVERT(varchar(19), corregido_en, 126) AS corregido_en,
+        registrado_por, CONVERT(varchar(23), registrado_en, 126) AS registrado_en,
+        corregido_por, CONVERT(varchar(23), corregido_en, 126) AS corregido_en,
         revisado_por, CONVERT(varchar(19), revisado_en, 126) AS revisado_en, revision_obs
       FROM dbo.CAL_CERTIFICADOS
       WHERE equipo_id = @eid
@@ -644,7 +661,11 @@ const getEquipoHistorial = async (id, user = null) => {
     }
   }
   const anteriores = lista.filter(item => !item.anulado && !item.vigente);
-  if (vigente?.id) vigente.transcritoPor = await findTranscriptor(createRequest, vigente.id);
+  if (vigente?.id) {
+    const transcripcion = await findTranscriptor(createRequest, vigente.id);
+    vigente.transcritoPor = transcripcion?.usuario || null;
+    vigente.transcritoEn = transcripcion?.en ? utc(transcripcion.en) : null;
+  }
 
   return {
     equipo,

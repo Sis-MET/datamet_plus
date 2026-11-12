@@ -5,6 +5,7 @@ const {
   describeEventChanges,
   describePlanChanges,
   eventView,
+  ultimoAutor,
 } = require('../src/services/calibration.history');
 const { parse } = require('../src/services/calibration.validation');
 
@@ -38,6 +39,21 @@ test('quien registró o corrigió no puede revisar', () => {
   assert.equal(conflictingAuthor(['mgutierrez', 'MGC'], ['jortiz', 'JOR']), null);
   assert.equal(conflictingAuthor(['jortiz'], [' JORTIZ ']), ' JORTIZ ');
   assert.equal(conflictingAuthor(['jortiz'], [null, undefined]), null);
+});
+
+test('solo quien hizo el último cambio queda fuera de la revisión', () => {
+  // Registra una persona y otra transcribe después: la que transcribió es la última.
+  const registro = { usuario: 'mguerrero', en: '2026-11-06T13:04:12' };
+  const transcripcion = { usuario: 'jortuno', en: '2026-11-06T15:20:00Z' };
+  assert.equal(ultimoAutor([registro, { usuario: null, en: null }, transcripcion]), 'jortuno');
+  // Quien registró puede revisar lo que completó otro; quien completó, no.
+  assert.equal(conflictingAuthor(['mguerrero'], [ultimoAutor([registro, transcripcion])]), null);
+  assert.equal(conflictingAuthor(['jortuno'], [ultimoAutor([registro, transcripcion])]), 'jortuno');
+  // Una corrección posterior manda, aunque esté antes en la lista.
+  assert.equal(ultimoAutor([registro, { usuario: 'vallejos', en: '2026-11-07T09:00:00' }, transcripcion]), 'vallejos');
+  // Sin fechas o con la misma fecha, gana el paso posterior de la lista.
+  assert.equal(ultimoAutor([{ usuario: 'a' }, { usuario: 'b' }]), 'b');
+  assert.equal(ultimoAutor([]), null);
 });
 
 test('una verificación realizada exige resultado y hoja de datos', () => {

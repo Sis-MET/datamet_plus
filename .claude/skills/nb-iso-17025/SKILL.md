@@ -279,8 +279,9 @@ Revisa la pestaña Cumplimiento para el estado actual. Resumen de lo hecho:
 - **7.11.6 patrones (migración 016):** en la ficha de cada juego de pesas o
   termohigrómetro, «Piezas y valores» guarda las piezas y los valores de su
   certificado vigente (`calibration.patrones.js`). Los verifica otra persona
-  con la revisión de `CAL_CERTIFICADOS` (ni quien registró el certificado ni
-  quien transcribió); transcribir de nuevo exige motivo y deja la verificación
+  con la revisión de `CAL_CERTIFICADOS` (no quien hizo el último cambio:
+  registrar, corregir o transcribir; quien lo completó antes, sí, a pedido del
+  laboratorio en noviembre de 2026); transcribir de nuevo exige motivo y deja la verificación
   pendiente. La pestaña Cumplimiento cuenta los patrones sin verificar. Un
   cálculo de calibración no debe usar valores sin verificar.
 - **7.8 (noviembre 2026):** DataMET+ todavía **no emite certificados de

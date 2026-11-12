@@ -218,7 +218,7 @@ test('describe el vencimiento de la sesión en palabras', () => {
 test('7.11.6 muestra los valores de patrones sin verificar sin dejar de cumplir', () => {
   const verificados = find(evaluateCompliance(facts()), '7.11.6');
   assert.equal(verificados.estado, 'CUMPLE');
-  assert.match(verificados.evidencias.join(' '), /quien los transcribió/);
+  assert.match(verificados.evidencias.join(' '), /quien hizo el último cambio/);
   assert.deepEqual(verificados.datos.find(dato => /patrones/i.test(dato.etiqueta)), {
     etiqueta: 'Patrones con valores sin verificar', valor: '0 de 8', tono: 'neutral',
   });

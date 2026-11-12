@@ -837,7 +837,7 @@ const REQUISITOS = [
         evidencias: [
           'Las fechas de calibración, verificación y aviso se calculan con funciones cubiertas por pruebas automáticas.',
           revision && 'Los datos transcritos de cada certificado los verifica un segundo usuario contra el original.',
-          patrones && 'Los valores de los certificados de pesas y termohigrómetros (corrección, U, k, densidad) también los verifica otra persona, que no puede ser quien los transcribió; transcribirlos de nuevo exige motivo y deja la verificación pendiente.',
+          patrones && 'Los valores de los certificados de pesas y termohigrómetros (corrección, U, k, densidad) también los verifica otra persona, que no puede ser quien hizo el último cambio (registrar, corregir o transcribir los valores); transcribirlos de nuevo exige motivo y deja la verificación pendiente.',
           patrones && 'Al guardar valores de pesas el sistema avisa si no son coherentes con la OIML R111 (U mayor que un tercio del emp, corrección fuera del emp, densidad fuera de la Tabla 5).',
           'Esta evaluación compara en cada carga el vencimiento guardado con el calculado.',
           'Al pasar los certificados a su historial (migración 005) se limpiaron los espacios invisibles y se omitieron los duplicados.',
