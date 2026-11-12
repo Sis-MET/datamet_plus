@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertOctagon, AlertTriangle, Download, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AlertOctagon, AlertTriangle, Download, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../../shared/utils/cn';
 import { Button } from '../../../../shared/components/ui/Button';
@@ -18,24 +18,83 @@ const MODELOS = [
   { value: 'sugerido', label: 'Modelo sugerido' },
 ];
 
-/** Hojas a escala del ancho del panel. */
+// Zoom sobre el ajuste al ancho del panel (1 = ajustado). Se recuerda en este
+// navegador: en una pantalla chica conviene dejarlo más grande.
+const ZOOM = { min: 0.5, max: 3, paso: 0.1 };
+const CLAVE_ZOOM = 'datamet_previa_zoom';
+const limitarZoom = valor => Math.round(Math.min(ZOOM.max, Math.max(ZOOM.min, valor)) * 100) / 100;
+const zoomGuardado = () => {
+  try {
+    const valor = Number(localStorage.getItem(CLAVE_ZOOM));
+    return valor > 0 ? limitarZoom(valor) : 1;
+  } catch {
+    return 1;
+  }
+};
+
+const botonZoom = 'inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5 text-[12px] font-semibold tabular-nums text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg disabled:cursor-not-allowed disabled:opacity-40';
+
+/**
+ * Hojas a escala del ancho del panel. Ctrl (o ⌘) + rueda del mouse, o pellizcar
+ * en el touchpad, acerca o aleja solo la vista previa; los botones hacen lo mismo.
+ */
 function Hojas({ contenido, borrador, modelo }) {
   const ref = useRef(null);
-  const [escala, setEscala] = useState(0.55);
+  const [ajuste, setAjuste] = useState(0.55);
+  const [zoom, setZoomEstado] = useState(zoomGuardado);
+  const setZoom = useCallback((siguiente) => setZoomEstado((actual) => {
+    const valor = limitarZoom(typeof siguiente === 'function' ? siguiente(actual) : siguiente);
+    try { localStorage.setItem(CLAVE_ZOOM, String(valor)); } catch { /* sin almacenamiento: solo en esta vista */ }
+    return valor;
+  }), []);
   useLayoutEffect(() => {
     const nodo = ref.current;
     if (!nodo) return undefined;
-    const medir = () => setEscala(Math.max(0.25, Math.min(1.2, (nodo.clientWidth - 32) / ANCHO_HOJA)));
+    const medir = () => setAjuste(Math.max(0.25, Math.min(1.2, (nodo.clientWidth - 32) / ANCHO_HOJA)));
     medir();
     const observer = new ResizeObserver(medir);
     observer.observe(nodo);
     return () => observer.disconnect();
   }, []);
+  // La rueda con Ctrl hace zoom de la vista previa, no de toda la página.
+  useEffect(() => {
+    const nodo = ref.current;
+    if (!nodo) return undefined;
+    const alGirar = (event) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      setZoom(z => z * (event.deltaY < 0 ? 1.1 : 1 / 1.1));
+    };
+    nodo.addEventListener('wheel', alGirar, { passive: false });
+    return () => nodo.removeEventListener('wheel', alGirar);
+  }, [setZoom]);
   const Documento = modelo === 'sugerido' ? CertificadoProfesional : CertificadoDocumento;
   return (
-    <div ref={ref} className={cn('rounded-2xl bg-surface-3 p-4', modelo === 'sugerido' ? 'cp-vista' : 'cc-vista')}>
-      <div style={{ zoom: escala }}>
-        <Documento contenido={contenido} borrador={borrador} />
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1" role="group" aria-label="Zoom de la vista previa">
+        <span className="mr-auto text-[11.5px] text-fg-subtle">Ctrl + rueda del mouse para acercar o alejar</span>
+        <button type="button" className={botonZoom} onClick={() => setZoom(z => z - ZOOM.paso)} disabled={zoom <= ZOOM.min} aria-label="Alejar" title="Alejar">
+          <ZoomOut className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={cn(botonZoom, 'w-14')}
+          onClick={() => setZoom(1)}
+          disabled={zoom === 1}
+          title="Ajustar al ancho del panel"
+          aria-label={`Zoom ${Math.round(zoom * 100)} %; ajustar al ancho`}
+        >
+          {Math.round(zoom * 100)} %
+        </button>
+        <button type="button" className={botonZoom} onClick={() => setZoom(z => z + ZOOM.paso)} disabled={zoom >= ZOOM.max} aria-label="Acercar" title="Acercar">
+          <ZoomIn className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+      <div ref={ref} className={cn('rounded-2xl bg-surface-3 p-4', modelo === 'sugerido' ? 'cp-vista' : 'cc-vista')} style={{ overflow: 'auto' }}>
+        {/* Del ancho de las hojas: centrado si cabe; si no, se desplaza desde el borde izquierdo. */}
+        <div style={{ zoom: ajuste * zoom, width: 'max-content', margin: '0 auto' }}>
+          <Documento contenido={contenido} borrador={borrador} />
+        </div>
       </div>
     </div>
   );
