@@ -287,6 +287,11 @@ const transcripcionVersion = ({
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
+/** Una transcripción sin valores, puntos, condiciones ni observaciones. */
+const transcripcionVacia = (version) => version.valores.length === 0 && version.puntos.length === 0
+  && ['temperatura', 'humedad', 'presion', 'temperaturaU', 'humedadU', 'presionU', 'condicionesK', 'observaciones']
+    .every(campo => version[campo] == null);
+
 /** «2 piezas nuevas · 1 modificada · 1 desactivada». */
 const resumenPiezas = (antes, despues) => {
   const previas = new Map(antes.map(pieza => [pieza.id, pieza]));
@@ -451,12 +456,15 @@ const verificacionDe = ({ vigente, transcripcion, who }) => {
 const getPatron = async (equipoId, user = null) => {
   const createRequest = () => getPool().request();
   const equipo = await loadEquipo(createRequest, equipoId);
-  const [config, piezas, vigente, who] = await Promise.all([
+  const [config, piezasGuardadas, conValores, vigente, who] = await Promise.all([
     loadConfig(createRequest, equipoId),
     loadPiezas(createRequest, equipoId),
+    piezasConValores(createRequest, equipoId),
     findVigente(createRequest, equipo),
     user ? findActor(createRequest, user) : Promise.resolve({ usuario: null, registro: null }),
   ]);
+  // conValores: corregir su valor nominal o su identificación pide motivo.
+  const piezas = piezasGuardadas.map(pieza => ({ ...pieza, conValores: conValores.has(pieza.id) }));
   const datos = vigente
     ? await loadTranscripcion(createRequest, vigente.id)
     : { cabecera: null, valores: [], puntos: [] };
@@ -514,7 +522,10 @@ const writeConfig = (createRequest, equipoId, { tipo, clase }, usuario, existe) 
        WHERE equipo_id = @eid`
     : 'INSERT INTO dbo.CAL_PATRONES (equipo_id, tipo, clase, actualizado_por) VALUES (@eid, @tipo, @clase, @usuario)');
 
-/** Piezas en uso por algún certificado: su valor nominal e identificación no cambian. */
+/**
+ * Piezas con valores de algún certificado: corregir su valor nominal o su
+ * identificación exige motivo y queda en el historial (NB/ISO/IEC 17025, 7.5.2).
+ */
 const piezasConValores = async (createRequest, equipoId) => {
   const result = await createRequest().input('eid', sql.Int, equipoId).query(`
     SELECT DISTINCT v.pieza_id FROM dbo.CAL_CERT_VALORES v
@@ -533,6 +544,9 @@ const savePiezas = async (createRequest, equipoId, piezas, usuario) => {
   // contando las piezas que no se enviaron.
   const enviados = new Set(piezas.filter(pieza => pieza.id).map(pieza => pieza.id));
   const claves = new Map(antes.filter(pieza => !enviados.has(pieza.id)).map(pieza => [piezaKey(pieza), pieza]));
+  // Piezas con valores de un certificado a las que se corrige el valor nominal
+  // o la identificación (un error de transcripción): se permite con motivo.
+  const corregidas = [];
   for (const pieza of piezas) {
     if (pieza.id && !porId.has(pieza.id)) throw httpError(400, 'Una de las piezas no pertenece a este equipo.');
     const key = piezaKey(pieza);
@@ -540,8 +554,20 @@ const savePiezas = async (createRequest, equipoId, piezas, usuario) => {
     claves.set(key, pieza);
     const previa = pieza.id ? porId.get(pieza.id) : null;
     if (previa && usadas.has(previa.id) && piezaKey(previa) !== key) {
-      throw httpError(409, `${piezaLabel(previa)} ya tiene valores de un certificado: no cambies su valor nominal ni su identificación. Desactívala y agrega una pieza nueva.`);
+      corregidas.push({ id: previa.id, antes: piezaLabel(previa), despues: piezaLabel(pieza) });
     }
+  }
+
+  // La base no admite dos piezas con la misma clave ni por un instante: las que
+  // cambian de clave pasan antes por una temporal. Así se puede, por ejemplo,
+  // pasar el «*» de una pieza de 200 g a la otra.
+  for (const pieza of piezas) {
+    const previa = pieza.id ? porId.get(pieza.id) : null;
+    if (!previa || piezaKey(previa) === piezaKey(pieza)) continue;
+    await createRequest()
+      .input('pid', sql.Int, previa.id)
+      .input('eid', sql.Int, equipoId)
+      .query(`UPDATE dbo.CAL_PATRON_PIEZAS SET identificacion = CONCAT(N'~', id) WHERE id = @pid AND equipo_id = @eid`);
   }
 
   const despues = [];
@@ -594,6 +620,7 @@ const savePiezas = async (createRequest, equipoId, piezas, usuario) => {
     antes: antes.map(piezaVersion),
     despues: todas.map(piezaVersion),
     cambio: Boolean(resumen),
+    corregidas,
   };
 };
 
@@ -693,13 +720,24 @@ const savePatron = async (equipoId, data, actor) => withTransaction(async (creat
 
   // Piezas.
   let piezas = await loadPiezas(createRequest, equipoId, { lock: true });
+  // Como estaban antes de guardar: los valores transcritos se comparan con la
+  // pieza que tenían, aunque ahora se corrija su valor nominal o identificación.
+  const previasPorId = new Map(piezas.map(pieza => [pieza.id, pieza]));
   if (data.tipo === 'PESAS' && data.piezas) {
     const guardadas = await savePiezas(createRequest, equipoId, data.piezas, who.usuario);
     piezas = guardadas.piezas;
+    const { corregidas } = guardadas;
+    if (corregidas.length > 0 && !data.motivo) {
+      throw httpError(400, `Escribe el motivo de la corrección: ${corregidas[0].antes} ya tiene valores de un certificado.`);
+    }
     if (guardadas.cambio) {
-      await logAction(createRequest, equipoId, 'PIEZAS', guardadas.resumen, who.usuario, {
+      const detalle = corregidas.length > 0
+        ? ` · corregida${corregidas.length === 1 ? '' : 's'}: ${corregidas.map(item => `${item.antes} → ${item.despues}`).join(', ')}`
+        : '';
+      await logAction(createRequest, equipoId, 'PIEZAS', `${guardadas.resumen}${detalle}`, who.usuario, {
         antes: guardadas.antes,
         despues: guardadas.despues,
+        motivo: corregidas.length > 0 ? data.motivo : null,
       });
       cambios += 1;
     }
@@ -716,9 +754,18 @@ const savePatron = async (equipoId, data, actor) => withTransaction(async (creat
     if (previo.cabecera && data.certificado.version !== previo.cabecera.version) {
       throw httpError(409, `${previo.cabecera.transcritoPor || 'Otra persona'} cambió los valores mientras editabas. Recarga la ficha y vuelve a aplicar tus cambios.`);
     }
-    const antes = previo.cabecera ? transcripcionVersion({ ...previo.cabecera, valores: previo.valores, puntos: previo.puntos }) : null;
+    // Con la pieza de antes: corregir el valor nominal o la identificación de
+    // una pieza con valores cambia lo transcrito y vuelve a pedir verificación.
+    const valoresPrevios = previo.valores.map((valor) => {
+      const previa = previasPorId.get(valor.piezaId);
+      return previa ? { ...valor, nominalMg: previa.nominalMg, identificacion: previa.identificacion } : valor;
+    });
+    const antes = previo.cabecera ? transcripcionVersion({ ...previo.cabecera, valores: valoresPrevios, puntos: previo.puntos }) : null;
     const despues = transcripcionVersion(data.certificado);
-    if (!antes || !same(antes, despues)) {
+    // Guardar solo las piezas no transcribe un certificado vacío: dejaría el
+    // certificado por verificar sin valores y pediría motivo al transcribirlo.
+    const cambia = antes ? !same(antes, despues) : !transcripcionVacia(despues);
+    if (cambia) {
       if (antes && !data.motivo) throw httpError(400, 'Escribe el motivo del cambio: los valores de este certificado ya estaban transcritos.');
       const { motor } = await require('./calibration.metodo').configuracionVigente();
       await writeTranscripcion(createRequest, certificadoId, piezas, data.certificado, nuevaConfig.clase, who.usuario, Boolean(previo.cabecera),
@@ -785,6 +832,7 @@ module.exports = {
   vigenteEn,
   resumenPiezas,
   transcripcionVersion,
+  transcripcionVacia,
   getPatron,
   savePatron,
   valoresVigentesEn,

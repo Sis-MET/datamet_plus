@@ -143,18 +143,20 @@ describe('«Apta» según la OIML R111', () => {
     expect(ambas.fallas.map(f => [f.norma, f.texto])).toEqual([['5.2', 'U > emp/3'], ['5.3', '|corr.| > emp − U']]);
   });
 
-  it('encuentra la clase más exacta que cumple la pieza con su certificado', () => {
+  it('la clase que cumple parte de la del juego y nunca es más exacta', () => {
     const tabla = { clases: ['E1', 'E2', 'F1', 'F2'], emp: [[10, 0.003, 0.008, 0.025, 0.08], [20, 0.003, 0.010, 0.03, 0.10]] };
-    const pieza = (nominalMg, correccion, u) => claseQueCumple({ r111: tabla, nominalMg, correccion, u, k: '2' });
+    const pieza = (nominalMg, correccion, u, clase = 'E2') => claseQueCumple({ r111: tabla, clase, nominalMg, correccion, u, k: '2' });
     // E2-003: con U = 0,003 mg, 10 mg no llega a E2 pero sí a F1; 20 mg sí es E2.
     expect(pieza(10, '0,002', '0,003')).toEqual({ calculable: true, clase: 'F1' });
     expect(pieza(20, '-0,001', '0,003')).toEqual({ calculable: true, clase: 'E2' });
-    // Con una U chica cumple hasta E1.
-    expect(pieza(10, '0,001', '0,001')).toEqual({ calculable: true, clase: 'E1' });
+    // Aunque los números alcancen para E1, el laboratorio declara la clase del juego.
+    expect(pieza(10, '0,001', '0,001')).toEqual({ calculable: true, clase: 'E2' });
+    expect(pieza(10, '0', '0,001', 'F2')).toEqual({ calculable: true, clase: 'F2' });
     // Una corrección enorme no cabe en ninguna.
     expect(pieza(10, '0,2', '0,003')).toEqual({ calculable: true, clase: null });
-    // Sin valores no se calcula.
+    // Sin valores o sin la clase del juego no se calcula.
     expect(pieza(10, '', '0,003')).toEqual({ calculable: false, clase: null });
+    expect(pieza(10, '0,001', '0,001', '')).toEqual({ calculable: false, clase: null });
     expect([claseInferior(tabla, 'F1', 'E2'), claseInferior(tabla, 'E1', 'E2'), claseInferior(tabla, 'E2', 'E2')]).toEqual([true, false, false]);
   });
 

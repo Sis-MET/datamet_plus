@@ -216,9 +216,10 @@ const armarEnvio = (form, data) => {
 // ─── Celdas ────────────────────────────────────────────────────────────────
 
 /**
- * La clase más exacta que respalda el certificado de la pieza. Si es menos
- * exacta que la del juego, va resaltada (con su explicación al pasar el
- * cursor); si alcanza la del juego o una mejor, en texto normal.
+ * La clase que respalda el certificado de la pieza, desde la del juego hacia
+ * abajo (nunca una más exacta). Si es menos exacta que la del juego, va
+ * resaltada (con su explicación al pasar el cursor); si es la del juego, en
+ * texto normal.
  */
 function ClaseQueCumple({ resultado, claseJuego, r111 }) {
   if (!resultado.calculable) return <span className="text-[13px] text-fg-subtle">—</span>;
@@ -236,8 +237,41 @@ function ClaseQueCumple({ resultado, claseJuego, r111 }) {
   return <span className="text-[13px] font-medium tabular-nums text-fg">{resultado.clase}</span>;
 }
 
+/**
+ * Motivo de un cambio que deja rastro: valores ya transcritos o el valor
+ * nominal o la identificación de una pieza que ya tiene valores de un
+ * certificado (NB/ISO/IEC 17025, 7.5.2).
+ */
+function MotivoCambio({ baseId, motivo, onChange, certificadoCambio, piezasCorregidas, className }) {
+  return (
+    <div className={className}>
+      <FieldLabel htmlFor={`${baseId}-motivo`}>Motivo del cambio</FieldLabel>
+      <input
+        id={`${baseId}-motivo`}
+        className="field h-10"
+        value={motivo}
+        onChange={(event) => onChange(event.target.value)}
+        maxLength={300}
+        placeholder={piezasCorregidas.length > 0
+          ? 'Ej.: la identificación «*» estaba en la otra pieza de 200 g'
+          : 'Ej.: se transcribió mal la corrección de 200 g'}
+      />
+      <p className="cal-hint mt-1.5">
+        {piezasCorregidas.length > 0 && (
+          <>Corriges {piezasCorregidas.join(', ')}, que ya {piezasCorregidas.length === 1 ? 'tiene' : 'tienen'} valores de un certificado. </>
+        )}
+        {certificadoCambio
+          ? 'El cambio queda en el historial con este motivo y el certificado vuelve a quedar pendiente de verificación.'
+          : 'El cambio queda en el historial con este motivo.'}
+      </p>
+    </div>
+  );
+}
+
 const celda = 'field h-9 rounded-lg px-2.5 text-[13px] tabular-nums';
-const encabezado = 'whitespace-nowrap px-2 py-2 text-left text-[11.5px] font-semibold uppercase tracking-[0.04em] text-fg-muted';
+// Sin mayúsculas automáticas: los símbolos de las unidades del SI y el factor
+// de cobertura k se escriben en minúscula (mg, g, kg, kg/m³, hPa, k).
+const encabezado = 'whitespace-nowrap px-2 py-2 text-left text-[12px] font-semibold text-fg-muted';
 const subencabezado = 'whitespace-nowrap px-2 pb-2 pt-0.5 text-left text-[11.5px] font-semibold text-fg-muted';
 
 /**
@@ -515,6 +549,19 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
   const dirty = Boolean(data && !data.patron.configurado) || Boolean(inicial && actual && inicial !== actual);
   const certificadoCambio = Boolean(envio && data?.transcripcion
     && JSON.stringify(envio.body.certificado) !== JSON.stringify(armarEnvio(estadoInicial(data), data).body.certificado));
+  // Piezas con valores de un certificado a las que se corrige el valor nominal
+  // o la identificación: «1 kg → 1 g». Piden motivo y quedan en el historial.
+  const piezasCorregidas = useMemo(() => {
+    if (!data || !envio?.body.piezas) return [];
+    const guardadas = new Map(data.piezas.map(pieza => [pieza.id, pieza]));
+    return envio.body.piezas
+      .filter((pieza) => {
+        const guardada = pieza.id ? guardadas.get(pieza.id) : null;
+        return guardada?.conValores && Number.isFinite(pieza.nominalMg) && piezaKey(pieza) !== piezaKey(guardada);
+      })
+      .map(pieza => `${piezaLabel(guardadas.get(pieza.id))} → ${piezaLabel(pieza)}`);
+  }, [data, envio]);
+  const pideMotivo = certificadoCambio || piezasCorregidas.length > 0;
 
   const avisosPorPieza = useMemo(() => {
     const mapa = new Map();
@@ -615,8 +662,10 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
       toast.error('Elige la clase del juego de pesas.');
       return;
     }
-    if (certificadoCambio && motivo.trim().length < 3) {
-      toast.error('Escribe el motivo del cambio: los valores de este certificado ya estaban transcritos.');
+    if (pideMotivo && motivo.trim().length < 3) {
+      toast.error(piezasCorregidas.length > 0
+        ? `Escribe el motivo de la corrección (${piezasCorregidas.join(', ')}): la pieza ya tiene valores de un certificado.`
+        : 'Escribe el motivo del cambio: los valores de este certificado ya estaban transcritos.');
       return;
     }
     setSaving(true);
@@ -799,7 +848,12 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
             <p className="cal-hint mt-3">
               Al elegir el material se llena su densidad supuesta (OIML R111, Tabla B.7) con la U para k = 2; cámbiala si el certificado da una medida.
               Los materiales son los de Método de cálculo › Densidades. Las piezas guardadas no se borran: se desactivan.
+              Si una pieza ya tiene valores de un certificado, puedes corregir su valor nominal o su identificación escribiendo el motivo;
+              si es otra pieza física, desactívala y agrega una nueva.
             </p>
+            {piezasCorregidas.length > 0 && !data.certificado && editable && (
+              <MotivoCambio baseId={baseId} motivo={motivo} onChange={setMotivo} certificadoCambio={false} piezasCorregidas={piezasCorregidas} className="mt-4" />
+            )}
           </ModalSection>
         )}
 
@@ -889,7 +943,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                           5.3 · |corr.| ≤ emp − U
                         </th>
                         <th className={subencabezado}>Resultado</th>
-                        <th className={subencabezado} title="La clase más exacta de la R111 en la que la pieza es apta con los valores de su certificado, con el criterio del método">
+                        <th className={subencabezado} title="La clase del juego (la reportada y elegida en la ficha) si la pieza es apta; si no, la siguiente clase menos exacta que respalda su certificado. Nunca una más exacta que la del juego.">
                           Clase que cumple
                         </th>
                       </tr>
@@ -913,6 +967,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                         });
                         const cumpleComo = claseQueCumple({
                           r111: data.r111,
+                          clase: form.clase,
                           nominalMg: Number.isFinite(nominal) ? toMg(nominal, fila.unidad) : Number.NaN,
                           correccion: valor.correccion,
                           u: valor.u,
@@ -968,8 +1023,9 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                       (OIML R111, 5.2 y 5.3); hacen falta las dos y cada una tiene su columna, en mg. Pasa el cursor para ver las cuentas.
                     </>
                   )}
-                  {' '}«Clase que cumple» es la clase más exacta que respalda el certificado de cada pieza.
-                  Una pieza no apta igual se usa con su corrección y su U del certificado, pero no puede presentarse con esa clase.
+                  {' '}«Clase que cumple» es la clase del juego, la reportada en su certificado, cuando la pieza es apta; nunca una más
+                  exacta. Si no es apta, muestra la siguiente clase menor que respalda su certificado. Una pieza no apta igual se usa
+                  con su corrección y su U del certificado, pero no puede presentarse con la clase del juego.
                 </p>
               )}
               {form.tipo !== 'PESAS' && (
@@ -1012,7 +1068,7 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                         {[
                           { campo: 'temperatura', etiqueta: 'Temperatura', unidad: '°C' },
                           { campo: 'humedad', etiqueta: 'Humedad relativa', unidad: '%' },
-                          { campo: 'presion', etiqueta: 'Presión', unidad: 'hPa = mbar' },
+                          { campo: 'presion', etiqueta: 'Presión', unidad: 'hPa' },
                         ].map(({ campo, etiqueta, unidad }) => (
                           <tr key={campo} className="border-t border-line">
                             <td className="whitespace-nowrap px-3 py-1.5 text-[13px] text-fg">
@@ -1053,19 +1109,8 @@ export function PatronModal({ equipo, canEdit, desdeCertificado = false, onClose
                 />
               </div>
 
-              {certificadoCambio && editable && (
-                <div>
-                  <FieldLabel htmlFor={`${baseId}-motivo`}>Motivo del cambio</FieldLabel>
-                  <input
-                    id={`${baseId}-motivo`}
-                    className="field h-10"
-                    value={motivo}
-                    onChange={(event) => setMotivo(event.target.value)}
-                    maxLength={300}
-                    placeholder="Ej.: se transcribió mal la corrección de 200 g"
-                  />
-                  <p className="cal-hint mt-1.5">Los valores ya estaban transcritos: el cambio queda en el historial con este motivo y el certificado vuelve a quedar pendiente de verificación.</p>
-                </div>
+              {pideMotivo && editable && (
+                <MotivoCambio baseId={baseId} motivo={motivo} onChange={setMotivo} certificadoCambio={certificadoCambio} piezasCorregidas={piezasCorregidas} />
               )}
 
               {(avisosGenerales.length > 0 || avisosPiezas.length > 0) && (

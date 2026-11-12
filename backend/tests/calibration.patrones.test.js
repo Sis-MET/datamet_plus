@@ -11,6 +11,7 @@ const {
   piezaKey,
   resumenPiezas,
   tipoSugerido,
+  transcripcionVacia,
   transcripcionVersion,
   vigenteEn,
 } = require('../src/services/calibration.patrones');
@@ -208,6 +209,17 @@ test('la versión de una transcripción no depende del orden de las filas', () =
     transcripcionVersion({ valores: [], puntos: [presion] }),
     transcripcionVersion({ valores: [], puntos: [{ ...presion, expresadoComo: 'ERROR' }] })
   );
+});
+
+test('guardar solo las piezas no cuenta como transcribir el certificado', () => {
+  // Lo que manda la ficha cuando el certificado vigente aún no tiene valores.
+  assert.equal(transcripcionVacia(transcripcionVersion({ observaciones: '', valores: [], puntos: [] })), true);
+  // Cualquier dato ya es una transcripción.
+  assert.equal(transcripcionVacia(transcripcionVersion({ temperatura: 20.5, valores: [], puntos: [] })), false);
+  assert.equal(transcripcionVacia(transcripcionVersion({ observaciones: 'Tres documentos', valores: [], puntos: [] })), false);
+  assert.equal(transcripcionVacia(transcripcionVersion({
+    valores: [{ nominalMg: 1000, identificacion: '', correccionMg: 0.01, uMg: 0.03, k: 2 }], puntos: [],
+  })), false);
 });
 
 test('valida y redondea los datos de un patrón', () => {

@@ -189,22 +189,27 @@ export const aptaPieza = ({ r111, clase, nominalMg, correccion, u, k, criterio =
 };
 
 /**
- * La clase más exacta de la R111 que cumple la pieza con los valores de su
- * certificado: recorre las clases en su orden (E1, E2, F1, F2, M1…) y se queda
- * con la primera en la que es apta para ese valor nominal, con el mismo
- * criterio que «Apta» (R111: 5.2 y 5.3; SUMA_EMP: |corrección| + U ≤ emp). Sirve para
- * saber qué clase respalda el certificado cuando no alcanza la del juego (por
- * ejemplo, una U del laboratorio que no llega a E2 pero sí a F1).
- * { calculable, clase }: calculable es false si faltan la corrección, la U o
- * el k; clase es null si no cumple ninguna.
+ * La clase que cumple la pieza con los valores de su certificado, partiendo de
+ * la clase del juego (la reportada en su certificado y elegida en la ficha):
+ * por procedimiento el laboratorio no declara una clase más exacta que esa,
+ * aunque los números alcancen. Recorre desde la clase del juego hacia las menos
+ * exactas (F1, F2, M1…) y se queda con la primera en la que es apta para ese
+ * valor nominal, con el mismo criterio que «Apta» (R111: 5.2 y 5.3; SUMA_EMP:
+ * |corrección| + U ≤ emp). Si es apta, es la del juego; si no, dice qué clase
+ * menor respalda el certificado (por ejemplo, una U que no llega a E2 pero sí
+ * a F1).
+ * { calculable, clase }: calculable es false sin la clase del juego o si
+ * faltan la corrección, la U o el k; clase es null si no cumple ninguna.
  */
-export const claseQueCumple = ({ r111, nominalMg, correccion, u, k, criterio = 'R111' }) => {
+export const claseQueCumple = ({ r111, clase, nominalMg, correccion, u, k, criterio = 'R111' }) => {
+  const clases = r111?.clases || [];
+  const desde = clases.indexOf(clase);
   const [c, uValor, kValor] = [correccion, u, k].map(parseNumber);
-  if (![c, uValor, kValor].every(Number.isFinite) || !(kValor > 0) || !Number.isFinite(nominalMg)) {
+  if (desde < 0 || ![c, uValor, kValor].every(Number.isFinite) || !(kValor > 0) || !Number.isFinite(nominalMg)) {
     return { calculable: false, clase: null };
   }
-  const clase = (r111?.clases || []).find(candidata => aptaPieza({ r111, clase: candidata, nominalMg, correccion, u, k, criterio }).apta === true);
-  return { calculable: true, clase: clase ?? null };
+  const cumple = clases.slice(desde).find(candidata => aptaPieza({ r111, clase: candidata, nominalMg, correccion, u, k, criterio }).apta === true);
+  return { calculable: true, clase: cumple ?? null };
 };
 
 /** ¿La clase `a` es menos exacta que `b`? (en el orden de la Tabla 1: E1 la más exacta). */
