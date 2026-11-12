@@ -177,7 +177,7 @@ export function CalculoServicio({ data, renderComposicion = null }) {
                           <td className="px-3 py-1.5 text-right tabular-nums">{fijo(punto.indicacion, decimales + 1)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{fijo(punto.mref, decimales + 1)}</td>
                           <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{fijo(punto.presentacion.error, decimales)}</td>
-                          <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{fijo(punto.presentacion.U, decimales)}</td>
+                          <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{fijo(punto.presentacion.U, punto.presentacion.decimalesU ?? decimales)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{fijo(punto.k, 2)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{punto.tolerancia ? fijo(punto.tolerancia, decimales) : '—'}</td>
                           <td className="px-3 py-1.5 text-right"><Conformidad conformidad={punto.conformidad} /></td>

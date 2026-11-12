@@ -207,7 +207,7 @@ test('versión inicial, borrador, edición, aprobación por el jefe y versiones 
   await assert.rejects(metodo.configuracionDe(7), estado(409));
 });
 
-test('quien redacta o edita no aprueba; el borrador se puede descartar', async () => {
+test('quien hizo el último cambio no aprueba; el borrador se puede descartar', async () => {
   reiniciar();
   metodo.limpiarCache();
   await metodo.getMetodo(jefe);
@@ -215,12 +215,17 @@ test('quien redacta o edita no aprueba; el borrador se puede descartar', async (
   await metodo.crearBorrador(tecnica, { motivo: 'Cambio de textos' });
   const contenido = structuredClone(metodo.contenidoInicial());
   contenido.textos.repetibilidad = 'La desviación estándar es de una sola lectura.';
-  // El jefe edita el borrador de la técnica: ya no puede aprobarlo.
+  // El jefe edita el borrador de la técnica: es el último cambio, no puede aprobarlo.
   await metodo.guardarBorrador(jefe, { revision: 1, contenido });
   const pantalla = await metodo.getMetodo(jefe);
   assert.equal(pantalla.permisos.aprobar, false);
-  assert.match(pantalla.permisos.motivoAprobar, /quien la redacta no la aprueba/);
+  assert.match(pantalla.permisos.motivoAprobar, /último cambio/);
   await assert.rejects(metodo.aprobar(jefe, { revision: 2 }), estado(403));
+  // Si después la técnica lo completa, el último cambio es de ella: el jefe ya puede aprobar.
+  contenido.textos.repetibilidad = 'La desviación estándar corresponde a una sola indicación.';
+  await metodo.guardarBorrador(tecnica, { revision: 2, contenido });
+  assert.equal((await metodo.getMetodo(jefe)).permisos.aprobar, true);
+  assert.equal((await metodo.getMetodo(tecnica)).permisos.motivoAprobar, 'Solo el jefe de Calibración aprueba la configuración del método.');
   // Se descarta: queda en el historial y la vigente sigue siendo la 1.
   await metodo.descartarBorrador(tecnica, { motivo: 'Se redacta de nuevo' });
   const despues = await metodo.getMetodo(jefe);
@@ -241,7 +246,8 @@ test('reglas de cálculo: opciones conocidas y valores dentro de sus límites', 
     redondeoU: { cifras: 1, sentido: 'CERCANO' },
     aire: { formula: 'APROXIMADA' },
     excentricidad: { metodo: 'METODO_1' },
-    conformidad: { bandaGuarda: 0.5, riesgoUmbral: 0.1 },
+    conformidad: { bandaGuarda: 0.5, riesgoUmbral: 0.1, riesgo: 'PLANILLA' },
+    presentacion: { decimales: 'POR_RANGO', k: 'SIN_DECIMALES' },
     empServicio: { factor: 1 },
     claseSugerida: { regla: 'POR_N' },
     usp: { tolerancia: 0.0005, cargaEvaluacion: 0.1, sMinimaEnD: 0.41, factorS: 2, divisorPesas: 3 },
@@ -250,12 +256,20 @@ test('reglas de cálculo: opciones conocidas y valores dentro de sus límites', 
   assert.equal(motorConf.repetibilidad.regla, 'MAYOR');
   assert.deepEqual(motorConf.cobertura, { metodo: 'FIJO', probabilidad: 0.95, k: 2 });
   assert.equal(motorConf.usp.tolerancia, 0.0005);
+  assert.equal(motorConf.conformidad.riesgo, 'PLANILLA');
+  assert.deepEqual(motorConf.presentacion, { decimales: 'POR_RANGO', k: 'SIN_DECIMALES' });
+  assert.throws(() => metodo.validarContenido(con({ presentacion: { decimales: 'POR_D', k: 'DOS_DECIMALES' } })), /decimales se escriben/);
+  assert.throws(() => metodo.validarContenido(con({ conformidad: { bandaGuarda: 1, riesgoUmbral: 0.05, riesgo: 'OTRO' } })), /riesgo asociado/);
   assert.throws(() => metodo.validarContenido(con({ repetibilidad: { regla: 'MEDIA' } })), /parametros\.repetibilidad\.regla/);
   assert.throws(() => metodo.validarContenido(con({ redondeoU: { cifras: 2.5, sentido: 'ARRIBA' } })), /1, 2 o 3/);
   assert.throws(() => metodo.validarContenido(con({ cobertura: { metodo: 'T_STUDENT', probabilidad: 0.5, k: 2 } })), /al menos 0\.9/);
   assert.throws(() => metodo.validarContenido(con({ empServicio: { factor: 5 } })), /como máximo 3/);
   // Una versión guardada antes de las reglas las recibe con el valor que reproduce su cálculo.
   const viejo = metodo.contenidoInicial();
-  for (const clave of ['repetibilidad', 'cobertura', 'redondeoU', 'aire', 'excentricidad', 'conformidad', 'empServicio', 'claseSugerida', 'usp']) delete viejo.parametros[clave];
+  for (const clave of ['repetibilidad', 'cobertura', 'redondeoU', 'aire', 'excentricidad', 'conformidad', 'presentacion', 'empServicio', 'claseSugerida', 'usp']) delete viejo.parametros[clave];
   assert.deepEqual(metodo.configuracionMotor(1, metodo.completar(viejo)), structuredClone(motor.CONFIGURACION_V1));
+  // Una versión guardada antes del riesgo «como la planilla» lo recibe como se calculaba entonces.
+  const sinRiesgo = metodo.contenidoInicial();
+  delete sinRiesgo.parametros.conformidad.riesgo;
+  assert.equal(metodo.completar(sinRiesgo).parametros.conformidad.riesgo, 'DOS_COLAS');
 });

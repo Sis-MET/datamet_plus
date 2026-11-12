@@ -98,6 +98,8 @@ test('las reglas por omisión son las de la versión 1', () => {
     excentricidad: 'METODO_3',
     bandaGuarda: 1,
     riesgoUmbral: 0.05,
+    riesgo: 'DOS_COLAS',
+    presentacion: { decimales: 'POR_U', k: 'DOS_DECIMALES' },
     factorEmp: 2,
     claseSugerida: 'TABLA_3',
   });
@@ -153,6 +155,49 @@ test('servicio: la s mayor sube U en las cargas bajas; k fijo, banda y factor de
 
   const banda = calcularServicio(modelo, datos({ ...motor.CONFIGURACION_V1, conformidad: { bandaGuarda: 0, riesgoUmbral: 0.05 } }));
   v1.puntos.forEach((p, i) => cerca(banda.puntos[i].conformidad.margen, p.conformidad.margen + p.U));
+});
+
+test('presentación por el rango: el error con los decimales del rango y U con uno más', () => {
+  const base = { error: -0.10123, U: 0.0812, k: 2, presentacion: { decimales: 'POR_RANGO' }, decimalesRango: 1 };
+  assert.deepEqual(motor.presentar({ ...base, redondeo: { cifras: 2, sentido: 'CERCANO' } }), { error: -0.1, U: 0.08, decimales: 1, decimalesU: 2, k: 2 });
+  // Hacia arriba nunca declara una U menor que la calculada.
+  assert.equal(motor.presentar({ ...base, redondeo: { cifras: 2, sentido: 'ARRIBA' } }).U, 0.09);
+  // Una U menor que el último decimal no queda en cero.
+  assert.equal(motor.redondearUA(0.004, 2, 'CERCANO'), 0.01);
+  // Los decimales del rango: los de ServiceMET o, si faltan, los de d.
+  assert.equal(motor.decimalesDeRango({ d: 0.1, decimales: 1 }), 1);
+  assert.equal(motor.decimalesDeRango({ d: 0.005 }), 3);
+  assert.equal(motor.decimalesDeRango({ d: 1, decimales: 0 }), 0);
+  // Por la incertidumbre (versión 1), como antes.
+  assert.deepEqual(
+    motor.presentar({ error: -0.10123, U: 0.0812, k: 2, redondeo: { cifras: 2, sentido: 'ARRIBA' } }),
+    { error: -0.101, U: 0.082, decimales: 3, decimalesU: 3, k: 2 }
+  );
+});
+
+test('servicio: con decimales por el rango, el error lleva los del rango y U uno más', () => {
+  const { modelo } = modeloDeFila(fila());
+  const porRango = calcularServicio(modelo, datos({ ...motor.CONFIGURACION_V1, presentacion: { decimales: 'POR_RANGO', k: 'SIN_DECIMALES' } }));
+  // El rango declara 2 decimales (dec1).
+  assert.ok(porRango.puntos.every(p => p.presentacion.decimales === 2 && p.presentacion.decimalesU === 3));
+  assert.equal(porRango.reglas.presentacion.k, 'SIN_DECIMALES');
+  // El cálculo no cambia: solo cómo se informa.
+  const v1 = calcularServicio(modelo, datos(motor.CONFIGURACION_V1));
+  porRango.puntos.forEach((p, i) => cerca(p.U, v1.puntos[i].U));
+});
+
+test('riesgo como la planilla: 1 − Φ((T − |E|)/U) con el error y la U que se informan', () => {
+  const planilla = (error, U, tolerancia) => motor.conformidad({
+    error, U, k: 2, tolerancia, regla: 'SIMPLE', metodoRiesgo: 'PLANILLA', presentado: { error, U },
+  }).riesgo;
+  // INBOLPACK, CAS 200 kg (0060-11-003), como la planilla: E = 0,0 y U = 0,08 kg.
+  assert.equal((planilla(0, 0.08, 0.1) * 100).toFixed(2), '10.56'); // EMP 0,1 kg
+  assert.equal((planilla(0, 0.08, 0.2) * 100).toFixed(2), '0.62'); // EMP 0,2 kg: «< 5,00»
+  assert.equal((planilla(-0.1, 0.08, 0.2) * 100).toFixed(2), '10.56'); // 150 y 200 kg
+  // Con la regla de la versión 1 (dos colas, u = U/k) el mismo punto queda bajo 5 %.
+  assert.ok(motor.conformidad({ error: 0, U: 0.08, k: 2, tolerancia: 0.1, regla: 'SIMPLE' }).riesgo < 0.05);
+  // El riesgo no cambia la decisión.
+  assert.equal(motor.conformidad({ error: 0, U: 0.08, k: 2, tolerancia: 0.1, regla: 'SIMPLE', metodoRiesgo: 'PLANILLA' }).conforme, true);
 });
 
 // ─── USP ⟨41⟩ ──────────────────────────────────────────────────────────────

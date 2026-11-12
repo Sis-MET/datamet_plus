@@ -9,7 +9,7 @@
  */
 const { aireDeCalibracion, corregirHumedad, corregirLectura, densidadAire } = require('./aire');
 const { MG_POR, componerCarga, piezasSupuestas } = require('./cargas');
-const { errorEnPunto } = require('./error');
+const { decimalesDeRango, errorEnPunto } = require('./error');
 const { COBERTURA, combinar } = require('./estadistica');
 const { componentesIndicacion, excentricidad, repetibilidad, repetibilidadPara } = require('./indicacion');
 const { densidadSupuesta, masaReferencia } = require('./referencia');
@@ -36,6 +36,8 @@ const reglasDe = (config = {}) => ({
   excentricidad: config.excentricidad?.metodo || 'METODO_3',
   bandaGuarda: config.conformidad?.bandaGuarda ?? 1,
   riesgoUmbral: config.conformidad?.riesgoUmbral ?? 0.05,
+  riesgo: config.conformidad?.riesgo || 'DOS_COLAS',
+  presentacion: { decimales: 'POR_U', k: 'DOS_DECIMALES', ...(config.presentacion || {}) },
   factorEmp: config.empServicio?.factor ?? 2,
   claseSugerida: config.claseSugerida?.regla || 'TABLA_3',
 });
@@ -364,7 +366,12 @@ const calcularServicio = (modelo, datos) => {
     const rango = rangoDeCarga(rangos, punto.carga);
     const s = repetibilidadPara(I, ensayos, reglas.repetibilidad);
     const componentesI = componentesIndicacion(I, { d0: rangos[0].d, dI: rango.d, s: s?.s, nuS: s?.nu, uRelEcc: ecc.uRel });
-    const resultado = errorEnPunto({ indicacion: I, componentesI, referencia, opciones: { cobertura: reglas.cobertura, redondeo: reglas.redondeo } });
+    const resultado = errorEnPunto({
+      indicacion: I,
+      componentesI,
+      referencia,
+      opciones: { cobertura: reglas.cobertura, redondeo: reglas.redondeo, presentacion: reglas.presentacion, decimalesRango: decimalesDeRango(rango) },
+    });
 
     let tolerancia = null;
     if (modelo.criterio.empNB23001) {
@@ -375,7 +382,16 @@ const calcularServicio = (modelo, datos) => {
       // Tolerancia absoluta del cliente por rango de carga (dato del cliente).
       tolerancia = toleranciaPorRango(punto.carga, modelo.criterio.toleranciasRango);
     }
-    const conforme = conformidad({ error: resultado.error, U: resultado.U, k: resultado.k, tolerancia, regla: modelo.criterio.regla, bandaGuarda: reglas.bandaGuarda });
+    const conforme = conformidad({
+      error: resultado.error,
+      U: resultado.U,
+      k: resultado.k,
+      tolerancia,
+      regla: modelo.criterio.regla,
+      bandaGuarda: reglas.bandaGuarda,
+      metodoRiesgo: reglas.riesgo,
+      presentado: resultado.presentacion,
+    });
 
     // Avisos de RECA (configurables).
     const lim = config.avisos;

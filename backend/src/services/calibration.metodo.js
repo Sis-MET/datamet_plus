@@ -3,7 +3,7 @@
  *
  * Los parámetros, tablas y textos del certificado que el laboratorio ajusta
  * sin tocar las fórmulas. Cada cambio es una versión nueva: se redacta como
- * borrador y la aprueba el jefe de Calibración; quien la redactó o la editó
+ * borrador y la aprueba el jefe de Calibración; quien hizo el último cambio
  * no la aprueba. Rige la versión vigente: los registros que aún no se
  * aprueban se calculan con ella; los aprobados, autorizados y emitidos
  * conservan la versión con la que se aprobaron (CAL_REGISTROS.configuracion).
@@ -13,8 +13,9 @@
  * La versión 1 es la configuración inicial del sistema (fase 0): se crea la
  * primera vez que se abre la pantalla y el jefe la aprueba ahí. Las reglas de
  * cálculo (s de repetibilidad, factor de cobertura, redondeo de U, fórmula
- * del aire, excentricidad, banda de guarda, emp en servicio, clase sugerida,
- * USP ⟨41⟩, aptitud de las pesas patrón) se eligen aquí entre opciones ya programadas y probadas, con sus
+ * del aire, excentricidad, banda de guarda, riesgo asociado, decimales del
+ * error y de U, formato de k, emp en servicio, clase sugerida, USP ⟨41⟩,
+ * aptitud de las pesas patrón) se eligen aquí entre opciones ya programadas y probadas, con sus
  * valores; las fórmulas quedan en el código, validadas con los ejemplos de
  * las guías (7.11.2). Una regla nueva entra a las versiones guardadas antes
  * con el valor que reproduce el cálculo de entonces.
@@ -22,6 +23,7 @@
 const { z } = require('zod');
 const { getPool, sql } = require('../config/db');
 const { actorName, clean, httpError, withTransaction } = require('./calibration.db');
+const { ultimoAutor } = require('./calibration.history');
 const { personaCalibracion } = require('./calibration.aprobadores');
 const motor = require('./calibracion/motor');
 const { TEXTOS } = require('./calibration.certificado');
@@ -42,6 +44,7 @@ const contenidoInicial = () => {
       aire: c.aire,
       excentricidad: c.excentricidad,
       conformidad: c.conformidad,
+      presentacion: c.presentacion,
       empServicio: c.empServicio,
       claseSugerida: c.claseSugerida,
       empuje: c.empuje,
@@ -86,7 +89,15 @@ const esquema = z.object({
     }).strict(),
     aire: z.object({ formula: opcion(Object.keys(motor.FORMULAS_AIRE), 'Elige la fórmula de la densidad del aire.') }).strict(),
     excentricidad: z.object({ metodo: opcion(motor.METODOS_EXCENTRICIDAD, 'Elige el método 1 o el 3.') }).strict(),
-    conformidad: z.object({ bandaGuarda: numero(0, 3), riesgoUmbral: numero(0.001, 0.5) }).strict(),
+    conformidad: z.object({
+      bandaGuarda: numero(0, 3),
+      riesgoUmbral: numero(0.001, 0.5),
+      riesgo: opcion(motor.METODOS_RIESGO, 'Elige cómo se calcula el riesgo asociado.'),
+    }).strict(),
+    presentacion: z.object({
+      decimales: opcion(motor.DECIMALES_RESULTADO, 'Elige con cuántos decimales se escriben el error y la U.'),
+      k: opcion(motor.FORMATOS_K, 'Elige cómo se escribe el factor de cobertura.'),
+    }).strict(),
     empServicio: z.object({ factor: numero(1, 3) }).strict(),
     claseSugerida: z.object({ regla: opcion(motor.REGLAS_CLASE, 'Elige la regla de la clase sugerida.') }).strict(),
     empuje: z.enum(['5a', '5b'], { error: 'Elige 7.1.2-5a o 7.1.2-5b.' }),
@@ -171,6 +182,7 @@ const configuracionMotor = (version, contenido) => {
     aire: { ...p.aire },
     excentricidad: { ...p.excentricidad },
     conformidad: { ...p.conformidad },
+    presentacion: { ...p.presentacion },
     empServicio: { ...p.empServicio },
     claseSugerida: { ...p.claseSugerida },
     empuje: p.empuje,
@@ -333,19 +345,31 @@ const porAprobar = versiones => versiones.find(v => v.estado === 'BORRADOR')
   || versiones.find(v => v.estado === 'VIGENTE' && !v.aprobado_por && v.creado_por === SISTEMA)
   || null;
 
-/** Quiénes redactaron o editaron una versión (no la pueden aprobar). */
-const autoresDe = (version, historial) => new Set([
-  version.creado_por, version.modificado_por,
-  ...historial.filter(h => h.version === version.version && ['CREACION', 'EDICION'].includes(h.accion)).map(h => h.usuario),
-].filter(u => u && u !== SISTEMA).map(u => String(u).toLowerCase()));
+/**
+ * Quién hizo el último cambio de una versión (redactarla o editarla): el único
+ * que no la puede aprobar; quien la redactó antes y otro completó, sí.
+ */
+const ultimoEditorDe = (version, historial) => ultimoAutor([
+  { usuario: version.creado_por, en: version.creado_en },
+  ...historial
+    .filter(h => h.version === version.version && ['CREACION', 'EDICION'].includes(h.accion))
+    .sort((a, b) => a.id - b.id)
+    .map(h => ({ usuario: h.usuario, en: h.fecha })),
+  { usuario: version.modificado_por, en: version.modificado_en },
+].filter(a => a.usuario !== SISTEMA));
+
+const editoUltimo = (version, historial, usuario) => {
+  const ultimo = ultimoEditorDe(version, historial);
+  return Boolean(ultimo && usuario) && String(ultimo).toLowerCase() === String(usuario).toLowerCase();
+};
 
 const permisosDe = (persona, versiones, historial) => {
   const pendiente = porAprobar(versiones);
-  const redacto = pendiente ? autoresDe(pendiente, historial).has(String(persona.usuario).toLowerCase()) : false;
+  const redacto = pendiente ? editoUltimo(pendiente, historial, persona.usuario) : false;
   let motivoAprobar = null;
   if (!pendiente) motivoAprobar = 'No hay una versión por aprobar.';
   else if (!persona.jefe) motivoAprobar = 'Solo el jefe de Calibración aprueba la configuración del método.';
-  else if (redacto) motivoAprobar = 'Redactaste o editaste esta versión: quien la redacta no la aprueba.';
+  else if (redacto) motivoAprobar = 'Hiciste el último cambio de esta versión: debe aprobarla alguien que no la editó al final.';
   const borrador = versiones.some(v => v.estado === 'BORRADOR');
   return {
     redactar: persona.editor && !borrador,
@@ -484,8 +508,8 @@ const aprobar = async (user, { revision, motivo = null }) => conMigracion(async 
     const pendiente = porAprobar(versiones);
     if (!pendiente) throw httpError(409, 'No hay una versión por aprobar.');
     if (pendiente.revision !== revision) throw httpError(409, 'La versión cambió desde que la abriste. Recárgala y revísala de nuevo.');
-    if (autoresDe(pendiente, historial).has(String(persona.usuario).toLowerCase())) {
-      throw httpError(403, 'Redactaste o editaste esta versión: quien la redacta no la aprueba.');
+    if (editoUltimo(pendiente, historial, persona.usuario)) {
+      throw httpError(403, 'Hiciste el último cambio de esta versión: debe aprobarla alguien que no la editó al final.');
     }
     validarContenido(pendiente.contenido);
     const aprobador = (request) => request
@@ -512,7 +536,6 @@ const aprobar = async (user, { revision, motivo = null }) => conMigracion(async 
 module.exports = {
   CLASES_PESAS,
   aprobar,
-  autoresDe,
   completar,
   configuracionDe,
   configuracionMotor,

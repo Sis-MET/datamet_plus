@@ -110,18 +110,32 @@ const claseSugerida = (rangos, gPorUnidad, regla = 'TABLA_3') => {
  * Conformidad de un punto con su tolerancia T.
  * regla: 'SIMPLE' (|E| ≤ T) o 'CONSERVADORA' (|E| + w ≤ T, con la banda de
  * guarda w = bandaGuarda·U; 1 por omisión).
- * riesgo: probabilidad de que el error real esté fuera de ±T con una normal
- * de media E y desviación u = U/k.
+ * riesgo (metodoRiesgo, del método):
+ * - DOS_COLAS: probabilidad de que el error real esté fuera de ±T con una
+ *   normal de media E y desviación u = U/k (JCGM 106).
+ * - PLANILLA: como la planilla del laboratorio, 1 − Φ((T − |E|) / U) con el
+ *   error y la U que se informan (`presentado`): una cola y la U expandida
+ *   como desviación, más conservador.
+ * La decisión (conforme) no depende del riesgo.
  */
-const conformidad = ({ error, U, k, tolerancia, regla, bandaGuarda = 1 }) => {
+const conformidad = ({
+  error, U, k, tolerancia, regla, bandaGuarda = 1, metodoRiesgo = 'DOS_COLAS', presentado = null,
+}) => {
   if (!(tolerancia > 0) || !['SIMPLE', 'CONSERVADORA'].includes(regla)) {
     return { evaluada: false, conforme: null, margen: null, riesgo: null };
   }
   const exigido = Math.abs(error) + (regla === 'CONSERVADORA' ? bandaGuarda * U : 0);
-  const u = k > 0 ? U / k : 0;
-  const riesgo = u > 0
-    ? normalAcumulada((-tolerancia - error) / u) + (1 - normalAcumulada((tolerancia - error) / u))
-    : (Math.abs(error) > tolerancia ? 1 : 0);
+  let riesgo;
+  if (metodoRiesgo === 'PLANILLA') {
+    const e = Math.abs(presentado?.error ?? error);
+    const Ui = presentado?.U ?? U;
+    riesgo = Ui > 0 ? 1 - normalAcumulada((tolerancia - e) / Ui) : (e > tolerancia ? 1 : 0);
+  } else {
+    const u = k > 0 ? U / k : 0;
+    riesgo = u > 0
+      ? normalAcumulada((-tolerancia - error) / u) + (1 - normalAcumulada((tolerancia - error) / u))
+      : (Math.abs(error) > tolerancia ? 1 : 0);
+  }
   return {
     evaluada: true,
     regla,

@@ -6,7 +6,8 @@ import { Button } from '../../../../shared/components/ui/Button';
 import { useResource } from '../../../system/hooks/useResource';
 import { calibrationApi } from '../../api/calibration';
 import {
-  ACCIONES_METODO, AIRE, APTITUD_PESAS, CIFRAS_U, CLASE_SUGERIDA, COBERTURA, EMPUJE, ESTADOS_VERSION, EXCENTRICIDAD, REPETIBILIDAD, SENTIDO_U,
+  ACCIONES_METODO, AIRE, APTITUD_PESAS, CIFRAS_U, CLASE_SUGERIDA, COBERTURA, DECIMALES_RESULTADO, EMPUJE, ESTADOS_VERSION, EXCENTRICIDAD, FORMATOS_K,
+  REPETIBILIDAD, RIESGO, SENTIDO_U,
   avisosMetodo, conRuta, diferencias, etiquetaRuta, leerRuta, textoValor, tocaRuta, validar,
 } from '../../domain/metodo';
 import { CancelButton, PrimaryButton, Segmented, ToneBadge } from '../primitives';
@@ -22,7 +23,7 @@ const SECCIONES = [
   {
     id: 'calculo',
     label: 'Cálculo',
-    rutas: ['parametros.repetibilidad', 'parametros.cobertura', 'parametros.redondeoU', 'parametros.aire', 'parametros.excentricidad', 'parametros.empuje', 'parametros.kD'],
+    rutas: ['parametros.repetibilidad', 'parametros.cobertura', 'parametros.redondeoU', 'parametros.presentacion', 'parametros.aire', 'parametros.excentricidad', 'parametros.empuje', 'parametros.kD'],
   },
   { id: 'conformidad', label: 'Conformidad', rutas: ['parametros.conformidad', 'parametros.empServicio', 'parametros.claseSugerida'] },
   { id: 'conveccion', label: 'Convección', rutas: ['parametros.conveccion'] },
@@ -75,7 +76,8 @@ function Secciones({ cambios, avisos = [] }) {
           <CampoOpciones ruta="parametros.redondeoU.cifras" etiqueta="Cifras significativas de U" opciones={CIFRAS_U} />
           <CampoOpciones ruta="parametros.redondeoU.sentido" etiqueta="Redondeo de U" opciones={SENTIDO_U} />
         </div>
-        <p className="-mt-2 text-[11.5px] text-fg-muted">El error se imprime con los mismos decimales que U.</p>
+        <CampoOpciones ruta="parametros.presentacion.decimales" etiqueta="Decimales del error y de U en el certificado" opciones={DECIMALES_RESULTADO} />
+        <CampoOpciones ruta="parametros.presentacion.k" etiqueta="Factor de cobertura en el certificado" opciones={FORMATOS_K} />
         <CampoOpciones ruta="parametros.aire.formula" etiqueta="Densidad del aire" opciones={AIRE} />
         <CampoOpciones ruta="parametros.excentricidad.metodo" etiqueta="Excentricidad" opciones={EXCENTRICIDAD} />
         <CampoOpciones ruta="parametros.empuje" etiqueta="Incertidumbre del empuje del aire" opciones={EMPUJE} />
@@ -85,6 +87,7 @@ function Secciones({ cambios, avisos = [] }) {
       <Seccion meta={S.conformidad} titulo="Tolerancia y conformidad" cambios={cambios} descripcion="Cómo se arma el emp NB 23001 y cómo se decide la conformidad (NB/ISO/IEC 17025 7.8.6). La regla de cada servicio (simple o conservadora) la pide el cliente en ServiceMET.">
         <CampoNumero ruta="parametros.empServicio.factor" etiqueta="emp en servicio" ayuda="El emp de verificación inicial de la OIML R76 (Tabla 6) por este factor. La NB 23001 y la R76 (3.5.2) usan el doble: 2." />
         <CampoNumero ruta="parametros.conformidad.bandaGuarda" etiqueta="Banda de guarda de la regla conservadora" ayuda="Conforme si |E| + factor · U ≤ T. Con 1: |E| + U ≤ T (decisión 7); con 0 queda igual que la regla simple." />
+        <CampoOpciones ruta="parametros.conformidad.riesgo" etiqueta="Riesgo asociado" opciones={RIESGO} />
         <CampoNumero ruta="parametros.conformidad.riesgoUmbral" etiqueta="Riesgo que se escribe «menor que»" ayuda="Por debajo de este riesgo el certificado escribe «< 5,00» en vez del valor." />
         <CampoOpciones ruta="parametros.claseSugerida.regla" etiqueta="Clase sugerida cuando el instrumento no la tiene" opciones={CLASE_SUGERIDA} />
       </Seccion>
@@ -380,7 +383,7 @@ export function MetodoPagina() {
       <div className="min-w-0">
         <h2 className="text-xl font-semibold text-fg">Configuración del método</h2>
         <p className="mt-1 max-w-3xl text-[13px] text-fg-muted">
-          Reglas de cálculo, parámetros, tablas y textos del certificado de balanzas, por versión: el laboratorio los define sin cambiar el programa. Cada versión nueva se redacta como borrador y la aprueba el jefe de Calibración; quien la redacta no la aprueba (NB/ISO/IEC 17025, 7.11.2).
+          Reglas de cálculo, parámetros, tablas y textos del certificado de balanzas, por versión: el laboratorio los define sin cambiar el programa. Cada versión nueva se redacta como borrador y la aprueba el jefe de Calibración; quien hizo el último cambio no la aprueba (NB/ISO/IEC 17025, 7.11.2).
         </p>
       </div>
 

@@ -166,6 +166,16 @@ Desde la pestaña Equipos y la ficha de cada equipo:
   + U ≤ emp») solo avisa si falla la 5.3 y muestra la 5.2 como dato. Las
   versiones anteriores del método quedan con `R111`. El cálculo no cambia: las
   pesas se usan siempre con su corrección y su U del certificado.
+- **Presentación y riesgo del certificado de balanzas:** también en Método de
+  cálculo. `parametros.presentacion.decimales`: `POR_U` (U con sus cifras
+  significativas y el error a los mismos decimales) o `POR_RANGO` (el error con
+  los decimales del rango de su carga y U con uno más, en el sentido de
+  `redondeoU`); `parametros.presentacion.k`: `DOS_DECIMALES` (2,00) o
+  `SIN_DECIMALES` (2; con los suyos si k no es entero);
+  `parametros.conformidad.riesgo`: `DOS_COLAS` (u = U/k, JCGM 106) o `PLANILLA`
+  (1 − Φ((T − |E|)/U) con lo que se informa, como la planilla del laboratorio).
+  Las versiones anteriores quedan con lo de antes. AS FOUND va siempre en el
+  gráfico con las precargas; la tabla «antes del ajuste», solo si hubo ajuste.
 
 Si otro sistema cambia el certificado directamente en `DATA_EQUIPOS_CAL`, el
 módulo lo archiva como `EXTERNO` antes de reemplazarlo.
@@ -182,8 +192,10 @@ Migración `006`:
 - **Verificaciones:** al registrarla como realizada se exigen el resultado y la
   hoja o el archivo donde quedaron sus datos (`registro_ref`).
 - **Revisión por un segundo usuario:** certificados y verificaciones los
-  revisa otra persona; el sistema impide que lo haga quien los registró o
-  corrigió. Si los datos cambian, la revisión vuelve a quedar pendiente.
+  revisa otra persona; el sistema impide que lo haga quien hizo el último
+  cambio (en un certificado de patrón: registrarlo, corregirlo o transcribir
+  sus valores). Quien lo completó antes sí puede revisar lo que agregó otro.
+  Si los datos cambian, la revisión vuelve a quedar pendiente.
 - **Corrección de certificados:** exige el motivo y conserva la versión
   anterior completa (observaciones incluidas) en `CAL_EQUIPOS_HISTORIAL`.
 - **Configuración del plan:** frecuencias, responsables, avisos y actividades

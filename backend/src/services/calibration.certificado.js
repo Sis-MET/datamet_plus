@@ -395,10 +395,15 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
   if (sinCalcular.length) avisos.push(`Puntos sin calcular, que no salen en el certificado: ${sinCalcular.map(p => p.n).join(', ')}.`);
   const aplica = regla !== 'NINGUNA';
   const umbralRiesgo = calculo?.reglas?.riesgoUmbral ?? 0.05;
+  // k con dos decimales (2,00) o, si el método lo pide, sin los que sobran (2; 2,05 si no es entero).
+  const kSinDecimales = calculo?.reglas?.presentacion?.k === 'SIN_DECIMALES';
+  const textoK = valor => (kSinDecimales ? coma(Number(Number(valor).toFixed(2))) : coma(valor, 2));
   const errores = {
     encabezadoTolerancia,
     filas: calculados.map((p) => {
       const dec = p.presentacion.decimales;
+      // La U con los suyos: los mismos del error, o uno más si el método lo pide.
+      const decU = p.presentacion.decimalesU ?? dec;
       const c = p.conformidad;
       const decLectura = Math.max(dec, decInstrumento) + 1;
       return {
@@ -406,8 +411,8 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
         indicacion: conUnidad(coma(p.indicacion, decLectura), unidad),
         mref: conUnidad(coma(p.mref, decLectura), unidad),
         error: conUnidad(coma(p.presentacion.error, dec), unidad),
-        U: conUnidad(coma(p.presentacion.U, dec), unidad),
-        k: coma(p.k, 2),
+        U: conUnidad(coma(p.presentacion.U, decU), unidad),
+        k: textoK(p.k),
         // El emp o la tolerancia con los decimales del instrumento (o los suyos, si tiene más).
         tolerancia: aplica && p.tolerancia > 0
           ? conUnidad(coma(p.tolerancia, Math.min(6, Math.max(decInstrumento, decimalesDe(p.tolerancia)))), unidad)
@@ -422,9 +427,11 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
     avisos.push('Hay puntos sin tolerancia: la conformidad sale como «NO APLICA».');
   }
 
-  // Antes del ajuste (as found): las precargas, si hubo ajuste (7.8.4.1 d).
+  // Como se recibió (as found): las precargas. Van siempre en el gráfico, como
+  // en la planilla; la tabla «antes del ajuste» solo si hubo ajuste (7.8.4.1 d).
   const huboAjuste = m.ajuste.realizado === 'SI' || m.ajuste.realizado === true;
-  const antes = huboAjuste ? (m.precarga || []).filter(p => p.carga != null && p.indicacion != null) : [];
+  const precargas = (m.precarga || []).filter(p => p.carga != null && p.indicacion != null);
+  const antes = huboAjuste ? precargas : [];
   const antesDelAjuste = antes.length ? antes.map(p => ({
     carga: conUnidad(coma(p.carga), unidad),
     indicacion: conUnidad(coma(p.indicacion, decInstrumento), unidad),
@@ -433,7 +440,7 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
 
   const graficoErrores = {
     asLeft: calculados.map(p => ({ x: p.carga, y: p.presentacion.error, U: p.presentacion.U })),
-    asFound: antes.map(p => ({ x: p.carga, y: p.indicacion - p.carga })),
+    asFound: precargas.map(p => ({ x: p.carga, y: p.indicacion - p.carga })),
     emp: aplica ? escalones(calculados) : [],
   };
 
@@ -449,7 +456,7 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
     conformidad: !aplica || !evaluados.length ? 'SIN DECLARACIÓN' : noConformes ? 'NO CONFORME' : 'CONFORME',
     regla,
     errorMax: mayorError ? `${conUnidad(coma(mayorError.presentacion.error, mayorError.presentacion.decimales), unidad)} (en ${conUnidad(coma(mayorError.carga), unidad)})` : null,
-    UMax: mayorU ? `${conUnidad(coma(mayorU.presentacion.U, mayorU.presentacion.decimales), unidad)} (en ${conUnidad(coma(mayorU.carga), unidad)})` : null,
+    UMax: mayorU ? `${conUnidad(coma(mayorU.presentacion.U, mayorU.presentacion.decimalesU ?? mayorU.presentacion.decimales), unidad)} (en ${conUnidad(coma(mayorU.carga), unidad)})` : null,
   };
   const momento = (lectura) => ({
     hora: lectura?.hora || '—',

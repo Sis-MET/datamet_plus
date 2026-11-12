@@ -28,6 +28,28 @@ const usp = require('./usp');
 const CRITERIOS_APTITUD_PESAS = ['R111', 'SUMA_EMP'];
 
 /**
+ * Cómo se escriben el error y la U en el certificado:
+ * - POR_U: U con sus cifras significativas (redondeoU) y el error a los mismos
+ *   decimales (GUM 7.2.6; la versión 1).
+ * - POR_RANGO: el error con los decimales del rango de su carga (los que
+ *   declara ServiceMET) y la U con un decimal más, redondeada en el sentido de
+ *   redondeoU (procedimiento del laboratorio).
+ */
+const DECIMALES_RESULTADO = ['POR_U', 'POR_RANGO'];
+
+/** Cómo se escribe el factor de cobertura: con dos decimales (2,00) o sin los que sobran (2). */
+const FORMATOS_K = ['DOS_DECIMALES', 'SIN_DECIMALES'];
+
+/**
+ * Riesgo asociado a la declaración de conformidad:
+ * - DOS_COLAS: probabilidad de que el error real quede fuera de ±T, con una
+ *   normal de media E y desviación u = U/k (JCGM 106; la versión 1).
+ * - PLANILLA: como la planilla del laboratorio, 1 − Φ((T − |E|) / U) con el
+ *   error y la U que se informan (una cola, la U expandida como desviación).
+ */
+const METODOS_RIESGO = ['DOS_COLAS', 'PLANILLA'];
+
+/**
  * Configuración del método, versión 1 (docs/calibracion-plan-implementacion.md,
  * «Configuración inicial»). El laboratorio la cambia por versiones en
  * Calibración › Método de cálculo: valores y opciones entre cálculos ya
@@ -41,7 +63,9 @@ const CONFIGURACION_V1 = Object.freeze({
   redondeoU: { cifras: 2, sentido: 'ARRIBA' }, // decisión 3
   aire: { formula: 'CIPM-2007' },
   excentricidad: { metodo: 'METODO_3' }, // decisión 11
-  conformidad: { bandaGuarda: 1, riesgoUmbral: 0.05 }, // |E| + 1·U ≤ T (decisión 7)
+  conformidad: { bandaGuarda: 1, riesgoUmbral: 0.05, riesgo: 'DOS_COLAS' }, // |E| + 1·U ≤ T (decisión 7)
+  // Cómo se escriben el error, la U y k en el certificado.
+  presentacion: { decimales: 'POR_U', k: 'DOS_DECIMALES' },
   empServicio: { factor: 2 }, // NB 23001 = R76 3.5.2
   claseSugerida: { regla: 'TABLA_3' },
   empuje: '5b', // con ρa1 si se conoce; si no, 5a (decisión 1)
@@ -71,6 +95,9 @@ const CONFIGURACION_V1 = Object.freeze({
 module.exports = {
   CONFIGURACION_V1,
   CRITERIOS_APTITUD_PESAS,
+  DECIMALES_RESULTADO,
+  FORMATOS_K,
+  METODOS_RIESGO,
   ...aire,
   ...cargas,
   ...error,

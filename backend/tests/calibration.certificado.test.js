@@ -108,6 +108,9 @@ test('clase NB 23001 con su origen y regla sin conformidad', () => {
   assert.ok(c.errores.filas.every(f => f.conformidad === 'NO APLICA' && f.tolerancia === 'NO APLICA'));
   assert.equal(c.calibracion.ajuste, 'No se realizó ajuste.');
   assert.equal(c.antesDelAjuste, null);
+  // Sin ajuste, las precargas igual van en el gráfico como AS FOUND (como la planilla).
+  assert.deepEqual(c.graficoErrores.asFound.map(p => p.x), [500]);
+  assert.ok(Math.abs(c.graficoErrores.asFound[0].y - 0.02) < 1e-9);
   assert.equal(c.calibracion.alcance, "Min': 100 g hasta Max: 600 g");
   assert.equal(c.notas.regla, TEXTOS.reglas.NINGUNA);
   assert.equal(c.notas.datosCliente, null);
@@ -177,4 +180,29 @@ test('riesgo bajo el umbral del método', () => {
   const riesgos = c => contenidoCertificado({ modelo, calculo: c }).contenido.errores.filas.map(f => f.riesgo);
   assert.deepEqual(riesgos({ ...calculo, puntos }), ['< 5,00', '< 5,00']);
   assert.deepEqual(riesgos({ ...calculo, puntos, reglas: { ...calculo.reglas, riesgoUmbral: 0.01 } }), ['< 1,00', '3,00']);
+});
+
+test('con el método del laboratorio: error con los decimales del rango, U con uno más y k sin decimales', () => {
+  const { modelo } = modeloDeFila(fila({ emp: 'Sí' }));
+  modelo.instrumento.clase = { valor: 'III', origen: 'PLACA' };
+  const config = { ...motor.CONFIGURACION_V1, presentacion: { decimales: 'POR_RANGO', k: 'SIN_DECIMALES' }, conformidad: { bandaGuarda: 1, riesgoUmbral: 0.05, riesgo: 'PLANILLA' } };
+  const calculo = calcularServicio(modelo, {
+    juegos: [{ codigo: 'F1-TEST', clase: 'F1', piezas: PIEZAS, valores: new Map(PIEZAS.map(p => [`${p.nominalMg}|`, { correccionMg: 0.1, uMg: 0.5, k: 2 }])), verificado: true, condiciones: null }],
+    termohigrometro: null,
+    empR111,
+    configuracion: config,
+  });
+  const { filas } = contenidoCertificado({ modelo, calculo }).contenido.errores;
+  // El rango declara 2 decimales: el error con 2 y la U con 3.
+  for (const f of filas) {
+    assert.match(f.error, /^-?\d+,\d{2} g$/);
+    assert.match(f.U, /^\d+,\d{3} g$/);
+  }
+  // k sin decimales; si no fuera entero, con los suyos.
+  assert.ok(filas.every(f => /^\d(,\d{1,2})?$/.test(f.k)));
+  const conK = (k) => contenidoCertificado({ modelo, calculo: { ...calculo, puntos: calculo.puntos.map(p => ({ ...p, k })) } }).contenido.errores.filas[0].k;
+  assert.equal(conK(2), '2');
+  assert.equal(conK(2.05), '2,05');
+  // Con la versión 1, como antes: k = 2,00.
+  assert.match(contenidoCertificado({ modelo, calculo: calcular(modelo) }).contenido.errores.filas[0].k, /^\d,\d\d$/);
 });

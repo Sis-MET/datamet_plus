@@ -58,6 +58,24 @@ export const APTITUD_PESAS = [
   { value: 'SUMA_EMP', label: 'Criterio del laboratorio: |corrección| + U ≤ emp', descripcion: 'Solo avisa si la corrección más la U supera el emp de la clase. La comparación con emp/3 (5.2) se sigue mostrando como dato, sin aviso; útil cuando ningún laboratorio del país reporta U ≤ emp/3.' },
 ];
 
+/** Decimales del error y de U en el certificado (motor.DECIMALES_RESULTADO). */
+export const DECIMALES_RESULTADO = [
+  { value: 'POR_U', label: 'Por la incertidumbre', descripcion: 'U con sus cifras significativas (las de arriba) y el error con los mismos decimales que U (GUM 7.2.6).' },
+  { value: 'POR_RANGO', label: 'Por el rango de la carga', descripcion: 'El error con los decimales del rango al que corresponde la carga (los que declara ServiceMET) y U con un decimal más, redondeada en el sentido de arriba.' },
+];
+
+/** Cómo se escribe el factor de cobertura (motor.FORMATOS_K). */
+export const FORMATOS_K = [
+  { value: 'DOS_DECIMALES', label: 'Con dos decimales', descripcion: 'k = 2,00.' },
+  { value: 'SIN_DECIMALES', label: 'Sin decimales', descripcion: 'k = 2. Si k no es entero (t de Student con pocas lecturas), con los suyos: 2,05.' },
+];
+
+/** Cómo se calcula el riesgo asociado (motor.METODOS_RIESGO). */
+export const RIESGO = [
+  { value: 'DOS_COLAS', label: 'Normal con u = U/k, dos colas', descripcion: 'Probabilidad de que el error real quede fuera de ±T, con una normal de media E y desviación u = U/k (JCGM 106).' },
+  { value: 'PLANILLA', label: 'Como la planilla del laboratorio', descripcion: '1 − Φ((T − |E|) / U) con el error y la U que se informan: una cola y la U expandida como desviación. Da riesgos mayores.' },
+];
+
 export const EMPUJE = [
   { value: '5b', label: '7.1.2-5b', descripcion: 'Con la densidad del aire de la calibración de las pesas (ρa1) cuando se conoce; más exacta en altura.' },
   { value: '5a', label: '7.1.2-5a', descripcion: 'Solo con la densidad del aire y de la pesa.' },
@@ -126,6 +144,9 @@ const ETIQUETAS = {
   'parametros.excentricidad.metodo': 'Regla: método de excentricidad',
   'parametros.conformidad.bandaGuarda': 'Regla conservadora: banda de guarda',
   'parametros.conformidad.riesgoUmbral': 'Riesgo: umbral que se escribe «menor que»',
+  'parametros.conformidad.riesgo': 'Regla: cálculo del riesgo asociado',
+  'parametros.presentacion.decimales': 'Regla: decimales del error y de U',
+  'parametros.presentacion.k': 'Regla: formato del factor de cobertura',
   'parametros.empServicio.factor': 'emp en servicio: factor',
   'parametros.claseSugerida.regla': 'Regla: clase sugerida',
   'parametros.usp.tolerancia': 'USP: tolerancia',
@@ -176,7 +197,7 @@ export const etiquetaRuta = (ruta) => {
 };
 
 // Nombres de las opciones para leer las diferencias («ENCIERRAN» → «Ensayos que encierran la carga»).
-const NOMBRES_OPCION = Object.fromEntries([REPETIBILIDAD, COBERTURA, SENTIDO_U, AIRE, EXCENTRICIDAD, CLASE_SUGERIDA, APTITUD_PESAS]
+const NOMBRES_OPCION = Object.fromEntries([REPETIBILIDAD, COBERTURA, SENTIDO_U, AIRE, EXCENTRICIDAD, CLASE_SUGERIDA, APTITUD_PESAS, DECIMALES_RESULTADO, FORMATOS_K, RIESGO]
   .flat().map(o => [o.value, o.label]));
 
 /** Valor para leer en una diferencia; con la ruta, en la unidad en que se escribe. */
