@@ -184,11 +184,16 @@ Desde la pestaña Equipos y la ficha de cada equipo:
   gráfico dibuja la tolerancia con la misma función que la conformidad
   (`toleranciaDeCarga`): un % como un cono desde el origen; lo demás en
   escalones donde cambia el valor. Cada punto lleva su barra ±U.
-- **Cargas de sustitución:** si la carga supera las pesas y el resto no se
-  forma con piezas, el resto es el material de sustitución: L = n·mref + ΣΔI
-  (EURAMET 4.3.3-5a, 7.1.2-15a) con ΣΔI = carga − n·nominal (hasta 25 % de la
-  carga patrón por paso), porque ServiceMET no registra las ΔI. El alcance va
-  hasta Max solo si la carga mayor calculada llega a Max; si no, hasta Max′.
+- **Cargas de sustitución:** si la carga no se arma con las piezas, es una
+  cadena de sustitución: L = n·paso + ΣΔI (EURAMET 4.3.3-5a, 7.1.2-15a) con
+  ΣΔI = carga − n·paso (hasta 25 % del paso por paso), porque ServiceMET no
+  registra las ΔI. Con «Método 1» el paso es siempre la mayor carga del
+  ensayo armada solo con pesas (la carga validada); sin método, la que deja la
+  ΣΔI más chica, o 15b si el resto se arma con piezas. Con «Método 2» cada
+  carga sustitutiva se pesó sola, se corrigió con el error E de las pesas y
+  se sube con ellas: LT = mref + Σ (Is,j − E) (`cargaMetodo2`, GUM).
+  El alcance va hasta Max solo si la carga mayor calculada llega a Max; si
+  no, hasta Max′.
 
 Si otro sistema cambia el certificado directamente en `DATA_EQUIPOS_CAL`, el
 módulo lo archiva como `EXTERNO` antes de reemplazarlo.

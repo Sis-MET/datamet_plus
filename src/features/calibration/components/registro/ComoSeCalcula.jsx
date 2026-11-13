@@ -191,7 +191,9 @@ function Punto({ punto, modelo, unidad, reglas = {}, clase = null }) {
           </>
         ) : punto.sustitucion && (
           <Formula resultado={`${fijo(punto.mref, dec + 2)} ${unidad}`}>
-            L_T = {punto.sustitucion.descripcion} {unidad} ({punto.sustitucion.ecuacion}; ServiceMET no registra los ΔI: se toman como cero)
+            L_T = {punto.sustitucion.descripcion} {unidad} ({punto.sustitucion.ecuacion}; {punto.sustitucion.metodo === 'METODO_2'
+              ? 'cada carga sustitutiva, pesada sola y corregida con el error de las pesas, con la masa declarada'
+              : `ServiceMET no registra los ΔI: ${punto.sustitucion.sumaDiferencias == null ? 'se toman como cero' : 'ΣΔI = carga declarada − n·carga patrón'}`})
           </Formula>
         )}
         {ajustaCero ? (

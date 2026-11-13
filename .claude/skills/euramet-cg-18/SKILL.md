@@ -367,11 +367,33 @@ Tomadas por el usuario el 2026-11-05 (detalle y pendientes en
 6. **Clase del instrumento: dato registrado**, no deducido. Sin clase marcada,
    para el emp NB 23001 vale la clase que pide el cliente (dato del cliente).
 7. **Regla conservadora con U(E)** de calibración: |E| + U(E) ≤ T.
-8. **Sustitución: 7.1.2-15a/b** para los dos métodos del laboratorio. En
-   ServiceMET «Método 1/2» es solo un registro (aclarado el 2026-11-06): la
-   sustitución llega como una carga mayor que lo que suman las pesas, y
-   DataMET+ la descompone en (n − 1)·mref + mref,k con mref = todas las pesas;
-   las ΔIj no se registran y se toman como cero, con su u(Ij).
+8. **Sustitución: 7.1.2-15a/b.** ServiceMET no registra las ΔIj: la
+   sustitución llega como una carga declarada que no se arma con las piezas, y
+   DataMET+ toma ΣΔI = carga − n·paso, con su u(Ij) en cada paso (incluso si
+   ΔIj = 0). El **«Método 1» del laboratorio** (explicado por el personal el
+   2026-11-13) es la cadena de 4.3.3-5a: el técnico valida una carga con pesas
+   (p. ej. 500 kg, E = +0,5), la reemplaza por material hasta la misma
+   indicación, vuelve a poner las pesas y así sigue; LTn = n·mref + ΣΔI. Con
+   Método 1 el paso es siempre la mayor carga del ensayo armada solo con
+   pesas, aunque la carga no supere el total de las pesas, y nunca se usa
+   15b. Sin método: con resto armado con piezas, (n − 1)·mref + mref,k con
+   mref = todas las pesas (15b; sin resto, 15a); si no, la cadena con el paso
+   (todas las pesas o la mayor carga de pesas) que deja la ΣΔI más chica. En
+   ambos casos, hasta un 25 % del paso por paso. El **«Método 2»** (también
+   explicado el 2026-11-13) no está en EURAMET, la Guía SIM ni la R76, que solo
+   describen la cadena: con las pesas se halla E = Iref − mref (500 lee 499,5:
+   E = −0,5); cada carga sustitutiva se pesa sola y su masa es su indicación
+   menos ese mismo E (495 → 495,5); luego se suben una por una junto con las
+   pesas: LT = mref + Σ (Is,j − E) = (k + 1)·mref + Σ Is,j − k·Iref.
+   DataMET+ reparte el material (carga − mref) en las menos cargas de hasta
+   mref, iguales entre sí (ServiceMET no guarda cada una), y aplica la GUM a
+   ese modelo: u²(LT) = (k + 1)²·u²(mref) + Σ u²(Is,j) + k²·u²(Iref)
+   (`cargaMetodo2`). Las pesas y la lectura Iref entran en cada carga
+   sustitutiva, por eso se suman linealmente; la lectura propia de cada una,
+   en cuadratura. Con u(I) parecida en todo el rango da más U que la cadena
+   (k² frente a 2(n − 1)). La planilla sumaba todo linealmente. El
+   procedimiento P-VMET-02-7.2 debe describir el Método 2 por ser una
+   modificación del método normalizado (NB/ISO/IEC 17025 7.2.2).
 9. Editable por el laboratorio: **parámetros, tablas y textos** con versión y
    aprobación; las fórmulas en código, con pruebas.
 10. Se **autoriza en DataMET+**; la firma digital del PDF se hace fuera y el PDF

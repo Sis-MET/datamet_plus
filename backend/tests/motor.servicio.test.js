@@ -283,6 +283,121 @@ test('sustitución: la carga mayor que todas las pesas se calcula con 7.1.2-15b 
   assert.ok(r.avisos.some(a => a.codigo === 'SUSTITUCION'));
 });
 
+test('sustitución con material: el paso es la mayor carga armada solo con pesas (MONOPOL, ANDEAN VALLEY)', () => {
+  // Pesas por 600 kg; el técnico arma hasta 500 kg y sustituye con ese paso.
+  const p600 = [pieza(500), pieza(50), pieza(20), pieza(20, '*'), pieza(10)];
+  const juego600 = [{
+    codigo: 'M1-TEST', clase: 'M1', piezas: p600, verificado: true, condiciones: { temperatura: 20, humedad: 50, presion: 650 },
+    valores: new Map(p600.map(p => [`${p.nominalMg}|${p.identificacion}`, { correccionMg: 1000, uMg: 2000, k: 2 }])),
+  }];
+  // MONOPOL (0103-11-056): 1 007,6 = 2 × 500 + 7,6 y 1 567 = 3 × 500 + 67, no 3 × 600 − 233.
+  const monopol = modeloDeFila(fila({
+    cap_max1: 2000, lin3: 1007.6, ind3: 1007.6, lin4: 1567, ind4: 1566.5, retorno_lin4: 0,
+  })).modelo;
+  const r = calcularServicio(monopol, datos({ juegos: juego600 }));
+  const p1007 = r.puntos.find(p => p.carga === 1007.6);
+  const p1567 = r.puntos.find(p => p.carga === 1567);
+  assert.equal(p1007.calculado, true);
+  assert.equal(p1007.sustitucion.descripcion, '2 × 500 en pesas + 7,6 de diferencias de indicación (ΣΔI)');
+  assert.equal(p1567.calculado, true);
+  assert.equal(p1567.sustitucion.descripcion, '3 × 500 en pesas + 67 de diferencias de indicación (ΣΔI)');
+  assert.ok(Math.abs(p1567.error + 0.5) < 0.05, `E = ${p1567.error}`);
+  // La carga patrón es la de 500 kg: la del paso más que la de las pesas que sobran.
+  assert.ok(p1567.piezas.every(p => p.nominal === 500));
+  // ANDEAN VALLEY (0004-11-022): 1 057,6 = 2 × 500 + 57,6 y 1 482,8 = 3 × 500 − 17,2.
+  const andean = modeloDeFila(fila({
+    cap_max1: 1500, lin3: 1057.6, ind3: 1057.6, lin4: 1482.8, ind4: 1483, retorno_lin4: 0,
+  })).modelo;
+  const a = calcularServicio(andean, datos({ juegos: juego600 })).puntos;
+  assert.equal(a.find(p => p.carga === 1057.6).sustitucion.descripcion, '2 × 500 en pesas + 57,6 de diferencias de indicación (ΣΔI)');
+  assert.equal(a.find(p => p.carga === 1482.8).sustitucion.descripcion, '3 × 500 en pesas − 17,2 de diferencias de indicación (ΣΔI)');
+  assert.ok(a.every(p => p.calculado));
+});
+
+test('Método 1 del laboratorio: cadena con la carga de pesas validada (ejemplo 2 del personal)', () => {
+  // Pesas por 1 100 kg, pero el técnico valida 500 kg: E(500) = +0,5. Con el material
+  // la indicación es 495 → ΔI1 = −5,5, LT2 = 994,5 (lee 995,5, E = +1); luego ΔI2 = +5,5,
+  // LT3 = 3 × 500 = 1 500 (lee 1 502, E = +2).
+  const cadena = { lin3: 994.5, ind3: 995.5, retorno_lin3: 0, lin4: 1500, ind4: 1502, retorno_lin4: 0, cap_max1: 1500 };
+  const r = calcularServicio(modeloDeFila(fila({ ...cadena, metodo_carga: 'Método 1' })).modelo, datos());
+  const p994 = r.puntos.find(p => p.carga === 994.5);
+  const p1500 = r.puntos.find(p => p.carga === 1500);
+  assert.equal(p994.calculado, true);
+  assert.equal(p994.sustitucion.descripcion, '2 × 500 en pesas − 5,5 de diferencias de indicación (ΣΔI)');
+  assert.ok(Math.abs(p994.error - 1) < 0.05, `E = ${p994.error}`);
+  assert.equal(p1500.calculado, true);
+  assert.equal(p1500.sustitucion.ecuacion, '7.1.2-15a');
+  assert.equal(p1500.sustitucion.n, 3);
+  assert.equal(p1500.sustitucion.descripcion, '3 × 500 en pesas');
+  assert.ok(Math.abs(p1500.error - 2) < 0.05, `E = ${p1500.error}`);
+  // La carga patrón es la de pesas validada, no las piezas que sobran (sin 15b).
+  assert.ok(p1500.piezas.every(p => p.nominal === 500));
+  assert.ok(p1500.uReferencia > p994.uReferencia);
+  // Sin «Método 1», 994,5 no llega al total de las pesas (no se calcula) y 1 500 = 1 100 + 400 en pesas (15b).
+  const sin = calcularServicio(modeloDeFila(fila({ ...cadena, metodo_carga: 'Sin método' })).modelo, datos()).puntos;
+  assert.equal(sin.find(p => p.carga === 994.5).calculado, false);
+  assert.equal(sin.find(p => p.carga === 1500).sustitucion.ecuacion, '7.1.2-15b');
+});
+
+test('Método 2 del laboratorio: cargas sustitutivas pesadas solas y puestas con las pesas (ejemplo del personal)', () => {
+  // LT = (k + 1)·mref + Σ Is,j − k·Iref: u²(LT) = (k + 1)²·u²(mref) + Σ u²(Is,j) + k²·u²(Iref).
+  const m2 = motor.cargaMetodo2({
+    mref: 500, uMref: 0.01, nominal: 500, uIndicacionPatron: 0.04, sustitutas: [{ masa: 491, uIndicacion: 0.05 }, { masa: 502, uIndicacion: 0.05 }],
+  });
+  assert.equal(m2.n, 3);
+  assert.equal(m2.valor, 1493);
+  assert.ok(Math.abs(m2.uPatron - 3 * 0.01) < 1e-15);
+  assert.ok(Math.abs(m2.u - Math.sqrt(0.03 ** 2 + 2 * 0.05 ** 2 + (2 * 0.04) ** 2)) < 1e-15);
+  // Con la mref real, cada carga sustitutiva suma mref − nominal (su masa se halló con E = Iref − mref).
+  assert.ok(Math.abs(motor.cargaMetodo2({ mref: 500.01, uMref: 0, nominal: 500, uIndicacionPatron: 0, sustitutas: [{ masa: 495.5, uIndicacion: 0 }] }).valor - 995.52) < 1e-9);
+  // Caso ideal: 500 en pesas con E = 0; las cargas sustitutivas leen 491, 502 y 498, y se
+  // suben una por una con las pesas: 991, 1 493 y 1 991, que leen lo mismo.
+  const cargas = { ind2: 500, lin3: 991, ind3: 991, retorno_lin3: 0, lin4: 1493, ind4: 1493, retorno_lin4: 0, lin5: 1991, ind5: 1991, retorno_lin5: 0, cap_max1: 2000 };
+  const puntos = calcularServicio(modeloDeFila(fila({ ...cargas, metodo_carga: 'Método 2' })).modelo, datos()).puntos;
+  const p991 = puntos.find(p => p.carga === 991);
+  const p1493 = puntos.find(p => p.carga === 1493);
+  const p1991 = puntos.find(p => p.carga === 1991);
+  assert.ok([p991, p1493, p1991].every(p => p.calculado));
+  assert.equal(p991.sustitucion.metodo, 'METODO_2');
+  assert.equal(p991.sustitucion.descripcion, '500 en pesas + 491 en una carga sustitutiva');
+  assert.equal(p1493.sustitucion.descripcion, '500 en pesas + 993 en 2 cargas sustitutivas');
+  assert.equal(p1991.sustitucion.descripcion, '500 en pesas + 1491 en 3 cargas sustitutivas');
+  assert.equal(p1991.sustitucion.n, 4);
+  for (const p of [p991, p1493, p1991]) assert.ok(Math.abs(p.error) < 0.05, `E(${p.carga}) = ${p.error}`);
+  assert.ok(p991.uReferencia < p1493.uReferencia && p1493.uReferencia < p1991.uReferencia);
+  assert.ok(p1991.piezas.every(p => p.nominal === 500));
+  // Las pesas entran k + 1 veces, como en la cadena: la misma u de la carga patrón.
+  const cadena = calcularServicio(modeloDeFila(fila({ ...cargas, metodo_carga: 'Método 1' })).modelo, datos()).puntos;
+  const c1991 = cadena.find(p => p.carga === 1991);
+  assert.equal(c1991.sustitucion.descripcion, '4 × 500 en pesas − 9 de diferencias de indicación (ΣΔI)');
+  const uDe = (p, fuente) => p.componentes.find(c => c.fuente === fuente).u;
+  assert.ok(Math.abs(uDe(p1991, 'sustitucionPatron') - uDe(c1991, 'sustitucionPatron')) < 1e-12);
+  // Segundo ejemplo: 500 lee 499,5 (E = −0,5); las cargas sustitutivas leen 495, 502 y 490, así
+  // que valen 495,5, 502,5 y 490,5; 995,5 lee 996 (E = +0,5), 1 498 lee 1 499 (+1) y 1 988,5 lee 1 990 (+1,5).
+  const ejemplo2 = { ind2: 499.5, lin3: 995.5, ind3: 996, retorno_lin3: 0, lin4: 1498, ind4: 1499, retorno_lin4: 0, lin5: 1988.5, ind5: 1990, retorno_lin5: 0, cap_max1: 2000 };
+  const e2 = calcularServicio(modeloDeFila(fila({ ...ejemplo2, metodo_carga: 'Método 2' })).modelo, datos()).puntos;
+  assert.equal(e2.find(p => p.carga === 995.5).sustitucion.descripcion, '500 en pesas + 495,5 en una carga sustitutiva');
+  assert.equal(e2.find(p => p.carga === 1988.5).sustitucion.descripcion, '500 en pesas + 1488,5 en 3 cargas sustitutivas');
+  for (const [carga, esperado] of [[995.5, 0.5], [1498, 1], [1988.5, 1.5]]) {
+    const p = e2.find(x => x.carga === carga);
+    assert.ok(Math.abs(p.error - esperado) < 0.05, `E(${carga}) = ${p.error}`);
+  }
+  // Como 0103-11-013 (25 pesas de 20 kg): 830,4 = 500 + 330,4 no es una cadena de 500,
+  // así que sin el Método 2 no se calculaba; 1 346 = 500 + 846 en dos cargas sustitutivas.
+  const p20 = Array.from({ length: 25 }, (_, i) => pieza(20, String(i + 1)));
+  const juego20 = [{
+    codigo: 'M1-TEST', clase: 'M1', piezas: p20, verificado: true, condiciones: { temperatura: 20, humedad: 50, presion: 650 },
+    valores: new Map(p20.map(p => [`${p.nominalMg}|${p.identificacion}`, { correccionMg: 100, uMg: 200, k: 2 }])),
+  }];
+  const real = { ind2: 500, lin3: 830.4, ind3: 830.6, retorno_lin3: 0, lin4: 955.6, ind4: 955.8, retorno_lin4: 0, lin5: 1346, ind5: 1346.4, retorno_lin5: 0 };
+  const conMetodo2 = calcularServicio(modeloDeFila(fila({ ...real, metodo_carga: 'Método 2' })).modelo, datos({ juegos: juego20 })).puntos;
+  assert.equal(conMetodo2.find(p => p.carga === 830.4).sustitucion.descripcion, '500 en pesas + 330,4 en una carga sustitutiva');
+  assert.equal(conMetodo2.find(p => p.carga === 1346).sustitucion.descripcion, '500 en pesas + 846 en 2 cargas sustitutivas');
+  assert.ok(Math.abs(conMetodo2.find(p => p.carga === 830.4).error - 0.2) < 0.05);
+  const sinMetodo = calcularServicio(modeloDeFila(fila({ ...real, metodo_carga: 'Sin método' })).modelo, datos({ juegos: juego20 })).puntos;
+  assert.equal(sinMetodo.find(p => p.carga === 830.4).calculado, false);
+});
+
 test('composición elegida a mano: se usa si suma la carga; si no, avisa y vuelve a la regla', () => {
   const { modelo } = modeloDeFila(fila());
   const automatica = calcularServicio(modelo, datos());

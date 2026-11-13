@@ -39,4 +39,37 @@ const cargaSustitucion = ({ mref, uMref, diferencias = [], uIndicaciones = [], p
   };
 };
 
-module.exports = { cargaSustitucion };
+/**
+ * «Método 2» del laboratorio (explicado por el personal el 2026-11-13): con
+ * la carga patrón se halla el error E = Iref − mref (500 kg lee 499,5: E =
+ * −0,5); cada carga sustitutiva se pesa sola, cerca de ese valor, y su masa es
+ * su indicación menos ese mismo error (495 → 495,5); luego se suben una por
+ * una junto con las pesas (500 + 495,5 = 995,5; + 502,5 = 1 498; …):
+ *   LT = mref + Σ (Is,j − E) = (k + 1)·mref + Σ Is,j − k·Iref
+ * Ninguna de las guías lo describe (solo la cadena de 4.3.3); la
+ * incertidumbre sale de ese modelo (GUM 5.1.2). Las pesas y la lectura Iref
+ * entran en cada una de las k cargas sustitutivas, así que se suman
+ * linealmente; la lectura propia de cada una, en cuadratura:
+ *   u²(LT) = (k + 1)²·u²(mref) + Σ u²(Is,j) + k²·u²(Iref)
+ * mref, uMref: la carga patrón y su u (de masaReferencia); nominal: su valor
+ * nominal; uIndicacionPatron: u(Iref) (7.1.1-12). sustitutas: [{ masa,
+ * uIndicacion }] con la masa declarada por el técnico, que usó el nominal
+ * (ms = Is − (Iref − nominal)), y u(Is) en su indicación. Con la mref real,
+ * cada una suma mref − nominal.
+ */
+const cargaMetodo2 = ({ mref, uMref, nominal, uIndicacionPatron, sustitutas = [] }) => {
+  const k = sustitutas.length;
+  const material = sustitutas.reduce((suma, s) => suma + s.masa, 0);
+  const uPatron = (k + 1) * uMref;
+  const uIndicaciones = Math.sqrt(sustitutas.reduce((suma, s) => suma + s.uIndicacion ** 2, 0) + (k * uIndicacionPatron) ** 2);
+  return {
+    n: k + 1,
+    valor: mref + material + k * (mref - nominal),
+    u: Math.sqrt(uPatron ** 2 + uIndicaciones ** 2),
+    uPatron,
+    uIndicaciones,
+    ecuacion: 'Método 2 (GUM)',
+  };
+};
+
+module.exports = { cargaMetodo2, cargaSustitucion };

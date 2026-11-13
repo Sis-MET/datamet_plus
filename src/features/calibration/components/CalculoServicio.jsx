@@ -57,7 +57,9 @@ function Presupuesto({ punto, unidad, renderComposicion }) {
       </table>
       {punto.sustitucion && (
         <p className="mt-2 text-[12px] text-fg-muted">
-          Carga de sustitución: {punto.sustitucion.descripcion} {unidad} ({punto.sustitucion.ecuacion}). ServiceMET no registra las diferencias ΔI: se toman como cero y su incertidumbre se incluye.
+          Carga de sustitución: {punto.sustitucion.descripcion} {unidad} ({punto.sustitucion.ecuacion}). {punto.sustitucion.metodo === 'METODO_2'
+            ? 'Método 2: cada carga sustitutiva se pesó sola y se corrigió con el error de las pesas; ServiceMET no registra cada una, así que su masa sale de la carga declarada, repartida en partes iguales, y su incertidumbre se incluye.'
+            : `ServiceMET no registra las diferencias ΔI: ${punto.sustitucion.sumaDiferencias == null ? 'se toman como cero' : 'su suma (ΣΔI) es la carga declarada menos n veces la carga patrón'}, y su incertidumbre se incluye.`}
         </p>
       )}
       {!punto.sustitucion && (

@@ -403,6 +403,37 @@ todas las pesas y el resto armado con piezas (7.1.2-15b; sin resto, 15a).
 ServiceMET no registra las diferencias ΔIj: se toman como cero y su u(Ij)
 cuenta en cada paso. Los puntos sin indicación no se calculan.
 
+**Sustitución con material y Método 1 (2026-11-12 y 2026-11-13):** cuando el
+resto no se arma con piezas (1 057,6 kg con 500 kg en pesas), es el material
+de sustitución: L = n·paso + ΣΔI (4.3.3-5a) con ΣΔI = carga declarada −
+n·paso, hasta un 25 % del paso por paso. El paso es la mayor carga del ensayo
+armada solo con pesas o el total de las pesas, el que deja la ΣΔI más chica.
+El personal explicó el «Método 1» del laboratorio: valida una carga con pesas
+(500 kg, E = +0,5), la reemplaza por material hasta la misma indicación (lee
+495, ΔI1 = −5,5), vuelve a poner las pesas (LT2 = 994,5, lee 995,5, E = +1) y
+sigue (ΔI2 = +5,5, LT3 = 1 500, lee 1 502, E = +2). Es la cadena de EURAMET
+4.3.3-5a, así que con Método 1 el paso es siempre esa carga validada, aunque la
+carga no supere el total de las pesas, y nunca 15b. Prueba automática con ese
+ejemplo en `motor.servicio.test.js`.
+
+**Método 2 (2026-11-13):** el personal lo explicó con dos ejemplos. Con pesas
+se valida hasta 500 kg: 500 lee 499,5, E = −0,5. Cada carga sustitutiva se
+pesa sola (495, 502 y 490) y su masa es su indicación menos ese mismo error
+(495,5, 502,5 y 490,5). Luego se suben una por una junto con las pesas:
+995,5 lee 996 (E = +0,5), 1 498 lee 1 499 (+1) y 1 988,5 lee 1 990 (+1,5). No
+está en EURAMET, la Guía SIM ni la R76, que solo describen la cadena del
+Método 1. El modelo es LT = mref + Σ (Is,j − E), con E = Iref − mref, es decir
+LT = (k + 1)·mref + Σ Is,j − k·Iref. DataMET+ toma el material de la carga
+declarada (carga − 500), lo reparte en las menos cargas sustitutivas de hasta
+500, iguales entre sí, y aplica la GUM: u²(LT) = (k + 1)²·u²(mref) +
+Σ u²(Is,j) + k²·u²(Iref). Las pesas y la lectura Iref se repiten en cada carga
+sustitutiva y se suman linealmente; la lectura de cada una, en cuadratura. Con
+u(I) parecida en todo el rango da más U que la cadena, porque el mismo E(500)
+corrige todas las cargas. La planilla sumaba todo linealmente. En los datos
+hay puntos como 830,4 = 500 + 330,4 que la cadena no podía explicar y ahora se
+calculan. Pruebas con los dos ejemplos y con el caso 0103-11-013 en
+`motor.servicio.test.js`.
+
 Falta: convección (falta la diferencia de temperatura pesas–aire), la
 incertidumbre en uso y la pesada mínima (anexo del certificado) y los ejemplos
 H2/H3 y de la Guía SIM.

@@ -13,7 +13,7 @@ const { decimalesDeRango, errorEnPunto } = require('./error');
 const { COBERTURA, combinar } = require('./estadistica');
 const { componentesIndicacion, excentricidad, repetibilidad, repetibilidadPara } = require('./indicacion');
 const { densidadSupuesta, masaReferencia } = require('./referencia');
-const { cargaSustitucion } = require('./sustitucion');
+const { cargaMetodo2, cargaSustitucion } = require('./sustitucion');
 const {
   claseSugerida, conformidad, rangoDeCarga, toleranciaDeCarga,
 } = require('./tolerancia');
@@ -162,58 +162,128 @@ const composicionElegida = (claves, punto, piezas, avisos) => {
  * resto armado con piezas; sin resto, L = n·mref (4.3.3-5a). ServiceMET no
  * registra las diferencias ΔIj: se toman como cero, pero su u(Ij) cuenta en
  * cada indicación de la carga patrón (7.1.2-15a/b, «incluso si ΔIj = 0»).
- * Si el resto no se forma con piezas (1 057,6 kg con 500 kg en pesas), es el
- * material de sustitución: L = n·mref + ΣΔI (4.3.3-5a) con n las veces que se
- * pone la carga patrón (la más cercana, al menos 2) y ΣΔI = carga − n·nominal,
- * tal como la declara el técnico; hasta un 25 % de la carga patrón por paso.
+ * Si el resto no se forma con piezas (1 057,6 kg), es el material de
+ * sustitución: L = n·mref + ΣΔI (4.3.3-5a) con ΣΔI = carga − n·paso, tal
+ * como la declara el técnico. El paso (la carga patrón que se repite) es la
+ * mayor carga del ensayo armada solo con pesas (cargaPatron: 500 kg en
+ * ANDEAN VALLEY y MONOPOL) o el total de las pesas, el que deja las
+ * diferencias más chicas; n, las veces que se pone (la más cercana, al menos
+ * 2). Hasta un 25 % del paso por paso: si no, no es una sustitución.
+ *
+ * Con el «Método 1» del laboratorio (metodo = 'METODO_1') siempre es esa
+ * cadena con la carga de pesas validada: el técnico valida hasta 500 kg con
+ * pesas; cada carga sustitutiva vale su indicación menos el error de la carga
+ * anterior, y se le vuelven a sumar los 500 kg (LT = n·500 + ΣΔI). Así se usa
+ * aunque la carga quede por debajo del total de las pesas o el resto se
+ * pudiera formar con piezas.
+ *
+ * Con el «Método 2» (metodo = 'METODO_2') cada carga sustitutiva se pesa sola,
+ * se corrige con el error E(500) de las pesas y se pone junto con ellas:
+ * LT = 500 + ms,1 + … (cargaMetodo2). El material, carga − 500, se reparte en las menos
+ * cargas sustitutivas de hasta la carga validada («solo se validan cargas
+ * hasta un referente conocido»), iguales entre sí porque ServiceMET no guarda
+ * cada una: 991 es una de 491; 1 493, dos de 496,5.
  */
-const referenciaSustitucion = ({ carga, piezas, opcionesReferencia, componentesEn }) => {
+const referenciaSustitucion = ({ carga, piezas, opcionesReferencia, componentesEn, cargaPatron = null, metodo = null }) => {
   const total = piezas.reduce((suma, p) => suma + p.nominal, 0);
   const tolerancia = Math.max(1e-12, Math.abs(carga) * 1e-9);
-  if (!(total > 0) || carga <= total + tolerancia) return null;
-  let veces = Math.floor((carga + tolerancia) / total); // copias completas de la carga patrón
-  let resto = carga - veces * total;
-  const completa = masaReferencia(piezas, opcionesReferencia);
+  if (!(total > 0)) return null;
+  const texto = valor => String(Number(valor.toPrecision(10))).replace('.', ',');
+  const delEnsayo = cargaPatron > 0 && cargaPatron <= total + tolerancia ? componerCarga(cargaPatron, piezas) : null;
+  if (metodo === 'METODO_2' && delEnsayo && carga > cargaPatron + tolerancia) {
+    const material = carga - cargaPatron;
+    const cantidad = Math.max(1, Math.ceil(material / cargaPatron - 1e-9));
+    const masa = material / cantidad;
+    const componentesSustituta = componentesEn(masa);
+    const componentesPatron = componentesEn(cargaPatron);
+    const patron = masaReferencia(delEnsayo, opcionesReferencia);
+    const resultado = cargaMetodo2({
+      mref: patron.mref,
+      uMref: patron.u,
+      nominal: cargaPatron,
+      uIndicacionPatron: combinar(componentesPatron),
+      sustitutas: Array.from({ length: cantidad }, () => ({ masa, uIndicacion: combinar(componentesSustituta) })),
+    });
+    const nu = Math.min(...[...componentesSustituta, ...componentesPatron]
+      .filter(c => c.fuente === 'repetibilidad' && c.u > 0).map(c => c.nu), Infinity);
+    return {
+      n: resultado.n,
+      ecuacion: resultado.ecuacion,
+      metodo: 'METODO_2',
+      sumaDiferencias: null,
+      descripcion: `${texto(cargaPatron)} en pesas + ${texto(material)} en ${cantidad === 1 ? 'una carga sustitutiva' : `${cantidad} cargas sustitutivas`}`,
+      piezas: delEnsayo,
+      referencia: {
+        mref: resultado.valor,
+        u: resultado.u,
+        componentes: [
+          { fuente: 'sustitucionPatron', u: resultado.uPatron, nu: Infinity, ecuacion: resultado.ecuacion },
+          { fuente: 'sustitucionIndicaciones', u: resultado.uIndicaciones, nu, ecuacion: resultado.ecuacion },
+        ].filter(c => c.u > 0),
+      },
+    };
+  }
+  // La cadena con la carga patrón de paso: n la más cercana (al menos 2), ΣΔI hasta 25 % del paso por paso.
+  const cadena = (paso, piezasPaso) => {
+    const n = Math.max(2, Math.round(carga / paso));
+    const suma = carga - n * paso;
+    return { paso, piezas: piezasPaso, n, suma, porPaso: Math.abs(suma) / (paso * (n - 1)) };
+  };
+  let veces;
+  let resto = 0;
+  let paso = total;
+  let piezasPatron = piezas;
   let parcial = null;
   let sumaDiferencias = null;
-  if (resto > tolerancia) {
-    const elegidas = componerCarga(resto, piezas);
-    if (elegidas) {
-      parcial = { piezas: elegidas, referencia: masaReferencia(elegidas, opcionesReferencia) };
-    } else {
-      veces = Math.max(2, Math.round(carga / total));
-      sumaDiferencias = carga - veces * total;
-      resto = 0;
-      // El material de sustitución se arma parecido a la carga patrón: si las
-      // diferencias superan un 25 % de ella por paso, no es una sustitución.
-      if (Math.abs(sumaDiferencias) > 0.25 * total * (veces - 1)) return null;
+  if (metodo === 'METODO_1' && delEnsayo && carga > cargaPatron + tolerancia) {
+    const elegida = cadena(cargaPatron, delEnsayo);
+    if (elegida.porPaso > 0.25) return null;
+    ({ paso, piezas: piezasPatron, n: veces, suma: sumaDiferencias } = elegida);
+  } else {
+    if (carga <= total + tolerancia) return null;
+    veces = Math.floor((carga + tolerancia) / total); // copias completas de la carga patrón
+    resto = carga - veces * total;
+    if (resto > tolerancia) {
+      const elegidas = componerCarga(resto, piezas);
+      if (elegidas) {
+        parcial = { piezas: elegidas, referencia: masaReferencia(elegidas, opcionesReferencia) };
+      } else {
+        const candidatos = [cadena(total, piezas)];
+        if (delEnsayo && cargaPatron < total - tolerancia) candidatos.push(cadena(cargaPatron, delEnsayo));
+        // El material se arma parecido a la carga patrón.
+        const mejor = candidatos.filter(c => c.porPaso <= 0.25).sort((a, b) => a.porPaso - b.porPaso)[0];
+        if (!mejor) return null;
+        ({ paso, piezas: piezasPatron, n: veces, suma: sumaDiferencias } = mejor);
+      }
     }
   }
-  // n − 1 diferencias, en las indicaciones j·mref (j = 1 … n − 1).
+  const patron = masaReferencia(piezasPatron, opcionesReferencia);
+  // n − 1 diferencias, en las indicaciones j·paso (j = 1 … n − 1).
   const pasos = parcial ? veces : veces - 1;
-  const componentesPasos = Array.from({ length: pasos }, (_, j) => combinar(componentesEn((j + 1) * total)));
-  const nuRepetibilidad = Math.min(...Array.from({ length: pasos }, (_, j) => componentesEn((j + 1) * total))
+  const componentesPasos = Array.from({ length: pasos }, (_, j) => combinar(componentesEn((j + 1) * paso)));
+  const nuRepetibilidad = Math.min(...Array.from({ length: pasos }, (_, j) => componentesEn((j + 1) * paso))
     .flat().filter(c => c.fuente === 'repetibilidad' && c.u > 0).map(c => c.nu), Infinity);
   const resultado = cargaSustitucion({
-    mref: completa.mref,
-    uMref: completa.u,
+    mref: patron.mref,
+    uMref: patron.u,
     // La suma de las diferencias va en la primera; solo cuenta su total.
     diferencias: componentesPasos.map((_, j) => (j === 0 && sumaDiferencias != null ? sumaDiferencias : 0)),
     uIndicaciones: componentesPasos,
     parcial: parcial ? { mref: parcial.referencia.mref, u: parcial.referencia.u } : null,
   });
-  const uPatron = parcial ? veces * completa.u + parcial.referencia.u : resultado.n * completa.u;
+  const uPatron = parcial ? veces * patron.u + parcial.referencia.u : resultado.n * patron.u;
   const uPasos = Math.sqrt(2 * componentesPasos.reduce((suma, u) => suma + u * u, 0));
-  const texto = valor => String(Number(valor.toPrecision(10))).replace('.', ',');
-  let descripcion = `${veces} × ${texto(total)} en pesas`;
+  let descripcion = `${veces} × ${texto(paso)} en pesas`;
   if (parcial) descripcion += ` + ${texto(resto)} en pesas`;
-  if (sumaDiferencias != null) descripcion += ` ${sumaDiferencias < 0 ? '−' : '+'} ${texto(Math.abs(sumaDiferencias))} de diferencias de indicación (ΣΔI)`;
+  // Con ΣΔI = 0 (1 500 = 3 × 500 en el Método 1) no se escribe.
+  if (sumaDiferencias != null && Math.abs(sumaDiferencias) > tolerancia) descripcion += ` ${sumaDiferencias < 0 ? '−' : '+'} ${texto(Math.abs(sumaDiferencias))} de diferencias de indicación (ΣΔI)`;
   return {
     n: resultado.n,
     ecuacion: resultado.ecuacion,
+    metodo: metodo === 'METODO_1' ? 'METODO_1' : null,
     sumaDiferencias,
     descripcion,
-    piezas: [...piezas, ...(parcial ? parcial.piezas : [])],
+    piezas: [...piezasPatron, ...(parcial ? parcial.piezas : [])],
     referencia: {
       mref: resultado.valor,
       u: resultado.u,
@@ -317,6 +387,10 @@ const calcularServicio = (modelo, datos) => {
     avisos.aviso('CLASE_SUGERIDA', `Sin clase registrada: el emp NB 23001 se calcula con la clase ${sugerida.valor}, ${porQue}. Confírmala o corrígela en «Clase del instrumento» antes de enviar a revisión.`);
   }
   const toleranciaEn = toleranciaDeCarga({ criterio: modelo.criterio, rangos, clase: claseInstrumento, factorEmp: reglas.factorEmp });
+  // La carga patrón de las sustituciones: la mayor del ensayo armada solo con pesas.
+  const cargaPatronSustitucion = Math.max(0, ...modelo.errores.puntos
+    .filter(p => p.indicacion != null && p.carga > 0 && componerCarga(p.carga, piezas))
+    .map(p => p.carga));
   const puntos = [];
   let retornoAnterior = 0;
   for (const punto of modelo.errores.puntos) {
@@ -339,6 +413,8 @@ const calcularServicio = (modelo, datos) => {
       sustitucion = referenciaSustitucion({
         carga: punto.carga,
         piezas,
+        cargaPatron: cargaPatronSustitucion,
+        metodo: modelo.errores.metodoCarga,
         opcionesReferencia: opcionesMasa,
         componentesEn: (indicacionPaso) => {
           const rangoPaso = rangoDeCarga(rangos, indicacionPaso);
@@ -348,9 +424,12 @@ const calcularServicio = (modelo, datos) => {
       });
       if (sustitucion) {
         elegidas = sustitucion.piezas;
-        avisos.info('SUSTITUCION', sustitucion.sumaDiferencias == null
-          ? `Punto ${punto.n}: carga de sustitución (${sustitucion.descripcion}, ${sustitucion.ecuacion}); ServiceMET no registra las diferencias ΔI, se toman como cero.`
-          : `Punto ${punto.n}: carga de sustitución (${sustitucion.descripcion}, ${sustitucion.ecuacion}); ServiceMET no registra las diferencias ΔI: su suma sale de la carga declarada.`);
+        const origen = sustitucion.metodo === 'METODO_2'
+          ? 'ServiceMET no registra cada carga sustitutiva: su masa sale de la carga declarada.'
+          : sustitucion.sumaDiferencias == null
+            ? 'ServiceMET no registra las diferencias ΔI, se toman como cero.'
+            : 'ServiceMET no registra las diferencias ΔI: su suma sale de la carga declarada.';
+        avisos.info('SUSTITUCION', `Punto ${punto.n}: carga de sustitución (${sustitucion.descripcion}, ${sustitucion.ecuacion}); ${origen}`);
       }
     }
     if (!elegidas && sinPiezas.length) {
@@ -423,7 +502,9 @@ const calcularServicio = (modelo, datos) => {
       piezas: elegidas.map(p => ({ clave: p.clave || null, juego: p.juego, nominal: p.nominal, identificacion: p.identificacion, supuesta: Boolean(p.supuesta || supuestas) })),
       supuestas,
       composicion: elegida ? 'ELEGIDA' : sustitucion ? 'SUSTITUCION' : supuestas ? 'SUPUESTA' : 'REGLA',
-      sustitucion: sustitucion ? { n: sustitucion.n, descripcion: sustitucion.descripcion, ecuacion: sustitucion.ecuacion } : null,
+      sustitucion: sustitucion
+        ? { n: sustitucion.n, descripcion: sustitucion.descripcion, ecuacion: sustitucion.ecuacion, metodo: sustitucion.metodo, sumaDiferencias: sustitucion.sumaDiferencias }
+        : null,
       // Desglose de mref = mN + δmc + δmB, para explicar el cálculo (sin sustitución).
       masa: sustitucion ? null : {
         mN: referencia.mN,

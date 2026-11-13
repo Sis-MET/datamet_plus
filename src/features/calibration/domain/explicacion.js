@@ -14,8 +14,8 @@ export const FUENTES_INCERTIDUMBRE = {
   empuje: { label: 'Empuje del aire', formula: 'm_N · u_rel(δm_B)' },
   deriva: { label: 'Deriva de las pesas', formula: 'Σ D/√3, D = k_D·U' },
   conveccion: { label: 'Convección', formula: 'Δm_conv / √3' },
-  sustitucionPatron: { label: 'Carga patrón (sustitución)', formula: 'n · u(m_ref)' },
-  sustitucionIndicaciones: { label: 'Indicaciones de la sustitución', formula: '√(2·Σu²(I_j))' },
+  sustitucionPatron: { label: 'Carga patrón (sustitución)', formula: 'Σ u(m_ref), suma lineal' },
+  sustitucionIndicaciones: { label: 'Indicaciones de la sustitución', formula: '√(2·Σu²(I_j)); Método 2: √(Σu²(I_s,j) + k²·u²(I_ref))' },
 };
 
 const SUPERINDICES = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
