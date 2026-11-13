@@ -44,17 +44,39 @@ const rangoDeCarga = (rangos, carga) => rangos.find(r => carga <= r.max * (1 + 1
 const toleranciaPorcentaje = (carga, porcentaje) => Math.abs(carga) * porcentaje / 100;
 
 /**
- * Tolerancia absoluta que el cliente fija por rango de carga (como el libro:
- * la del primer rango cuyo límite «hasta» contiene la carga). tramos:
- * [{ hasta, tolerancia }]; hasta null = en adelante. null si la carga queda
- * fuera de todos.
+ * Tolerancia que el cliente fija por rango de carga (como el libro: la del
+ * primer rango cuyo límite «hasta» contiene la carga). tramos:
+ * [{ hasta, tolerancia, en }]; hasta null = en adelante; en 'D': la tolerancia
+ * son divisiones (n·d, con la d del rango del instrumento de esa carga: 1 d en
+ * todo el rango, por ejemplo); si no, está en la unidad de la balanza. null si
+ * la carga queda fuera de todos.
  */
-const toleranciaPorRango = (carga, tramos) => {
+const toleranciaPorRango = (carga, tramos, rango = null) => {
   const ordenados = [...(tramos || [])]
     .filter(t => t && t.tolerancia > 0)
     .sort((a, b) => (a.hasta ?? Infinity) - (b.hasta ?? Infinity));
   const tramo = ordenados.find(t => t.hasta == null || Math.abs(carga) <= t.hasta * (1 + 1e-9));
-  return tramo ? tramo.tolerancia : null;
+  if (!tramo) return null;
+  if (tramo.en === 'D') return rango?.d > 0 ? tramo.tolerancia * rango.d : null;
+  return tramo.tolerancia;
+};
+
+/**
+ * Tolerancia T de cada carga según el criterio del servicio, la misma para la
+ * conformidad y para el gráfico: emp NB 23001 (con la clase del instrumento),
+ * % de la carga o la tabla del cliente por rango. Devuelve carga → T o null.
+ */
+const toleranciaDeCarga = ({ criterio = {}, rangos = [], clase = null, factorEmp = 2 }) => {
+  const ordenados = [...rangos].sort((a, b) => a.max - b.max);
+  return (carga) => {
+    const rango = ordenados.length ? rangoDeCarga(ordenados, carga) : null;
+    if (criterio.empNB23001) {
+      return clase && rango ? empEnServicio({ carga, clase, e: rango.e || rango.d }, factorEmp) : null;
+    }
+    if (criterio.toleranciaCliente > 0) return toleranciaPorcentaje(carga, criterio.toleranciaCliente);
+    if (criterio.toleranciasRango?.length) return toleranciaPorRango(carga, criterio.toleranciasRango, rango);
+    return null;
+  };
 };
 
 // OIML R76 Tabla 3: e en g y n = Max/e de cada clase.
@@ -152,6 +174,7 @@ module.exports = {
   empEnServicio,
   empVerificacion,
   rangoDeCarga,
+  toleranciaDeCarga,
   toleranciaPorRango,
   toleranciaPorcentaje,
 };

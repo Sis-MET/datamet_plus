@@ -15,7 +15,7 @@ const { componentesIndicacion, excentricidad, repetibilidad, repetibilidadPara }
 const { densidadSupuesta, masaReferencia } = require('./referencia');
 const { cargaSustitucion } = require('./sustitucion');
 const {
-  claseSugerida, conformidad, empEnServicio, rangoDeCarga, toleranciaPorRango, toleranciaPorcentaje,
+  claseSugerida, conformidad, rangoDeCarga, toleranciaDeCarga,
 } = require('./tolerancia');
 const { incertidumbreEnUso, pesadaMinima } = require('./uso');
 const { evaluarUSP } = require('./usp');
@@ -162,19 +162,32 @@ const composicionElegida = (claves, punto, piezas, avisos) => {
  * resto armado con piezas; sin resto, L = n·mref (4.3.3-5a). ServiceMET no
  * registra las diferencias ΔIj: se toman como cero, pero su u(Ij) cuenta en
  * cada indicación de la carga patrón (7.1.2-15a/b, «incluso si ΔIj = 0»).
+ * Si el resto no se forma con piezas (1 057,6 kg con 500 kg en pesas), es el
+ * material de sustitución: L = n·mref + ΣΔI (4.3.3-5a) con n las veces que se
+ * pone la carga patrón (la más cercana, al menos 2) y ΣΔI = carga − n·nominal,
+ * tal como la declara el técnico; hasta un 25 % de la carga patrón por paso.
  */
 const referenciaSustitucion = ({ carga, piezas, opcionesReferencia, componentesEn }) => {
   const total = piezas.reduce((suma, p) => suma + p.nominal, 0);
   const tolerancia = Math.max(1e-12, Math.abs(carga) * 1e-9);
   if (!(total > 0) || carga <= total + tolerancia) return null;
-  const veces = Math.floor((carga + tolerancia) / total); // copias completas de la carga patrón
-  const resto = carga - veces * total;
+  let veces = Math.floor((carga + tolerancia) / total); // copias completas de la carga patrón
+  let resto = carga - veces * total;
   const completa = masaReferencia(piezas, opcionesReferencia);
   let parcial = null;
+  let sumaDiferencias = null;
   if (resto > tolerancia) {
     const elegidas = componerCarga(resto, piezas);
-    if (!elegidas) return null;
-    parcial = { piezas: elegidas, referencia: masaReferencia(elegidas, opcionesReferencia) };
+    if (elegidas) {
+      parcial = { piezas: elegidas, referencia: masaReferencia(elegidas, opcionesReferencia) };
+    } else {
+      veces = Math.max(2, Math.round(carga / total));
+      sumaDiferencias = carga - veces * total;
+      resto = 0;
+      // El material de sustitución se arma parecido a la carga patrón: si las
+      // diferencias superan un 25 % de ella por paso, no es una sustitución.
+      if (Math.abs(sumaDiferencias) > 0.25 * total * (veces - 1)) return null;
+    }
   }
   // n − 1 diferencias, en las indicaciones j·mref (j = 1 … n − 1).
   const pasos = parcial ? veces : veces - 1;
@@ -184,18 +197,22 @@ const referenciaSustitucion = ({ carga, piezas, opcionesReferencia, componentesE
   const resultado = cargaSustitucion({
     mref: completa.mref,
     uMref: completa.u,
-    diferencias: componentesPasos.map(() => 0),
+    // La suma de las diferencias va en la primera; solo cuenta su total.
+    diferencias: componentesPasos.map((_, j) => (j === 0 && sumaDiferencias != null ? sumaDiferencias : 0)),
     uIndicaciones: componentesPasos,
     parcial: parcial ? { mref: parcial.referencia.mref, u: parcial.referencia.u } : null,
   });
   const uPatron = parcial ? veces * completa.u + parcial.referencia.u : resultado.n * completa.u;
   const uPasos = Math.sqrt(2 * componentesPasos.reduce((suma, u) => suma + u * u, 0));
+  const texto = valor => String(Number(valor.toPrecision(10))).replace('.', ',');
+  let descripcion = `${veces} × ${texto(total)} en pesas`;
+  if (parcial) descripcion += ` + ${texto(resto)} en pesas`;
+  if (sumaDiferencias != null) descripcion += ` ${sumaDiferencias < 0 ? '−' : '+'} ${texto(Math.abs(sumaDiferencias))} de diferencias de indicación (ΣΔI)`;
   return {
     n: resultado.n,
     ecuacion: resultado.ecuacion,
-    descripcion: parcial
-      ? `${veces} × ${Number(total.toPrecision(10))} en pesas + ${Number(resto.toPrecision(10))} en pesas`
-      : `${veces} × ${Number(total.toPrecision(10))} en pesas`,
+    sumaDiferencias,
+    descripcion,
     piezas: [...piezas, ...(parcial ? parcial.piezas : [])],
     referencia: {
       mref: resultado.valor,
@@ -299,6 +316,7 @@ const calcularServicio = (modelo, datos) => {
       : `sugerida por la OIML R76 (Tabla 3) con e = ${eTexto} y n = Max/e = ${sugerida.n}${sugerida.enTabla ? '' : ' (fuera de la Tabla 3: elegida por n, como el libro)'}`;
     avisos.aviso('CLASE_SUGERIDA', `Sin clase registrada: el emp NB 23001 se calcula con la clase ${sugerida.valor}, ${porQue}. Confírmala o corrígela en «Clase del instrumento» antes de enviar a revisión.`);
   }
+  const toleranciaEn = toleranciaDeCarga({ criterio: modelo.criterio, rangos, clase: claseInstrumento, factorEmp: reglas.factorEmp });
   const puntos = [];
   let retornoAnterior = 0;
   for (const punto of modelo.errores.puntos) {
@@ -330,7 +348,9 @@ const calcularServicio = (modelo, datos) => {
       });
       if (sustitucion) {
         elegidas = sustitucion.piezas;
-        avisos.info('SUSTITUCION', `Punto ${punto.n}: carga de sustitución (${sustitucion.descripcion}, ${sustitucion.ecuacion}); ServiceMET no registra las diferencias ΔI, se toman como cero.`);
+        avisos.info('SUSTITUCION', sustitucion.sumaDiferencias == null
+          ? `Punto ${punto.n}: carga de sustitución (${sustitucion.descripcion}, ${sustitucion.ecuacion}); ServiceMET no registra las diferencias ΔI, se toman como cero.`
+          : `Punto ${punto.n}: carga de sustitución (${sustitucion.descripcion}, ${sustitucion.ecuacion}); ServiceMET no registra las diferencias ΔI: su suma sale de la carga declarada.`);
       }
     }
     if (!elegidas && sinPiezas.length) {
@@ -373,15 +393,8 @@ const calcularServicio = (modelo, datos) => {
       opciones: { cobertura: reglas.cobertura, redondeo: reglas.redondeo, presentacion: reglas.presentacion, decimalesRango: decimalesDeRango(rango) },
     });
 
-    let tolerancia = null;
-    if (modelo.criterio.empNB23001) {
-      tolerancia = claseInstrumento ? empEnServicio({ carga: punto.carga, clase: claseInstrumento, e: rango.e || rango.d }, reglas.factorEmp) : null;
-    } else if (modelo.criterio.toleranciaCliente > 0) {
-      tolerancia = toleranciaPorcentaje(punto.carga, modelo.criterio.toleranciaCliente);
-    } else if (modelo.criterio.toleranciasRango?.length) {
-      // Tolerancia absoluta del cliente por rango de carga (dato del cliente).
-      tolerancia = toleranciaPorRango(punto.carga, modelo.criterio.toleranciasRango);
-    }
+    // emp NB 23001, % de la carga o la tabla del cliente (en masa o en d).
+    const tolerancia = toleranciaEn(punto.carga);
     const conforme = conformidad({
       error: resultado.error,
       U: resultado.U,

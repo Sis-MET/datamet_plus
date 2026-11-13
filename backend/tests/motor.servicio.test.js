@@ -140,6 +140,48 @@ test('tolerancia del cliente por rango: sin emp NB 23001 ni %, la del primer ran
   conPorcentaje.criterio.toleranciasRango = [{ hasta: null, tolerancia: 5 }];
   const p = calcularServicio(conPorcentaje, datos()).puntos.find(x => x.carga === 1000);
   assert.equal(p.tolerancia, 1);
+  // En divisiones: 1 d en todo el rango (Lab Delta), con la d del rango de cada carga.
+  const enD = modeloDeFila(fila({ emp: 'No', indicar: 0 })).modelo;
+  enD.criterio.toleranciasRango = [{ hasta: null, tolerancia: 1, en: 'D' }];
+  const d = enD.instrumento.rangos[0].d;
+  assert.ok(calcularServicio(enD, datos()).puntos.filter(x => x.calculado).every(x => Math.abs(x.tolerancia - d) < 1e-12));
+  enD.criterio.toleranciasRango = [{ hasta: 500, tolerancia: 1, en: 'D' }, { hasta: null, tolerancia: 2, en: 'D' }];
+  const dos = Object.fromEntries(calcularServicio(enD, datos()).puntos.filter(x => x.calculado).map(x => [x.carga, x.tolerancia]));
+  assert.ok(Math.abs(dos[100] - d) < 1e-12 && Math.abs(dos[1000] - 2 * d) < 1e-12);
+});
+
+test('toleranciaDeCarga: la misma T para la conformidad y el gráfico', () => {
+  const rangos = [{ max: 1500, d: 0.5, e: 0.5 }, { max: 600, d: 0.2, e: 0.2 }];
+  const pct = motor.toleranciaDeCarga({ criterio: { toleranciaCliente: 0.5 }, rangos });
+  assert.equal(pct(100), 0.5);
+  // En d: la del rango de la carga (los rangos se ordenan solos).
+  const enD = motor.toleranciaDeCarga({ criterio: { toleranciasRango: [{ hasta: null, tolerancia: 1, en: 'D' }] }, rangos });
+  assert.equal(enD(500), 0.2);
+  assert.equal(enD(1000), 0.5);
+  // NB 23001 sin clase: sin tolerancia.
+  assert.equal(motor.toleranciaDeCarga({ criterio: { empNB23001: true }, rangos })(100), null);
+  assert.equal(motor.toleranciaDeCarga({ criterio: {}, rangos })(100), null);
+});
+
+test('sustitución con material: el resto que no se forma con piezas es ΣΔI (4.3.3-5a)', () => {
+  // El juego suma 1 100 kg. 2 195,3 = 2 × 1 100 − 4,7 y 3 333,7 = 3 × 1 100 + 33,7: lo que
+  // sobra no se forma con piezas, es el material de sustitución (ΣΔI, 15a).
+  const { modelo } = modeloDeFila(fila({ lin4: 2195.3, ind4: 2195.3, retorno_lin4: 0, lin5: 3333.7, ind5: 3333.9, retorno_lin5: 0, cap_max1: 3500 }));
+  const r = calcularServicio(modelo, datos());
+  const p2195 = r.puntos.find(p => p.n === 4);
+  const p3333 = r.puntos.find(p => p.n === 5);
+  assert.equal(p2195.calculado, true);
+  assert.equal(p2195.sustitucion.ecuacion, '7.1.2-15a');
+  assert.equal(p2195.sustitucion.n, 2);
+  assert.equal(p2195.sustitucion.descripcion, '2 × 1100 en pesas − 4,7 de diferencias de indicación (ΣΔI)');
+  // mref = 2·mref(1 100) + ΣΔI, cerca de la carga declarada.
+  assert.ok(Math.abs(p2195.mref - 2195.3) < 0.05, `mref = ${p2195.mref}`);
+  // n = 3: dos pasos de indicación, más incertidumbre.
+  assert.equal(p3333.calculado, true);
+  assert.equal(p3333.sustitucion.n, 3);
+  assert.ok(Math.abs(p3333.error - 0.2) < 0.05, `E = ${p3333.error}`);
+  assert.ok(p3333.uReferencia > p2195.uReferencia);
+  assert.ok(r.avisos.some(a => a.codigo === 'SUSTITUCION' && /su suma sale de la carga declarada/.test(a.mensaje)));
 });
 
 test('sin condiciones ambientales no se calcula (el empuje no se puede corregir)', () => {
