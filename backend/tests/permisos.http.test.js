@@ -8,6 +8,7 @@ const transacciones = require('../src/services/calibration.db');
 const PERSONAL = [
   { id: 22, usuario: 'Barrau', nombre: 'Jhonatan Barrau', area: 'Administración', cargo: 'Auxiliar de Sistemas', acceso_cron: 3 },
   { id: 11, usuario: 'Telleria', nombre: 'Ramiro Telleria', area: 'Administración', cargo: 'Jefe de Area', acceso_cron: 2 },
+  { id: 12, usuario: 'Dorado', nombre: 'Richard Dorado', area: 'Administración', cargo: 'Jefe de Area', acceso_cron: 2 },
   { id: 2, usuario: 'Delgado', nombre: 'Edgar Delgado', area: 'Comercial', cargo: 'Jefe de Area', acceso_cron: 2 },
   { id: 3, usuario: 'Rojas', nombre: 'Ana Rojas', area: 'Comercial', cargo: 'Auxiliar Comercial', acceso_cron: 2 },
   { id: 8, usuario: 'Velasquez', nombre: 'Jose Velasquez', area: 'Soporte Técnico', cargo: 'Jefe de Area', acceso_cron: 2 },
@@ -105,7 +106,7 @@ test('la gestión de permisos solo la abren y modifican Sistemas y el jefe de Si
     ['POST', '/api/sistema/permisos/concesiones', { permiso: 'tiempos.soporte.ver', tipo: 'PERSONA', usuarioId: 3, motivo: 'x' }],
     ['POST', '/api/sistema/permisos/concesiones/1/revocacion', { motivo: 'x' }],
   ]) {
-    for (const id of [2, 8, 3]) {
+    for (const id of [11, 2, 8, 3]) {
       const res = await pedir(base, id, ruta, { method: metodo, body });
       assert.equal(res.status, 403, `${metodo} ${ruta} (persona ${id})`);
       assert.equal(res.body.code, 'PERMISO_DENEGADO');
@@ -117,6 +118,11 @@ test('la gestión de permisos solo la abren y modifican Sistemas y el jefe de Si
   let res = await pedir(base, 22, '/api/sistema/permisos');
   assert.equal(res.status, 200);
   assert.ok(res.body.data.personal.some(persona => persona.nombre === 'Ana Rojas' && persona.area === 'Comercial'));
+  // El jefe de Sistemas también la abre y su menú lo sabe.
+  res = await pedir(base, 12, '/api/sistema/permisos');
+  assert.equal(res.status, 200);
+  assert.equal((await pedir(base, 12, '/api/sistema/permisos/mios')).body.data.gestionar, true);
+  assert.equal((await pedir(base, 11, '/api/sistema/permisos/mios')).body.data.gestionar, false);
 
   res = await pedir(base, 22, '/api/sistema/permisos/concesiones', { method: 'POST', body: { permiso: 'tiempos.soporte.ver', tipo: 'PERSONA', usuarioId: 3 } });
   assert.equal(res.status, 400);

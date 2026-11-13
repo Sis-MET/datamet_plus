@@ -644,7 +644,9 @@ Tercer apartado al pie de la barra lateral (migración `029`, rutas
 Decide qué puede ver o hacer cada persona además de lo de su área, sin tocar el
 código. Lo abren y modifican solo Sistemas (nivel 3) y el jefe de Sistemas
 (`GESTORES` en `backend/src/services/permisos.catalogo.js`, fijo en el código
-para que nadie se dé a sí mismo la gestión).
+para que nadie se dé a sí mismo la gestión). Como DATA_USERS no tiene un área
+«Sistemas», el jefe de Sistemas va por su id: hoy Richard Dorado (id 12). Si
+cambia de puesto, se cambia ahí con una versión nueva.
 
 - **Permisos con nombre:** el catálogo está en `permisos.catalogo.js`
   (`tiempos.soporte.ver`, `tiempos.calibracion.ver`). Sistemas los tiene todos.

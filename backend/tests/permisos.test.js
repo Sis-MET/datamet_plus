@@ -15,6 +15,7 @@ const reiniciar = ({ migracion = true } = {}) => {
     personal: [
       { id: 22, usuario: 'Barrau', nombre: 'Jhonatan Barrau', area: 'Administración', cargo: 'Auxiliar de Sistemas', acceso_cron: 3 },
       { id: 11, usuario: 'Telleria', nombre: 'Ramiro Telleria', area: 'Administración', cargo: 'Jefe de Area', acceso_cron: 2 },
+      { id: 12, usuario: 'Dorado', nombre: 'Richard Dorado', area: 'Administración', cargo: 'Jefe de Area', acceso_cron: 2 },
       { id: 2, usuario: 'Delgado', nombre: 'Edgar Delgado', area: 'Comercial', cargo: 'Jefe de Area', acceso_cron: 2 },
       { id: 3, usuario: 'Rojas', nombre: 'Ana Rojas', area: 'Comercial', cargo: 'Auxiliar Comercial', acceso_cron: 2 },
       { id: 7, usuario: 'Vallejos', nombre: 'Gerson Vallejos', area: 'Calibración', cargo: 'Jefe de Area', acceso_cron: 2 },
@@ -92,9 +93,11 @@ test('el catálogo tiene claves únicas y cada permiso su nombre, módulo y siem
     assert.match(permiso.clave, /^[a-z]+(\.[a-z]+)+$/);
     assert.ok(permiso.nombre && permiso.corto && permiso.descripcion && permiso.modulo, permiso.clave);
   }
-  // La gestión no se concede desde la pantalla: va fija en el código.
+  // La gestión no se concede desde la pantalla: va fija en el código. El jefe de
+  // Sistemas va por su id: DATA_USERS no tiene un área «Sistemas».
   assert.ok(!CLAVES.some(clave => clave.startsWith('permisos.')));
-  assert.ok(Array.isArray(GESTORES));
+  assert.deepEqual(GESTORES, [{ usuarioId: 12 }]);
+  assert.ok(Object.isFrozen(GESTORES) && Object.isFrozen(GESTORES[0]));
 });
 
 test('una concesión alcanza a una persona o a un grupo de área y cargo, sin importar tildes ni espacios', () => {
@@ -104,7 +107,7 @@ test('una concesión alcanza a una persona o a un grupo de área y cargo, sin im
   // Sistemas (nivel 3) tiene todos los permisos.
   for (const clave of CLAVES) assert.equal(tiene(22, clave), true, clave);
   // Los jefes de área de todas las áreas ven los dos tiempos de servicio.
-  for (const id of [11, 2, 7, 8]) {
+  for (const id of [11, 12, 2, 7, 8]) {
     assert.equal(tiene(id, 'tiempos.soporte.ver'), true, `jefe ${id}`);
     assert.equal(tiene(id, 'tiempos.calibracion.ver'), true, `jefe ${id}`);
   }
@@ -132,10 +135,14 @@ test('una concesión alcanza a una persona o a un grupo de área y cargo, sin im
   assert.equal(permisos.coincide({ usuario_id: null, area: null, cargo: null }, persona(3)), false);
 });
 
-test('gestionan los permisos Sistemas (nivel 3) y quien digan los gestores fijos del código', () => {
+test('gestionan los permisos Sistemas (nivel 3) y el jefe de Sistemas, Richard Dorado, por su id', () => {
   reiniciar();
   assert.equal(permisos.gestiona(persona(22)), true);
-  for (const id of [11, 2, 7, 8, 3]) assert.equal(permisos.gestiona(persona(id)), GESTORES.some(r => permisos.coincide(r, persona(id))), `persona ${id}`);
+  assert.equal(permisos.gestiona(persona(12)), true);
+  // El otro jefe de Administración y los demás jefes, no.
+  for (const id of [11, 2, 7, 8, 3, 9]) assert.equal(permisos.gestiona(persona(id)), false, `persona ${id}`);
+  // Por su id: aunque cambie de área o de cargo, sigue siendo él (y otro con su cargo, no).
+  assert.equal(permisos.gestiona({ ...persona(12), area: 'Gerencia', cargo: 'Gerente' }), true);
   assert.equal(permisos.gestiona(null), false);
   // Con un gestor por persona o por grupo.
   assert.equal(permisos.gestiona(persona(11), [{ usuarioId: 11 }]), true);
@@ -153,7 +160,7 @@ test('las reglas se describen en palabras con el área y el cargo como se escrib
   };
   // «Soporte Técnico» se escribe así una vez y sin tilde otra: gana la más usada (empate: orden alfabético).
   assert.deepEqual(contexto.areas.find(item => item.clave === 'soporte tecnico'), { clave: 'soporte tecnico', nombre: 'Soporte Tecnico', personas: 2 });
-  assert.equal(contexto.cargos.find(item => item.clave === 'jefe de area').personas, 4);
+  assert.equal(contexto.cargos.find(item => item.clave === 'jefe de area').personas, 5);
   const describir = regla => permisos.describir(regla, contexto);
   assert.equal(describir({ usuario_id: null, area: null, cargo: 'jefe de area' }), 'Jefes de área de todas las áreas');
   assert.equal(describir({ usuario_id: null, area: 'calibracion', cargo: null }), 'Todo el personal de Calibración');
@@ -189,7 +196,9 @@ test('sin la migración 029 rigen las concesiones iniciales del catálogo y la g
 test('«mis permisos» da los permisos del menú y si gestiona', async () => {
   reiniciar();
   assert.deepEqual(await permisos.misPermisos(sesion(22)), { permisos: CLAVES, gestionar: true });
-  assert.deepEqual(await permisos.misPermisos(sesion(2)), { permisos: ['tiempos.soporte.ver', 'tiempos.calibracion.ver'], gestionar: GESTORES.some(r => permisos.coincide(r, persona(2))) });
+  assert.deepEqual(await permisos.misPermisos(sesion(2)), { permisos: ['tiempos.soporte.ver', 'tiempos.calibracion.ver'], gestionar: false });
+  assert.deepEqual(await permisos.misPermisos(sesion(12)), { permisos: ['tiempos.soporte.ver', 'tiempos.calibracion.ver'], gestionar: true });
+  assert.equal((await permisos.misPermisos(sesion(11))).gestionar, false);
   assert.deepEqual(await permisos.misPermisos(sesion(9)), { permisos: [], gestionar: false });
 });
 
@@ -211,9 +220,11 @@ test('la gestión muestra el personal con su área, cargo y permisos, y de dónd
   assert.deepEqual(gestion.personal.find(p => p.id === 22).permisos.map(p => p.sistemas), [true, true]);
   assert.deepEqual(gestion.personal.find(p => p.id === 9).permisos, []);
   assert.deepEqual(gestion.concesiones.map(c => [c.id, c.tipo, c.sujeto, c.alcance]), [
-    [2, 'GRUPO', 'Jefes de área de todas las áreas', 4],
-    [1, 'GRUPO', 'Jefes de área de todas las áreas', 4],
-  ].sort((a, b) => a[0] - b[0]));
+    [1, 'GRUPO', 'Jefes de área de todas las áreas', 5],
+    [2, 'GRUPO', 'Jefes de área de todas las áreas', 5],
+  ]);
+  assert.deepEqual(gestion.gestores, ['Sistemas (nivel 3)', 'Richard Dorado']);
+  assert.deepEqual(gestion.personal.filter(p => p.gestiona).map(p => p.id), [22, 12]);
   assert.equal(gestion.concesiones[0].concedidoEn, '2026-11-13T15:00:00Z');
   // Sin contraseñas ni otros datos de DATA_USERS.
   assert.ok(gestion.personal.every(p => !('pass' in p)));
@@ -221,8 +232,7 @@ test('la gestión muestra el personal con su área, cargo y permisos, y de dónd
 
 test('solo Sistemas y el jefe de Sistemas gestionan, y se rechaza antes de escribir', async () => {
   reiniciar();
-  const otros = [2, 7, 8, 3].filter(id => !GESTORES.some(r => permisos.coincide(r, persona(id))));
-  for (const id of otros) {
+  for (const id of [11, 2, 7, 8, 3]) {
     await assert.rejects(permisos.obtenerGestion(sesion(id)), e => e.statusCode === 403, `persona ${id}`);
     await assert.rejects(permisos.obtenerHistorial(sesion(id)), e => e.statusCode === 403, `persona ${id}`);
     await assert.rejects(permisos.conceder({ permiso: 'tiempos.soporte.ver', tipo: 'PERSONA', usuarioId: id, motivo: 'x' }, sesion(id)),
@@ -230,6 +240,13 @@ test('solo Sistemas y el jefe de Sistemas gestionan, y se rechaza antes de escri
     await assert.rejects(permisos.revocar(1, { motivo: 'x' }, sesion(id)), e => e.statusCode === 403, `persona ${id}`);
   }
   assert.equal(base.escrituras, 0);
+  // El jefe de Sistemas concede y revoca; el historial lleva su nombre.
+  await permisos.conceder(parse('concesionPermiso', {
+    permiso: 'tiempos.calibracion.ver', tipo: 'PERSONA', usuarioId: 3, motivo: 'Prueba del jefe de Sistemas',
+  }), sesion(12));
+  assert.deepEqual([base.historial.at(-1).usuario, base.historial.at(-1).nombre], ['Dorado', 'Richard Dorado']);
+  await permisos.revocar(base.concesiones.at(-1).id, { motivo: 'Fin de la prueba' }, sesion(12));
+  assert.equal(base.historial.at(-1).accion, 'REVOCAR');
 });
 
 test('conceder a una persona o a un grupo deja la concesión y su historial con antes y después', async () => {

@@ -44,9 +44,13 @@ const permisoDe = (clave) => PERMISOS.find(permiso => permiso.clave === clave) |
  * la gestión. Cada regla es una persona ({ usuarioId }) o un grupo
  * ({ area, cargo }, normalizados), como las concesiones.
  *
- * PENDIENTE: confirmar con Sistemas quién es el jefe de Sistemas. En
- * DATA_USERS no hay un área «Sistemas»; mientras tanto solo gestiona el nivel 3.
+ * En DATA_USERS no hay un área «Sistemas», así que el jefe de Sistemas va por
+ * su id (confirmado por Sistemas el 13/11/2026). Si cambia de puesto, se
+ * cambia aquí, con su versión y su registro en Control de cambios.
  */
-const GESTORES = Object.freeze([]);
+const GESTORES = Object.freeze([
+  // Jefe de Sistemas: Richard Dorado (DATA_USERS.id 12).
+  Object.freeze({ usuarioId: 12 }),
+]);
 
 module.exports = { CLAVES, GESTORES, PERMISOS, permisoDe };
