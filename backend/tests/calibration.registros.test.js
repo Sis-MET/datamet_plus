@@ -130,6 +130,12 @@ test('tolerancias del cliente por rango: se ordenan, se validan y dejan su cambi
   assert.throws(() => planTolerancias([], [{ hasta: null, tolerancia: 1 }, { hasta: null, tolerancia: 2 }], 'kg'), /último rango/);
   assert.throws(() => planTolerancias([], [{ hasta: 10, tolerancia: 1 }, { hasta: 10, tolerancia: 2 }], 'kg'), /mismo límite/);
   assert.throws(() => planTolerancias([], [{ hasta: 10, tolerancia: 0 }], 'kg'), /mayor que cero/);
+  // Lab Delta: 1 d en todo el rango.
+  const enD = planTolerancias([], [{ hasta: null, tolerancia: 1, en: 'D' }], 'kg');
+  assert.deepEqual(enD.tolerancias, [{ hasta: null, tolerancia: 1, en: 'D' }]);
+  assert.equal(enD.cambio.despues, 'en adelante: ± 1 d');
+  // Pasar de d a kg es un cambio, aunque el número sea el mismo.
+  assert.equal(planTolerancias(enD.tolerancias, [{ hasta: null, tolerancia: 1 }], 'kg').cambio.despues, 'en adelante: ± 1 kg');
 });
 
 test('con emp NB 23001 pedido, la clase tiene que estar en el registro para enviar o aprobar', () => {

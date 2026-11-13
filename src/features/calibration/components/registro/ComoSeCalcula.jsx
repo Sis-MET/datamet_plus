@@ -320,7 +320,11 @@ function ReglasAplicadas({ calculo, modelo }) {
   let tolerancia = 'Sin tolerancia: no se declara la conformidad.';
   if (criterio.empNB23001) tolerancia = `emp en servicio de la NB 23001: ${conComa(r.factorEmp ?? 2)} × el de verificación inicial de la OIML R76 (Tabla 6), con la clase ${claseTexto}.`;
   else if (criterio.toleranciaCliente > 0) tolerancia = `${conComa(criterio.toleranciaCliente)} % de la carga, pedido por el cliente.`;
-  else if (criterio.toleranciasRango?.length) tolerancia = 'Por rango de carga, pedida por el cliente.';
+  else if (criterio.toleranciasRango?.length) {
+    const tramos = criterio.toleranciasRango
+      .map(t => `${t.hasta == null ? 'en adelante' : `hasta ${conComa(t.hasta)} ${modelo.instrumento?.unidad || ''}`}: ± ${conComa(t.tolerancia)} ${t.en === 'D' ? 'd (del rango de la carga)' : modelo.instrumento?.unidad || ''}`);
+    tolerancia = `Por rango de carga, pedida por el cliente: ${tramos.join('; ')}.`;
+  }
   let decision = '';
   if (regla === 'CONSERVADORA') decision = `: conforme si |E| + ${banda === 1 ? '' : `${conComa(banda)} · `}U ≤ T`;
   else if (regla === 'SIMPLE') decision = ': conforme si |E| ≤ T';

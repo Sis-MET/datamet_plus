@@ -46,6 +46,8 @@ const roundTo = (digits) => (value) => (value == null ? value : Number(value.toF
 const toleranciasRango = z.array(z.object({
   hasta: z.number({ error: 'El límite «hasta» debe ser un número.' }).positive('El límite «hasta» debe ser mayor que cero.').nullable(),
   tolerancia: z.number({ error: 'La tolerancia debe ser un número.' }).positive('La tolerancia debe ser mayor que cero.'),
+  // En la unidad de la balanza o en divisiones (n·d del rango de la carga).
+  en: z.enum(['MASA', 'D'], { error: 'La tolerancia va en la unidad de la balanza o en d.' }).optional(),
 }).strict()).max(5, 'Admite hasta 5 rangos de tolerancia.').nullable().optional();
 
 const numero = (message) => z.number({ error: message }).finite(message);

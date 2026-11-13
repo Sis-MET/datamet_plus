@@ -224,14 +224,15 @@ function Clase({ editor, editable, origenes, calculo, unidad }) {
 }
 
 /**
- * Tolerancia absoluta que el cliente fija por rango de carga (dato del
- * cliente). Se usa cuando no pidió el emp NB 23001 ni un %.
+ * Tolerancia que el cliente fija por rango de carga (dato del cliente), en la
+ * unidad de la balanza o en divisiones (1 d en todo el rango, como Lab Delta).
+ * Se usa cuando no pidió el emp NB 23001 ni un %.
  */
 function ToleranciasCliente({ editor, editable, criterio, unidad }) {
   const filas = editor.tolerancias;
   const cambiarFila = (i, campo, valor) => editor.cambiarTolerancias(filas.map((f, j) => (j === i ? { ...f, [campo]: valor } : f)));
   const quitar = i => editor.cambiarTolerancias(filas.filter((_, j) => j !== i));
-  const agregar = () => editor.cambiarTolerancias([...filas, { hasta: '', tolerancia: '' }]);
+  const agregar = () => editor.cambiarTolerancias([...filas, { hasta: '', tolerancia: '', en: 'MASA' }]);
   const leer = texto => Number(String(texto ?? '').trim().replace(',', '.'));
   const toleranciaMal = f => String(f.tolerancia).trim() !== '' && !(leer(f.tolerancia) > 0);
   const hastaMal = f => String(f.hasta).trim() !== '' && !(leer(f.hasta) > 0);
@@ -251,7 +252,9 @@ function ToleranciasCliente({ editor, editable, criterio, unidad }) {
     <div className={cn('rounded-xl bg-surface-2/50 px-3.5 py-3', editor.toleranciasPendientes && 'cc-campo-pendiente')}>
       <p className="text-[12.5px] font-semibold text-fg">Tolerancia del cliente por rango</p>
       <p className="mt-0.5 text-[12px] text-fg-muted">
-        Valor absoluto (±) que pide el cliente hasta cada carga; el último rango puede quedar «en adelante». Es un dato del cliente y se marca así en el certificado.
+        Valor (±) que pide el cliente hasta cada carga, en {unidad || 'la unidad de la balanza'} o en divisiones d del rango de la carga (por ejemplo, 1 d en todo el rango:
+        una sola fila «en adelante» con ± 1 d). El último rango puede quedar «en adelante». Es un dato del cliente y se marca así en el certificado.
+        La regla de decisión (simple o conservadora) se elige arriba.
         {manda ? ` ${manda}` : ''}
       </p>
       {filas.length > 0 && (
@@ -277,7 +280,16 @@ function ToleranciasCliente({ editor, editable, criterio, unidad }) {
                 aria-label={`Rango ${i + 1}: tolerancia`}
                 className={cn('field h-9 w-24 rounded-lg px-2.5 text-[13px] tabular-nums', toleranciaMal(f) && 'field-invalid')}
               />
-              <span className="text-fg-muted">{unidad}</span>
+              <select
+                value={f.en === 'D' ? 'D' : 'MASA'}
+                onChange={e => cambiarFila(i, 'en', e.target.value)}
+                disabled={!editable}
+                aria-label={`Rango ${i + 1}: unidad de la tolerancia`}
+                className="field h-9 w-20 rounded-lg px-2 text-[13px]"
+              >
+                <option value="MASA">{unidad || 'masa'}</option>
+                <option value="D">d</option>
+              </select>
               {editable && (
                 <button type="button" onClick={() => quitar(i)} aria-label={`Quitar el rango ${i + 1}`} className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg">
                   <Trash2 className="h-4 w-4" aria-hidden="true" />

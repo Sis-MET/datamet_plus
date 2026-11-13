@@ -118,16 +118,21 @@ const datosDe = (json) => {
 };
 
 const textoTolerancias = (tramos, unidad) => (tramos.length
-  ? tramos.map(t => `${t.hasta == null ? 'en adelante' : `hasta ${numeroComa(t.hasta)} ${unidad}`}: ± ${numeroComa(t.tolerancia)} ${unidad}`).join('; ')
+  ? tramos.map(t => `${t.hasta == null ? 'en adelante' : `hasta ${numeroComa(t.hasta)} ${unidad}`}: ± ${numeroComa(t.tolerancia)} ${t.en === 'D' ? 'd' : unidad}`).join('; ')
   : null);
 
 /**
  * Tolerancias del cliente por rango: sin cambio si no llegan; null o [] las
  * quita. Ordenadas por «hasta»; solo la última puede no tenerlo (en adelante).
+ * Cada una en la unidad de la balanza o, con en: 'D', en divisiones (1 d).
  */
 const planTolerancias = (actuales, entrantes, unidad) => {
   if (entrantes === undefined) return { tolerancias: actuales, cambio: null };
-  const lista = (entrantes || []).map(t => ({ hasta: t.hasta == null ? null : Number(t.hasta), tolerancia: Number(t.tolerancia) }));
+  const lista = (entrantes || []).map(t => ({
+    hasta: t.hasta == null ? null : Number(t.hasta),
+    tolerancia: Number(t.tolerancia),
+    ...(t.en === 'D' ? { en: 'D' } : {}),
+  }));
   if (lista.length > MAX_TOLERANCIAS) throw httpError(400, `Admite hasta ${MAX_TOLERANCIAS} rangos de tolerancia.`);
   if (lista.some(t => !(t.tolerancia > 0) || (t.hasta != null && !(t.hasta > 0)))) {
     throw httpError(400, 'Cada rango necesita su tolerancia (mayor que cero) y, salvo el último, su límite «hasta».');

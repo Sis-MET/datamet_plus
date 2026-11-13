@@ -55,12 +55,13 @@ export function useRegistroEditor(data) {
     setClase(igual(nueva, claseGuardada) ? undefined : nueva);
   }, [claseGuardada]);
 
+  // en: 'MASA' (la unidad de la balanza) o 'D' (divisiones: 1 d en todo el rango).
   const toleranciasGuardadas = useMemo(() => (data?.datos?.tolerancias || []).map(t => ({
-    hasta: t.hasta == null ? '' : String(t.hasta).replace('.', ','), tolerancia: String(t.tolerancia).replace('.', ','),
+    hasta: t.hasta == null ? '' : String(t.hasta).replace('.', ','), tolerancia: String(t.tolerancia).replace('.', ','), en: t.en === 'D' ? 'D' : 'MASA',
   })), [data]);
   const toleranciasActuales = tolerancias === undefined ? toleranciasGuardadas : tolerancias;
   const cambiarTolerancias = useCallback((filas) => {
-    const normal = lista => JSON.stringify(lista.map(f => [comparable(f.hasta), comparable(f.tolerancia)]));
+    const normal = lista => JSON.stringify(lista.map(f => [comparable(f.hasta), comparable(f.tolerancia), f.en === 'D' ? 'D' : 'MASA']));
     setTolerancias(normal(filas) === normal(toleranciasGuardadas) ? undefined : filas);
   }, [toleranciasGuardadas]);
 
@@ -72,7 +73,7 @@ export function useRegistroEditor(data) {
     // Solo las filas que se leen: «hasta» vacío = en adelante; las incompletas no se mandan.
     const numero = texto => (comparable(texto) === '' ? null : Number(comparable(texto)));
     const filas = tolerancias === undefined ? undefined : tolerancias
-      .map(f => ({ hasta: numero(f.hasta), tolerancia: numero(f.tolerancia) }))
+      .map(f => ({ hasta: numero(f.hasta), tolerancia: numero(f.tolerancia), ...(f.en === 'D' ? { en: 'D' } : {}) }))
       .filter(f => f.tolerancia > 0 && (f.hasta == null || f.hasta > 0));
     return {
       columnas,
