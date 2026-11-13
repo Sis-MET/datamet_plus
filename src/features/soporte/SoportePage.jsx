@@ -25,9 +25,10 @@ const DE_CONSULTA = ['informes', 'proximos'];
 const pestanaHabilitada = (pestana, permisos) => {
   if (DE_CONSULTA.includes(pestana)) return true;
   if (!permisos) return null;
+  // Los tiempos de servicio van con su permiso (Gestión de permisos), también para quien solo consulta.
+  if (pestana === 'tiempos') return permisos.tiempos === true;
   if (permisos.consulta) return false;
   if (pestana === 'configuracion') return permisos.configurarAprobadores === true;
-  if (pestana === 'tiempos') return permisos.tiempos === true;
   return true;
 };
 
@@ -122,7 +123,8 @@ export function SoportePage() {
           <TiemposPanel
             area="soporte"
             cargar={soporteApi.tiempos}
-            onAbrir={servicio => abrir({ tipo: servicio.grupo, codigo: servicio.codigo })}
+            // Quien solo consulta ve únicamente los informes emitidos: no se le ofrece abrir cada servicio.
+            onAbrir={consulta ? undefined : servicio => abrir({ tipo: servicio.grupo, codigo: servicio.codigo })}
           />
         </div>
       )}

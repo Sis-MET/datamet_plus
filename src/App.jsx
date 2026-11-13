@@ -1,10 +1,12 @@
-import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useCallback, useMemo } from 'react';
 import { Toaster as SonnerToaster } from 'sonner';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { Sidebar } from './shared/components/layout/Sidebar';
 import { Topbar } from './shared/components/layout/Topbar';
 import { Footer } from './shared/components/layout/Footer';
-import { APP_VIEWS, allowedView, canUseView, findSection, isSystemAdmin, managesCalibration, veControlCambios } from './shared/components/layout/navigation';
+import {
+  APP_VIEWS, accesoPorPermiso, allowedView, canUseView, esperaPermisos, findSection, isSystemAdmin, managesCalibration, veControlCambios,
+} from './shared/components/layout/navigation';
 import { RestrictedArea } from './shared/components/layout/RestrictedArea';
 import { useSidebar } from './shared/hooks/useSidebar';
 import { useTheme } from './shared/context/ThemeContext';
@@ -16,6 +18,7 @@ import { conTransicion } from './shared/utils/viewTransition';
 import { useCalibrationAlertCount } from './features/calibration/hooks/useCalibrationAlertCount';
 import { useSoporteAlertCount } from './features/soporte/hooks/useSoporteAlertCount';
 import { useFailureSummary } from './features/system/hooks/useFailureSummary';
+import { useMisPermisos } from './features/system/hooks/useMisPermisos';
 
 // Cada apartado se descarga al abrirlo por primera vez. Tras iniciar sesión
 // se precargan en segundo plano para que cambiar de apartado no espere.
@@ -28,6 +31,8 @@ const CARGAS = {
   IvmetManagementPage: () => import('./features/ivmet/IvmetManagementPage'),
   ChangeControlPage: () => import('./features/system/ChangeControlPage'),
   FailureLogPage: () => import('./features/system/FailureLogPage'),
+  PermisosPage: () => import('./features/system/PermisosPage'),
+  TiemposPage: () => import('./features/tiempos/TiemposPage'),
 };
 const perezoso = (nombre) => lazy(() => CARGAS[nombre]().then(module => ({ default: module[nombre] })));
 
@@ -39,6 +44,8 @@ const SoportePage = perezoso('SoportePage');
 const IvmetManagementPage = perezoso('IvmetManagementPage');
 const ChangeControlPage = perezoso('ChangeControlPage');
 const FailureLogPage = perezoso('FailureLogPage');
+const PermisosPage = perezoso('PermisosPage');
+const TiemposPage = perezoso('TiemposPage');
 const LoginPage = lazy(() => import('./features/auth/LoginPage')
   .then(module => ({ default: module.LoginPage })));
 
@@ -183,7 +190,7 @@ function App() {
     }
     return isValid;
   });
-  const [currentUser, setCurrentUser] = useState(() => {
+  const [usuarioGuardado, setCurrentUser] = useState(() => {
     const token = safeStorage.getItem('datamet_token');
     if (!token) return null;
     try {
@@ -194,11 +201,21 @@ function App() {
     }
   });
 
+  // Los permisos con nombre (Gestión de permisos) los da el backend; con
+  // ellos el menú muestra, por ejemplo, los tiempos de servicio a los jefes de
+  // todas las áreas. `permisos` es null mientras llegan.
+  const misPermisos = useMisPermisos(isAuthenticated && usuarioGuardado ? usuarioGuardado.usuario || 'sesion' : null);
+  const currentUser = useMemo(() => (usuarioGuardado
+    ? { ...usuarioGuardado, permisos: misPermisos?.permisos ?? null, gestionaPermisos: misPermisos?.gestionar === true }
+    : null), [misPermisos, usuarioGuardado]);
+
   // El apartado sale de la dirección (/cronograma, /soporte/…). En la raíz o
-  // en una dirección desconocida vale el último que se usó.
+  // en una dirección desconocida vale el último que se usó. Si para decidir
+  // faltan los permisos, se espera en el mismo apartado.
   const ruta = useRuta();
   const vistaRuta = leerRuta(ruta).vista;
-  const activeView = allowedView(vistaRuta || safeStorage.getItem('datamet_last_view') || 'rim', currentUser);
+  const vistaPedida = vistaRuta || safeStorage.getItem('datamet_last_view') || 'rim';
+  const activeView = esperaPermisos(vistaPedida, currentUser) ? vistaPedida : allowedView(vistaPedida, currentUser);
 
   useEffect(() => {
     if (!isAuthenticated || vistaRuta === activeView) return;
@@ -286,7 +303,11 @@ function App() {
   }
 
   const renderView = () => {
-    // Apartado de otra área: se ve, pero difuminado y con el aviso.
+    if (esperaPermisos(activeView, currentUser)) return <ViewFallback />;
+    // Apartado de otra área: solo las secciones de sus permisos (los tiempos
+    // de servicio para los jefes de todas las áreas) o, sin ellas, difuminado
+    // y con el aviso.
+    if (accesoPorPermiso(activeView, currentUser)) return <TiemposPage view={activeView} />;
     if (!canUseView(activeView, currentUser)) {
       return (
         <RestrictedArea
@@ -315,6 +336,10 @@ function App() {
           : <RimPage currentUser={currentUser} />;
       case 'failures':
         return isSystemAdmin(currentUser) ? <FailureLogPage /> : <RimPage currentUser={currentUser} />;
+      case 'permisos':
+        return isSystemAdmin(currentUser) || currentUser?.gestionaPermisos
+          ? <PermisosPage />
+          : <RimPage currentUser={currentUser} />;
       case 'rim':
       default:
         return <RimPage currentUser={currentUser} />;

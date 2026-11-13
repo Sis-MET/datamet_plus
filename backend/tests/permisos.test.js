@@ -90,7 +90,7 @@ test('el catálogo tiene claves únicas y cada permiso su nombre, módulo y siem
   assert.ok(CLAVES.includes('tiempos.calibracion.ver'));
   for (const permiso of PERMISOS) {
     assert.match(permiso.clave, /^[a-z]+(\.[a-z]+)+$/);
-    assert.ok(permiso.nombre && permiso.descripcion && permiso.modulo, permiso.clave);
+    assert.ok(permiso.nombre && permiso.corto && permiso.descripcion && permiso.modulo, permiso.clave);
   }
   // La gestión no se concede desde la pantalla: va fija en el código.
   assert.ok(!CLAVES.some(clave => clave.startsWith('permisos.')));

@@ -1,4 +1,4 @@
-import { CalendarRange, ClipboardCheck, Gauge, History, MapPinned, ServerCrash, ShieldCheck, Wrench } from 'lucide-react';
+import { CalendarRange, ClipboardCheck, Gauge, History, KeyRound, MapPinned, ServerCrash, ShieldCheck, Wrench } from 'lucide-react';
 
 const normalizeArea = (value) => String(value || '')
   .normalize('NFD')
@@ -17,10 +17,13 @@ const esJefeDe = (areaId) => (user) => normalizeArea(user?.area) === areaId
 const esJefeSoporte = esJefeDe('soporte tecnico');
 
 /**
- * Tiempos de servicio del personal (KPI): los ven el jefe del área y
- * Sistemas. Solo para el menú; el backend lo vuelve a comprobar.
+ * Permisos con nombre (Sistema › Gestión de permisos). Sistemas (nivel 3) los
+ * tiene todos; los demás, los que trae `user.permisos` de
+ * /api/sistema/permisos/mios (null mientras no llegan). Solo para el menú: el
+ * backend lo vuelve a comprobar en cada petición.
  */
-const veTiempos = (areaId) => (user) => isSystemAdmin(user) || esJefeDe(areaId)(user);
+export const tienePermiso = (user, clave) => isSystemAdmin(user)
+  || (Array.isArray(user?.permisos) && user.permisos.includes(clave));
 
 /**
  * Control de cambios: Sistemas registra, valida e implementa; el jefe de área
@@ -33,7 +36,9 @@ export const veControlCambios = (user) => isSystemAdmin(user) || esJefeDe('calib
 // lateral: Salidas del personal solo se abre desde una vista guardada.
 // `sections` son las pestañas del apartado (/<apartado>/<sección>): en la
 // barra lateral se despliegan como sub-lista. `badgeSection` es la sección que
-// lleva el contador del apartado cuando la sub-lista está abierta.
+// lleva el contador del apartado cuando la sub-lista está abierta. Una sección
+// con `permiso` la ve solo quien lo tiene, sea o no del área del apartado:
+// quien no es del área entra solo a esas secciones.
 export const APP_VIEWS = {
   rim: {
     id: 'rim',
@@ -92,7 +97,8 @@ export const APP_VIEWS = {
         ],
       },
       { id: 'alertas', label: 'Alertas' },
-      { id: 'tiempos', label: 'Tiempos de servicio', visible: veTiempos('calibracion') },
+      // Con el permiso la ve también quien no es del área (los jefes de todas las áreas).
+      { id: 'tiempos', label: 'Tiempos de servicio', permiso: 'tiempos.calibracion.ver' },
       { id: 'cumplimiento', label: 'Cumplimiento' },
       // Versiones de la app de los técnicos y su aprobación (17025, 7.11.2).
       { id: 'servicemet', label: 'Versiones ServiceMET' },
@@ -111,7 +117,7 @@ export const APP_VIEWS = {
       { id: 'informes', label: 'Informes' },
       { id: 'proximos', label: 'Próximos servicios' },
       { id: 'avisos', label: 'Avisos' },
-      { id: 'tiempos', label: 'Tiempos de servicio', visible: veTiempos('soporte tecnico') },
+      { id: 'tiempos', label: 'Tiempos de servicio', permiso: 'tiempos.soporte.ver' },
       { id: 'configuracion', label: 'Configuración', visible: esJefeSoporte },
     ],
     // Comercial solo consulta: los informes emitidos y los próximos servicios.
@@ -160,12 +166,25 @@ export const APP_VIEWS = {
     group: 'system',
     requiresAdmin: true,
   },
+  permisos: {
+    id: 'permisos',
+    label: 'Gestión de permisos',
+    description: 'Qué puede ver o hacer cada persona, por persona o por grupo',
+    icon: KeyRound,
+    inNav: true,
+    group: 'system',
+    requiresAdmin: true,
+    // Además de Sistemas, el jefe de Sistemas: lo decide el backend (`gestionar`).
+    access: user => user?.gestionaPermisos === true,
+    dependeDePermisos: true,
+  },
 };
 
 /**
  * Sistemas: el nivel 3, la administración del sistema. Entra a todos los
  * apartados y es el único que ve Registro de fallas; Control de cambios lo
- * comparte con el jefe de área de Calibración.
+ * comparte con el jefe de área de Calibración y Gestión de permisos, con el
+ * jefe de Sistemas.
  */
 export const isSystemAdmin = (user) => String(user?.acceso_cron) === '3';
 
@@ -198,6 +217,32 @@ export const canUseView = (view, user) => {
 };
 
 /**
+ * Secciones de un apartado de área que el usuario ve por un permiso con
+ * nombre aunque no sea del área (los tiempos de servicio para los jefes de
+ * todas las áreas). Vacío si el apartado no tiene secciones con permiso.
+ */
+export const seccionesPorPermiso = (view, user) => (APP_VIEWS[view]?.sections || [])
+  .filter(section => section.permiso && tienePermiso(user, section.permiso));
+
+/**
+ * ¿Entra al apartado de otra área solo por sus permisos? Entonces ve solo las
+ * secciones con permiso, sin el aviso de acceso restringido.
+ */
+export const accesoPorPermiso = (view, user) => !canUseView(view, user) && seccionesPorPermiso(view, user).length > 0;
+
+/**
+ * ¿Falta saber sus permisos para decidir? Mientras `user.permisos` no llega,
+ * un apartado bloqueado con secciones con permiso, o uno que depende de los
+ * permisos (Gestión de permisos), todavía no se puede resolver.
+ */
+export const esperaPermisos = (view, user) => {
+  const config = APP_VIEWS[view];
+  if (!config || !user || isSystemAdmin(user) || Array.isArray(user.permisos)) return false;
+  if (config.dependeDePermisos) return true;
+  return !canUseView(view, user) && (config.sections || []).some(section => section.permiso);
+};
+
+/**
  * La vista solo se abre si existe y el usuario puede verla; si no, el
  * apartado RIM. Los apartados de un área se abren siempre: si no es la del
  * usuario, con el aviso.
@@ -220,17 +265,22 @@ export function getNavigation(user) {
   return Object.values(APP_VIEWS)
     .filter(view => view.inNav && puedeAbrir(view, user))
     .map((view) => {
-      const locked = !canUseView(view.id, user);
+      // Quien no es del área pero tiene el permiso de alguna sección entra solo a ellas.
+      const porPermiso = accesoPorPermiso(view.id, user);
+      const locked = !canUseView(view.id, user) && !porPermiso;
       const consulta = soloConsulta(view.id, user);
       const sections = locked
         ? []
-        : (view.sections || [])
-          .filter(section => !consulta || view.consulta.secciones.includes(section.id))
-          .filter(section => !section.visible || section.visible(user))
-          .map(section => (consulta && view.consulta.etiquetas?.[section.id]
-            ? { ...section, label: view.consulta.etiquetas[section.id] }
-            : section));
-      return { ...view, locked, consulta, sections };
+        : porPermiso
+          ? seccionesPorPermiso(view.id, user)
+          : (view.sections || [])
+            .filter(section => !consulta || view.consulta.secciones.includes(section.id) || section.permiso)
+            .filter(section => !section.permiso || tienePermiso(user, section.permiso))
+            .filter(section => !section.visible || section.visible(user))
+            .map(section => (consulta && view.consulta.etiquetas?.[section.id]
+              ? { ...section, label: view.consulta.etiquetas[section.id] }
+              : section));
+      return { ...view, locked, consulta, porPermiso, sections };
     });
 }
 

@@ -17,6 +17,7 @@ Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, num
 - **Calibración:** plan anual de calibraciones, verificaciones internas y actividades del área, con alertas en el cronograma y por correo.
 - **Soporte técnico:** informes de los 8 servicios del área a partir de lo que sube ServiceMET, con el diseño de las plantillas Excel, fotografías, edición con historial, emisión y PDF; y los próximos servicios que sugieren los técnicos, con línea de tiempo, seguimiento y avisos por correo.
 - **Control de cambios y registro de fallas:** historial de los cambios del sistema con su validación y aprobación, y registro de las fallas con sus acciones (NB/ISO/IEC 17025, 7.11).
+- **Gestión de permisos:** Sistemas y el jefe de Sistemas conceden permisos con nombre (por ejemplo, ver los tiempos de servicio) a una persona o a un grupo, sin tocar el código; cada cambio queda en un historial que no se modifica ni se borra (7.11.3 a, 8.4).
 
 ## RIM (recepción de instrumentos)
 
@@ -274,8 +275,10 @@ resumidos con palabras propias; ante una duda manda el texto de la norma.
 Sección **Tiempos de servicio** (`GET /api/calibracion/tiempos?desde=&hasta=`), el
 mismo panel que en Soporte técnico: indicadores comparados con el período
 anterior, horas por mes, horas por rango de capacidad máxima (hasta 1 kg, de 1
-a 60 kg, de 60 kg a 1 500 kg y más) y una tarjeta por técnico. La ven el jefe de
-Calibración y Sistemas.
+a 60 kg, de 60 kg a 1 500 kg y más) y una tarjeta por técnico. La ve quien
+tiene el permiso `tiempos.calibracion.ver` de Gestión de permisos: de inicio,
+Sistemas y los jefes de área de todas las áreas. Quien no es de Calibración entra
+solo a esta sección (`/calibracion/tiempos`), sin abrir los registros.
 
 - **Inicio:** `hora_inicio` del servicio (si falta, `hora`, la de las
   condiciones ambientales iniciales). **Fin:** `hora_fin`, la de las
@@ -522,7 +525,10 @@ consulta a otra área, se agrega en `MODULOS[...].consulta` de
 Sección **Tiempos de servicio** (también en Calibración, con el mismo panel,
 `src/features/tiempos`): los KPI del personal a partir de la hora de inicio y
 la hora final de cada servicio (`GET /api/soporte/tiempos?desde=&hasta=`, hasta
-tres años). La ven el jefe del área y Sistemas; el backend lo comprueba.
+tres años). La ve quien tiene el permiso `tiempos.soporte.ver` de Gestión de
+permisos: de inicio, Sistemas y los jefes de área de todas las áreas. Quien no es
+del área entra solo a esta sección (`/soporte/tiempos`), sin abrir los informes;
+el backend lo comprueba antes de la regla del área (`requirePermiso`).
 
 - **Duración:** hora final menos hora de inicio, tal como las registró el
   técnico en ServiceMET (en DataMET+ no se corrigen). Sin alguna de las dos,
@@ -605,7 +611,7 @@ frontend. Mientras no haya destinatarios no sale ningún correo.
 
 ## Control de cambios y registro de fallas
 
-Dos apartados al pie de la barra lateral, sobre el usuario, para el nivel 3
+Dos de los apartados al pie de la barra lateral, sobre el usuario, para el nivel 3
 (migración `007`, rutas `/api/sistema/*`). Control de cambios lo ve también el
 jefe de área de Calibración, que aprueba o rechaza los cambios:
 
@@ -630,6 +636,45 @@ jefe de área de Calibración, que aprueba o rechaza los cambios:
 
 Al publicar una versión: registra sus cambios, valídalos y apruébalos antes de
 desplegarla, y después registra la fecha de implementación.
+
+### Gestión de permisos (NB/ISO/IEC 17025, 7.11.3 a y 8.4)
+
+Tercer apartado al pie de la barra lateral (migración `029`, rutas
+`/api/sistema/permisos*`, `/sistema/permisos/<personal|permisos|historial>`).
+Decide qué puede ver o hacer cada persona además de lo de su área, sin tocar el
+código. Lo abren y modifican solo Sistemas (nivel 3) y el jefe de Sistemas
+(`GESTORES` en `backend/src/services/permisos.catalogo.js`, fijo en el código
+para que nadie se dé a sí mismo la gestión).
+
+- **Permisos con nombre:** el catálogo está en `permisos.catalogo.js`
+  (`tiempos.soporte.ver`, `tiempos.calibracion.ver`). Sistemas los tiene todos.
+- **A quién:** a una persona (`DATA_USERS.id`) o a un grupo: un área, un cargo o
+  un cargo de un área («jefes de área» es el cargo «Jefe de Area» en todas las
+  áreas). El grupo se compara sin tildes ni mayúsculas con el área y el cargo
+  vigentes de DATA_USERS, así quien cambia de cargo gana o pierde el permiso
+  solo.
+- **Una sola comprobación:** `tienePermiso(user, clave)` en
+  `backend/src/services/permisos.js` (o `requirePermiso` en las rutas). Lee en
+  cada petición la fila vigente de DATA_USERS y las concesiones; el menú solo
+  oculta (`/api/sistema/permisos/mios`). Sin la migración `029` rigen las
+  concesiones iniciales del catálogo.
+- **Pantalla:** el personal con su área, cargo, nivel y permisos (búsqueda sin
+  tildes y filtros por área y por permiso), la ficha de cada persona con de
+  dónde le viene cada permiso, los permisos con sus concesiones y el
+  historial. Conceder y revocar exigen el motivo y muestran a quiénes alcanza
+  antes de guardar.
+- **Registros:** `APP_PERMISOS_CONCESIONES` no se borra: revocar guarda quién,
+  cuándo y por qué. `APP_PERMISOS_HISTORIAL` guarda cada cambio con quién,
+  cuándo, qué, a quién y quiénes tenían el permiso antes y después. Triggers de
+  la base rechazan modificar o borrar el historial y borrar una concesión.
+- **Siembra:** la migración concede los dos tiempos de servicio a los jefes de
+  área de todas las áreas (hasta la 2.18.3 los veía solo el jefe de cada área).
+
+Para pasar otro acceso al modelo (los aprobadores, Control de cambios, el
+Cronograma o el RIM, que hoy siguen en el código): agregar su clave al catálogo,
+sembrar en una migración lo que hoy concede el código para no cambiar el acceso
+de nadie, comprobarlo con `tienePermiso` en el backend y marcar la sección con
+`permiso` en `src/shared/components/layout/navigation.js`.
 
 > Pendiente de coordinar con el Jefe de Sistemas: las contraseñas de
 > `DATA_USERS` se guardan y comparan en texto plano porque varios sistemas las
@@ -733,7 +778,7 @@ El frontend y el backend se deben actualizar juntos. Consulta la
   `/rim/registros`, `/rim/numeracion`, `/rim/nuevo`, `/cronograma`,
   `/calibracion/<cronograma|equipos|actividades|alertas|cumplimiento>`,
   `/soporte/<informes|proximos|avisos|configuracion>`, `/ivmet`,
-  `/sistema/cambios` y `/sistema/fallas`. Un informe abierto es
+  `/sistema/cambios`, `/sistema/fallas` y `/sistema/permisos/<personal|permisos|historial>`. Un informe abierto es
   `/soporte/<pestaña>/<tipo>/<código>` y se puede compartir. En `/` se abre el
   último apartado usado. Los correos de alertas enlazan a
   `APP_URL/calibracion/alertas` y `APP_URL/soporte/proximos`.

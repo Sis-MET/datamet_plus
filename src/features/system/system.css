@@ -26,3 +26,14 @@
   line-height: 1.55;
   white-space: pre;
 }
+
+/* Gestión de permisos: fila del personal (persona, área y cargo, permisos).
+   En el teléfono, una columna; desde md, las cuatro. La fila pone `grid`. */
+.perm-fila {
+  gap: 8px 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+}
+@media (min-width: 768px) {
+  .perm-fila { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1.35fr) 16px; }
+}

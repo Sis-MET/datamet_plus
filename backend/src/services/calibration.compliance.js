@@ -229,6 +229,14 @@ const readAccesos = () => first(`
   WHERE estado = 'ACTIVO' AND CAST(ISNULL(acceso_cron, 0) AS varchar(10)) <> '0'
 `);
 
+// Gestión de permisos (migración 029): concesiones vigentes y cambios
+// registrados. Sin la migración la consulta falla y queda en null.
+const readPermisos = () => first(`
+  SELECT
+    (SELECT COUNT(*) FROM dbo.APP_PERMISOS_CONCESIONES WHERE revocado_en IS NULL) AS vigentes,
+    (SELECT COUNT(*) FROM dbo.APP_PERMISOS_HISTORIAL) AS cambios
+`);
+
 const PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)|^[^.]+$/i;
 
 const readEntorno = () => {
@@ -252,7 +260,7 @@ const counts = (row) => (row
 const gatherFacts = async ({ version = null } = {}) => {
   const [
     baseDatos, respaldos, migraciones, equipos, certificados, historial, eventos, programas, fallas, accesos,
-    revisiones, cambios, fallasSistema, servicemet, patrones,
+    revisiones, cambios, fallasSistema, servicemet, patrones, permisos,
   ] = await Promise.all([
     safe(readBaseDatos),
     safe(readRespaldos),
@@ -269,6 +277,7 @@ const gatherFacts = async ({ version = null } = {}) => {
     safe(readFallasSistema),
     safe(readServicemet),
     safe(readPatrones),
+    safe(readPermisos),
   ]);
   return {
     evaluadoEn: new Date().toISOString(),
@@ -299,6 +308,7 @@ const gatherFacts = async ({ version = null } = {}) => {
     fallasSistema: counts(fallasSistema),
     servicemet,
     patrones: counts(patrones),
+    permisos: counts(permisos),
   };
 };
 
@@ -642,7 +652,7 @@ const REQUISITOS = [
     clausula: '7.11.3 a',
     titulo: 'Protección contra el acceso no autorizado',
     requisito: 'Solo las personas autorizadas acceden al sistema y modifican los datos.',
-    evaluar: ({ entorno, accesos }) => {
+    evaluar: ({ entorno, accesos, permisos }) => {
       const sesion = formatDuration(entorno.sesionExpira);
       return {
         estado: 'PARCIAL',
@@ -650,6 +660,7 @@ const REQUISITOS = [
         evidencias: [
           `Para entrar se necesita usuario y contraseña${sesion ? `; la sesión vence a las ${sesion}` : ''}.`,
           'Solo el área Calibración y Sistemas (nivel 3) consultan y modifican; el servidor lo comprueba en cada petición y el resto del personal ve el apartado bloqueado.',
+          permisos && 'Los permisos fuera del área (como los tiempos de servicio para los jefes de todas las áreas) se conceden en Sistema › Gestión de permisos, que solo usan Sistemas y el jefe de Sistemas; el servidor los comprueba en cada petición y cada cambio queda en APP_PERMISOS_HISTORIAL con quién, cuándo, qué, antes y después, sin poder modificarse ni borrarse.',
           'Tras 3 intentos fallidos el usuario queda bloqueado un minuto.',
         ],
         brechas: [
@@ -664,6 +675,7 @@ const REQUISITOS = [
         prioridad: 'ALTA',
         datos: [
           accesos && { etiqueta: 'Usuarios con acceso al apartado', valor: ratio(accesos.editores, accesos.activos), tono: 'neutral' },
+          permisos && { etiqueta: 'Permisos concedidos', valor: `${permisos.vigentes} vigentes · ${plural(permisos.cambios, 'cambio', 'cambios')} en el historial`, tono: 'neutral' },
           { etiqueta: 'Modo del servidor', valor: entorno.modo, tono: tone(entorno.modo !== 'production', 'warning') },
           sesion && { etiqueta: 'Vencimiento de la sesión', valor: sesion, tono: 'neutral' },
         ],

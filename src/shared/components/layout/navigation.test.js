@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { allowedView, canUseView, findSection, getNavigation, managesCalibration, soloConsulta, veControlCambios } from './navigation';
+import {
+  accesoPorPermiso, allowedView, canUseView, esperaPermisos, findSection, getNavigation, managesCalibration, soloConsulta, tienePermiso,
+  veControlCambios,
+} from './navigation';
 
 const calibracion = { area: 'Calibración', acceso_cron: '2' };
 const soporte = { area: 'Soporte Técnico', acceso_cron: 2 };
 const comercial = { area: 'Comercial', acceso_cron: '2' };
 const sistemas = { area: 'Administración', cargo: 'Auxiliar de Sistemas', acceso_cron: '3' };
+// Lo que da /api/sistema/permisos/mios a un jefe de área (de cualquier área).
+const TIEMPOS = ['tiempos.soporte.ver', 'tiempos.calibracion.ver'];
+const jefe = (user) => ({ ...user, cargo: 'Jefe de Area', permisos: TIEMPOS });
 
 describe('acceso a los apartados por área', () => {
   it('cada apartado lo usa su área y Sistemas entra a todos', () => {
@@ -79,25 +85,69 @@ describe('acceso a los apartados por área', () => {
     expect(soloConsulta('calibration', comercial)).toBe(false);
     expect(vista(comercial).consulta).toBe(true);
     expect(vista(comercial).sections.map(s => [s.id, s.label])).toEqual([['informes', 'Informes emitidos'], ['proximos', 'Próximos servicios']]);
-    // Ni el jefe de Comercial ve Avisos, Tiempos o Configuración.
-    expect(vista({ ...comercial, cargo: 'Jefe de Area' }).sections.map(s => s.id)).toEqual(['informes', 'proximos']);
+    // El jefe de Comercial no ve Avisos ni Configuración; los tiempos, con su permiso.
+    expect(vista({ ...comercial, cargo: 'Jefe de Area', permisos: [] }).sections.map(s => s.id)).toEqual(['informes', 'proximos']);
+    expect(vista(jefe(comercial)).sections.map(s => s.id)).toEqual(['informes', 'proximos', 'tiempos']);
+    expect(vista(jefe(comercial)).consulta).toBe(true);
     expect(vista(soporte).consulta).toBe(false);
     expect(findSection('soporte', 'informes', comercial)?.label).toBe('Informes emitidos');
     expect(findSection('soporte', 'avisos', comercial)).toBeNull();
   });
 
-  it('los tiempos de servicio los ven el jefe de cada área y Sistemas', () => {
+  it('los tiempos de servicio los ve quien tiene su permiso (de inicio, los jefes de todas las áreas) y Sistemas', () => {
     const secciones = (user, id) => getNavigation(user).find(view => view.id === id).sections.map(section => section.id);
-    expect(secciones({ ...soporte, cargo: 'Jefe de Area' }, 'soporte')).toContain('tiempos');
-    expect(secciones({ ...soporte, cargo: 'Técnico 3' }, 'soporte')).not.toContain('tiempos');
-    expect(secciones({ ...calibracion, cargo: 'Jefe de Área' }, 'calibration')).toContain('tiempos');
-    expect(secciones({ ...calibracion, cargo: 'Técnico' }, 'calibration')).not.toContain('tiempos');
-    // El jefe de otra área no ve los de Calibración (ni entra al apartado).
-    expect(secciones({ ...soporte, cargo: 'Jefe de Area' }, 'soporte')).toContain('tiempos');
-    expect(getNavigation({ ...soporte, cargo: 'Jefe de Area' }).find(view => view.id === 'calibration').sections).toEqual([]);
+    expect(secciones(jefe(soporte), 'soporte')).toContain('tiempos');
+    expect(secciones({ ...soporte, cargo: 'Técnico 3', permisos: [] }, 'soporte')).not.toContain('tiempos');
+    expect(secciones(jefe(calibracion), 'calibration')).toContain('tiempos');
+    expect(secciones({ ...calibracion, cargo: 'Técnico', permisos: [] }, 'calibration')).not.toContain('tiempos');
+    // El menú no lo decide el cargo, sino el permiso que da el backend.
+    expect(secciones({ ...soporte, cargo: 'Jefe de Area', permisos: [] }, 'soporte')).not.toContain('tiempos');
+    expect(secciones({ ...soporte, cargo: 'Técnico', permisos: ['tiempos.soporte.ver'] }, 'soporte')).toContain('tiempos');
     expect(secciones(sistemas, 'soporte')).toContain('tiempos');
     expect(secciones(sistemas, 'calibration')).toContain('tiempos');
     expect(findSection('calibration', 'tiempos', sistemas)?.label).toBe('Tiempos de servicio');
+    expect(tienePermiso(sistemas, 'tiempos.soporte.ver')).toBe(true);
+    expect(tienePermiso({ ...soporte, permisos: null }, 'tiempos.soporte.ver')).toBe(false);
+  });
+
+  it('el jefe de otra área entra solo a los tiempos de servicio, sin candado', () => {
+    const administracion = { area: 'Administración', acceso_cron: '2' };
+    const menu = getNavigation(jefe(administracion));
+    for (const id of ['calibration', 'soporte']) {
+      const vista = menu.find(view => view.id === id);
+      expect(vista.locked).toBe(false);
+      expect(vista.porPermiso).toBe(true);
+      expect(vista.sections.map(section => section.id)).toEqual(['tiempos']);
+      expect(accesoPorPermiso(id, jefe(administracion))).toBe(true);
+      // El resto del apartado sigue siendo del área.
+      expect(canUseView(id, jefe(administracion))).toBe(false);
+    }
+    expect(findSection('calibration', 'tiempos', jefe(administracion))?.label).toBe('Tiempos de servicio');
+    expect(findSection('calibration', 'equipos', jefe(administracion))).toBeNull();
+    // El jefe de Soporte entra a los tiempos de Calibración; su apartado, completo.
+    expect(getNavigation(jefe(soporte)).find(view => view.id === 'calibration').sections.map(s => s.id)).toEqual(['tiempos']);
+    expect(accesoPorPermiso('soporte', jefe(soporte))).toBe(false);
+    // Sin el permiso, el candado de siempre.
+    const sinPermiso = getNavigation({ ...administracion, permisos: [] }).find(view => view.id === 'calibration');
+    expect([sinPermiso.locked, sinPermiso.sections]).toEqual([true, []]);
+  });
+
+  it('mientras no llegan los permisos se espera en lugar de mostrar el candado o volver al RIM', () => {
+    const administracion = { area: 'Administración', cargo: 'Jefe de Area', acceso_cron: '2', permisos: null };
+    expect(esperaPermisos('calibration', administracion)).toBe(true);
+    expect(esperaPermisos('permisos', administracion)).toBe(true);
+    expect(esperaPermisos('rim', administracion)).toBe(false);
+    expect(esperaPermisos('calibration', { ...calibracion, permisos: null })).toBe(false);
+    expect(esperaPermisos('calibration', { ...administracion, permisos: [] })).toBe(false);
+    expect(esperaPermisos('permisos', sistemas)).toBe(false);
+  });
+
+  it('Gestión de permisos la abren Sistemas y quien el backend diga que gestiona', () => {
+    expect(allowedView('permisos', sistemas)).toBe('permisos');
+    expect(allowedView('permisos', jefe(calibracion))).toBe('rim');
+    expect(allowedView('permisos', { ...jefe(comercial), gestionaPermisos: true })).toBe('permisos');
+    expect(getNavigation(sistemas).filter(view => view.group === 'system').map(view => view.id)).toEqual(['changes', 'failures', 'permisos']);
+    expect(getNavigation({ ...jefe(comercial), gestionaPermisos: true }).filter(view => view.group === 'system').map(view => view.id)).toEqual(['permisos']);
   });
 
   it('la configuración de Soporte técnico solo la ve su jefe de área', () => {

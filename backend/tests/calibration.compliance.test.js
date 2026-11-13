@@ -95,6 +95,15 @@ test('las contraseñas en texto plano siguen pendientes y se coordinan con el Je
   assert.equal(requisito.prioridad, 'ALTA');
   assert.match(requisito.brechas.join(' '), /texto plano.*Jefe de Sistemas/);
   assert.match(requisito.accion, /Jefe de Sistemas/);
+  // Sin la migración 029 no se nombra la gestión de permisos.
+  assert.doesNotMatch(requisito.evidencias.join(' '), /Gestión de permisos/);
+});
+
+test('con la migración 029 la protección del acceso nombra la gestión de permisos y su historial', () => {
+  const requisito = find(evaluateCompliance(facts({ permisos: { vigentes: 2, cambios: 3 } })), '7.11.3-a');
+  assert.match(requisito.evidencias.join(' '), /Gestión de permisos.*APP_PERMISOS_HISTORIAL/);
+  assert.ok(requisito.datos.some(dato => dato.valor === '2 vigentes · 3 cambios en el historial'));
+  assert.equal(requisito.estado, 'PARCIAL');
 });
 
 test('sin las migraciones 006 y 007 los controles nuevos no cumplen', () => {

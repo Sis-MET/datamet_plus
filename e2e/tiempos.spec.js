@@ -57,10 +57,14 @@ function generar(area) {
 const USUARIOS = {
   soporte: { id: 8, usuario: 'jefe.st', nombre: 'Jefe', apellido: 'Soporte', cargo: 'Jefe de Area', area: 'Soporte Técnico', acceso_cron: 2 },
   calibracion: { id: 7, usuario: 'jefe.cal', nombre: 'Jefa', apellido: 'Calibración', cargo: 'Jefe de Area', area: 'Calibración', acceso_cron: 2 },
+  // Un jefe de otra área: ve los tiempos de las dos por su permiso, nada más de esos apartados.
+  administracion: { id: 11, usuario: 'jefe.adm', nombre: 'Jefe', apellido: 'Administración', cargo: 'Jefe de Area', area: 'Administración', acceso_cron: 2 },
 };
 
-async function preparar(page, area) {
-  const usuario = USUARIOS[area];
+// Lo que da Gestión de permisos (migración 029) a los jefes de área de todas las áreas.
+const PERMISOS_JEFES = { permisos: ['tiempos.soporte.ver', 'tiempos.calibracion.ver'], gestionar: false };
+
+async function preparar(page, area, { usuario = USUARIOS[area], rutas = [] } = {}) {
   await page.clock.setFixedTime(new Date('2026-11-11T12:00:00'));
   await page.addInitScript(({ sesion, usuario, area }) => {
     if (sessionStorage.getItem('tiempos-qa')) return;
@@ -70,12 +74,15 @@ async function preparar(page, area) {
     localStorage.setItem('datamet_user', JSON.stringify(usuario));
     localStorage.setItem('datamet_last_view', area === 'soporte' ? 'soporte' : 'calibration');
   }, { sesion: token({ id: usuario.id, acceso_cron: 2 }), usuario, area });
-  const { grupos, servicios } = generar(area);
+  const datos = { soporte: generar('soporte'), calibracion: generar('calibracion') };
   const pedidos = [];
   await page.route(url => url.pathname.startsWith('/api/'), async (route) => {
     const url = new URL(route.request().url());
+    rutas.push(url.pathname);
     const json = data => route.fulfill({ json: { success: true, data } });
+    if (url.pathname.endsWith('/sistema/permisos/mios')) return json(PERMISOS_JEFES);
     if (url.pathname.endsWith('/tiempos')) {
+      const { grupos, servicios } = datos[url.pathname.includes('/calibracion/') ? 'calibracion' : 'soporte'];
       const desde = url.searchParams.get('desde');
       const hasta = url.searchParams.get('hasta');
       pedidos.push({ desde, hasta });
@@ -175,6 +182,32 @@ test('el jefe de Calibración ve los tiempos por rango de capacidad', async ({ p
   await expect(page.getByRole('region', { name: 'Personal' }).getByRole('article')).toHaveCount(4);
   await expect(page.getByRole('button', { name: /Abrir registro/ }).first()).toBeVisible();
   await page.screenshot({ path: '.impeccable/review/tiempos-calibracion-desktop.png', fullPage: true });
+});
+
+test('el jefe de otra área ve solo los tiempos de servicio de Soporte y de Calibración', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const rutas = [];
+  await preparar(page, 'soporte', { usuario: USUARIOS.administracion, rutas });
+  await page.goto('/soporte/informes');
+
+  // Los informes son del área: la dirección pasa a los tiempos, sin el aviso de acceso restringido.
+  await expect(page).toHaveURL(/\/soporte\/tiempos$/);
+  await expect(page.getByRole('heading', { name: 'Tiempos de servicio', level: 2 })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('Horas de servicio', { exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('Acceso restringido')).toHaveCount(0);
+  // No se le ofrece abrir los informes, que siguen siendo del área.
+  await expect(page.getByRole('button', { name: /Abrir informe/ })).toHaveCount(0);
+  // En la barra lateral, de Soporte técnico solo los tiempos.
+  const modulos = page.getByRole('navigation', { name: 'Módulos' });
+  await expect(modulos.getByRole('list', { name: 'Soporte técnico' }).getByRole('link')).toHaveText(['Tiempos de servicio']);
+  await page.screenshot({ path: '.impeccable/review/tiempos-otra-area.png', fullPage: true });
+
+  await page.goto('/calibracion/equipos');
+  await expect(page).toHaveURL(/\/calibracion\/tiempos$/);
+  await expect(page.getByRole('region', { name: 'Horas por capacidad máxima' })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('button', { name: /Abrir registro/ })).toHaveCount(0);
+  // Solo pidió los tiempos: ni el plan de Calibración ni los permisos del área de Soporte.
+  expect(rutas.filter(ruta => /\/(plan|soporte\/permisos|informes)/.test(ruta))).toEqual([]);
 });
 
 test('con «reducir movimiento» las columnas y las cifras aparecen ya en su valor', async ({ page }) => {

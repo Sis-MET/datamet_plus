@@ -223,7 +223,7 @@ const ListaServicios = memo(function ListaServicios({ servicios, nombreGrupo, te
 /**
  * Tiempos de servicio del personal (KPI). Lo usan Soporte técnico y
  * Calibración: `area` elige los textos, `cargar({ desde, hasta })` trae los
- * servicios de un período y `onAbrir(servicio)` abre su informe o registro.
+ * servicios de un período y `onAbrir(servicio)`, si se da, abre su informe o registro.
  * Cada indicador se compara con el período anterior equivalente. El período,
  * el técnico y el grupo filtran todo lo que hay debajo.
  */
@@ -560,7 +560,8 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
               servicios={analisis.servicios}
               nombreGrupo={nombreGrupo}
               textos={textos}
-              onAbrir={abrirServicio}
+              // Sin `onAbrir` (quien ve los tiempos sin ser del área) no se ofrece abrir cada servicio.
+              onAbrir={onAbrir ? abrirServicio : undefined}
             />
           </div>
         </div>

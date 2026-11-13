@@ -310,7 +310,7 @@ export function CalibrationPage() {
           onEquipos={() => navegar(rutaDe('calibration', 'equipos'), { transicion: 'panel' })}
         />
       )}
-      {/* Tiempos de servicio del personal (KPI): el jefe del área y Sistemas. */}
+      {/* Tiempos de servicio del personal (KPI): con su permiso de Gestión de permisos. */}
       {tab === 'tiempos' && (
         <TiemposPanel
           area="calibracion"

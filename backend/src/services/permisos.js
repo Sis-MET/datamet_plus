@@ -202,7 +202,7 @@ const leerConcesiones = async (request, bloquear = false) => {
 const armarGestion = (personal, concesiones) => {
   const contexto = { personal, areas: etiquetas(personal, 'area'), cargos: etiquetas(personal, 'cargo') };
   return {
-    catalogo: PERMISOS.map(({ clave, nombre, descripcion, modulo }) => ({ clave, nombre, descripcion, modulo })),
+    catalogo: PERMISOS.map(({ clave, nombre, corto, descripcion, modulo }) => ({ clave, nombre, corto, descripcion, modulo })),
     gestores: ['Sistemas (nivel 3)', ...GESTORES.map(regla => describir(regla, contexto))],
     areas: contexto.areas,
     cargos: contexto.cargos,

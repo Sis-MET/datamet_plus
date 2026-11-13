@@ -19,6 +19,7 @@ const PERMISOS = Object.freeze([
   {
     clave: 'tiempos.soporte.ver',
     nombre: 'Ver los tiempos de servicio de Soporte técnico',
+    corto: 'Tiempos · Soporte',
     descripcion: 'Soporte técnico › Tiempos de servicio: horas, servicios y medias del personal del área, por técnico y por tipo de servicio.',
     modulo: 'Soporte técnico',
     inicial: [JEFES_DE_AREA],
@@ -26,6 +27,7 @@ const PERMISOS = Object.freeze([
   {
     clave: 'tiempos.calibracion.ver',
     nombre: 'Ver los tiempos de servicio de Calibración',
+    corto: 'Tiempos · Calibración',
     descripcion: 'Calibración › Tiempos de servicio: horas, servicios y medias del personal del área, por técnico y por rango de capacidad.',
     modulo: 'Calibración',
     inicial: [JEFES_DE_AREA],

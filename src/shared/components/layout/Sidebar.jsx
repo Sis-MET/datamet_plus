@@ -262,11 +262,14 @@ export function Sidebar({
   const activeSection = ruta.vista === activeView ? ruta.resto[0] : null;
 
   // Una sola sub-lista abierta a la vez; al cambiar de apartado se abre la suya.
+  // También cuando el apartado recién gana secciones: las de un permiso (los
+  // tiempos de servicio de otra área) llegan después del primer dibujo.
   const groupFor = (view) => (hasSections(modules.find(item => item.id === view)) ? view : null);
   const [openGroup, setOpenGroup] = useState(() => groupFor(activeView));
-  const [shownView, setShownView] = useState(activeView);
-  if (shownView !== activeView) {
-    setShownView(activeView);
+  const shownKey = `${activeView}|${groupFor(activeView) !== null}`;
+  const [shownView, setShownView] = useState(shownKey);
+  if (shownView !== shownKey) {
+    setShownView(shownKey);
     setOpenGroup(groupFor(activeView));
   }
 

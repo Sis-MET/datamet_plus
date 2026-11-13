@@ -10,6 +10,13 @@ const notifyFailures = (result) => {
 };
 const unwrap = (promise) => promise.then(response => response.data);
 
+// Avisa al menú que cambiaron los permisos (se vuelven a pedir los propios).
+export const PERMISOS_CHANGED_EVENT = 'datamet:permisos-changed';
+const notifyPermisos = (result) => {
+  window.dispatchEvent(new Event(PERMISOS_CHANGED_EVENT));
+  return result;
+};
+
 export const systemApi = {
   cambios: () => unwrap(api.get(`${BASE}/cambios`)),
   cambio: (id) => unwrap(api.get(`${BASE}/cambios/${id}`)),
@@ -24,4 +31,11 @@ export const systemApi = {
   falla: (id) => unwrap(api.get(`${BASE}/fallas/${id}`)),
   createFalla: (body) => unwrap(api.post(`${BASE}/fallas`, body)).then(notifyFailures),
   atenderFalla: (id, body) => unwrap(api.put(`${BASE}/fallas/${id}`, body)).then(notifyFailures),
+
+  // Gestión de permisos (migración 029).
+  misPermisos: () => unwrap(api.get(`${BASE}/permisos/mios`)),
+  permisos: () => unwrap(api.get(`${BASE}/permisos`)),
+  historialPermisos: () => unwrap(api.get(`${BASE}/permisos/historial`)),
+  concederPermiso: (body) => unwrap(api.post(`${BASE}/permisos/concesiones`, body)).then(notifyPermisos),
+  revocarPermiso: (id, body) => unwrap(api.post(`${BASE}/permisos/concesiones/${id}/revocacion`, body)).then(notifyPermisos),
 };

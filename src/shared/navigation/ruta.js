@@ -16,6 +16,7 @@ export const RUTAS_APARTADO = {
   ivmet: 'ivmet',
   changes: 'sistema/cambios',
   failures: 'sistema/fallas',
+  permisos: 'sistema/permisos',
 };
 
 const EVENTO_RUTA = 'datamet:ruta';
