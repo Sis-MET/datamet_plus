@@ -57,15 +57,17 @@ export function GraficoDesviacion({ serie, escalaMinima = null }) {
 }
 
 /**
- * Errores de indicación: emp o tolerancia en escalones (±), los errores
- * después del ajuste (AS LEFT) y, si hubo ajuste, los de antes (AS FOUND).
+ * Errores de indicación: emp o tolerancia (±, en escalones o en cono si es un
+ * % de la carga), los errores después del ajuste (AS LEFT) con su
+ * incertidumbre ±U en barras y las precargas (AS FOUND).
  */
 export function GraficoErrores({ asLeft, asFound, emp }) {
   const ancho = 680;
   const alto = 228;
   const area = { x: 70, y: 32, ancho: 590, alto: 150 };
   const xs = [...asLeft, ...asFound, ...emp].map(p => p.x);
-  const ys = [...asLeft, ...asFound, ...emp].map(p => Math.abs(p.y));
+  // El eje incluye las barras de U.
+  const ys = [...asLeft.map(p => Math.abs(p.y) + (p.U || 0)), ...[...asFound, ...emp].map(p => Math.abs(p.y))];
   const limite = Math.max(...ys, 0) * 1.15 || 1;
   const ex = escalaBonita(0, Math.max(...xs, 0), 6);
   const ey = escalaBonita(-limite, limite, 8);
@@ -100,6 +102,14 @@ export function GraficoErrores({ asLeft, asFound, emp }) {
       )}
       {asFound.length > 0 && <path d={linea(desdeCero(asFound), x, y)} fill="none" stroke={AZUL} strokeWidth="1.8" strokeDasharray="7 4" />}
       <path d={linea(desdeCero(asLeft), x, y)} fill="none" stroke={VERDE} strokeWidth="1.8" strokeDasharray="7 4" />
+      {/* Incertidumbre expandida de cada punto: barra de E − U a E + U. */}
+      {asLeft.filter(p => p.U > 0).map(p => (
+        <g key={`u-${p.x}`} stroke={VERDE} strokeWidth="1.6">
+          <line x1={x(p.x)} x2={x(p.x)} y1={y(p.y - p.U)} y2={y(p.y + p.U)} />
+          <line x1={x(p.x) - 4} x2={x(p.x) + 4} y1={y(p.y + p.U)} y2={y(p.y + p.U)} />
+          <line x1={x(p.x) - 4} x2={x(p.x) + 4} y1={y(p.y - p.U)} y2={y(p.y - p.U)} />
+        </g>
+      ))}
     </svg>
   );
 }

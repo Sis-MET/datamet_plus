@@ -176,6 +176,19 @@ Desde la pestaña Equipos y la ficha de cada equipo:
   (1 − Φ((T − |E|)/U) con lo que se informa, como la planilla del laboratorio).
   Las versiones anteriores quedan con lo de antes. AS FOUND va siempre en el
   gráfico con las precargas; la tabla «antes del ajuste», solo si hubo ajuste.
+- **Tolerancia del cliente:** en «Criterio y cierre» del registro: emp NB
+  23001, % de la carga o «Tolerancia del cliente por rango» (hasta 5 filas),
+  cada fila en la unidad de la balanza o en divisiones (`en: 'D'`, n·d del
+  rango de la carga; Lab Delta: una fila «en adelante» con ± 1 d). Con regla
+  simple o conservadora, un punto sin tolerancia bloquea la emisión. El
+  gráfico dibuja la tolerancia con la misma función que la conformidad
+  (`toleranciaDeCarga`): un % como un cono desde el origen; lo demás en
+  escalones donde cambia el valor. Cada punto lleva su barra ±U.
+- **Cargas de sustitución:** si la carga supera las pesas y el resto no se
+  forma con piezas, el resto es el material de sustitución: L = n·mref + ΣΔI
+  (EURAMET 4.3.3-5a, 7.1.2-15a) con ΣΔI = carga − n·nominal (hasta 25 % de la
+  carga patrón por paso), porque ServiceMET no registra las ΔI. El alcance va
+  hasta Max solo si la carga mayor calculada llega a Max; si no, hasta Max′.
 
 Si otro sistema cambia el certificado directamente en `DATA_EQUIPOS_CAL`, el
 módulo lo archiva como `EXTERNO` antes de reemplazarlo.

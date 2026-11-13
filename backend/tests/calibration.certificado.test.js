@@ -182,6 +182,48 @@ test('riesgo bajo el umbral del método', () => {
   assert.deepEqual(riesgos({ ...calculo, puntos, reglas: { ...calculo.reglas, riesgoUmbral: 0.01 } }), ['< 1,00', '3,00']);
 });
 
+test('gráfico: tolerancia en % como un cono; por rangos, escalones en los límites del cliente', () => {
+  // 0,01 % de la carga (la fila de prueba): recta desde el origen hasta la carga mayor (MONOPOL).
+  const { modelo } = modeloDeFila(fila());
+  const c = contenidoCertificado({ modelo, calculo: calcular(modelo) }).contenido;
+  assert.deepEqual(c.graficoErrores.emp, [{ x: 0, y: 0 }, { x: 500, y: 0.05 }]);
+  // Por rangos del cliente: el escalón cae en el límite (300 g), no en una carga medida.
+  const porRango = modeloDeFila(fila({ indicar: 0 })).modelo;
+  porRango.criterio.toleranciasRango = [{ hasta: 300, tolerancia: 0.1 }, { hasta: null, tolerancia: 0.2 }];
+  const emp = contenidoCertificado({ modelo: porRango, calculo: calcular(porRango) }).contenido.graficoErrores.emp;
+  assert.equal(emp[0].x, 0);
+  assert.equal(emp[0].y, 0.1);
+  const escalon = emp.find(p => p.y === 0.2);
+  assert.ok(Math.abs(escalon.x - 300) < 1e-6, `escalón en ${escalon.x}`);
+  assert.equal(emp.at(-1).x, 500);
+});
+
+test('regla de decisión sin tolerancia: no se puede emitir hasta definirla', () => {
+  const { modelo } = modeloDeFila(fila({ indicar: 0 }));
+  const sin = contenidoCertificado({ modelo, calculo: calcular(modelo) });
+  assert.ok(sin.bloqueos.some(b => /regla de decisión simple.*no tienen tolerancia.*Criterio y cierre/.test(b)));
+  assert.ok(sin.contenido.errores.filas.every(f => f.conformidad === 'NO APLICA'));
+  // Con 1 d en todo el rango (Lab Delta) ya se evalúa: T = d = 0,01 g.
+  modelo.criterio.toleranciasRango = [{ hasta: null, tolerancia: 1, en: 'D' }];
+  const con = contenidoCertificado({ modelo, calculo: calcular(modelo) });
+  assert.ok(!con.bloqueos.some(b => /no tienen tolerancia/.test(b)));
+  assert.ok(con.contenido.errores.filas.every(f => f.tolerancia === '0,01 g'));
+  // Sin regla (Ninguna) no hace falta.
+  const ninguna = modeloDeFila(fila({ indicar: 0, regla_aceptacion: 'Ninguna' })).modelo;
+  assert.ok(!contenidoCertificado({ modelo: ninguna, calculo: calcular(ninguna) }).bloqueos.some(b => /tolerancia/.test(b)));
+});
+
+test('alcance: Max′ es la carga mayor que sale en el certificado, salvo que llegue a Max', () => {
+  // 600 g de Max: hasta 550 g sale Max′ = 550 g, no Max.
+  const casi = modeloDeFila(fila({ lin3: 550, ind3: 550 })).modelo;
+  assert.equal(contenidoCertificado({ modelo: casi, calculo: calcular(casi) }).contenido.calibracion.alcance, "Min': 100 g hasta Max': 550 g");
+  // Una carga que no se calcula (599,9 g no se forma con las piezas) no cuenta para el alcance.
+  const sinCalcular = modeloDeFila(fila({ lin3: 599.9, ind3: 599.9 })).modelo;
+  assert.equal(contenidoCertificado({ modelo: sinCalcular, calculo: calcular(sinCalcular) }).contenido.calibracion.alcance, "Min': 100 g hasta Max': 500 g");
+  const max = modeloDeFila(fila({ lin3: 600, ind3: 600 })).modelo;
+  assert.equal(contenidoCertificado({ modelo: max, calculo: calcular(max) }).contenido.calibracion.alcance, "Min': 100 g hasta Max: 600 g");
+});
+
 test('con el método del laboratorio: error con los decimales del rango, U con uno más y k sin decimales', () => {
   const { modelo } = modeloDeFila(fila({ emp: 'Sí' }));
   modelo.instrumento.clase = { valor: 'III', origen: 'PLACA' };

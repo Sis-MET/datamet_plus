@@ -17,6 +17,7 @@
 const { getPool } = require('../config/db');
 const { httpError } = require('./calibration.db');
 const { formatNominal } = require('./calibration.patrones');
+const { toleranciaDeCarga } = require('./calibracion/motor/tolerancia');
 
 // ─── Textos del certificado ────────────────────────────────────────────────
 // Los de la hoja CERT, salvo los marcados como propuesta de la fase 0
@@ -265,15 +266,46 @@ const textoAjuste = (ajuste, unidad) => {
   return null;
 };
 
-/** Escalones del emp o la tolerancia para el gráfico: cada valor vale desde la carga anterior. */
-const escalones = (puntos) => {
-  const serie = [];
-  let anterior = 0;
-  for (const p of puntos) {
-    if (!(p.tolerancia > 0)) continue;
-    serie.push({ x: anterior, y: p.tolerancia }, { x: p.carga, y: p.tolerancia });
-    anterior = p.carga;
+/**
+ * Curva del emp o la tolerancia para el gráfico, de 0 a la carga mayor, con la
+ * misma función que decide la conformidad (toleranciaEn): una recta desde el
+ * origen si es un % de la carga (un cono, como la planilla); si no, escalones
+ * justo donde cambia el valor (múltiplos de e, rangos del instrumento o los
+ * límites de la tabla del cliente), no en las cargas medidas.
+ */
+const curvaTolerancia = (toleranciaEn, xMax, porcentaje = false) => {
+  if (!(xMax > 0)) return [];
+  const valor = (x) => {
+    const t = toleranciaEn(x);
+    return t > 0 ? Number(t.toPrecision(12)) : null;
+  };
+  if (porcentaje) {
+    const t = valor(xMax);
+    return t ? [{ x: 0, y: 0 }, { x: xMax, y: t }] : [];
   }
+  const pasos = 400;
+  const serie = [];
+  let inicio = 0;
+  let actual = valor(0);
+  let anterior = 0;
+  for (let i = 1; i <= pasos; i += 1) {
+    const x = (xMax * i) / pasos;
+    if (valor(x) !== actual) {
+      // Dónde cambia, entre la muestra anterior y esta.
+      let a = anterior;
+      let b = x;
+      for (let k = 0; k < 40; k += 1) {
+        const medio = (a + b) / 2;
+        if (valor(medio) === actual) a = medio;
+        else b = medio;
+      }
+      if (actual != null) serie.push({ x: inicio, y: actual }, { x: b, y: actual });
+      inicio = b;
+      actual = valor(b);
+    }
+    anterior = x;
+  }
+  if (actual != null) serie.push({ x: inicio, y: actual }, { x: xMax, y: actual });
   return serie;
 };
 
@@ -336,13 +368,17 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
     }
     return `${juego.codigo}: Trazable a ${juego.certificado.numero}; ${juego.certificado.fecha}`;
   });
-  const cargas = m.errores.puntos.map(p => p.carga).filter(c => c > 0);
+  // De la menor a la mayor carga que sale en el certificado (las calculadas).
+  const cargasCalculadas = (calculo?.puntos || []).filter(p => p.calculado && p.carga > 0).map(p => p.carga);
+  const cargas = cargasCalculadas.length ? cargasCalculadas : m.errores.puntos.map(p => p.carga).filter(c => c > 0);
   const mayorMax = Math.max(...rangos.map(r => r.max), 0);
+  const dMayor = rangos.find(r => r.max === mayorMax)?.d || 0;
   const menor = cargas.length ? Math.min(...cargas) : null;
   const mayor = cargas.length ? Math.max(...cargas) : null;
-  // Hasta Max si el ensayo llegó a Max; si no, hasta Max′ (EURAMET 4.2).
+  // Hasta Max solo si el ensayo llegó a Max (dentro de media d); si no, hasta
+  // Max′, la carga mayor tal cual (EURAMET 4.2): 1 482,8 kg en una de 1 500 kg.
   const alcance = menor == null ? 'EN TODO EL RANGO DE PESADA'
-    : `Min': ${coma(menor)} ${unidad} hasta ${mayor >= mayorMax * 0.98 ? `Max: ${coma(mayorMax)}` : `Max': ${coma(mayor)}`} ${unidad}`;
+    : `Min': ${coma(menor)} ${unidad} hasta ${mayor >= mayorMax - dMayor / 2 - 1e-9 ? `Max: ${coma(mayorMax)}` : `Max': ${coma(mayor)}`} ${unidad}`;
   const registroTexto = `SECA ${m.servicio.seca?.libro || m.servicio.seca?.original || '—'}  N° ${m.servicio.reca?.numero ?? m.servicio.reca?.original ?? '—'}; STICKER N° ${m.servicio.sticker || '—'}`;
   const elaborado = m.servicio.tecnico?.original || m.servicio.tecnico?.nombre || '';
   if (!m.servicio.tecnico?.usuario) avisos.push('El técnico que elaboró el servicio no está identificado («Elaborado por»).');
@@ -423,8 +459,11 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
       };
     }),
   };
-  if (aplica && calculados.some(p => !p.conformidad?.evaluada)) {
-    avisos.push('Hay puntos sin tolerancia: la conformidad sale como «NO APLICA».');
+  // El cliente pidió una regla de decisión: cada punto necesita su tolerancia
+  // antes de emitir (7.1.3 y 7.8.6), si no saldría «NO APLICA».
+  const sinTolerancia = aplica ? calculados.filter(p => !p.conformidad?.evaluada) : [];
+  if (sinTolerancia.length) {
+    bloqueos.push(`Se pidió la regla de decisión ${regla === 'CONSERVADORA' ? 'conservadora' : 'simple'}, pero ${sinTolerancia.length === 1 ? 'el punto' : 'los puntos'} ${sinTolerancia.map(p => conUnidad(coma(p.carga), unidad)).join(', ')} no ${sinTolerancia.length === 1 ? 'tiene' : 'tienen'} tolerancia: defínela en «Criterio y cierre» (emp NB 23001, % de la carga o «Tolerancia del cliente por rango», en ${unidad} o en d).`);
   }
 
   // Como se recibió (as found): las precargas. Van siempre en el gráfico, como
@@ -441,7 +480,13 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
   const graficoErrores = {
     asLeft: calculados.map(p => ({ x: p.carga, y: p.presentacion.error, U: p.presentacion.U })),
     asFound: precargas.map(p => ({ x: p.carga, y: p.indicacion - p.carga })),
-    emp: aplica ? escalones(calculados) : [],
+    emp: aplica
+      ? curvaTolerancia(
+        toleranciaDeCarga({ criterio: m.criterio, rangos, clase: calculo?.clase?.valor || null, factorEmp: calculo?.reglas?.factorEmp ?? 2 }),
+        Math.max(0, ...calculados.map(p => p.carga)),
+        porcentajeCliente,
+      )
+      : [],
   };
 
   // Para el modelo sugerido: resumen, ambiente al inicio y al fin y patrones en tabla.
