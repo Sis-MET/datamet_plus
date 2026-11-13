@@ -158,7 +158,7 @@ module.exports = {
   getMetodo: handle(req => metodoService.getMetodo(req.user)),
   // Libro de certificados emitidos (solo lectura).
   listEmitidos: handle(() => emitidosService.listarEmitidos()),
-  // Tiempos de servicio del personal (KPI): el jefe del área y Sistemas.
+  // Tiempos de servicio del personal (KPI): con el permiso de Gestión de permisos.
   getTiempos: handle(req => tiemposService.getTiempos(req.query, req.user)),
   // Validación del motor con los ejemplos publicados y su evidencia (migración 022).
   getValidacion: handle(req => validacionService.getValidacion({ version: String(req.query.version || '').slice(0, 20) || null }, req.user)),

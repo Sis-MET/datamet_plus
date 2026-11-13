@@ -1,5 +1,6 @@
 const changes = require('../services/system.changes');
 const failures = require('../services/system.failures');
+const permisos = require('../services/permisos');
 const { parse } = require('../services/system.validation');
 
 const readId = (value) => {
@@ -16,8 +17,11 @@ const handle = (action) => async (req, res, next) => {
     const data = await action(req);
     res.status(200).json({ success: true, data });
   } catch (error) {
-    if ([400, 403, 404, 409].includes(error.statusCode)) {
+    if ([400, 403, 404, 409, 503].includes(error.statusCode)) {
       return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+    if (/Invalid object name 'dbo\.APP_PERMISOS/i.test(error.message || '')) {
+      return res.status(503).json({ success: false, message: permisos.MENSAJE_SIN_MIGRACION });
     }
     if (/Invalid object name 'dbo\.APP_/i.test(error.message || '')) {
       return res.status(503).json({
@@ -43,4 +47,11 @@ module.exports = {
   getFalla: handle(req => failures.getFalla(readId(req.params.id))),
   createFalla: handle(req => failures.createFalla(parse('fallaManual', req.body), req.user)),
   atenderFalla: handle(req => failures.atenderFalla(readId(req.params.id), parse('atencionFalla', req.body), req.user)),
+
+  // Gestión de permisos (migración 029).
+  misPermisos: handle(req => permisos.misPermisos(req.user)),
+  getPermisos: handle(req => permisos.obtenerGestion(req.user)),
+  getHistorialPermisos: handle(req => permisos.obtenerHistorial(req.user)),
+  concederPermiso: handle(req => permisos.conceder(parse('concesionPermiso', req.body), req.user)),
+  revocarPermiso: handle(req => permisos.revocar(readId(req.params.id), parse('revocacionPermiso', req.body), req.user)),
 };

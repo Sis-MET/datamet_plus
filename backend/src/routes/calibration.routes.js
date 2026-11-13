@@ -2,8 +2,16 @@ const express = require('express');
 const controller = require('../controllers/calibration.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { requireArea } = require('../middleware/area.middleware');
+const { requirePermiso } = require('../middleware/permiso.middleware');
+const { PERMISO_TIEMPOS } = require('../services/calibration.tiempos');
 
 const router = express.Router();
+
+// Tiempos de servicio del personal (KPI): quien tenga el permiso en Gestión de
+// permisos (de inicio, Sistemas y los jefes de área de todas las áreas), sea
+// o no del área. Va antes de la regla del área.
+router.get('/tiempos', protect, requirePermiso(PERMISO_TIEMPOS,
+  'No tienes permiso para ver los tiempos de servicio de Calibración. Lo concede Sistemas en Gestión de permisos.'), controller.getTiempos);
 
 // Todo el apartado: área Calibración y Sistemas (nivel 3). El resto del
 // personal lo ve bloqueado en la aplicación.
@@ -28,8 +36,6 @@ router.get('/registros/:codigo/certificado', controller.getCertificado);
 router.get('/registros/:codigo/emisiones/:emision/pdf', controller.abrirCertificadoPdf);
 // Certificados emitidos: cada n.º con sus emisiones (libro de certificados).
 router.get('/emitidos', controller.listEmitidos);
-// Tiempos de servicio del personal (KPI): el jefe del área y Sistemas.
-router.get('/tiempos', controller.getTiempos);
 // Estado de los patrones para los certificados y su uso en los servicios del año.
 router.get('/patrones/estado', controller.getEstadoPatrones);
 // Validación del motor con los ejemplos publicados y sus evidencias registradas.

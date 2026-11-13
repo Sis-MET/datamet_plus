@@ -1,8 +1,12 @@
 /** Quién edita, emite, aprueba y consulta los informes de Soporte técnico. */
 const { getPool, sql } = require('../config/db');
-const { esSistemas, permiteArea, permiteConsulta } = require('./access.areas');
+const { permiteArea, permiteConsulta } = require('./access.areas');
 const { httpError } = require('./soporte.validation');
 const aprobacion = require('./soporte.aprobacion');
+const permisosConNombre = require('./permisos');
+
+/** Permiso con nombre de los tiempos de servicio (Gestión de permisos). */
+const PERMISO_TIEMPOS = 'tiempos.soporte.ver';
 
 /** Editan, emiten y corrigen el área Soporte Técnico y Sistemas (nivel 3). */
 const puedeEditarArea = (area, accesoCron) => permiteArea('soporte', { area, acceso_cron: accesoCron });
@@ -25,9 +29,10 @@ const datosUsuario = async (user) => {
  * Permisos del usuario en Soporte técnico a partir de su fila de DATA_USERS.
  * `consulta`: un área que solo consulta (Comercial) ve los informes emitidos
  * y los próximos servicios, sin modificar. `tiempos`: los tiempos de servicio
- * del personal (KPI) los ven el jefe del área y Sistemas.
+ * del personal (KPI), con el permiso `tiempos.soporte.ver` de Gestión de
+ * permisos (de inicio, Sistemas y los jefes de área de todas las áreas).
  */
-const permisosDe = ({ area, nombre, cargo, activo, autorizado }, user) => {
+const permisosDe = ({ area, nombre, cargo, activo, autorizado, tiempos = false }, user) => {
   const editar = activo && puedeEditarArea(area, user?.acceso_cron);
   const jefe = activo && aprobacion.esJefeArea({ area, cargo });
   return {
@@ -35,12 +40,15 @@ const permisosDe = ({ area, nombre, cargo, activo, autorizado }, user) => {
     aprobar: activo && aprobacion.puedeAprobar({ area, cargo, autorizado }),
     configurarAprobadores: jefe,
     consulta: activo && !editar && permiteConsulta('soporte', { area }),
-    tiempos: activo && (jefe || esSistemas(user)),
+    tiempos: activo && tiempos === true,
     nombre,
   };
 };
 
-const permisos = async (user) => permisosDe(await datosUsuario(user), user);
+const permisos = async (user) => {
+  const [datos, tiempos] = await Promise.all([datosUsuario(user), permisosConNombre.tienePermiso(user, PERMISO_TIEMPOS)]);
+  return permisosDe({ ...datos, tiempos }, user);
+};
 
 const exigirEditor = async (user) => {
   const actor = await permisos(user);
@@ -58,10 +66,8 @@ const exigirLector = async (user) => {
   return actor;
 };
 
-const exigirTiempos = async (user) => {
-  const actor = await permisos(user);
-  if (!actor.tiempos) throw httpError(403, 'Los tiempos de servicio del personal los ven el jefe de Soporte Técnico y Sistemas.');
-  return actor;
-};
+/** Tiempos de servicio: los ve quien tiene el permiso, sea o no del área. */
+const exigirTiempos = (user) => permisosConNombre.exigirPermiso(user, PERMISO_TIEMPOS,
+  'No tienes permiso para ver los tiempos de servicio de Soporte técnico. Lo concede Sistemas en Gestión de permisos.');
 
-module.exports = { exigirEditor, exigirLector, exigirTiempos, permisos, permisosDe, puedeEditarArea };
+module.exports = { PERMISO_TIEMPOS, exigirEditor, exigirLector, exigirTiempos, permisos, permisosDe, puedeEditarArea };

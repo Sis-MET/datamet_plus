@@ -10,15 +10,15 @@
  *
  * El técnico se reconoce contra DATA_USERS como en el registro del servicio,
  * así sus variantes («Ing. Jorge Ortuño R.», «JORGE ORTUNO») suman juntas. Los
- * servicios se agrupan por la capacidad máxima del instrumento. Los ven el
- * jefe del área y Sistemas.
+ * servicios se agrupan por la capacidad máxima del instrumento. Los ve quien
+ * tiene el permiso `tiempos.calibracion.ver` de Gestión de permisos (de inicio,
+ * Sistemas y los jefes de área de todas las áreas), sea o no del área.
  */
 const { getPool, sql } = require('../config/db');
-const { esSistemas } = require('./access.areas');
-const { personaCalibracion } = require('./calibration.aprobadores');
+const permisos = require('./permisos');
 const { identificarTecnico } = require('./calibration.fuente');
 const { claveTecnico } = require('./soporte.lista');
-const { fechaTexto, horaTexto, httpError, leerPeriodo, texto } = require('./tiempos');
+const { fechaTexto, horaTexto, leerPeriodo, texto } = require('./tiempos');
 
 /** Rangos de capacidad máxima (en kg) para comparar servicios parecidos. */
 const RANGOS = [
@@ -81,11 +81,11 @@ const mapServicio = (fila, usuarios = []) => {
   };
 };
 
-const exigirTiempos = async (user) => {
-  if (esSistemas(user)) return;
-  const persona = await personaCalibracion(user);
-  if (!persona.jefe) throw httpError(403, 'Los tiempos de servicio del personal los ven el jefe de Calibración y Sistemas.');
-};
+/** Permiso con nombre de los tiempos de servicio (Gestión de permisos). */
+const PERMISO_TIEMPOS = 'tiempos.calibracion.ver';
+
+const exigirTiempos = (user) => permisos.exigirPermiso(user, PERMISO_TIEMPOS,
+  'No tienes permiso para ver los tiempos de servicio de Calibración. Lo concede Sistemas en Gestión de permisos.');
 
 const consultaTiempos = (conRegistros) => `
   WITH vigentes AS (
@@ -129,4 +129,4 @@ const getTiempos = async (query, user) => {
   };
 };
 
-module.exports = { GRUPOS, capacidadKg, getTiempos, mapServicio, rangoDe };
+module.exports = { GRUPOS, PERMISO_TIEMPOS, capacidadKg, getTiempos, mapServicio, rangoDe };

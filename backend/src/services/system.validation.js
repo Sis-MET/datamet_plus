@@ -53,6 +53,20 @@ const schemas = {
     .refine(data => data.estado !== 'CERRADA' || data.accionInmediata, 'Para cerrarla, registra la acción inmediata.')
     .refine(data => data.estado !== 'CERRADA' || data.accionCorrectiva, 'Para cerrarla, registra la acción correctiva.')
     .refine(data => data.estado !== 'DESCARTADA' || data.causa, 'Para descartarla, explica el motivo en «Causa».'),
+  // Gestión de permisos: a una persona (usuarioId) o a un grupo (área y/o cargo).
+  concesionPermiso: z.object({
+    permiso: z.string().trim().min(1, 'Elige el permiso.').max(60),
+    tipo: z.enum(['PERSONA', 'GRUPO'], { error: 'Elige si se concede a una persona o a un grupo.' }),
+    usuarioId: id.nullish().transform(value => value ?? null),
+    area: optionalText(60),
+    cargo: optionalText(60),
+    motivo: requiredText(300, 'Escribe por qué se concede el permiso.'),
+  })
+    .refine(data => data.tipo !== 'PERSONA' || data.usuarioId, 'Elige a la persona.')
+    .refine(data => data.tipo !== 'GRUPO' || data.area || data.cargo, 'Elige un área, un cargo o los dos.'),
+  revocacionPermiso: z.object({
+    motivo: requiredText(300, 'Escribe por qué se revoca el permiso.'),
+  }),
 };
 
 /** Valida y normaliza; ante un error responde 400 con el primer mensaje. */

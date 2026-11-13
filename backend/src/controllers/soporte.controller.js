@@ -76,7 +76,7 @@ module.exports = {
     return informes.listGrupos(filtros, req.user);
   }),
   getFiltros: handle(req => informes.getFiltros(req.user)),
-  // Tiempos de servicio del personal (KPI): el jefe del área y Sistemas.
+  // Tiempos de servicio del personal (KPI): con el permiso de Gestión de permisos.
   tiempos: handle(req => tiempos.getTiempos(req.query, req.user)),
   redaccion: handle(req => informes.sugerirRedaccion(parse('redaccion', req.body), req.user)),
   getInforme: handle((req) => {

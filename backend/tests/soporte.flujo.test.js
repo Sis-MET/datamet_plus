@@ -21,6 +21,11 @@ class Request {
     if (sql.includes('FROM DATA_USERS')) return result(sql.includes('WHERE id =')
       ? (personal.activo ? [personal] : []) : [{ usuario: 'tecnico', nombre: 'Técnico' }, { usuario: 'jefe', nombre: 'Jefe' }]);
     if (sql.includes(') usados;')) return result(almacen.ocupados || []);
+    // Gestión de permisos (migración 029): los jefes de área ven los tiempos de servicio.
+    if (sql.includes('FROM dbo.APP_PERMISOS_CONCESIONES')) {
+      return result([{ id: 1, permiso: 'tiempos.soporte.ver', usuario_id: null, area: null, cargo: 'jefe de area' }]
+        .filter(fila => !p.permiso || fila.permiso === p.permiso));
+    }
     if (sql.includes('DATA_SERVICIOS_DATOS_')) return result([fuente]);
     if (sql.includes('INSERT INTO dbo.ST_INFORMES_HISTORIAL')) { almacen.historial.push({ ...p, accion: p.accion }); return result([]); }
     if (sql.includes('INSERT INTO dbo.ST_INFORMES_REVISIONES')) {
@@ -191,6 +196,11 @@ test('Comercial consulta solo la revisión emitida y no puede modificar el infor
   comercial();
   const permisos = await informes.permisos(comercialUser);
   assert.deepEqual([permisos.editar, permisos.aprobar, permisos.consulta, permisos.tiempos], [false, false, true, false]);
+  // El jefe de Comercial tampoco edita, pero ve los tiempos de servicio (Gestión de permisos).
+  personal = { ...personal, cargo: 'Jefe de Area' };
+  const jefeComercial = await informes.permisos(comercialUser);
+  assert.deepEqual([jefeComercial.editar, jefeComercial.aprobar, jefeComercial.consulta, jefeComercial.tiempos], [false, false, true, true]);
+  comercial();
   // Pendiente o en borrador: todavía no existe para Comercial.
   await assert.rejects(informes.getInforme('MPR', 'ST-001', comercialUser), e => e.statusCode === 404 && /no se emitió/.test(e.message));
   await assert.rejects(informes.guardarCambios('MPR', 'ST-001', { ...version(), cambios: { comentario_general: 'Cambio' } }, comercialUser),

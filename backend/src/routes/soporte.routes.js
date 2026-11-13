@@ -2,6 +2,8 @@ const express = require('express');
 const controller = require('../controllers/soporte.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { requireArea, soloArea } = require('../middleware/area.middleware');
+const { requirePermiso } = require('../middleware/permiso.middleware');
+const { PERMISO_TIEMPOS } = require('../services/soporte.permisos');
 
 // Lo que también consulta Comercial: los informes emitidos (con sus PDF y
 // revisiones) y los próximos servicios, sin modificar nada. Los servicios
@@ -21,6 +23,12 @@ consulta.get('/proximos/equipos/:codMetrica', controller.proximosEquipo);
 
 const router = express.Router();
 
+// Tiempos de servicio del personal (KPI): quien tenga el permiso en Gestión de
+// permisos (de inicio, Sistemas y los jefes de área de todas las áreas), sea
+// o no del área. Va antes de la regla del área.
+router.get('/tiempos', protect, requirePermiso(PERMISO_TIEMPOS,
+  'No tienes permiso para ver los tiempos de servicio de Soporte técnico. Lo concede Sistemas en Gestión de permisos.'), controller.tiempos);
+
 // Área Soporte Técnico y Sistemas (nivel 3); Comercial solo las rutas de
 // `consulta`. Todo lo que no está ahí es solo del área. El resto del personal
 // ve el apartado bloqueado en la aplicación.
@@ -30,9 +38,6 @@ router.use(soloArea('soporte'));
 
 router.get('/configuracion/aprobadores', controller.aprobadores);
 router.put('/configuracion/aprobadores', controller.guardarAprobadores);
-
-// Tiempos de servicio del personal (KPI): el jefe del área y Sistemas.
-router.get('/tiempos', controller.tiempos);
 
 router.get('/documentos/carpetas', controller.carpetas);
 router.post('/informes/:tipo/:codigo/documentos', express.raw({ type: 'application/pdf', limit: '30mb' }), controller.guardarDocumento);
