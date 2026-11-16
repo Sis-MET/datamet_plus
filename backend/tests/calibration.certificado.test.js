@@ -75,6 +75,9 @@ test('contenido del certificado: datos, tablas, ajuste, antes del ajuste y notas
   assert.deepEqual(c.excentricidad.filas.map(f => f.diferencia), ['0,01 g', '0,00 g', '-0,01 g', '0,00 g']);
   assert.equal(c.repetibilidad.repeticiones, 3);
   assert.equal(c.repetibilidad.filas[0].difMax, '0,01 g');
+  // d = 0,01 g: la desviación y el eje y de su gráfico con 3 decimales.
+  assert.match(c.repetibilidad.filas[0].s, /^\d,\d{3} g$/);
+  assert.equal(c.repetibilidad.decimales, 3);
   // Errores con k y tolerancia del cliente (0,01 %), marcada como dato del cliente.
   assert.equal(c.errores.encabezadoTolerancia, 'TOLERANCIA DEL CLIENTE 0,01 % *');
   assert.equal(c.errores.filas.length, 2);

@@ -10,11 +10,11 @@ const TEXTO = '#595959';
 
 const linea = (puntos, x, y) => puntos.map((p, i) => `${i ? 'L' : 'M'}${x(p.x).toFixed(2)} ${y(p.y).toFixed(2)}`).join(' ');
 
-/** Ejes con grilla horizontal y marcas en x e y. */
-function Ejes({ area, ex, ey, x, y, etiquetaX, etiquetaY }) {
+/** Ejes con grilla horizontal y marcas en x e y (`decimalesY` fija los del eje y). */
+function Ejes({ area, ex, ey, x, y, etiquetaX, etiquetaY, decimalesY = null }) {
   return (
     <g fontSize="11" fill={TEXTO}>
-      {marcasDe(ey).map(m => (
+      {marcasDe(ey, decimalesY).map(m => (
         <g key={`y${m.valor}`}>
           <line x1={area.x} x2={area.x + area.ancho} y1={y(m.valor)} y2={y(m.valor)} stroke={GRILLA} strokeWidth="0.8" />
           <text x={area.x - 6} y={y(m.valor)} dy="0.35em" textAnchor="end">{m.texto}</text>
@@ -34,20 +34,24 @@ function Ejes({ area, ex, ey, x, y, etiquetaX, etiquetaY }) {
   );
 }
 
-/** Desviación estándar de la repetibilidad en función de la carga. */
-export function GraficoDesviacion({ serie, escalaMinima = null }) {
+/**
+ * Desviación estándar de la repetibilidad en función de la carga. El eje y
+ * lleva los `decimales` de la desviación en la tabla (los certificados
+ * emitidos antes no los traen y siguen con los del paso).
+ */
+export function GraficoDesviacion({ serie, escalaMinima = null, decimales = null }) {
   const ancho = 400;
   const alto = 165;
   const area = { x: 52, y: 22, ancho: 330, alto: 112 };
   const ex = escalaBonita(0, Math.max(...serie.map(p => p.x), 0), 5);
-  const ey = escalaBonita(0, Math.max(...serie.map(p => p.y), escalaMinima || 0), 5);
+  const ey = escalaBonita(0, Math.max(...serie.map(p => p.y), escalaMinima || 0), 5, decimales);
   const x = (v) => area.x + ((v - ex.min) / (ex.max - ex.min)) * area.ancho;
   const y = (v) => area.y + area.alto - ((v - ey.min) / (ey.max - ey.min)) * area.alto;
   const puntos = [...serie].sort((a, b) => a.x - b.x);
   return (
     <svg viewBox={`0 0 ${ancho} ${alto}`} className="cc-grafico" role="img" aria-label="Gráfico de la desviación estándar">
       <text x={area.x + area.ancho / 2} y="13" textAnchor="middle" fontSize="13" fontWeight="700" fill={TEXTO}>Desviación estándar</text>
-      <Ejes area={area} ex={ex} ey={ey} x={x} y={y} />
+      <Ejes area={area} ex={ex} ey={ey} x={x} y={y} decimalesY={decimales} />
       <path d={linea(puntos, x, y)} fill="none" stroke={NARANJA} strokeWidth="1.6" />
       {puntos.map(p => (
         <path key={p.x} d={`M${x(p.x) - 3.5} ${y(p.y) - 3.5}l7 7m0 -7l-7 7`} stroke={NARANJA} strokeWidth="1.4" />

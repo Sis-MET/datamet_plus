@@ -173,7 +173,7 @@ function Repetibilidad({ r }) {
         </table>
         <p className="cc-pequena">Se realizaron {r.repeticiones} repeticiones. {r.nota}</p>
       </div>
-      {r.serie.length > 0 && <GraficoDesviacion serie={r.serie} escalaMinima={r.escalaMinima} />}
+      {r.serie.length > 0 && <GraficoDesviacion serie={r.serie} escalaMinima={r.escalaMinima} decimales={r.decimales} />}
     </div>
   );
 }

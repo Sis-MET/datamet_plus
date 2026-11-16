@@ -394,8 +394,9 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
     lecturas: posiciones.length,
   } : null;
 
-  // Repetibilidad.
+  // Repetibilidad. La desviación estándar lleva un decimal más que d.
   const ensayos = m.repetibilidad.ensayos || [];
+  const decDesviacion = decInstrumento + 1;
   const repetibilidad = ensayos.length ? {
     filas: ensayos.map((ensayo, i) => {
       const lecturas = ensayo.lecturas.map(l => l.indicacion).filter(v => v != null);
@@ -405,7 +406,7 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
         carga: conUnidad(coma(ensayo.carga), unidad),
         n: lecturas.length,
         media: conUnidad(coma(media, decInstrumento + 1), unidad),
-        s: conUnidad(coma(s, decInstrumento + 1), unidad),
+        s: conUnidad(coma(s, decDesviacion), unidad),
         difMax: conUnidad(coma(lecturas.length ? Math.max(...lecturas) - Math.min(...lecturas) : null, decInstrumento), unidad),
       };
     }),
@@ -413,6 +414,8 @@ const contenidoCertificado = ({ modelo: m, calculo, creadoEn = null, anexo: conA
     serie: ensayos.map((ensayo, i) => ({ x: ensayo.carga, y: calculo?.repetibilidad?.[i]?.s ?? null })).filter(p => p.y != null),
     // Escala mínima del gráfico (d): con s = 0 el eje no queda de 0 a 1.
     escalaMinima: Number.isFinite(dMin) ? dMin : null,
+    // El eje y del gráfico, con los decimales de la desviación estándar de la tabla.
+    decimales: decDesviacion,
   } : null;
 
   // Errores de indicación.
