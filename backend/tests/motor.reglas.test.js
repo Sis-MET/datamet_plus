@@ -200,6 +200,32 @@ test('riesgo como la planilla: 1 − Φ((T − |E|)/U) con el error y la U que s
   assert.equal(motor.conformidad({ error: 0, U: 0.08, k: 2, tolerancia: 0.1, regla: 'SIMPLE', metodoRiesgo: 'PLANILLA' }).conforme, true);
 });
 
+test('no conforme: el riesgo es el de falso rechazo, la probabilidad de estar dentro', () => {
+  const planilla = (error, U, tolerancia, regla = 'SIMPLE') => motor.conformidad({
+    error, U, k: 2, tolerancia, regla, metodoRiesgo: 'PLANILLA', presentado: { error, U },
+  });
+  // GRUPO ALCOS (0051-11-008), 35 000 g: E = 0,5 g, U = 0,36 g, EMP 0,3 g.
+  const alcos = planilla(0.5, 0.36, 0.3);
+  assert.equal(alcos.conforme, false);
+  assert.equal((alcos.fuera * 100).toFixed(2), '71.07');
+  assert.equal((alcos.riesgo * 100).toFixed(2), '28.93');
+  // DELTA (0089-11-015), 5 000 g con los valores de la planilla: E = −0,02 g, U = 0,023 g, EMP 0,01 g → 33,19 %, como el libro.
+  assert.equal((planilla(-0.02, 0.023, 0.01).riesgo * 100).toFixed(2), '33.19');
+  // Conforme: sigue siendo la de estar fuera (20 000 g: E = 0,1 g, U = 0,22 g, EMP 0,2 g).
+  const conforme = planilla(0.1, 0.22, 0.2);
+  assert.equal(conforme.conforme, true);
+  assert.equal(conforme.riesgo, conforme.fuera);
+  assert.equal((conforme.riesgo * 100).toFixed(2), '32.47');
+  // Regla conservadora: no conforme dentro de ±T por la banda de guarda; el riesgo es el de estar dentro.
+  const banda = planilla(0.05, 0.08, 0.1, 'CONSERVADORA');
+  assert.equal(banda.conforme, false);
+  assert.ok(Math.abs(banda.riesgo + banda.fuera - 1) < 1e-12 && banda.riesgo > 0.5);
+  // Dos colas (versión 1): igual, 1 − la de estar fuera.
+  const dosColas = motor.conformidad({ error: 0.03, U: 0.02, k: 2, tolerancia: 0.02, regla: 'SIMPLE' });
+  assert.equal(dosColas.conforme, false);
+  assert.ok(Math.abs(dosColas.riesgo - (1 - dosColas.fuera)) < 1e-12 && dosColas.riesgo < 0.5);
+});
+
 // ─── USP ⟨41⟩ ──────────────────────────────────────────────────────────────
 
 test('USP ⟨41⟩: repetibilidad con la s mínima, exactitud, pesas y peso mínimo', () => {

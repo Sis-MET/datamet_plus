@@ -70,10 +70,13 @@ export const FORMATOS_K = [
   { value: 'SIN_DECIMALES', label: 'Sin decimales', descripcion: 'k = 2. Si k no es entero (t de Student con pocas lecturas), con los suyos: 2,05.' },
 ];
 
-/** Cómo se calcula el riesgo asociado (motor.METODOS_RIESGO). */
+/**
+ * Cómo se calcula el riesgo asociado (motor.METODOS_RIESGO). En los dos, un
+ * punto no conforme lleva 1 menos esa probabilidad (falso rechazo).
+ */
 export const RIESGO = [
-  { value: 'DOS_COLAS', label: 'Normal con u = U/k, dos colas', descripcion: 'Probabilidad de que el error real quede fuera de ±T, con una normal de media E y desviación u = U/k (JCGM 106).' },
-  { value: 'PLANILLA', label: 'Como la planilla del laboratorio', descripcion: '1 − Φ((T − |E|) / U) con el error y la U que se informan: una cola y la U expandida como desviación. Da riesgos mayores.' },
+  { value: 'DOS_COLAS', label: 'Normal con u = U/k, dos colas', descripcion: 'Probabilidad de que el error real quede fuera de ±T, con una normal de media E y desviación u = U/k (JCGM 106). Si el punto no es conforme, la de que quede dentro.' },
+  { value: 'PLANILLA', label: 'Como la planilla del laboratorio', descripcion: '1 − Φ((T − |E|) / U) con el error y la U que se informan: una cola y la U expandida como desviación. Da riesgos mayores. Si el punto no es conforme, Φ((T − |E|) / U), la de que quede dentro.' },
 ];
 
 export const EMPUJE = [

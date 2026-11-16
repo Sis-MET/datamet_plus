@@ -46,6 +46,8 @@ const FORMATOS_K = ['DOS_DECIMALES', 'SIN_DECIMALES'];
  *   normal de media E y desviación u = U/k (JCGM 106; la versión 1).
  * - PLANILLA: como la planilla del laboratorio, 1 − Φ((T − |E|) / U) con el
  *   error y la U que se informan (una cola, la U expandida como desviación).
+ * En un punto no conforme el riesgo es 1 menos esa probabilidad: la de que
+ * el error real esté dentro de ±T (falso rechazo), como la planilla.
  */
 const METODOS_RIESGO = ['DOS_COLAS', 'PLANILLA'];
 

@@ -138,32 +138,39 @@ const claseSugerida = (rangos, gPorUnidad, regla = 'TABLA_3') => {
  * - PLANILLA: como la planilla del laboratorio, 1 − Φ((T − |E|) / U) con el
  *   error y la U que se informan (`presentado`): una cola y la U expandida
  *   como desviación, más conservador.
+ * Es el riesgo de la declaración (ILAC G8; JCGM 106): si es conforme, la
+ * probabilidad de que el error real esté fuera de ±T (falsa aceptación); si
+ * no es conforme, la de que esté dentro (falso rechazo), 1 menos la anterior.
+ * Hasta la 2.19.1 el no conforme daba la de estar fuera (p. ej. 71,07 % en
+ * vez de 28,93 %). `fuera` guarda siempre la probabilidad de estar fuera.
  * La decisión (conforme) no depende del riesgo.
  */
 const conformidad = ({
   error, U, k, tolerancia, regla, bandaGuarda = 1, metodoRiesgo = 'DOS_COLAS', presentado = null,
 }) => {
   if (!(tolerancia > 0) || !['SIMPLE', 'CONSERVADORA'].includes(regla)) {
-    return { evaluada: false, conforme: null, margen: null, riesgo: null };
+    return { evaluada: false, conforme: null, margen: null, riesgo: null, fuera: null };
   }
   const exigido = Math.abs(error) + (regla === 'CONSERVADORA' ? bandaGuarda * U : 0);
-  let riesgo;
+  const conforme = exigido <= tolerancia + 1e-15;
+  let fuera;
   if (metodoRiesgo === 'PLANILLA') {
     const e = Math.abs(presentado?.error ?? error);
     const Ui = presentado?.U ?? U;
-    riesgo = Ui > 0 ? 1 - normalAcumulada((tolerancia - e) / Ui) : (e > tolerancia ? 1 : 0);
+    fuera = Ui > 0 ? 1 - normalAcumulada((tolerancia - e) / Ui) : (e > tolerancia ? 1 : 0);
   } else {
     const u = k > 0 ? U / k : 0;
-    riesgo = u > 0
+    fuera = u > 0
       ? normalAcumulada((-tolerancia - error) / u) + (1 - normalAcumulada((tolerancia - error) / u))
       : (Math.abs(error) > tolerancia ? 1 : 0);
   }
   return {
     evaluada: true,
     regla,
-    conforme: exigido <= tolerancia + 1e-15,
+    conforme,
     margen: tolerancia - exigido,
-    riesgo,
+    riesgo: conforme ? fuera : 1 - fuera,
+    fuera,
   };
 };
 

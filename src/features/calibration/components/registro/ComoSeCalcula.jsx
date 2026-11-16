@@ -257,7 +257,11 @@ function Punto({ punto, modelo, unidad, reglas = {}, clase = null }) {
                   : `|E| + ${fijo(banda, 2)} · U ≤ T  →  ${cifras(Math.abs(punto.error), 3)} + ${cifras(banda * punto.U, 3)} ≤ ${cifras(punto.tolerancia, 3)}`)
                 : `|E| ≤ T  →  ${cifras(Math.abs(punto.error), 3)} ≤ ${cifras(punto.tolerancia, 3)}`}
             </Formula>
-            <Nota>Probabilidad de que el error real esté fuera de la tolerancia (riesgo de la decisión): {porcentaje(conf.riesgo)}.</Nota>
+            <Nota>
+              {conf.conforme
+                ? `Riesgo de la decisión (falsa aceptación): probabilidad de que el error real esté fuera de la tolerancia, ${porcentaje(conf.riesgo)}.`
+                : `Riesgo de la decisión (falso rechazo): probabilidad de que el error real esté dentro de la tolerancia, ${porcentaje(conf.riesgo)}${conf.fuera != null ? ` (fuera: ${porcentaje(conf.fuera)})` : ''}.`}
+            </Nota>
           </>
         ) : (
           <Nota>
