@@ -148,8 +148,8 @@ test('el jefe de Soporte mide los tiempos del personal, filtra por técnico y ex
 
   // Otro período vuelve a pedir los servicios.
   await page.getByRole('button', { name: 'Quitar filtros', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Período' }).click();
-  await page.getByRole('option', { name: 'Mes anterior' }).click();
+  await page.getByRole('button', { name: /^Período/ }).click();
+  await page.getByRole('button', { name: /^Mes anterior/ }).click();
   // Octubre, comparado con septiembre.
   await expect.poll(() => pedidos.slice(-2)).toEqual([{ desde: '2026-10-01', hasta: '2026-10-31' }, { desde: '2026-09-01', hasta: '2026-09-30' }]);
   // Septiembre tiene menos de 10 servicios medidos: no se compara.
@@ -158,8 +158,8 @@ test('el jefe de Soporte mide los tiempos del personal, filtra por técnico y ex
 
   // Tema oscuro y teléfono: sin desbordes horizontales.
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.getByRole('combobox', { name: 'Período' }).click();
-  await page.getByRole('option', { name: 'Este año' }).click();
+  await page.getByRole('button', { name: /^Período/ }).click();
+  await page.getByRole('button', { name: /^Este año/ }).click();
   await expect(page.getByRole('listitem', { name: /de 2026:/ })).toHaveCount(11);
   await page.screenshot({ path: '.impeccable/review/tiempos-soporte-oscuro.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });

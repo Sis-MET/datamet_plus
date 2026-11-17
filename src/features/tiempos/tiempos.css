@@ -180,3 +180,197 @@
     fill: CanvasText;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAPA DE SERVICIOS (Leaflet sobre teselas con calles)
+   Los departamentos se tiñen con el azul de la marca, translúcidos para que
+   se lean las calles debajo; los lugares con GPS van encima, del color del
+   tipo de servicio que más se repite.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.mapa-interactivo {
+  border-radius: 16px;
+  border: 1px solid rgb(var(--c-line));
+  background: rgb(var(--c-surface-2));
+  isolation: isolate;
+}
+
+.mapa-interactivo .leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: rgb(var(--c-surface-2));
+  font-family: inherit;
+}
+
+.mapa-dep {
+  fill: rgb(var(--c-accent));
+  stroke: rgb(var(--c-accent));
+  cursor: pointer;
+  transition: fill-opacity 300ms var(--ease-out-expo), stroke-opacity 200ms ease-out;
+}
+
+.dark .mapa-dep {
+  fill: rgb(91 147 214);
+  stroke: rgb(126 167 211);
+}
+
+.mapa-dep.is-vacio {
+  fill: rgb(var(--c-fg));
+  stroke: rgb(var(--c-fg) / 0.45);
+}
+
+.mapa-dep.is-elegido {
+  stroke: rgb(var(--c-brand));
+}
+
+/* Lugares con GPS. */
+.mapa-punto {
+  background: none;
+  border: 0;
+}
+
+.mapa-punto span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--punto);
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 8px rgb(0 20 46 / 0.35), 0 0 0 4px color-mix(in srgb, var(--punto) 22%, transparent);
+  transition: transform 160ms var(--ease-out-expo);
+  animation: mapa-punto-entra 320ms var(--ease-out-expo) backwards;
+}
+
+.mapa-punto:hover span {
+  transform: scale(1.15);
+}
+
+@keyframes mapa-punto-entra {
+  from { opacity: 0; transform: scale(0.3); }
+}
+
+/* Globo al pasar el ratón (tooltips de Leaflet con el vidrio de la app). */
+.leaflet-tooltip.mapa-globo {
+  min-width: 190px;
+  max-width: 260px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow: var(--shadow-pop);
+  color: rgb(var(--c-fg));
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.leaflet-tooltip.mapa-globo::before {
+  display: none;
+}
+
+.mapa-globo-titulo {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.mapa-globo-sub {
+  margin-bottom: 6px;
+  color: rgb(var(--c-fg-muted));
+  font-size: 11.5px;
+}
+
+.mapa-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1px 0;
+  color: rgb(var(--c-fg-muted));
+}
+
+.mapa-fila strong {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--c-fg));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mapa-globo-nota {
+  margin-top: 6px;
+  border-top: 1px solid rgb(var(--c-line));
+  padding-top: 5px;
+  color: rgb(var(--c-fg-subtle));
+  font-size: 11px;
+}
+
+/* Botones de acercar y alejar, con el estilo de la app. */
+.mapa-interactivo .leaflet-bar {
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+}
+
+.mapa-interactivo .leaflet-bar a {
+  width: 32px;
+  height: 32px;
+  border-bottom-color: rgb(var(--c-line));
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: rgb(var(--c-fg));
+  line-height: 30px;
+}
+
+.mapa-interactivo .leaflet-bar a:hover {
+  background: rgb(var(--c-surface));
+}
+
+.mapa-interactivo .leaflet-control-attribution {
+  border-radius: 8px 0 0 0;
+  background: var(--glass-bg);
+  color: rgb(var(--c-fg-muted));
+  font-size: 10px;
+}
+
+.mapa-interactivo .leaflet-control-attribution a {
+  color: rgb(var(--c-fg-muted));
+}
+
+/* Aviso «Ctrl + rueda»: aparece al girar la rueda sola sobre el mapa. */
+.mapa-aviso {
+  background: rgb(var(--c-canvas) / 0.25);
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.mapa-aviso.is-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mapa-punto span { animation: none; transition: none; }
+  .mapa-dep { transition: none; }
+}
+
+/* Sin clave de CARTO, el mapa base es OpenStreetMap con el tono de la app:
+   atenuado en claro e invertido (calles claras sobre fondo noche) en oscuro.
+   Con CARTO no hace falta: sus estilos ya siguen al tema. */
+.mapa-base-osm .leaflet-tile-pane {
+  filter: saturate(0.5) brightness(1.03) contrast(0.95);
+}
+
+.dark .mapa-base-osm .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) saturate(0.35) brightness(0.88) contrast(0.92);
+}
+
+.mapa-interactivo .leaflet-departamentos-pane {
+  transition: opacity 260ms ease-out;
+}

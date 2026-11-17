@@ -256,23 +256,54 @@ export function porMes(medidos, desde, hasta) {
 export const tecnicosDe = (servicios = []) => [...new Set(servicios.map(tecnicoDe))]
   .sort((a, b) => (a === SIN_TECNICO) - (b === SIN_TECNICO) || a.localeCompare(b, 'es'));
 
+/** Clave del departamento de un servicio ya ubicado (ubicacion.js). */
+export const SIN_DEPARTAMENTO = 'SIN_DEPARTAMENTO';
+const departamentoDe = servicio => servicio.departamento || SIN_DEPARTAMENTO;
+
 /**
- * Todo lo que muestra el panel. `grupo` y `tecnico` filtran lo que se ve; la
- * referencia de cada grupo sale siempre del área entera en el período.
+ * Una fila por departamento, en el orden de `departamentos` (todos, aunque no
+ * tengan servicios: el mapa los pinta igual). Los servicios sin departamento
+ * van al final, solo si los hay. `conUbicacion` cuenta los que traen GPS.
  */
-export function analizar(servicios = [], { grupos = [], grupo = '', tecnico = '', desde, hasta, orden } = {}) {
+export function porDepartamento(medidos, departamentos = []) {
+  const conDatos = agrupar(medidos, departamentoDe);
+  const filas = departamentos.map(({ id, nombre }) => {
+    const lista = conDatos.get(id) || [];
+    return { id, nombre, ...resumir(lista), conUbicacion: lista.filter(s => s.punto).length };
+  });
+  const sinDepartamento = conDatos.get(SIN_DEPARTAMENTO);
+  if (sinDepartamento?.length) {
+    filas.push({ id: SIN_DEPARTAMENTO, nombre: 'Sin departamento', ...resumir(sinDepartamento), conUbicacion: 0 });
+  }
+  return filas;
+}
+
+/**
+ * Todo lo que muestra el panel. `tecnico`, `departamento` y `grupo` filtran
+ * lo que se ve; la referencia de cada grupo sale siempre del área entera en
+ * el período. Los grupos no se filtran por grupo ni el mapa por departamento:
+ * así se puede elegir otro desde ahí.
+ */
+export function analizar(servicios = [], {
+  grupos = [], grupo = '', tecnico = '', departamento = '', departamentos = [], desde, hasta, orden,
+} = {}) {
   const todos = medirServicios(servicios);
   const referencia = referencias(todos);
   const delTecnico = tecnico ? todos.filter(s => tecnicoDe(s) === tecnico) : todos;
-  const vista = grupo ? delTecnico.filter(s => s.grupo === grupo) : delTecnico;
+  const delDepartamento = departamento ? delTecnico.filter(s => departamentoDe(s) === departamento) : delTecnico;
+  const vista = grupo ? delDepartamento.filter(s => s.grupo === grupo) : delDepartamento;
+  const delMapa = grupo ? delTecnico.filter(s => s.grupo === grupo) : delTecnico;
   return {
     servicios: vista,
     resumen: resumir(vista),
     porTecnico: porTecnico(vista, referencia, { grupos, desde, hasta, orden }),
     // Todos los grupos (sin el filtro de grupo), para elegir uno desde ahí.
-    porGrupo: porGrupo(delTecnico, grupos),
+    porGrupo: porGrupo(delDepartamento, grupos),
     mezcla: mezclaDe(vista, grupos),
     porMes: porMes(vista, desde, hasta),
+    // Todos los departamentos (sin el filtro de departamento), para el mapa.
+    porDepartamento: porDepartamento(delMapa, departamentos),
+    serviciosMapa: delMapa,
     tecnicos: tecnicosDe(todos),
     referencia,
   };
@@ -280,15 +311,23 @@ export function analizar(servicios = [], { grupos = [], grupo = '', tecnico = ''
 
 // ─── Períodos ──────────────────────────────────────────────────────────────
 
+/** Atajos de período: se recalculan con la fecha de hoy. */
 export const PERIODOS = [
-  { value: 'anio', label: 'Este año' },
   { value: 'mes', label: 'Este mes' },
   { value: 'mes-anterior', label: 'Mes anterior' },
   { value: 'trimestre', label: 'Últimos 3 meses' },
+  { value: 'anio', label: 'Este año' },
   { value: 'doce', label: 'Últimos 12 meses' },
   { value: 'anio-anterior', label: 'Año anterior' },
-  { value: 'otro', label: 'Otras fechas' },
 ];
+
+/**
+ * Además de los atajos, el período puede ser un mes elegido ('mes-elegido'),
+ * varios meses seguidos ('meses') o un rango de fechas libre ('otro').
+ */
+export const TIPOS_ELEGIDOS = ['mes-elegido', 'meses', 'otro'];
+
+export const esAtajo = tipo => PERIODOS.some(p => p.value === tipo);
 
 /** Fecha local de hoy como AAAA-MM-DD. */
 export const hoyLocal = (fecha = new Date()) => `${fecha.getFullYear()}-${pad(fecha.getMonth() + 1)}-${pad(fecha.getDate())}`;
@@ -315,6 +354,67 @@ export function rangoPeriodo(periodo, hoy) {
     case 'anio':
     default: return { desde: `${anio}-01-01`, hasta: hoy };
   }
+}
+
+const minimo = (a, b) => (a < b ? a : b);
+
+/** Un mes completo (`clave` AAAA-MM); el mes en curso, hasta hoy. */
+export function rangoMes(clave, hoy) {
+  const anio = Number(clave.slice(0, 4));
+  const mes = Number(clave.slice(5, 7));
+  return { desde: primerDia(anio, mes), hasta: minimo(ultimoDia(anio, mes), hoy) };
+}
+
+/** Varios meses seguidos, de `desde` a `hasta` (AAAA-MM, en cualquier orden); el mes en curso, hasta hoy. */
+export function rangoMeses(desde, hasta, hoy) {
+  const [primero, ultimo] = desde <= hasta ? [desde, hasta] : [hasta, desde];
+  return { desde: rangoMes(primero, hoy).desde, hasta: rangoMes(ultimo, hoy).hasta };
+}
+
+/** Meses entre dos fechas AAAA-MM-DD, contando ambos (ene a mar = 3). */
+const mesesEntre = (desde, hasta) => (Number(hasta.slice(0, 4)) - Number(desde.slice(0, 4))) * 12
+  + Number(hasta.slice(5, 7)) - Number(desde.slice(5, 7)) + 1;
+
+/** ¿La fecha es el último día de su mes? */
+const esFinDeMes = iso => ultimoDia(Number(iso.slice(0, 4)), Number(iso.slice(5, 7))) === iso;
+
+/**
+ * Desde y hasta de una selección: { tipo, desde, hasta }. Los atajos se
+ * recalculan con `hoy`; lo elegido conserva sus fechas.
+ */
+export const rangoDeSeleccion = (seleccion, hoy) => (esAtajo(seleccion.tipo)
+  ? rangoPeriodo(seleccion.tipo, hoy)
+  : { desde: seleccion.desde, hasta: seleccion.hasta });
+
+const fechaLarga = (iso, conAnio = true) => {
+  const [anio, mes, dia] = iso.split('-').map(Number);
+  return `${dia} ${MESES[mes - 1]}${conAnio ? ` ${anio}` : ''}`;
+};
+
+/** «3 oct – 15 nov 2026» (el año una vez si es el mismo). */
+export function textoRango(desde, hasta) {
+  if (!desde || !hasta) return '';
+  if (desde === hasta) return fechaLarga(desde);
+  const mismoAnio = desde.slice(0, 4) === hasta.slice(0, 4);
+  return `${fechaLarga(desde, !mismoAnio)} – ${fechaLarga(hasta)}`;
+}
+
+const mayuscula = texto => texto.charAt(0).toUpperCase() + texto.slice(1);
+
+/** Nombre corto de la selección para el botón: «Este año», «Octubre de 2026», «Ago – oct 2026», «3 oct – 15 nov 2026». */
+export function etiquetaSeleccion(seleccion, hoy) {
+  const atajo = PERIODOS.find(p => p.value === seleccion.tipo);
+  if (atajo) return atajo.label;
+  const { desde, hasta } = rangoDeSeleccion(seleccion, hoy);
+  if (seleccion.tipo === 'mes-elegido') return mayuscula(`${MESES_LARGOS[Number(desde.slice(5, 7)) - 1]} de ${desde.slice(0, 4)}`);
+  if (seleccion.tipo === 'meses') {
+    const mesDesde = MESES[Number(desde.slice(5, 7)) - 1];
+    const mesHasta = MESES[Number(hasta.slice(5, 7)) - 1];
+    return desde.slice(0, 4) === hasta.slice(0, 4)
+      ? mayuscula(`${mesDesde} – ${mesHasta} ${hasta.slice(0, 4)}`)
+      : mayuscula(`${mesDesde} ${desde.slice(0, 4)} – ${mesHasta} ${hasta.slice(0, 4)}`);
+  }
+  return textoRango(desde, hasta);
 }
 
 const sumarDias = (iso, dias) => {
@@ -350,6 +450,19 @@ export function periodoAnterior(periodo, { desde, hasta }) {
       return { desde: primerDia(anioPrevio, mesPrevio), hasta: mismoDia(anioPrevio, mesPrevio, Number(hasta.slice(8, 10))), etiqueta: `vs. mismos días de ${MESES_LARGOS[mesPrevio - 1]}` };
     case 'mes-anterior':
       return { desde: primerDia(anioPrevio, mesPrevio), hasta: ultimoDia(anioPrevio, mesPrevio), etiqueta: `vs. ${MESES_LARGOS[mesPrevio - 1]}` };
+    // Un mes elegido: completo, con el mes anterior; el mes en curso, con los mismos días del anterior.
+    case 'mes-elegido':
+      return periodoAnterior(esFinDeMes(hasta) ? 'mes-anterior' : 'mes', { desde, hasta });
+    // Varios meses completos, con los mismos meses justo antes.
+    case 'meses': {
+      if (!esFinDeMes(hasta)) return periodoAnterior('otro', { desde, hasta });
+      const cantidad = mesesEntre(desde, hasta);
+      return {
+        desde: primerDia(anio, mes - cantidad),
+        hasta: ultimoDia(anio, mes - 1),
+        etiqueta: cantidad === 1 ? `vs. ${MESES_LARGOS[mesPrevio - 1]}` : `vs. los ${cantidad} meses anteriores`,
+      };
+    }
     default: {
       const largo = diasEntre(desde, hasta) + 1;
       return { desde: sumarDias(desde, -largo), hasta: sumarDias(desde, -1), etiqueta: `vs. los ${largo} días anteriores` };
@@ -416,7 +529,8 @@ export const METRICAS_MES = {
 /** Un campo de texto para CSV: entre comillas y sin fórmulas (Excel ejecuta «=…»). */
 const campoCsv = (valor) => {
   let texto = valor === null || valor === undefined ? '' : String(valor);
-  if (/^[=+\-@\t\r]/.test(texto)) texto = `'${texto}`;
+  // Un número (una coordenada negativa) no es una fórmula: va tal cual.
+  if (typeof valor !== 'number' && /^[=+\-@\t\r]/.test(texto)) texto = `'${texto}`;
   return /[";\r\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
 };
 
@@ -424,11 +538,17 @@ const campoCsv = (valor) => {
  * Los servicios como CSV para Excel (separado por «;», con BOM para las
  * tildes). `columnas` nombra la orden y el grupo de cada área.
  */
-export function aCsv(medidos, { orden = 'Orden', grupo = 'Grupo', nombreGrupo = id => id } = {}) {
-  const encabezado = ['Fecha', orden, grupo, 'Técnico', 'Cliente', 'Planta', 'Código Métrica', 'Equipo', 'Inicio', 'Fin', 'Minutos', 'Observación'];
+export function aCsv(medidos, {
+  orden = 'Orden', grupo = 'Grupo', nombreGrupo = id => id, nombreDepartamento = id => id,
+} = {}) {
+  const encabezado = [
+    'Fecha', orden, grupo, 'Técnico', 'Cliente', 'Planta', 'Departamento', 'Código Métrica', 'Equipo', 'Inicio', 'Fin', 'Minutos',
+    'Latitud', 'Longitud', 'Observación',
+  ];
   const filas = medidos.map(s => [
-    s.fecha, s.orden, nombreGrupo(s.grupo), tecnicoDe(s), s.cliente, s.planta, s.codMetrica, s.equipo,
-    s.inicio, s.fin, s.minutos ?? '', s.problema ? PROBLEMAS[s.problema] : '',
+    s.fecha, s.orden, nombreGrupo(s.grupo), tecnicoDe(s), s.cliente, s.planta,
+    s.departamento ? nombreDepartamento(s.departamento) : '', s.codMetrica, s.equipo,
+    s.inicio, s.fin, s.minutos ?? '', s.ubicacion?.lat ?? '', s.ubicacion?.lng ?? '', s.problema ? PROBLEMAS[s.problema] : '',
   ].map(campoCsv).join(';'));
   return `\uFEFF${[encabezado.map(campoCsv).join(';'), ...filas].join('\r\n')}\r\n`;
 }

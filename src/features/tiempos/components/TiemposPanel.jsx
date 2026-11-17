@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, AlertTriangle, ArrowUpRight, CalendarClock, ClipboardList, Clock3, Download, Loader2, Lock, Timer, UserRound, UsersRound, X,
+  AlertCircle, AlertTriangle, ArrowUpRight, CalendarClock, ClipboardList, Clock3, Download, FileText, Loader2, Lock, MapPin, Timer, UserRound, UsersRound, X,
 } from 'lucide-react';
 import { Button } from '../../../shared/components/ui/Button';
 import { cn } from '../../../shared/utils/cn';
@@ -8,12 +8,16 @@ import { safeStorage } from '../../../shared/utils/storage';
 import { Dropdown } from '../../calibration/components/Dropdown';
 import { EmptyState, Segmented, ToneBadge } from '../../calibration/components/primitives';
 import {
-  METRICAS_MES, MIN_SERVICIOS_INDICE, ORDENES_PERSONAL, PERIODOS, PROBLEMAS, SIN_TECNICO, aCsv, analizar, formatoDuracion,
-  comparacion, formatoHoras, formatoPorcentaje, hoyLocal, ordenarPersonal, periodoAnterior, rangoPeriodo, tecnicosDe, variacion,
+  METRICAS_MES, MIN_SERVICIOS_INDICE, ORDENES_PERSONAL, PROBLEMAS, SIN_TECNICO, aCsv, analizar, esAtajo, etiquetaSeleccion, formatoDuracion,
+  comparacion, formatoHoras, formatoPorcentaje, hoyLocal, ordenarPersonal, periodoAnterior, rangoDeSeleccion, tecnicosDe, textoRango, variacion,
 } from '../domain/tiempos';
+import { LISTA_DEPARTAMENTOS, SIN_DEPARTAMENTO, nombreDepartamento, ubicarServicios } from '../domain/ubicacion';
 import { coloresDe } from './graficos';
 import { useFlip } from './flip';
 import { NumeroAnimado, Variacion } from './piezas';
+import { ExportarInformeModal } from './ExportarInformeModal';
+import { MapaServicios } from './MapaServicios';
+import { PeriodoSelector } from './PeriodoSelector';
 import { TarjetaTecnico } from './TarjetaTecnico';
 import { Tendencia } from './Tendencia';
 import '../tiempos.css';
@@ -21,6 +25,7 @@ import '../tiempos.css';
 /** Lo que cambia entre las dos áreas: nombres, de dónde salen las horas y qué se abre. */
 const AREAS = {
   soporte: {
+    nombre: 'Soporte técnico',
     descripcion: 'Cuánto dura cada servicio de Soporte técnico, de la hora de inicio a la hora final que registró el técnico en ServiceMET.',
     origen: 'Las horas no se corrigen en DataMET+: si alguna está mal, se corrige en ServiceMET y se vuelve a subir el servicio.',
     orden: 'OTST',
@@ -31,6 +36,7 @@ const AREAS = {
     abrir: 'Abrir informe',
   },
   calibracion: {
+    nombre: 'Calibración',
     descripcion: 'Cuánto dura cada calibración, de la hora de inicio del servicio a la de las condiciones ambientales finales, que se toman al terminar.',
     origen: 'Si la hora final está mal, se corrige en el registro del servicio (Certificados › Registros) y aquí vale la corregida.',
     orden: 'SECA',
@@ -46,10 +52,23 @@ const POR_PAGINA = 10;
 const formatoEntero = v => String(Math.round(v));
 const fechaCorta = iso => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
+/** El último atajo usado (un mes o un rango elegido no se recuerda: al volver, vale el atajo). */
 const leerPeriodo = (clave) => {
   const valor = safeStorage.getItem(clave);
-  return PERIODOS.some(p => p.value === valor) && valor !== 'otro' ? valor : 'anio';
+  return { tipo: esAtajo(valor) ? valor : 'anio' };
 };
+
+/** Nombre de quien genera el informe, del usuario de la sesión. */
+const usuarioSesion = () => {
+  try {
+    const usuario = JSON.parse(safeStorage.getItem('datamet_user') || 'null');
+    return [usuario?.nombre, usuario?.apellido].filter(Boolean).join(' ') || usuario?.usuario || 'Usuario de DataMET+';
+  } catch {
+    return 'Usuario de DataMET+';
+  }
+};
+
+const ahoraTexto = () => new Date().toLocaleString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 /** Trae los servicios de un período; conserva lo anterior mientras llega lo nuevo. */
 function useServicios(cargar, rango, intento) {
@@ -186,8 +205,15 @@ const ListaServicios = memo(function ListaServicios({ servicios, nombreGrupo, te
                 {s.cliente || 'Sin cliente'}
                 {s.equipo && <span className="font-normal text-fg-muted"> · {s.equipo}</span>}
               </p>
-              <p className="truncate text-[12px] text-fg-muted">
-                {[nombreGrupo(s.grupo), s.orden && `${textos.orden} ${s.orden}`, s.tecnico || SIN_TECNICO].filter(Boolean).join(' · ')}
+              <p className="flex min-w-0 items-center gap-1 truncate text-[12px] text-fg-muted">
+                <span className="truncate">
+                  {[nombreGrupo(s.grupo), s.orden && `${textos.orden} ${s.orden}`, s.tecnico || SIN_TECNICO].filter(Boolean).join(' · ')}
+                </span>
+                {s.departamento && s.departamento !== SIN_DEPARTAMENTO && (
+                  <span className={cn('inline-flex flex-none items-center gap-0.5', s.origenUbicacion === 'gps' && 'text-success')} title={s.origenUbicacion === 'gps' ? 'Ubicación GPS de ServiceMET' : 'Departamento de la planta'}>
+                    · <MapPin className="h-3 w-3" aria-hidden="true" />{nombreDepartamento(s.departamento)}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex flex-none items-center gap-3">
@@ -230,22 +256,27 @@ const ListaServicios = memo(function ListaServicios({ servicios, nombreGrupo, te
 export function TiemposPanel({ area, cargar, onAbrir }) {
   const textos = AREAS[area];
   const clavePeriodo = `datamet_tiempos_${area}_periodo`;
-  const [periodo, setPeriodo] = useState(() => leerPeriodo(clavePeriodo));
-  const [otro, setOtro] = useState(() => rangoPeriodo('anio', hoyLocal()));
+  const [seleccion, setSeleccion] = useState(() => leerPeriodo(clavePeriodo));
   const [tecnico, setTecnico] = useState('');
   const [grupo, setGrupo] = useState('');
+  const [departamento, setDepartamento] = useState('');
   const [metrica, setMetrica] = useState('horas');
   const [orden, setOrden] = useState('horas');
   const [intento, setIntento] = useState(0);
+  const [exportando, setExportando] = useState(false);
   const listaRef = useRef(null);
+  const hoy = hoyLocal();
 
-  const rango = periodo === 'otro' ? otro : rangoPeriodo(periodo, hoyLocal());
+  const rango = rangoDeSeleccion(seleccion, hoy);
   const rangoValido = Boolean(rango.desde && rango.hasta && rango.desde <= rango.hasta);
-  const anterior = rangoValido ? periodoAnterior(periodo, rango) : null;
+  const anterior = rangoValido ? periodoAnterior(seleccion.tipo, rango) : null;
   const actual = useServicios(cargar, rangoValido ? rango : null, intento);
   const previo = useServicios(cargar, anterior, intento);
 
-  const { data, error, cargando } = actual;
+  const { error, cargando } = actual;
+  // Cada servicio con su lugar: el punto GPS de ServiceMET y su departamento (o el de la planta).
+  const data = useMemo(() => (actual.data ? { ...actual.data, servicios: ubicarServicios(actual.data.servicios) } : null), [actual.data]);
+  const datosPrevios = useMemo(() => (previo.data ? { ...previo.data, servicios: ubicarServicios(previo.data.servicios) } : null), [previo.data]);
   const grupos = useMemo(() => data?.grupos || [], [data]);
   const colores = useMemo(() => coloresDe(grupos), [grupos]);
   const nombres = useMemo(() => new Map(grupos.map(g => [g.id, g])), [grupos]);
@@ -261,16 +292,23 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
   // Un técnico elegido que no tiene servicios en el período nuevo deja de filtrar.
   const tecnicos = useMemo(() => tecnicosDe(data?.servicios), [data]);
   const tecnicoActivo = tecnicos.includes(tecnico) ? tecnico : '';
+  // Departamentos con servicios en el período (para el filtro); uno elegido sin servicios deja de filtrar.
+  const departamentosConDatos = useMemo(() => new Set((data?.servicios || []).map(s => s.departamento)), [data]);
+  const departamentoActivo = departamentosConDatos.has(departamento) ? departamento : '';
   const analisis = useMemo(() => (data
-    ? analizar(data.servicios, { grupos, grupo, tecnico: tecnicoActivo, desde: data.desde, hasta: data.hasta })
-    : null), [data, grupos, grupo, tecnicoActivo]);
+    ? analizar(data.servicios, {
+      grupos, grupo, tecnico: tecnicoActivo, departamento: departamentoActivo, departamentos: LISTA_DEPARTAMENTOS, desde: data.desde, hasta: data.hasta,
+    })
+    : null), [data, grupos, grupo, tecnicoActivo, departamentoActivo]);
   // Ordenar solo reacomoda las mismas filas: las tarjetas no se redibujan.
   const personal = useMemo(() => (analisis ? ordenarPersonal(analisis.porTecnico, orden) : []), [analisis, orden]);
   // El período anterior con los mismos filtros. Solo se compara si DataMET ya
   // tenía servicios en todo ese período y suficientes (comparacion).
-  const previoAnalisis = useMemo(() => (previo.data && !previo.error
-    ? analizar(previo.data.servicios, { grupos, grupo, tecnico: tecnicoActivo, desde: previo.data.desde, hasta: previo.data.hasta })
-    : null), [previo.data, previo.error, grupos, grupo, tecnicoActivo]);
+  const previoAnalisis = useMemo(() => (datosPrevios && !previo.error
+    ? analizar(datosPrevios.servicios, {
+      grupos, grupo, tecnico: tecnicoActivo, departamento: departamentoActivo, departamentos: LISTA_DEPARTAMENTOS, desde: datosPrevios.desde, hasta: datosPrevios.hasta,
+    })
+    : null), [datosPrevios, previo.error, grupos, grupo, tecnicoActivo, departamentoActivo]);
   const { comparar, motivo } = comparacion({
     primerServicio: data?.primerServicio, anterior, resumenAnterior: previoAnalisis?.resumen,
   });
@@ -284,22 +322,22 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
     ? `DataMET tiene servicios desde el ${fechaCorta(data.primerServicio)}: el período anterior no está completo.`
     : 'El período anterior tiene muy pocos servicios medidos.';
 
-  const cambiarPeriodo = (valor) => {
-    if (valor === 'otro') setOtro(rango);
-    else safeStorage.setItem(clavePeriodo, valor);
-    setPeriodo(valor);
+  const cambiarPeriodo = (nueva) => {
+    if (esAtajo(nueva.tipo)) safeStorage.setItem(clavePeriodo, nueva.tipo);
+    setSeleccion(nueva);
   };
 
   // Al filtrar u ordenar (FLIP): las tarjetas que sobran se desvanecen, las
   // que siguen se deslizan a su lugar nuevo y las nuevas aparecen.
   const claveFlip = `${data?.desde}|${data?.hasta}|${personal.map(fila => fila.tecnico).join('|')}`;
   const { raizRef, salir } = useFlip(claveFlip);
-  /** Técnicos que quedan con otro filtro de técnico o de grupo. */
-  const quedanCon = useCallback(({ tecnico: t = tecnicoActivo, grupo: g = grupo }) => new Set((data?.servicios || [])
-    .filter(s => (!g || s.grupo === g) && (!t || (s.tecnico || SIN_TECNICO) === t))
-    .map(s => s.tecnico || SIN_TECNICO)), [data, grupo, tecnicoActivo]);
+  /** Técnicos que quedan con otro filtro de técnico, de grupo o de departamento. */
+  const quedanCon = useCallback(({ tecnico: t = tecnicoActivo, grupo: g = grupo, departamento: d = departamentoActivo }) => new Set((data?.servicios || [])
+    .filter(s => (!g || s.grupo === g) && (!t || (s.tecnico || SIN_TECNICO) === t) && (!d || s.departamento === d))
+    .map(s => s.tecnico || SIN_TECNICO)), [data, departamentoActivo, grupo, tecnicoActivo]);
   const filtrarTecnico = useCallback(valor => salir(quedanCon({ tecnico: valor }), () => setTecnico(valor)), [quedanCon, salir]);
   const filtrarGrupo = useCallback(valor => salir(quedanCon({ grupo: valor }), () => setGrupo(valor)), [quedanCon, salir]);
+  const filtrarDepartamento = useCallback(valor => salir(quedanCon({ departamento: valor }), () => setDepartamento(valor)), [quedanCon, salir]);
   const cambiarOrden = useCallback(valor => setOrden(valor), []);
 
   const elegirTecnico = useCallback((nombre) => {
@@ -310,7 +348,7 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
   }, [filtrarTecnico, tecnicoActivo]);
 
   const exportar = () => {
-    const csv = aCsv(analisis.servicios, { orden: textos.orden, grupo: textos.grupo, nombreGrupo });
+    const csv = aCsv(analisis.servicios, { orden: textos.orden, grupo: textos.grupo, nombreGrupo, nombreDepartamento });
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const enlace = document.createElement('a');
     enlace.href = url;
@@ -321,9 +359,34 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const filtrosActivos = Boolean(tecnicoActivo || grupo);
+  const filtrosActivos = Boolean(tecnicoActivo || grupo || departamentoActivo);
   const mesesDelPeriodo = analisis?.porMes.length || 1;
   const etiquetaAnterior = anterior?.etiqueta;
+  const periodoTexto = `${etiquetaSeleccion(seleccion, hoy)}${seleccion.tipo === 'otro' ? '' : ` (${textoRango(rango.desde, rango.hasta)})`}`;
+  const filtrosTexto = [
+    tecnicoActivo && `Técnico: ${tecnicoActivo}`,
+    grupo && `${textos.grupo}: ${nombreGrupo(grupo)}`,
+    departamentoActivo && `Departamento: ${nombreDepartamento(departamentoActivo)}`,
+  ].filter(Boolean).join(' · ') || 'Sin filtros: todo el personal del área';
+  const nombreArchivo = `informe-tiempos-${area}-${rango.desde}-a-${rango.hasta}${tecnicoActivo ? `-${tecnicoActivo.replace(/\s+/g, '-')}` : ''}.pdf`;
+
+  /** Lo que lleva el informe PDF: lo que el panel ya calculó, con los mismos filtros. */
+  const prepararInforme = () => ({
+    titulo: `Tiempos de servicio de ${textos.nombre} - ${periodoTexto}`,
+    areaNombre: textos.nombre,
+    textos,
+    periodo: periodoTexto,
+    comparacion: comparado ? (etiquetaAnterior || '').replace(/^vs\. /, '') : sinDatos,
+    filtros: filtrosTexto,
+    generadoPor: usuarioSesion(),
+    generado: ahoraTexto(),
+    analisis,
+    anterior: comparado ? { resumen: comparado.resumen, etiqueta: etiquetaAnterior } : null,
+    sinDatos: comparado ? null : sinDatos,
+    nombreCorto,
+    nombreDepartamento,
+    colores,
+  });
 
   return (
     <div ref={raizRef} className="flex flex-col gap-4">
@@ -333,28 +396,13 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
           <p className="mt-1 text-[13px] text-fg-muted">{textos.descripcion}</p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <Dropdown ariaLabel="Período" value={periodo} onChange={cambiarPeriodo} options={PERIODOS} className="w-full sm:w-48" />
-          {periodo === 'otro' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                type="date"
-                aria-label="Desde"
-                value={otro.desde}
-                max={otro.hasta || undefined}
-                onChange={event => setOtro(prev => ({ ...prev, desde: event.target.value }))}
-                className="field h-10 w-[150px] font-medium tabular-nums"
-              />
-              <span className="text-[13px] text-fg-muted">a</span>
-              <input
-                type="date"
-                aria-label="Hasta"
-                value={otro.hasta}
-                min={otro.desde || undefined}
-                onChange={event => setOtro(prev => ({ ...prev, hasta: event.target.value }))}
-                className="field h-10 w-[150px] font-medium tabular-nums"
-              />
-            </div>
-          )}
+          <PeriodoSelector
+            seleccion={seleccion}
+            onCambiar={cambiarPeriodo}
+            hoy={hoy}
+            primerServicio={data?.primerServicio}
+            className="w-full sm:w-auto sm:min-w-[260px]"
+          />
         </div>
       </div>
 
@@ -376,10 +424,22 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
           className="w-full sm:w-64"
           disabled={!analisis}
         />
+        <Dropdown
+          ariaLabel="Departamento"
+          value={departamentoActivo}
+          onChange={filtrarDepartamento}
+          options={[
+            { value: '', label: 'Todos los departamentos' },
+            ...LISTA_DEPARTAMENTOS.filter(d => departamentosConDatos.has(d.id)).map(d => ({ value: d.id, label: d.nombre })),
+            ...(departamentosConDatos.has(SIN_DEPARTAMENTO) ? [{ value: SIN_DEPARTAMENTO, label: 'Sin departamento' }] : []),
+          ]}
+          className="w-full sm:w-56"
+          disabled={!analisis}
+        />
         {filtrosActivos && (
           <button
             type="button"
-            onClick={() => { setTecnico(''); setGrupo(''); }}
+            onClick={() => { setTecnico(''); setGrupo(''); setDepartamento(''); }}
             className="inline-flex items-center gap-1 text-[13px] font-medium text-fg-muted underline decoration-fg/30 underline-offset-4 hover:text-fg"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" /> Quitar filtros
@@ -387,11 +447,29 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
         )}
         <div className="flex items-center gap-2 sm:ml-auto">
           {(cargando || previo.cargando) && <Loader2 className="h-4 w-4 animate-spin text-fg-subtle" aria-label="Cargando" />}
-          <Button variant="secondary" onClick={exportar} disabled={!analisis || !analisis.servicios.length}>
-            <Download className="h-4 w-4" aria-hidden="true" /> Exportar CSV
+          <Button variant="secondary" onClick={exportar} disabled={!analisis || !analisis.servicios.length} aria-label="Exportar CSV" title="Exportar CSV">
+            <Download className="h-4 w-4" aria-hidden="true" /> CSV
+          </Button>
+          <Button onClick={() => setExportando(true)} disabled={!analisis || !analisis.servicios.length}>
+            <FileText className="h-4 w-4" aria-hidden="true" /> Informe PDF
           </Button>
         </div>
       </div>
+
+      {exportando && analisis && (
+        <ExportarInformeModal
+          onClose={() => setExportando(false)}
+          nombreArchivo={nombreArchivo}
+          preparar={prepararInforme}
+          grupoLabel={textos.grupo}
+          resumen={[
+            ['Área', textos.nombre],
+            ['Período', periodoTexto],
+            ['Filtros', filtrosTexto],
+            ['Servicios', `${analisis.resumen.servicios} · ${formatoHoras(analisis.resumen.minutos)}`],
+          ]}
+        />
+      )}
 
       {!rangoValido && (
         <p className="flex items-center gap-2 rounded-2xl border border-warning/30 bg-warning/5 px-4 py-3 text-[13px] text-fg" role="alert">
@@ -515,6 +593,16 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
             </Tarjeta>
           </div>
 
+          <MapaServicios
+            filas={analisis.porDepartamento}
+            servicios={analisis.serviciosMapa}
+            departamento={departamentoActivo}
+            onDepartamento={filtrarDepartamento}
+            colores={colores}
+            nombreGrupo={nombreGrupo}
+            orden={textos.orden}
+          />
+
           <section aria-label="Personal" className="flex flex-col gap-3">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div className="min-w-0">
@@ -556,7 +644,7 @@ export function TiemposPanel({ area, cargar, onAbrir }) {
 
           <div ref={listaRef} data-flip="__lista" className="scroll-mt-[calc(var(--topbar-height)+16px)]">
             <ListaServicios
-              key={`${data.desde}|${data.hasta}|${tecnicoActivo}|${grupo}`}
+              key={`${data.desde}|${data.hasta}|${tecnicoActivo}|${grupo}|${departamentoActivo}`}
               servicios={analisis.servicios}
               nombreGrupo={nombreGrupo}
               textos={textos}

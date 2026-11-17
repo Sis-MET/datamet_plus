@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_MINUTOS, aCsv, analizar, comparacion, formatoDiferencia, formatoDuracion, formatoHoras, indiceFrenteAlArea, mediana, medir,
-  medirServicios, mezclaDe, percentil, periodoAnterior, porMes, rangoPeriodo, referencias, resumir, variacion,
+  MAX_MINUTOS, SIN_DEPARTAMENTO, aCsv, analizar, comparacion, etiquetaSeleccion, formatoDiferencia, formatoDuracion, formatoHoras,
+  indiceFrenteAlArea, mediana, medir, medirServicios, mezclaDe, percentil, periodoAnterior, porDepartamento, porMes, rangoDeSeleccion,
+  rangoMes, rangoMeses, rangoPeriodo, referencias, resumir, textoRango, variacion,
 } from './tiempos';
 
 const servicio = (extra = {}) => ({
@@ -104,6 +105,74 @@ describe('períodos', () => {
     expect(rangoPeriodo('trimestre', '2026-02-20')).toEqual({ desde: '2025-12-01', hasta: '2026-02-20' });
     expect(rangoPeriodo('mes-anterior', '2026-03-05')).toEqual({ desde: '2026-02-01', hasta: '2026-02-28' });
   });
+
+  it('un mes o varios meses elegidos; el mes en curso llega hasta hoy', () => {
+    const hoy = '2026-11-17';
+    expect(rangoMes('2026-02', hoy)).toEqual({ desde: '2026-02-01', hasta: '2026-02-28' });
+    expect(rangoMes('2026-11', hoy)).toEqual({ desde: '2026-11-01', hasta: hoy });
+    expect(rangoMeses('2026-10', '2026-08', hoy)).toEqual({ desde: '2026-08-01', hasta: '2026-10-31' });
+    expect(rangoMeses('2025-12', '2026-11', hoy)).toEqual({ desde: '2025-12-01', hasta: hoy });
+    expect(rangoDeSeleccion({ tipo: 'anio' }, hoy)).toEqual({ desde: '2026-01-01', hasta: hoy });
+    expect(rangoDeSeleccion({ tipo: 'otro', desde: '2026-03-03', hasta: '2026-04-15' }, hoy)).toEqual({ desde: '2026-03-03', hasta: '2026-04-15' });
+  });
+
+  it('cada selección tiene un nombre corto y su rango en texto', () => {
+    const hoy = '2026-11-17';
+    expect(etiquetaSeleccion({ tipo: 'anio' }, hoy)).toBe('Este año');
+    expect(etiquetaSeleccion({ tipo: 'mes-elegido', desde: '2026-10-01', hasta: '2026-10-31' }, hoy)).toBe('Octubre de 2026');
+    expect(etiquetaSeleccion({ tipo: 'meses', desde: '2026-08-01', hasta: '2026-10-31' }, hoy)).toBe('Ago – oct 2026');
+    expect(etiquetaSeleccion({ tipo: 'meses', desde: '2025-11-01', hasta: '2026-02-28' }, hoy)).toBe('Nov 2025 – feb 2026');
+    expect(etiquetaSeleccion({ tipo: 'otro', desde: '2026-10-03', hasta: '2026-11-15' }, hoy)).toBe('3 oct – 15 nov 2026');
+    expect(textoRango('2025-12-20', '2026-01-05')).toBe('20 dic 2025 – 5 ene 2026');
+    expect(textoRango('2026-01-05', '2026-01-05')).toBe('5 ene 2026');
+  });
+
+  it('un mes o varios meses elegidos se comparan con los anteriores', () => {
+    expect(periodoAnterior('mes-elegido', { desde: '2026-03-01', hasta: '2026-03-31' }))
+      .toEqual({ desde: '2026-02-01', hasta: '2026-02-28', etiqueta: 'vs. febrero' });
+    expect(periodoAnterior('mes-elegido', { desde: '2026-11-01', hasta: '2026-11-17' }))
+      .toEqual({ desde: '2026-10-01', hasta: '2026-10-17', etiqueta: 'vs. mismos días de octubre' });
+    expect(periodoAnterior('meses', { desde: '2026-08-01', hasta: '2026-10-31' }))
+      .toEqual({ desde: '2026-05-01', hasta: '2026-07-31', etiqueta: 'vs. los 3 meses anteriores' });
+    expect(periodoAnterior('meses', { desde: '2026-01-01', hasta: '2026-02-28' }))
+      .toEqual({ desde: '2025-11-01', hasta: '2025-12-31', etiqueta: 'vs. los 2 meses anteriores' });
+    // Hasta el mes en curso: un tramo igual de largo justo antes.
+    expect(periodoAnterior('meses', { desde: '2026-10-01', hasta: '2026-11-17' }).etiqueta).toBe('vs. los 48 días anteriores');
+  });
+});
+
+describe('departamentos', () => {
+  const departamentos = [{ id: 'LA PAZ', nombre: 'La Paz' }, { id: 'ORURO', nombre: 'Oruro' }, { id: 'PANDO', nombre: 'Pando' }];
+
+  it('una fila por departamento, también sin servicios, y los sin departamento al final', () => {
+    const medidos = medirServicios([
+      servicio({ departamento: 'LA PAZ', punto: [1, 2] }),
+      servicio({ departamento: 'LA PAZ', inicio: '10:00', fin: '11:00' }),
+      servicio({ departamento: 'ORURO' }),
+      servicio({ departamento: undefined }),
+    ]);
+    const filas = porDepartamento(medidos, departamentos);
+    expect(filas.map(f => [f.id, f.servicios, f.minutos, f.conUbicacion])).toEqual([
+      ['LA PAZ', 2, 90, 1], ['ORURO', 1, 30, 0], ['PANDO', 0, 0, 0], [SIN_DEPARTAMENTO, 1, 30, 0],
+    ]);
+  });
+
+  it('el departamento filtra el panel pero el mapa los muestra todos', () => {
+    const servicios = [
+      servicio({ departamento: 'LA PAZ', grupo: 'MPR' }),
+      servicio({ departamento: 'ORURO', grupo: 'MPR' }),
+      servicio({ departamento: 'ORURO', grupo: 'RVD' }),
+    ];
+    const grupos = [{ id: 'MPR', nombre: 'Preventivo' }, { id: 'RVD', nombre: 'Relevamiento' }];
+    const oruro = analizar(servicios, { grupos, departamentos, departamento: 'ORURO', desde: '2026-03-01', hasta: '2026-03-31' });
+    expect(oruro.resumen.servicios).toBe(2);
+    expect(oruro.porGrupo.map(g => [g.id, g.servicios])).toEqual([['MPR', 1], ['RVD', 1]]);
+    expect(oruro.porDepartamento.map(d => d.servicios)).toEqual([1, 2, 0]);
+    // Con un grupo elegido, el mapa cuenta solo ese grupo.
+    const soloMpr = analizar(servicios, { grupos, departamentos, grupo: 'MPR' });
+    expect(soloMpr.porDepartamento.map(d => d.servicios)).toEqual([1, 1, 0]);
+    expect(soloMpr.serviciosMapa).toHaveLength(2);
+  });
 });
 
 describe('formato', () => {
@@ -126,7 +195,12 @@ describe('formato', () => {
     ]), { orden: 'OTST', grupo: 'Tipo de servicio', nombreGrupo: () => 'Preventivo' });
     const lineas = csv.split('\r\n');
     expect(csv.startsWith('\uFEFFFecha;OTST;Tipo de servicio;Técnico')).toBe(true);
-    expect(lineas[1]).toBe('2026-03-10;OT-1;Preventivo;Ana;"Planta ""Norte""; Sur";LP;001;BALANZA;09:00;09:30;30;');
+    expect(csv.includes(';Planta;Departamento;Código Métrica;')).toBe(true);
+    expect(lineas[1]).toBe('2026-03-10;OT-1;Preventivo;Ana;"Planta ""Norte""; Sur";LP;;001;BALANZA;09:00;09:30;30;;;');
+    const ubicado = aCsv(medirServicios([servicio({ departamento: 'LA PAZ', ubicacion: { lat: -16.5, lng: -68.15 } })]), {
+      nombreDepartamento: () => 'La Paz',
+    }).split('\r\n')[1];
+    expect(ubicado).toBe('2026-03-10;OT-1;MPR;Ana;CBN;LP;La Paz;001;BALANZA;09:00;09:30;30;-16.5;-68.15;');
     expect(lineas[2]).toContain(`;"'=HYPERLINK(""x"")";`);
     expect(lineas[2]).toContain('Sin identificar');
     expect(lineas[2].endsWith(';La hora final no es posterior a la de inicio')).toBe(true);

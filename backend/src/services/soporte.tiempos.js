@@ -9,7 +9,9 @@ const { getPool, sql } = require('../config/db');
 const { CLAVES_TIPO, TIPOS } = require('./soporte.tipos');
 const { claveTecnicoSql } = require('./soporte.lista');
 const { exigirTiempos } = require('./soporte.permisos');
-const { fechaTexto, horaTexto, leerPeriodo, texto } = require('./tiempos');
+const {
+  CONSULTA_HAY_GPS, columnasUbicacion, fechaTexto, hayGps, horaTexto, leerPeriodo, texto, ubicacionTexto, uneUbicacion,
+} = require('./tiempos');
 
 /** Nombre corto de cada tipo, para las leyendas (los de la lista de informes). */
 const CORTOS = {
@@ -19,23 +21,27 @@ const CORTOS = {
 
 const fuenteTiempos = (tipo) => `
   SELECT '${tipo}' AS tipo, x.codigo_registro, x.otst, x.fecha_servicio, x.hora_inicio, x.hora_fin,
-    x.cliente, x.planta, x.cod_metrica, x.tipo_equipo, n2.tecnico_clave
+    x.cliente, x.planta, x.dep_planta, x.cod_metrica, x.tipo_equipo, n2.tecnico_clave
   FROM (
     SELECT t.codigo_registro, t.otst, t.fecha_servicio, t.hora_inicio, t.hora_fin,
-      t.personal, t.cliente, t.planta, t.cod_metrica, t.tipo_equipo,
+      t.personal, t.cliente, t.planta, t.dep_planta, t.cod_metrica, t.tipo_equipo,
       ROW_NUMBER() OVER (PARTITION BY t.codigo_registro ORDER BY t.n DESC) AS rn
     FROM dbo.[${TIPOS[tipo].tabla}] t
     WHERE t.codigo_registro IS NOT NULL AND ISNULL(t.estado_servicio_csv, N'') <> N'ANULADO'
   ) x${claveTecnicoSql('x.personal')}
   WHERE x.rn = 1 AND x.fecha_servicio BETWEEN @desde AND @hasta`;
 
-/** Servicios de los 8 tipos en el período, con la OTST vigente del informe. */
-const consultaTiempos = () => `
+/**
+ * Servicios de los 8 tipos en el período, con la OTST vigente del informe, el
+ * departamento de la planta y, si ServiceMET la envió, la ubicación del servicio.
+ */
+const consultaTiempos = (conGps = true) => `
   SELECT f.tipo, f.codigo_registro,
     COALESCE(NULLIF(LTRIM(RTRIM(JSON_VALUE(i.datos, '$.otst'))), N''), f.otst) AS otst,
-    f.fecha_servicio, f.hora_inicio, f.hora_fin, f.tecnico_clave, f.cliente, f.planta, f.cod_metrica, f.tipo_equipo
+    f.fecha_servicio, f.hora_inicio, f.hora_fin, f.tecnico_clave, f.cliente, f.planta, f.dep_planta, f.cod_metrica, f.tipo_equipo,
+    ${columnasUbicacion(conGps)}
   FROM (${CLAVES_TIPO.map(fuenteTiempos).join('\n  UNION ALL')}) f
-  LEFT JOIN dbo.ST_INFORMES i ON i.tipo = f.tipo AND i.codigo_registro = f.codigo_registro
+  LEFT JOIN dbo.ST_INFORMES i ON i.tipo = f.tipo AND i.codigo_registro = f.codigo_registro${uneUbicacion('f', conGps)}
   ORDER BY f.fecha_servicio, f.hora_inicio, f.codigo_registro;`;
 
 /**
@@ -59,19 +65,22 @@ const mapServicio = (row) => ({
   tecnico: texto(row.tecnico_clave),
   cliente: texto(row.cliente),
   planta: texto(row.planta),
+  departamentoPlanta: texto(row.dep_planta),
   codMetrica: texto(row.cod_metrica),
   equipo: texto(row.tipo_equipo),
+  ubicacion: ubicacionTexto(row),
 });
 
 /** Servicios del período con sus horas, y cómo se llaman los grupos (tipos de servicio). */
 const getTiempos = async (query, user) => {
   await exigirTiempos(user);
   const { desde, hasta } = leerPeriodo(query);
+  const gps = await getPool().request().query(CONSULTA_HAY_GPS);
   const [result, primero] = await Promise.all([
     getPool().request()
       .input('desde', sql.Date, new Date(`${desde}T00:00:00Z`))
       .input('hasta', sql.Date, new Date(`${hasta}T00:00:00Z`))
-      .query(consultaTiempos()),
+      .query(consultaTiempos(hayGps(gps.recordset))),
     getPool().request().query(consultaPrimerServicio()),
   ]);
   return {

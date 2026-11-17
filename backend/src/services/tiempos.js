@@ -49,4 +49,47 @@ const texto = (valor) => {
   return limpio || null;
 };
 
-module.exports = { MAX_DIAS, fechaTexto, horaTexto, httpError, leerPeriodo, texto };
+const numero = (valor) => {
+  if (valor === null || valor === undefined || valor === '') return null;
+  const n = Number(valor);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Ubicación aproximada del servicio que envía ServiceMET desde la 6.3.5
+ * (latitud, longitud y precisión en metros), o null si no la trae o no es
+ * válida (fuera de rango o 0, 0).
+ */
+const ubicacionTexto = (fila) => {
+  const lat = numero(fila.latitud);
+  const lng = numero(fila.longitud);
+  if (lat === null || lng === null || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) return null;
+  const precision = numero(fila.precision_gps);
+  return { lat, lng, precision: precision === null ? null : Math.round(precision) };
+};
+
+/**
+ * Coordenadas de cada registro en el resumen DATA_SERVICIOS_DATOS (la
+ * última subida que las trae). `conGps` es false si la base aún no tiene
+ * esas columnas: entonces van vacías.
+ */
+const uneUbicacion = (alias, conGps) => (conGps ? `
+  LEFT JOIN (
+    SELECT d.codigo_registro, d.latitud, d.longitud, d.precision_gps,
+      ROW_NUMBER() OVER (PARTITION BY d.codigo_registro ORDER BY d.n DESC) AS rn_gps
+    FROM dbo.DATA_SERVICIOS_DATOS d
+    WHERE d.latitud IS NOT NULL AND d.longitud IS NOT NULL
+  ) gps ON gps.codigo_registro = ${alias}.codigo_registro AND gps.rn_gps = 1` : '');
+
+const columnasUbicacion = conGps => (conGps
+  ? 'gps.latitud, gps.longitud, gps.precision_gps'
+  : 'CAST(NULL AS decimal(10, 7)) AS latitud, CAST(NULL AS decimal(10, 7)) AS longitud, CAST(NULL AS decimal(10, 2)) AS precision_gps');
+
+/** ¿La base ya recibe la ubicación de ServiceMET? */
+const CONSULTA_HAY_GPS = `SELECT COL_LENGTH('dbo.DATA_SERVICIOS_DATOS', 'latitud') AS latitud,
+  COL_LENGTH('dbo.DATA_SERVICIOS_DATOS', 'longitud') AS longitud`;
+const hayGps = recordset => recordset?.[0]?.latitud != null && recordset?.[0]?.longitud != null;
+
+module.exports = {
+  CONSULTA_HAY_GPS, MAX_DIAS, columnasUbicacion, fechaTexto, hayGps, horaTexto, httpError, leerPeriodo, texto, ubicacionTexto, uneUbicacion,
+};

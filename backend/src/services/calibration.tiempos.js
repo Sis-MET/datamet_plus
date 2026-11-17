@@ -18,7 +18,9 @@ const { getPool, sql } = require('../config/db');
 const permisos = require('./permisos');
 const { identificarTecnico } = require('./calibration.fuente');
 const { claveTecnico } = require('./soporte.lista');
-const { fechaTexto, horaTexto, leerPeriodo, texto } = require('./tiempos');
+const {
+  CONSULTA_HAY_GPS, columnasUbicacion, fechaTexto, hayGps, horaTexto, leerPeriodo, texto, ubicacionTexto, uneUbicacion,
+} = require('./tiempos');
 
 /** Rangos de capacidad máxima (en kg) para comparar servicios parecidos. */
 const RANGOS = [
@@ -76,8 +78,10 @@ const mapServicio = (fila, usuarios = []) => {
     tecnico: tecnicoDe(fila.personal, usuarios),
     cliente: texto(fila.cliente),
     planta: texto(fila.planta),
+    departamentoPlanta: texto(fila.dep_planta),
     codMetrica: texto(fila.cod_metrica),
     equipo: texto(fila.tipo_equipo),
+    ubicacion: ubicacionTexto(fila),
   };
 };
 
@@ -87,17 +91,17 @@ const PERMISO_TIEMPOS = 'tiempos.calibracion.ver';
 const exigirTiempos = (user) => permisos.exigirPermiso(user, PERMISO_TIEMPOS,
   'No tienes permiso para ver los tiempos de servicio de Calibración. Lo concede Sistemas en Gestión de permisos.');
 
-const consultaTiempos = (conRegistros) => `
+const consultaTiempos = (conRegistros, conGps = true) => `
   WITH vigentes AS (
     SELECT t.codigo_registro, t.seca, t.fecha_servicio, t.hora_inicio, t.hora, t.hora_fin, t.personal,
-      t.cliente, t.planta, t.cod_metrica, t.tipo_equipo, t.cap_max1, t.cap_max2, t.cap_max3, t.unidades,
+      t.cliente, t.planta, t.dep_planta, t.cod_metrica, t.tipo_equipo, t.cap_max1, t.cap_max2, t.cap_max3, t.unidades,
       ROW_NUMBER() OVER (PARTITION BY t.codigo_registro ORDER BY t.n DESC) AS rn
     FROM dbo.DATA_SERVICIOS_DATOS_CALIBRACION t
     WHERE t.codigo_registro IS NOT NULL AND ISNULL(t.estado_servicio_csv, N'') <> N'ANULADO'
   )
-  SELECT v.*, ${conRegistros ? 'r.datos' : 'NULL'} AS registro_datos
+  SELECT v.*, ${conRegistros ? 'r.datos' : 'NULL'} AS registro_datos, ${columnasUbicacion(conGps)}
   FROM vigentes v
-  ${conRegistros ? 'LEFT JOIN dbo.CAL_REGISTROS r ON r.codigo_registro = v.codigo_registro' : ''}
+  ${conRegistros ? 'LEFT JOIN dbo.CAL_REGISTROS r ON r.codigo_registro = v.codigo_registro' : ''}${uneUbicacion('v', conGps)}
   WHERE v.rn = 1 AND v.fecha_servicio BETWEEN @desde AND @hasta
   ORDER BY v.fecha_servicio, v.hora_inicio, v.codigo_registro;`;
 
@@ -106,16 +110,17 @@ const getTiempos = async (query, user) => {
   await exigirTiempos(user);
   const { desde, hasta } = leerPeriodo(query);
   const pool = getPool();
-  const [existe, usuarios] = await Promise.all([
+  const [existe, usuarios, gps] = await Promise.all([
     pool.request().query(`SELECT OBJECT_ID('dbo.CAL_REGISTROS', 'U') AS id`),
     // Para reconocer al técnico (también los dados de baja). Sin contraseñas.
     pool.request().query('SELECT id, usuario, nombre1, apellido1, apellido2, inicial, estado FROM DATA_USERS'),
+    pool.request().query(CONSULTA_HAY_GPS),
   ]);
   const [result, primero] = await Promise.all([
     pool.request()
       .input('desde', sql.Date, new Date(`${desde}T00:00:00Z`))
       .input('hasta', sql.Date, new Date(`${hasta}T00:00:00Z`))
-      .query(consultaTiempos(existe.recordset[0]?.id != null)),
+      .query(consultaTiempos(existe.recordset[0]?.id != null, hayGps(gps.recordset))),
     // Antes del primer servicio no hay datos: un período anterior a él no sirve para comparar.
     pool.request().query(`SELECT MIN(fecha_servicio) AS primero FROM dbo.DATA_SERVICIOS_DATOS_CALIBRACION
       WHERE codigo_registro IS NOT NULL AND ISNULL(estado_servicio_csv, N'') <> N'ANULADO'`),
@@ -129,4 +134,4 @@ const getTiempos = async (query, user) => {
   };
 };
 
-module.exports = { GRUPOS, PERMISO_TIEMPOS, capacidadKg, getTiempos, mapServicio, rangoDe };
+module.exports = { GRUPOS, PERMISO_TIEMPOS, capacidadKg, consultaTiempos, getTiempos, mapServicio, rangoDe };

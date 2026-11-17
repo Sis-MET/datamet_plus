@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { horaTexto, leerPeriodo } = require('../src/services/tiempos');
+const { hayGps, horaTexto, leerPeriodo, ubicacionTexto } = require('../src/services/tiempos');
 const soporte = require('../src/services/soporte.tiempos');
 const calibracion = require('../src/services/calibration.tiempos');
 const { CLAVES_TIPO, TIPOS } = require('../src/services/soporte.tipos');
@@ -35,8 +35,35 @@ test('Soporte: los 8 tipos vigentes del período con la OTST del informe', () =>
   });
   assert.deepEqual(servicio, {
     codigo: 'C-1', grupo: 'MPR', orden: '26-0103-11-S01', fecha: '2026-02-09', inicio: '10:25', fin: '11:02',
-    tecnico: 'Jorge De La Rocha', cliente: 'MONOPOL', planta: null, codMetrica: '0103-11-004', equipo: 'BALANZA',
+    tecnico: 'Jorge De La Rocha', cliente: 'MONOPOL', planta: null, departamentoPlanta: null, codMetrica: '0103-11-004', equipo: 'BALANZA',
+    ubicacion: null,
   });
+});
+
+test('la ubicación de ServiceMET llega con el servicio, si la base ya la recibe', () => {
+  assert.deepEqual(ubicacionTexto({ latitud: '-16.5012345', longitud: -68.1500001, precision_gps: 12.6 }), { lat: -16.5012345, lng: -68.1500001, precision: 13 });
+  assert.deepEqual(ubicacionTexto({ latitud: -17.78, longitud: -63.18, precision_gps: null }), { lat: -17.78, lng: -63.18, precision: null });
+  assert.equal(ubicacionTexto({ latitud: null, longitud: -63.18 }), null);
+  assert.equal(ubicacionTexto({ latitud: 0, longitud: 0 }), null);
+  assert.equal(ubicacionTexto({ latitud: -95, longitud: -63.18 }), null);
+  assert.equal(hayGps([{ latitud: 9, longitud: 9 }]), true);
+  assert.equal(hayGps([{ latitud: null, longitud: null }]), false);
+
+  // Con la columna: la última subida del registro que trae coordenadas.
+  for (const sql of [soporte.consultaTiempos(true), calibracion.consultaTiempos(true, true)]) {
+    assert.match(sql, /dbo\.DATA_SERVICIOS_DATOS d/);
+    assert.match(sql, /ROW_NUMBER\(\) OVER \(PARTITION BY d\.codigo_registro ORDER BY d\.n DESC\) AS rn_gps/);
+    assert.match(sql, /gps\.rn_gps = 1/);
+    assert.match(sql, /dep_planta/);
+  }
+  // Sin la columna: van vacías y no se consulta el resumen.
+  for (const sql of [soporte.consultaTiempos(false), calibracion.consultaTiempos(true, false)]) {
+    assert.doesNotMatch(sql, /DATA_SERVICIOS_DATOS d/);
+    assert.match(sql, /CAST\(NULL AS decimal\(10, 7\)\) AS latitud/);
+  }
+  const conPlanta = soporte.mapServicio({ tipo: 'RVD', codigo_registro: 'X', dep_planta: ' LA  PAZ ', latitud: -16.5, longitud: -68.15 });
+  assert.equal(conPlanta.departamentoPlanta, 'LA PAZ');
+  assert.deepEqual(conPlanta.ubicacion, { lat: -16.5, lng: -68.15, precision: null });
 });
 
 test('Calibración: capacidad en kg y su rango', () => {
