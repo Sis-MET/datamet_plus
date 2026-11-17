@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight, ArrowRightLeft, Trash2, CheckCircle2, CalendarClock, XCircle, Car, DatabaseZap, PanelLeftOpen, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCalendarPage } from './hooks/useCalendarPage.jsx';
 import { LeftFilterSidebar } from './components/LeftFilterSidebar';
 import { CellPopoverForm } from './components/CellPopoverForm';
+import { CalendarSearch } from './components/CalendarSearch';
 import { GanttPage } from './GanttPage';
 import { DepartureReadOnlyModal } from '../departures/components/DepartureReadOnlyModal';
 import { usePageScrollLock } from '../../shared/hooks/usePageScrollLock';
@@ -12,13 +13,50 @@ import { isVehicleResource } from './domain/vehicleAvailability';
 
 const menuItem = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium text-fg transition-colors hover:bg-fg/[0.06]';
 
+const SALIDAS = new Set(['Salida Personal', 'SalidaMET']);
+const FLASH_CLASS = 'gantt-search-flash';
+const ESPERA_TAREA_MS = 9000;
+
+/** Espera a que aparezca un elemento (las filas se dibujan al acercarse a la pantalla). */
+const esperarElemento = (selector, tiempo = 1800) => new Promise((resolve) => {
+  const limite = performance.now() + tiempo;
+  const buscar = () => {
+    const elemento = document.querySelector(selector);
+    if (elemento || performance.now() > limite) resolve(elemento || null);
+    else requestAnimationFrame(buscar);
+  };
+  buscar();
+});
+
+/** Resalta un elemento con un anillo que late, sin dejar la clase puesta. */
+const destacar = (elemento) => {
+  if (!elemento) return;
+  elemento.classList.remove(FLASH_CLASS);
+  // Reinicia la animación si ya estaba.
+  void elemento.offsetWidth;
+  elemento.classList.add(FLASH_CLASS);
+  window.setTimeout(() => elemento.classList.remove(FLASH_CLASS), 2400);
+};
+
+/** Centra en la ventana la fila de una persona o vehículo. */
+const centrarFila = (resourceId) => {
+  const selector = `[data-resource-row="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(resourceId) : resourceId}"]`;
+  const fila = document.querySelector(selector);
+  if (!fila) return null;
+  const rect = fila.getBoundingClientRect();
+  const destino = window.scrollY + rect.top - (window.innerHeight / 2) + Math.min(rect.height, 220) / 2;
+  window.scrollTo({ top: Math.max(0, destino), behavior: 'smooth' });
+  return selector;
+};
+
 export function CalendarPage() {
   const {
+    tasks,
     weekStart, weekEnd, weekDays, tecnicos, loading, error, useMock,
     tasksForCell, refetch, nextWeek, prevWeek, goToCurrentWeek, goToDate, isTodayGantt,
     currentUserArea,
     currentDate, selectedDay, calendarDays, selectedDayEvents,
-    eventsForDay, selectDay, nextMonth, prevMonth, isToday, isSameDay, isSameMonth,
+    eventsForDay, selectDay, showDay, nextMonth, prevMonth, isToday, isSameDay, isSameMonth,
     filteredTecnicos, selectedArea, setSelectedArea,
     isFormOpen, editingEvent, editingLinkedTasks, prefilledDate, prefilledResource,
     selectedDeparture,
@@ -32,8 +70,123 @@ export function CalendarPage() {
     setIsDragging, setDragPos,
   } = useCalendarPage();
   const [isAgendaOpen, setIsAgendaOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // Tarea elegida en el buscador que se espera ver cargada para ubicarla.
+  const focusRef = useRef(null);
+  const [focusSeq, setFocusSeq] = useState(0);
+  const canEdit = isAdmin || isJefeDeArea;
 
   usePageScrollLock(isAgendaOpen);
+
+  /** Abre la ficha de una tarea (o la salida, de solo lectura); mismo camino que un clic en la grilla. */
+  const openTask = useCallback((evt, date, res) => {
+    if (evt && SALIDAS.has(evt.creadoEn)) {
+      setSelectedDeparture({ task: evt, date, resourceId: res });
+      return;
+    }
+    if (!canModifyTask(date)) {
+      toast.error('No puedes modificar tareas de fechas pasadas.', { duration: 3000 });
+      return;
+    }
+    const vehicleLock = getTaskLockMessage(evt, res, date);
+    if (vehicleLock) {
+      toast.error(vehicleLock, { duration: 5000 });
+      return;
+    }
+    handleOpenForm(evt, date, res);
+  }, [canModifyTask, getTaskLockMessage, handleOpenForm, setSelectedDeparture]);
+
+  // Ctrl + K (⌘ K) abre o cierra el buscador; no con una ficha abierta.
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== 'k') return;
+      if (isFormOpen || selectedDeparture) return;
+      event.preventDefault();
+      setIsSearchOpen(open => !open);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isFormOpen, selectedDeparture]);
+
+  /** Muestra la fila del recurso si el filtro de área la oculta. */
+  const revealResource = useCallback((resourceId) => {
+    if (selectedArea === 'Todas') return;
+    const visible = filteredTecnicos.some(t => t.id === resourceId);
+    if (!visible) setSelectedArea('Todas');
+  }, [filteredTecnicos, selectedArea, setSelectedArea]);
+
+  const handleSearchTask = useCallback((task, { abrir }) => {
+    setIsSearchOpen(false);
+    revealResource(task.Tecnico);
+    showDay(task.fecha);
+    goToDate(task.fecha);
+    focusRef.current = { rowId: task.rowId, abrir };
+    setFocusSeq(n => n + 1);
+  }, [goToDate, revealResource, showDay]);
+
+  const handleSearchResource = useCallback(async (recurso) => {
+    setIsSearchOpen(false);
+    revealResource(recurso.id);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const selector = centrarFila(recurso.id);
+    if (!selector) return;
+    destacar(await esperarElemento(`${selector} .gantt-name-col`));
+  }, [revealResource]);
+
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Las funciones vigentes para abrir la ficha, sin reiniciar la espera.
+  const openTaskRef = useRef(openTask);
+  const canModifyRef = useRef(canModifyTask);
+  useEffect(() => {
+    openTaskRef.current = openTask;
+    canModifyRef.current = canModifyTask;
+  });
+
+  const revealTask = useCallback(async (task, abrir) => {
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const selector = centrarFila(task.Tecnico);
+    if (selector) destacar(await esperarElemento(`[data-task-id="${task.id}"]`));
+    if (!mountedRef.current || !abrir) return;
+    if (!canEdit) {
+      toast.info('Tarea ubicada en el cronograma.', { description: 'Tu acceso permite verla, no editarla.', duration: 3000 });
+      return;
+    }
+    if (!SALIDAS.has(task.creadoEn) && !canModifyRef.current(task.fecha)) {
+      toast.info('Tarea ubicada en el cronograma.', { description: 'Es de una fecha pasada: no se puede editar.', duration: 3500 });
+      return;
+    }
+    window.setTimeout(() => {
+      if (mountedRef.current) openTaskRef.current(task, task.fecha, task.Tecnico);
+    }, 320);
+  }, [canEdit]);
+
+  // Cuando la tarea buscada ya está en las semanas cargadas: se centra su
+  // fila, se resalta su ficha y, si se pidió, se abre.
+  useEffect(() => {
+    const pending = focusRef.current;
+    if (!pending || loading) return;
+    const task = tasks.find(t => String(t.rowId) === String(pending.rowId));
+    if (!task) return;
+    focusRef.current = null;
+    revealTask(task, pending.abrir);
+  }, [focusSeq, loading, revealTask, tasks]);
+
+  // Si la tarea no llega (anulada o borrada mientras tanto), se avisa.
+  useEffect(() => {
+    if (!focusSeq) return undefined;
+    const timer = window.setTimeout(() => {
+      if (!focusRef.current) return;
+      focusRef.current = null;
+      toast.error('No se encontró la tarea en el cronograma.', { description: 'Puede haberse anulado. Recarga e intenta de nuevo.' });
+    }, ESPERA_TAREA_MS);
+    return () => window.clearTimeout(timer);
+  }, [focusSeq]);
 
   const agendaProps = {
     tecnicos,
@@ -103,22 +256,8 @@ export function CalendarPage() {
             tasksForCell={tasksForCell}
             isToday={isTodayGantt}
             selectedDay={selectedDay}
-            onTaskClick={isAdmin || isJefeDeArea ? (evt, date, res) => {
-               if (evt && (evt.creadoEn === 'Salida Personal' || evt.creadoEn === 'SalidaMET')) {
-                 setSelectedDeparture({ task: evt, date, resourceId: res });
-                 return;
-               }
-               if (!canModifyTask(date)) {
-                  toast.error('No puedes modificar tareas de fechas pasadas.', { duration: 3000 });
-                  return;
-               }
-               const vehicleLock = getTaskLockMessage(evt, res, date);
-               if (vehicleLock) {
-                  toast.error(vehicleLock, { duration: 5000 });
-                  return;
-               }
-               handleOpenForm(evt, date, res);
-            } : undefined}
+            onTaskClick={canEdit ? openTask : undefined}
+            onOpenSearch={() => setIsSearchOpen(true)}
             onTaskDrop={isAdmin || isJefeDeArea ? (sourceTask, targetDate, targetResource, isMoveKey) => {
                if (sourceTask?.creadoEn === 'Salida Personal' || sourceTask?.creadoEn === 'SalidaMET' || sourceTask?.estadoAM === 'Salida Personal') {
                   toast.error('Las salidas del personal no se pueden mover ni copiar desde el calendario.', { duration: 3000 });
@@ -197,6 +336,15 @@ export function CalendarPage() {
           </section>
         </div>
       )}
+
+      <CalendarSearch
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        tasks={tasks}
+        tecnicos={tecnicos}
+        onSelectTask={handleSearchTask}
+        onSelectResource={handleSearchResource}
+      />
 
       {isFormOpen && (
         <CellPopoverForm

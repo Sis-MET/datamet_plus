@@ -6,6 +6,7 @@ const { protect, jefeAreaOrAdmin } = require('../middleware/auth.middleware');
 // Rutas de lectura (Cualquier usuario logueado)
 router.get('/cronograma', protect, calendarController.getSchedule);
 router.get('/cronograma/version', protect, calendarController.getScheduleVersion);
+router.get('/cronograma/buscar', protect, calendarController.searchSchedule);
 router.get('/tecnicos', protect, calendarController.getTecnicos);
 
 // Rutas de escritura (Administradores + Jefes de Área)

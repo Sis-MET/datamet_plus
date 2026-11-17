@@ -39,6 +39,20 @@ const getSchedule = async (req, res, next) => {
   }
 };
 
+/** Buscador del cronograma (Ctrl + K): tareas de cualquier fecha. */
+const searchSchedule = async (req, res, next) => {
+  try {
+    const tasks = await calendarService.searchSchedule(req.query.q);
+    res.status(200).json({ success: true, data: tasks });
+  } catch (error) {
+    if (error.statusCode === 400) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    next(error);
+  }
+};
+
 const getScheduleVersion = async (req, res, next) => {
   try {
     const range = readDateRange(req, res);
@@ -96,6 +110,7 @@ const upsertScheduleAssignments = async (req, res, next) => {
 module.exports = {
   getSchedule,
   getScheduleVersion,
+  searchSchedule,
   getTecnicos,
   upsertScheduleCell,
   upsertScheduleAssignments,

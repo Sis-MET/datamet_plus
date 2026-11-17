@@ -6,9 +6,9 @@ import { cn } from '../../../shared/utils/cn';
 
 const DAY_LABELS_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-export function GanttHeader({ weekDays, isToday, currentWeekStart, currentWeekEnd, selectedDay }) {
+export function GanttHeader({ weekDays, isToday, currentWeekStart, currentWeekEnd, selectedDay, headerRef }) {
   return (
-    <div className="gantt-header-row">
+    <div className="gantt-header-row" ref={headerRef}>
       {/* Columna sticky de nombre de técnico */}
       <div className="gantt-name-col gantt-header-cell gantt-name-header">
         Técnico

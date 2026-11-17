@@ -1,13 +1,7 @@
 const { getPool, sql } = require('../config/db');
 
-const getSchedule = async (start, end) => {
-  const pool = getPool();
-
-  const result = await pool.request()
-    .input('start', sql.Date, start)
-    .input('end', sql.Date, end)
-    .query(`
-      SELECT 
+/** Columnas de una tarea del cronograma, las mismas para la grilla y el buscador. */
+const COLUMNAS_TAREA = `
         id,
         id_usuario,
         usuario,
@@ -32,6 +26,17 @@ const getSchedule = async (start, end) => {
         actualizado_por,
         CONVERT(varchar, fecha_modificacion, 23) as fecha_modificacion,
         CONVERT(varchar, hora_modificacion, 8) as hora_modificacion
+`;
+
+const getSchedule = async (start, end) => {
+  const pool = getPool();
+
+  const result = await pool.request()
+    .input('start', sql.Date, start)
+    .input('end', sql.Date, end)
+    .query(`
+      SELECT
+${COLUMNAS_TAREA}
       FROM DATA_CRONOGRAMA
       WHERE fecha >= @start AND fecha <= @end
         AND ISNULL(estado, '') <> 'Anulado'
@@ -104,7 +109,56 @@ const getTecnicos = async () => {
   return tecnicos;
 };
 
+// ─── Buscador del cronograma (Ctrl + K) ────────────────────────────────────
+
+/** Cuántas tareas devuelve como máximo una búsqueda. */
+const MAX_RESULTADOS = 40;
+const MAX_PALABRAS = 5;
+
+/** Texto en el que se busca: tipo, referencia (cotización, SECA u OTST), descripción, cliente, planta y personas. */
+const TEXTO_BUSCABLE = `(ISNULL(tipo_tarea, N'') + N' ' + ISNULL(cotizacion, N'') + N' ' + ISNULL(descripcion, N'')
+        + N' ' + ISNULL(cliente, N'') + N' ' + ISNULL(planta, N'') + N' ' + ISNULL(usuario, N'') + N' ' + ISNULL(creado_por, N''))
+        COLLATE Latin1_General_CI_AI`;
+
+const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+
+/** Una palabra para LIKE, sin comodines propios (\\ es el escape). */
+const patronLike = palabra => `%${palabra.replace(/[\\%_[]/g, caracter => `\\${caracter}`)}%`;
+
+/**
+ * Palabras de una búsqueda: cada una debe aparecer en la tarea, en cualquier
+ * campo y sin importar mayúsculas ni tildes. Lanza 400 si es muy corta o larga.
+ */
+const palabrasDeBusqueda = (q) => {
+  const texto = String(q ?? '').replace(/\s+/g, ' ').trim();
+  if (texto.length < 2) throw httpError(400, 'Escribe al menos 2 caracteres para buscar.');
+  if (texto.length > 80) throw httpError(400, 'La búsqueda admite hasta 80 caracteres.');
+  return [...new Set(texto.split(' ').map(p => p.slice(0, 40)))].slice(0, MAX_PALABRAS);
+};
+
+/** Consulta de la búsqueda para `cantidad` palabras (@p0, @p1, …): las más cercanas a hoy primero. */
+const consultaBusqueda = (cantidad) => `
+      SELECT TOP (${MAX_RESULTADOS})
+${COLUMNAS_TAREA}
+      FROM DATA_CRONOGRAMA
+      WHERE ISNULL(estado, '') <> 'Anulado'
+        ${Array.from({ length: cantidad }, (_, i) => `AND ${TEXTO_BUSCABLE} LIKE @p${i} ESCAPE '\\'`).join('\n        ')}
+      ORDER BY ABS(DATEDIFF(day, fecha, CAST(GETDATE() AS date))), fecha DESC, id DESC`;
+
+/** Tareas de cualquier fecha que coinciden con el texto buscado. */
+const searchSchedule = async (q) => {
+  const palabras = palabrasDeBusqueda(q);
+  const request = getPool().request();
+  palabras.forEach((palabra, i) => request.input(`p${i}`, sql.NVarChar(100), patronLike(palabra)));
+  const result = await request.query(consultaBusqueda(palabras.length));
+  return result.recordset;
+};
+
 module.exports = {
+  consultaBusqueda,
+  palabrasDeBusqueda,
+  patronLike,
+  searchSchedule,
   getSchedule,
   getScheduleVersion,
   getTecnicos

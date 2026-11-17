@@ -80,6 +80,8 @@ export function useCalendar(tasks = []) {
     monthStats,
     eventsForDay,
     selectDay: setSelectedDay,
+    // Lleva el mini calendario al mes del día y lo selecciona (buscador).
+    showDay: (date) => { setCurrentDate(date); setSelectedDay(date); },
     nextMonth: () => setCurrentDate(d => addMonths(d, 1)),
     prevMonth: () => setCurrentDate(d => subMonths(d, 1)),
     goToToday: () => { setCurrentDate(new Date()); setSelectedDay(new Date()); },

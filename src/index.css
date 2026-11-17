@@ -617,11 +617,272 @@
   min-height: 32px;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.35rem;
-  padding: 0 0.125rem 0.5rem;
+  gap: 0.75rem;
+  padding: 0 0.125rem 0.625rem;
 }
 
-.gantt-scroll-tools button {
+.gantt-scroll-arrows {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* ── Filtro por área: fichas siempre visibles sobre la grilla ── */
+.gantt-area-filter {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.gantt-area-filter-label {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  color: rgb(var(--c-fg-muted));
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.gantt-area-chips {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.375rem;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+}
+
+.gantt-area-chips::-webkit-scrollbar { display: none; }
+
+.gantt-area-chip {
+  display: inline-flex;
+  flex: none;
+  max-width: 220px;
+  height: 34px;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgb(var(--c-line-strong));
+  border-radius: 9999px;
+  background: rgb(var(--c-surface));
+  padding: 0 0.5rem 0 0.75rem;
+  color: rgb(var(--c-fg));
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow-xs);
+  transition: background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out, box-shadow 140ms ease-out;
+}
+
+.gantt-area-chip:hover {
+  border-color: rgb(var(--c-accent) / 0.45);
+  background: rgb(var(--c-accent) / 0.05);
+}
+
+.gantt-area-chip:focus-visible {
+  outline: 2px solid rgb(var(--c-focus));
+  outline-offset: 2px;
+}
+
+.gantt-area-chip.is-active {
+  border-color: rgb(var(--c-accent));
+  background: rgb(var(--c-accent));
+  color: rgb(var(--c-accent-fg));
+  box-shadow: 0 6px 16px -8px rgb(var(--c-accent) / 0.7);
+}
+
+.gantt-area-chip-count {
+  display: inline-flex;
+  min-width: 22px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgb(var(--c-fg) / 0.07);
+  padding: 0 6px;
+  color: rgb(var(--c-fg-muted));
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.gantt-area-chip.is-active .gantt-area-chip-count {
+  background: rgb(var(--c-brand));
+  color: rgb(var(--c-brand-fg));
+}
+
+.gantt-area-chip-mine {
+  border-radius: 9999px;
+  background: rgb(var(--c-brand) / 0.28);
+  padding: 1px 6px;
+  color: rgb(var(--c-fg));
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.gantt-area-chip.is-active .gantt-area-chip-mine {
+  background: rgb(255 255 255 / 0.16);
+  color: rgb(var(--c-accent-fg));
+}
+
+/* ── Buscador del cronograma (Ctrl + K) ── */
+.calendar-search-trigger {
+  min-width: 260px;
+}
+
+@media (max-width: 767px) {
+  .calendar-search-trigger { min-width: 0; flex: 1 1 auto; }
+  .calendar-search-trigger-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ── Fechas reducidas fijas al bajar por el cronograma ──
+   El ancla mide 0 de alto y se pega bajo la barra superior; la barra se
+   superpone a la grilla sin moverla. */
+.gantt-compact-anchor {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 36;
+  height: 0;
+}
+
+.gantt-compact-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  height: 38px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--c-line));
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition: opacity 160ms var(--ease-in-soft), transform 160ms var(--ease-in-soft);
+}
+
+.gantt-compact-header.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--motion-enter) var(--ease-out-expo), transform var(--motion-enter) var(--ease-out-expo);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .gantt-compact-header { background-color: rgb(var(--c-surface)); }
+}
+
+.gantt-compact-name {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: none;
+  width: 172px;
+  align-items: center;
+  padding: 0 16px;
+  border-right: 1px solid rgb(var(--c-line));
+  background: rgb(var(--c-surface));
+  color: rgb(var(--c-fg-muted));
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.gantt-compact-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.gantt-compact-track {
+  display: flex;
+  height: 100%;
+  will-change: transform;
+}
+
+.gantt-compact-spacer {
+  flex: none;
+  width: 172px;
+}
+
+.gantt-compact-day {
+  display: flex;
+  flex: none;
+  width: 116px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-right: 1px solid rgb(var(--c-line));
+  color: rgb(var(--c-fg-muted));
+}
+
+.gantt-compact-label {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gantt-compact-number {
+  display: inline-flex;
+  min-width: 24px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0 5px;
+  color: rgb(var(--c-fg));
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.gantt-compact-day.is-today { background: rgb(var(--c-brand) / 0.12); }
+.gantt-compact-day.is-today .gantt-compact-number {
+  background: rgb(var(--c-brand));
+  color: rgb(var(--c-brand-fg));
+}
+.gantt-compact-day.is-nonworking .gantt-compact-label,
+.gantt-compact-day.is-nonworking:not(.is-today) .gantt-compact-number {
+  color: rgb(var(--c-danger));
+}
+.gantt-compact-day.is-selected {
+  background: rgb(var(--c-fg) / 0.05);
+  box-shadow: inset 0 -2px 0 rgb(var(--c-accent));
+}
+.gantt-compact-day.is-outside { opacity: 0.6; }
+
+/* Tarea o persona que se acaba de buscar: un anillo que late dos veces. */
+.gantt-search-flash {
+  position: relative;
+  z-index: 5;
+  animation: gantt-search-flash 1.1s var(--ease-out-expo) 2;
+}
+
+@keyframes gantt-search-flash {
+  0% { box-shadow: 0 0 0 0 rgb(var(--c-brand) / 0.95), 0 0 0 2px rgb(var(--c-accent)); }
+  70% { box-shadow: 0 0 0 10px rgb(var(--c-brand) / 0), 0 0 0 2px rgb(var(--c-accent)); }
+  100% { box-shadow: 0 0 0 0 rgb(var(--c-brand) / 0), 0 0 0 0 rgb(var(--c-accent) / 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gantt-search-flash { animation: none; outline: 2px solid rgb(var(--c-accent)); outline-offset: 1px; }
+}
+
+.gantt-scroll-arrows button {
   display: inline-flex;
   width: 30px;
   height: 30px;
@@ -635,11 +896,11 @@
   transition: background-color 120ms ease-out, opacity 120ms ease-out;
 }
 
-.gantt-scroll-tools button:hover:not(:disabled) {
+.gantt-scroll-arrows button:hover:not(:disabled) {
   background: rgb(var(--c-surface-2));
 }
 
-.gantt-scroll-tools button:disabled {
+.gantt-scroll-arrows button:disabled {
   cursor: default;
   opacity: 0.35;
   box-shadow: none;
@@ -730,6 +991,8 @@
   .gantt-name-col      { min-width: 136px; max-width: 136px; }
   .gantt-scroll-edge-left { left: 136px; }
   .gantt-day-header-cell, .gantt-cell { min-width: 96px; width: 96px; }
+  .gantt-compact-name, .gantt-compact-spacer { width: 136px; }
+  .gantt-compact-day { width: 96px; }
 }
 
 @media (max-width: 479px) {
@@ -737,6 +1000,11 @@
   .gantt-scroll-edge-left { left: 108px; }
   .gantt-day-header-cell, .gantt-cell { min-width: 84px; width: 84px; }
   .gantt-day-number    { font-size: 13px; }
+  .gantt-compact-name, .gantt-compact-spacer { width: 108px; }
+  .gantt-compact-name  { padding: 0 10px; }
+  .gantt-compact-day   { width: 84px; gap: 4px; }
+  .gantt-area-filter-label { display: none; }
+  .gantt-area-chip { height: 32px; font-size: 12.5px; }
 
   .calendar-toolbar {
     display: flex;
