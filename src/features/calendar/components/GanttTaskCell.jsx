@@ -7,6 +7,7 @@ import { cn } from '../../../shared/utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
 import { useTaskTooltip } from './taskTooltipStore';
 import { TASK_CARD_HEIGHT, TASK_CARD_PADDING_Y } from '../utils/ganttRowLayout';
+import { serviceReferenceLabel } from '../domain/taskFormDomain';
 
 const MAX_TASKS_PER_CELL = 4;
 
@@ -311,7 +312,7 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
                 <TooltipField label="Planta">{plantaText}</TooltipField>
               )}
               {quoteText && (
-                <TooltipField label="Cotización">
+                <TooltipField label={serviceReferenceLabel(quoteText)}>
                   <span className="font-mono text-xs">{quoteText}</span>
                 </TooltipField>
               )}

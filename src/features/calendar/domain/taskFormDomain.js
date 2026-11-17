@@ -28,6 +28,61 @@ export const NO_CLIENT_ACTIVITY_TYPES = new Set([
 
 export const QUOTE_ACTIVITY_TYPES = new Set(['Servicio']);
 
+/**
+ * Tipos de tarea que no son una salida a un servicio: no piden la cotización,
+ * SECA u OTST del servicio asociado.
+ */
+export const NO_REFERENCE_ACTIVITY_TYPES = new Set([
+  'Compensacion',
+  'Permiso - Personal',
+  'Permiso - Vacacion',
+]);
+
+export const requiresServiceReference = (activityType) => !NO_REFERENCE_ACTIVITY_TYPES.has(activityType);
+
+/** Largo máximo de la referencia del servicio (la columna admite 100). */
+export const REFERENCE_MAX_LENGTH = 60;
+
+export const REFERENCE_LABELS = {
+  COTIZACION: 'Cotización',
+  SECA: 'SECA',
+  OTST: 'OTST',
+};
+
+// Formatos de ServiceMET y del libro: OTST «26-0285-51-S01» (las antiguas
+// «0000-S16-1-25»), SECA «0051-C01-26» o «0103-31-C05-26», cotización «123.COT456».
+const REFERENCE_PATTERNS = [
+  ['OTST', /\b\d{2}-\d{4}-\d{1,3}-S\d{2}\b/i],
+  ['OTST', /\b\d{4}-S\d{2}-\d{1,3}-\d{2}\b/i],
+  ['SECA', /\b\d{4}(?:-\d{1,3})?-C\d{2}-\d{2}\b/i],
+  ['COTIZACION', /\b\d+\.COT\d+\b/i],
+];
+const REFERENCE_WORDS = [
+  ['OTST', /\bOTST\b/i],
+  ['SECA', /\bSECA\b/i],
+  ['COTIZACION', /\bCOT(?:IZACI[OÓ]N)?\b/i],
+];
+
+/**
+ * Qué referencia escribió el usuario: { tipo, codigo } con tipo COTIZACION,
+ * SECA u OTST, o tipo null si no se reconoce (se guarda igual, como texto libre).
+ */
+export function recognizeServiceReference(value) {
+  const text = String(value || '').trim();
+  if (!text) return { tipo: null, codigo: '' };
+  for (const [tipo, pattern] of REFERENCE_PATTERNS) {
+    const match = text.match(pattern);
+    if (match) return { tipo, codigo: match[0].toUpperCase() };
+  }
+  for (const [tipo, pattern] of REFERENCE_WORDS) {
+    if (pattern.test(text)) return { tipo, codigo: text.toUpperCase() };
+  }
+  return { tipo: null, codigo: text.toUpperCase() };
+}
+
+/** Etiqueta para mostrar una referencia guardada: «OTST», «SECA», «Cotización» o «Referencia». */
+export const serviceReferenceLabel = (value) => REFERENCE_LABELS[recognizeServiceReference(value).tipo] || 'Referencia';
+
 export const normalizeArea = (area = '') => String(area)
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -126,6 +181,7 @@ export const buildTaskPayload = ({
   activityType,
   requiresQuote,
   cotizacionCode,
+  serviceReference = '',
   descripcion,
   color,
   estado,
@@ -140,7 +196,13 @@ export const buildTaskPayload = ({
   rowId: event?.rowId || null,
   tipo_tarea: activityType,
   tipoTarea: activityType,
-  cotizacion: requiresQuote ? cotizacionCode.trim().toUpperCase() : '',
+  // Sin el buscador de cotizaciones, la columna guarda la referencia del
+  // servicio (cotización, SECA u OTST) que el usuario escribió.
+  cotizacion: requiresQuote
+    ? cotizacionCode.trim().toUpperCase()
+    : requiresServiceReference(activityType)
+      ? String(serviceReference || '').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, REFERENCE_MAX_LENGTH)
+      : '',
   morning: activityType,
   descripcion: descripcion.trim(),
   afternoon: '',

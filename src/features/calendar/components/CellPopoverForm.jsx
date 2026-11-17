@@ -11,6 +11,7 @@ import { ActivitySelect } from './taskForm/ActivitySelect';
 import { ClienteAutocomplete } from './taskForm/ClienteAutocomplete';
 import { FieldLabel } from './taskForm/FieldLabel';
 import { PlantaSelect } from './taskForm/PlantaSelect';
+import { ServiceReferenceField } from './taskForm/ServiceReferenceField';
 import { TaskAssignments } from './taskForm/TaskAssignments';
 import { TaskColorPicker } from './taskForm/TaskColorPicker';
 import { TaskDescriptionField } from './taskForm/TaskDescriptionField';
@@ -29,6 +30,7 @@ import {
   isPlantCode,
   normalizeArea,
   parseActivityValue,
+  requiresServiceReference,
   validateTaskDraft,
 } from '../domain/taskFormDomain';
 import {
@@ -65,6 +67,8 @@ export function CellPopoverForm({
   usePageScrollLock(isOpen);
   const [activityType, setActivityType] = useState('');
   const [cotizacionCode, setCotizacionCode] = useState('');
+  // Cotización, SECA u OTST del servicio al que va la salida (columna cotizacion).
+  const [serviceReference, setServiceReference] = useState('');
   const [cliente, setCliente] = useState('');
   const [codCliente, setCodCliente] = useState('');
   const [plantas, setPlantas] = useState([]);
@@ -234,7 +238,10 @@ export function CellPopoverForm({
       const storedPlantCode = String(event.planta || '').trim() || (isPlantCode(storedCode) ? storedCode : '');
       const storedClientCode = storedPlantCode ? getClientCodeFromPlantCode(storedPlantCode) : storedCode;
       setActivityType(parsedActivity.activityType);
-      setCotizacionCode(parsedActivity.quoteCode);
+      // Con el buscador de cotizaciones apagado, la columna guarda la referencia
+      // del servicio: no debe ocultar el cliente como lo haría una cotización.
+      setCotizacionCode(QUOTES_ENABLED ? parsedActivity.quoteCode : '');
+      setServiceReference(QUOTES_ENABLED ? '' : String(event.cotizacion || '').trim());
       setCliente(event.cliente || '');
       setCodCliente(storedClientCode);
       setSelectedPlantaCode(storedPlantCode);
@@ -247,6 +254,7 @@ export function CellPopoverForm({
       const freeStart = getFirstFreeSlot(blocks, userJInicio);
       setActivityType('');
       setCotizacionCode('');
+      setServiceReference('');
       setCliente('');
       setCodCliente('');
       setPlantas([]);
@@ -419,6 +427,7 @@ export function CellPopoverForm({
         activityType,
         requiresQuote,
         cotizacionCode,
+        serviceReference,
         descripcion: description,
         color: colorAM,
         estado: estadoAM,
@@ -521,6 +530,7 @@ export function CellPopoverForm({
                     onClick={() => {
                       setActivityType('');
                       setCotizacionCode('');
+                      setServiceReference('');
                       setCliente('');
                       setCodCliente('');
                       setPlantas([]);
@@ -554,6 +564,10 @@ export function CellPopoverForm({
                     />
                   </div>
                 </div>
+
+                {requiresServiceReference(activityType) && (
+                  <ServiceReferenceField value={serviceReference} onChange={setServiceReference} />
+                )}
 
                 {QUOTES_ENABLED && (
                 <div className={`task-disclosure ${requiresQuote ? 'is-open' : ''}`} aria-hidden={!requiresQuote}>
