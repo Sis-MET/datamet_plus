@@ -666,9 +666,61 @@ anterior, anotada en él. Lo ya registrado se salta. Con el libro del
 2026-11-18 el plan cuadra con el Excel: 594 facturas por Bs 5.801.268,65 y
 pagos por Bs 4.671.866,55.
 
-Orden de despliegue: `pnpm migrate` (034), backend, importación con
-`--aplicar` y frontend (`pnpm build`). El registro en Control de cambios va
-con la migración de la versión que lo publique.
+### Bitrix24 (fase 2)
+
+La pestaña **Bitrix24** guarda una copia de **solo lectura** de las
+negociaciones y empresas del CRM (migración `035`, tablas `COM_BITRIX_*`).
+DataMET+ no escribe nada en Bitrix24. Con esa copia:
+
+- **Enlaza cada negociación con su factura**, por la cotización (sin
+  revisión ni ceros a la izquierda: `0114-C04-25 1` = `114-C04-25`) o por la
+  referencia «Negociación de Bitrix24» de la factura, que manda.
+- **Muestra su situación:** *por facturar* (etapa para facturar sin
+  factura), *facturada sin registrar* (en cobro en Bitrix24 sin factura en
+  DataMET+), *etapa por actualizar* (con factura pero todavía para facturar o
+  perdida), *con factura* y *sin facturar*.
+- **Propone la factura:** desde la ficha de una negociación, «Registrar su
+  factura» abre la factura nueva con el cliente de DataMET (por el código de
+  la empresa o de la cotización), el monto, las líneas por categoría (las de
+  Soporte técnico, por tipo de servicio y sub área), las cotizaciones, el
+  responsable y los técnicos ya puestos, y anota la negociación.
+- **Responsables:** a cada usuario de Bitrix24 le corresponde su persona de
+  `DATA_USERS`. La sincronización la sugiere cuando sus facturas lo dicen con
+  claridad (al menos 2 y el 60 %) o por el nombre; Comercial la confirma y
+  queda en `COM_HISTORIAL`.
+
+**Conexión.** Se usa un webhook entrante propio de Comercial (no el de
+ServiceMET). En Bitrix24 se crea en *Recursos para desarrolladores › Otro ›
+Webhook entrante*, con un usuario de Comercial y los permisos `crm` y `user`
+(sin `user` funciona, pero los responsables quedan sin nombre). Su URL va en
+`backend/.env`:
+
+```
+BITRIX_WEBHOOK_URL=https://<portal>.bitrix24.es/rest/<usuario>/<clave>/
+BITRIX_SYNC_MINUTOS=15          # opcional, de 5 a 240
+BITRIX_SYNC_DESDE=2025-01-01    # opcional: negociaciones creadas desde esta fecha
+BITRIX_SYNC_ENABLED=false       # opcional: sin sincronización automática
+```
+
+Con el webhook, el backend sincroniza un minuto después de arrancar y luego
+cada `BITRIX_SYNC_MINUTOS`: la primera vez copia todo desde
+`BITRIX_SYNC_DESDE`; después, solo lo modificado desde la anterior (con 10
+minutos de margen). Comercial puede sincronizar a mano o pedir una copia
+completa. Cada sincronización queda en `COM_BITRIX_SINCRONIZACIONES`. Sin
+webhook, la pestaña muestra cómo conectarlo; sin la migración, el backend
+espera sin errores.
+
+Rutas: de consulta `GET /bitrix/estado`, `/bitrix/negociaciones` (filtros
+`q`, `situacion`, `embudo`, `page`, `pageSize`), `/bitrix/negociaciones/:id`
+(con la factura propuesta) y `/bitrix/usuarios`; solo del área
+`POST /bitrix/sincronizar` (`{ completa }`) y `PUT /bitrix/usuarios/:id`
+(`{ usuarioId }`). `GET /facturas/:id` trae también las negociaciones
+enlazadas.
+
+Orden de despliegue: `pnpm migrate` (034 y 035), backend, importación con
+`--aplicar`, el webhook en `backend/.env` y frontend (`pnpm build`). El
+registro en Control de cambios va con la migración de la versión que lo
+publique.
 
 ## Control de cambios y registro de fallas
 
