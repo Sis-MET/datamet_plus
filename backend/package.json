@@ -16,6 +16,7 @@
     "patrones:importar": "node scripts/patrones-importar-excel.js",
     "servicios:revisar": "node scripts/calibracion-servicios-revisar.js",
     "puntos:importar": "node scripts/puntos-acordados-importar.js",
+    "comercial:importar": "node scripts/comercial-importar-excel.js",
     "test": "node --test tests/**/*.test.js"
   },
   "keywords": [

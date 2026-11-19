@@ -173,3 +173,72 @@ test('acceso: Comercial registra; Administración y Gerencia consultan', () => {
   assert.equal(nivelDeArea('comercial', { area: 'Soporte Técnico' }), null);
   assert.equal(nivelDeArea('comercial', { area: 'Calibración', acceso_cron: '3' }), 'area');
 });
+
+// ─── Importación del Excel ────────────────────────────────────────────────
+const imp = require('../src/services/comercial.importacion');
+
+const CATS_IMPORT = [
+  { id: 3, codigo: 'ST-STIL-MPR', nombre: 'Mnt preventivo', area: 'ST', regla: 'NETO', vigente: true, excelEncabezado: 'MNT. PREVENTIVO (STIL)' },
+  { id: 14, codigo: 'ST-LOG', nombre: 'Logística (ST)', area: 'ST', regla: 'LOGISTICA', vigente: true, excelEncabezado: 'LOGISTICA (ST)' },
+];
+
+/** Hoja de ejemplo: fila 3 de encabezados (con saltos de línea, como el Excel) y filas desde la 4. */
+const hojaEjemplo = () => new Map([
+  [3, {
+    A: '#', B: 'TIPO DE FACTURA ', C: 'Nº FACTURA', D: 'FECHA EMISION', E: 'MONTO BS.-', F: 'RAZON SOCIAL',
+    H: 'MNT. \nPREVENTIVO\n(STIL)', U: 'LOGISTICA\n(ST)', BJ: 'TIPO DE PAGO', BK: 'PAGO 1 BS', BL: 'FECHA PAGO  1', BM: 'PAGO2 BS', BN: 'FECHA PAGO 2',
+    FJ: 'COTIZACIÓN DE SERVICIO ', FN: 'RESPONSABLE BITRIX', FZ: 'REG ATENDIO MNT', LO: 'NRO BLZ MNT \nPREV\n(STIL)',
+  }],
+  [4, { A: '1', B: 'SERVICIO', C: '1', D: '46028', E: '1000', F: 'CLIENTE UNO S.A.', H: '900', U: '100', BJ: 'DEPOSITO', BK: '1100', BL: '46029', BM: '-100', BN: '46030', FJ: '0001-S01-1-26', FN: 'ANA PEREZ - LUIS ROJAS', FZ: 'SCZ', LO: '3' }],
+  [5, { A: '2', C: '2', D: '46028', E: '0', F: 'ANULADO' }],
+  [6, { A: '3 LPZ', C: '3', D: '46030', E: '300', F: 'CLIENTE DOS SRL', H: '300' }],
+  [7, { A: '3 SCZ', C: '3', D: '46030', E: '200', F: 'CLIENTE DOS SRL', U: '200' }],
+  [8, { A: '5', C: '4', D: '46031', E: '50', F: 'OTRO', H: '50' }],
+  [9, { A: '4', C: '4', D: '46031', E: '70', F: 'OTRO MAS', H: '70' }],
+]);
+
+test('importación: normaliza encabezados con saltos de línea y lee códigos y nombres', () => {
+  assert.equal(imp.normalizar('MNT. \nPREVENTIVO\n(STIL)'), 'MNT. PREVENTIVO (STIL)');
+  assert.equal(imp.normalizar('Nº FACTURA'), 'NO FACTURA');
+  assert.deepEqual(imp.cotizacionesDe('0114-C04-25 1 Y 0114-C05-25 1'), ['0114-C04-25 1', '0114-C05-25 1']);
+  assert.deepEqual(imp.cotizacionesDe('005-0199-1-26'), ['005-0199-1-26']);
+  assert.deepEqual(imp.nombresDe('JARED MARAÑON - ANTONIO GALVEZ'), ['JARED MARAÑON', 'ANTONIO GALVEZ']);
+  assert.deepEqual(imp.nombresDe('SIN TECNCO ASIGNADO'), []);
+  assert.equal(imp.titulo('JORGE ORTUÑO'), 'Jorge Ortuño');
+});
+
+test('importación: plan con devolución, anulada, filas unidas y número corregido', () => {
+  const plan = imp.planImportacion(hojaEjemplo(), {
+    categorias: CATS_IMPORT,
+    clientes: [{ codigo: '0001', razonSocial: 'CLIENTE UNO S.A.', nombre: 'Cliente Uno', nit: '1234567' }],
+    personal: [{ id: 7, nombre: 'Ana Pérez', claves: ['ANA PEREZ'] }],
+  });
+  assert.deepEqual(plan.errores, []);
+  assert.deepEqual(plan.facturas.map(f => f.factura.numero), [1, 2, 3, 4, 5]);
+  const [uno, dos, tres, cuatro, cinco] = plan.facturas;
+  assert.equal(uno.factura.clienteCodigo, '0001');
+  assert.equal(uno.factura.nit, '1234567');
+  assert.equal(uno.factura.tipo, 'SERVICIO');
+  assert.deepEqual(uno.factura.lineas.map(l => [l.categoriaId, l.monto, l.regional, l.cantidad]), [[3, 900, 'SCZ', 3], [14, 100, 'SCZ', null]]);
+  assert.equal(uno.pagos.length, 1);
+  assert.equal(uno.pagos[0].monto, 1000);
+  assert.match(uno.pagos[0].observacion, /devolución de Bs 100,00/);
+  assert.deepEqual(uno.factura.personas.map(p => [p.nombre, p.usuarioId, p.porcentaje]), [['Ana Pérez', 7, 50], ['Luis Rojas', null, 50]]);
+  assert.deepEqual(uno.factura.referencias, [{ tipo: 'COTIZACION', valor: '0001-S01-1-26' }]);
+  assert.equal(dos.anulada, true);
+  assert.equal(tres.factura.monto, 500);
+  assert.deepEqual(tres.filas, [6, 7]);
+  assert.equal(cuatro.factura.razonSocial, 'OTRO MAS');
+  assert.equal(cinco.factura.razonSocial, 'OTRO');
+  assert.match(cinco.factura.observacion, /decía N\.º 4/);
+  assert.equal(plan.resumen.monto, 1620);
+  assert.equal(plan.resumen.cobrado, 1000);
+});
+
+test('importación: lo ya registrado se salta y una estructura distinta se rechaza', () => {
+  const plan = imp.planImportacion(hojaEjemplo(), { categorias: CATS_IMPORT, existentes: [{ gestion: 2026, numero: 1 }] });
+  assert.equal(plan.resumen.yaRegistradas, 1);
+  assert.throws(() => imp.planImportacion(hojaEjemplo(), {
+    categorias: [...CATS_IMPORT, { id: 9, codigo: 'X', excelEncabezado: 'COLUMNA QUE NO ESTA' }],
+  }), /COLUMNA QUE NO ESTA/);
+});
