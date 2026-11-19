@@ -27,21 +27,29 @@ const CAMPOS = Object.freeze({
   condiciones: { id: 'UF_CRM_1751388612442', nombres: ['CONDICIONES FACTURACION'] },
   mesFacturar: { id: 'UF_CRM_1727886589660', nombres: ['MES A FACTURAR'] },
   facturado: { id: 'UF_CRM_1751485900193', nombres: ['ESTA FACTURADO?', 'ESTA FACTURADO'] },
+  // Lo crea Comercial en Bitrix24 (texto); se encuentra por su nombre.
+  numeroFactura: {
+    id: null,
+    nombres: ['N O DE FACTURA', 'N DE FACTURA', 'NO DE FACTURA', 'NRO DE FACTURA', 'NUMERO DE FACTURA', 'N O FACTURA', 'N FACTURA',
+      'NRO FACTURA', 'NUMERO FACTURA', 'FACTURA N', 'FACTURA NRO', 'FACTURA N O'],
+  },
 });
 
 const CAMPO_CODIGO_EMPRESA = Object.freeze({ id: 'UF_CRM_1551906532214', nombres: ['CODIGO CLIENTE'] });
 
-const etiquetaDe = (campo) => normalizar(campo?.listLabel || campo?.formLabel || campo?.title || '').replace(/^¿/, '');
+/** Nombre comparable: sin tildes, signos ni puntos («N.º de factura» → «N O DE FACTURA»). */
+const nombreClave = (texto) => normalizar(texto).replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const etiquetaDe = (campo) => nombreClave(campo?.listLabel || campo?.formLabel || campo?.title || '');
 
 /** Código de cada campo en este portal: el conocido o, si no está, el que se llama igual. */
 const resolverCampos = (campos, definiciones = CAMPOS) => {
   const mapa = {};
   const opciones = {};
   for (const [nombre, def] of Object.entries(definiciones)) {
-    let codigo = campos?.[def.id] ? def.id : null;
+    let codigo = def.id && campos?.[def.id] ? def.id : null;
     if (!codigo) {
       const hallado = Object.entries(campos || {}).find(([clave, campo]) => clave.startsWith('UF_')
-        && def.nombres.some(n => etiquetaDe(campo).replace(/[¿?]/g, '').trim() === n.replace(/[¿?]/g, '').trim()));
+        && def.nombres.some(n => etiquetaDe(campo) === nombreClave(n)));
       codigo = hallado ? hallado[0] : null;
     }
     mapa[nombre] = codigo;
@@ -165,6 +173,7 @@ const mapNegociacion = (deal, { embudos, etapas, campos }) => {
       orden_compra: texto(valor('ordenCompra'), 200),
       condiciones: texto(valor('condiciones'), 400),
       mes_facturar: texto(valor('mesFacturar'), 60),
+      numero_factura: texto(valor('numeroFactura'), 200),
       facturado: facturado === undefined || facturado === null || facturado === '' ? null : ['1', 'Y', 'true', true, 1].includes(facturado),
       creada: fechaUtc(deal.DATE_CREATE),
       modificada: fechaUtc(deal.DATE_MODIFY),
@@ -329,8 +338,118 @@ const propuestaFactura = (neg, { cliente, categoriasPorCodigo, responsable, busc
   };
 };
 
+// ─── Escribir de vuelta en Bitrix24 (fase 3) ──────────────────────────────
+
+const AVISOS_ESCRITURA = {
+  perdida: 'Está perdida en Bitrix24 aunque tiene factura: revísala allí; DataMET+ no la cambia.',
+  sin_campo_numero: 'Para escribir el N.º de factura, crea en Bitrix24 un campo de texto «N.º de factura» en las negociaciones y sincroniza.',
+  embudo_sin_facturacion: 'Su embudo no tiene etapas de facturación ni de cobro: la etapa no se toca.',
+  sin_etapa_cobro: 'Su embudo no tiene etapa de cobro: la etapa no cambia hasta que se cobre y pase a Cerrado Ganado.',
+  etapa_desconocida: 'Su etapa no está en la copia de las etapas: sincroniza antes de actualizar.',
+  en_proceso: 'Sigue en una etapa de proceso en Bitrix24 (puede ser un anticipo): DataMET+ no mueve su etapa desde ahí; muévela a mano cuando corresponda.',
+};
+
+const aviso = (codigo) => ({ codigo, texto: AVISOS_ESCRITURA[codigo] });
+
+/** «594, 601»; con gestiones distintas, «12/2025, 3/2026». */
+const numerosFactura = (facturas) => {
+  const orden = [...facturas].sort((a, b) => a.gestion - b.gestion || a.numero - b.numero);
+  const unaGestion = new Set(orden.map(f => f.gestion)).size === 1;
+  return orden.map(f => (unaGestion ? String(f.numero) : `${f.numero}/${f.gestion}`)).join(', ').slice(0, 200);
+};
+
+const comparable = (v) => String(v ?? '').replace(/\s+/g, '').toUpperCase();
+
+/**
+ * Qué le falta a Bitrix24 de una negociación con factura en DataMET+. Solo
+ * avanza la etapa (nunca la retrocede ni toca una ganada o perdida), solo en
+ * los embudos con etapas de facturación (los de ejecución y Ventas Exwork se
+ * quedan en su etapa) y solo desde una etapa de facturación, de cobro o
+ * «Concluido» (Servicio Concluido): una en proceso puede ser un anticipo y
+ * queda con aviso para moverla a mano (decisión de Comercial, 2026-11-19).
+ *
+ * neg       { etapaId, fase, facturado, numeroFactura } como está en Bitrix24.
+ * facturas  vigentes enlazadas: [{ numero, gestion, estado: pendiente | parcial | pagada }].
+ * etapas    las de su embudo: [{ id, nombre, fase, orden, semantica }].
+ * campos    { facturado, numeroFactura }: si el portal tiene cada campo.
+ *
+ * Devuelve { cambios: [{ campo, antes, despues }], avisos: [{ codigo, texto }] };
+ * campo es facturado, numeroFactura, etapa (a la de cobro) o cierre (a Cerrado Ganado).
+ */
+const planBitrix = ({ neg, facturas, etapas, campos = {} }) => {
+  const cambios = [];
+  const avisos = [];
+  if (!facturas.length) return { cambios, avisos };
+  if (neg.fase === 'PERDIDA') return { cambios, avisos: [aviso('perdida')] };
+
+  if (campos.facturado && !neg.facturado) cambios.push({ campo: 'facturado', antes: false, despues: true });
+  const numeros = numerosFactura(facturas);
+  if (!campos.numeroFactura) avisos.push(aviso('sin_campo_numero'));
+  else if (comparable(neg.numeroFactura) !== comparable(numeros)) {
+    cambios.push({ campo: 'numeroFactura', antes: neg.numeroFactura || null, despues: numeros });
+  }
+
+  const ordenadas = [...etapas].sort((a, b) => a.orden - b.orden);
+  const actual = ordenadas.find(e => e.id === neg.etapaId);
+  if (!ordenadas.some(e => e.fase === 'FACTURAR' || e.fase === 'COBRO')) {
+    avisos.push(aviso('embudo_sin_facturacion'));
+  } else if (!actual) {
+    avisos.push(aviso('etapa_desconocida'));
+  } else if (actual.fase !== 'GANADA' && !(actual.fase === 'FACTURAR' || actual.fase === 'COBRO' || /CONCLUID/.test(normalizar(actual.nombre)))) {
+    avisos.push(aviso('en_proceso'));
+  } else if (actual.fase !== 'GANADA') {
+    const pagadas = facturas.every(f => f.estado === 'pagada');
+    let destino = null;
+    if (pagadas) destino = ordenadas.find(e => e.semantica === 'success') || null;
+    else {
+      const cobros = ordenadas.filter(e => e.fase === 'COBRO');
+      const algoPagado = facturas.some(f => f.estado === 'parcial' || f.estado === 'pagada');
+      destino = (algoPagado && cobros.find(e => /SALDO PENDIENTE/.test(normalizar(e.nombre)))) || cobros[0] || null;
+      if (!destino) avisos.push(aviso('sin_etapa_cobro'));
+    }
+    if (destino && destino.orden > actual.orden) {
+      cambios.push({
+        campo: pagadas ? 'cierre' : 'etapa',
+        antes: { id: actual.id, nombre: actual.nombre },
+        despues: { id: destino.id, nombre: destino.nombre },
+      });
+    }
+  }
+  return { cambios, avisos };
+};
+
+/** Campos de crm.deal.update para los cambios del plan. «¿Está facturado?» es una casilla. */
+const camposEscritura = (cambios, mapa) => {
+  const fields = {};
+  for (const c of cambios) {
+    if (c.campo === 'etapa' || c.campo === 'cierre') fields.STAGE_ID = c.despues.id;
+    if (c.campo === 'facturado' && mapa.facturado) fields[mapa.facturado] = 1;
+    if (c.campo === 'numeroFactura' && mapa.numeroFactura) fields[mapa.numeroFactura] = c.despues;
+  }
+  return fields;
+};
+
+/** Firma de un plan, para comprobar que se escribe lo mismo que la persona vio. */
+const firmaCambios = (cambios = []) => cambios
+  .map(c => `${c.campo}:${c.despues && typeof c.despues === 'object' ? c.despues.id : c.despues}`)
+  .sort().join('|');
+
+/** Parámetros como los lee Bitrix24 en un comando de batch: id=1&fields[STAGE_ID]=C21%3AWON. */
+const consultaBitrix = (valor, prefijo = '') => Object.entries(valor)
+  .map(([k, v]) => {
+    const clave = prefijo ? `${prefijo}[${k}]` : k;
+    return v !== null && typeof v === 'object' ? consultaBitrix(v, clave) : `${encodeURIComponent(clave)}=${encodeURIComponent(v ?? '')}`;
+  })
+  .filter(Boolean).join('&');
+
 module.exports = {
+  AVISOS_ESCRITURA,
   CAMPOS,
+  camposEscritura,
+  consultaBitrix,
+  firmaCambios,
+  numerosFactura,
+  planBitrix,
   CAMPO_CODIGO_EMPRESA,
   SERVICIOS_ST,
   claveCotizacion,

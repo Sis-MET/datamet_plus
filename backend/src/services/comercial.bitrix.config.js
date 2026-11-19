@@ -11,7 +11,14 @@
  *   BITRIX_SYNC_MINUTOS     cada cuántos minutos se sincroniza (5 a 240; 15).
  *   BITRIX_SYNC_DESDE       desde qué fecha de creación se copian las
  *                           negociaciones en la primera sincronización (2025-01-01).
+ *   BITRIX_ESCRITURA        si DataMET+ puede escribir en las negociaciones
+ *                           (fase 3): «real» escribe en Bitrix24; «prueba»
+ *                           simula la escritura sobre la copia, sin llamar a
+ *                           Bitrix24; sin valor (o cualquier otro), desactivada.
+ *                           Escribir en el CRM se habilita solo a propósito.
  */
+
+const MODOS_ESCRITURA = ['real', 'prueba'];
 
 const texto = (env, nombre) => String(env[nombre] ?? '').trim();
 
@@ -47,6 +54,7 @@ const leerConfigBitrix = (env = process.env) => {
     sincronizar: texto(env, 'BITRIX_SYNC_ENABLED').toLowerCase() !== 'false',
     minutos: Number.isFinite(minutos) ? Math.min(240, Math.max(5, Math.round(minutos))) : 15,
     desde: /^\d{4}-\d{2}-\d{2}$/.test(desde) ? desde : '2025-01-01',
+    escritura: MODOS_ESCRITURA.includes(texto(env, 'BITRIX_ESCRITURA').toLowerCase()) ? texto(env, 'BITRIX_ESCRITURA').toLowerCase() : 'desactivada',
   });
 };
 

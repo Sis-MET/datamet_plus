@@ -169,6 +169,16 @@ const schemas = {
   sincronizacion: z.object({ completa: z.boolean().optional().default(false) }),
 
   equivalencia: z.object({ usuarioId: opcional(entero('Persona', { min: 1 })).optional().default(null) }),
+
+  // Lo que la persona vio antes de confirmar la escritura en Bitrix24.
+  actualizacionBitrix: z.object({
+    cambios: z.array(z.object({
+      campo: z.enum(['facturado', 'numeroFactura', 'etapa', 'cierre'], { error: 'Cambio inválido.' }),
+      despues: z.union([z.boolean(), z.string().max(200), z.object({ id: z.string().max(50) }).passthrough(), z.null()]),
+    }).passthrough(), { error: 'Faltan los cambios que confirmaste.' }).max(10),
+  }),
+
+  actualizacionMasiva: z.object({ esperadas: opcional(entero('Negociaciones', { min: 0 })).optional().default(null) }),
 };
 
 const parse = (name, data) => {

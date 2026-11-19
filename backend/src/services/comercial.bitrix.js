@@ -4,9 +4,14 @@
  * con las facturas por cotización, la equivalencia de responsables con
  * DATA_USERS y la factura que se propone desde una negociación.
  *
- * No escribe nada en Bitrix24. La primera sincronización copia las
- * negociaciones creadas desde BITRIX_SYNC_DESDE; las siguientes, solo lo
- * modificado desde la anterior (con 10 minutos de margen).
+ * La primera sincronización copia las negociaciones creadas desde
+ * BITRIX_SYNC_DESDE; las siguientes, solo lo modificado desde la anterior
+ * (con 10 minutos de margen).
+ *
+ * Fase 3 (migración 036): con una factura registrada, propone actualizar la
+ * negociación en Bitrix24 («¿Está facturado?», etapa de cobro, Cerrado Ganado
+ * al cobrarse, N.º de factura) y lo escribe solo cuando Comercial lo confirma,
+ * después de releerla en Bitrix24. Cada escritura queda en COM_HISTORIAL.
  */
 const { sql } = require('../config/db');
 const { withTransaction } = require('./calibration.db');
@@ -23,6 +28,9 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const notReady = (error) => {
   const message = error?.message || '';
+  if (/COM_BITRIX_ETAPAS|Invalid column name '(numero_factura|pendiente|campos)'/i.test(message)) {
+    return httpError(503, 'Falta aplicar la migración 036 (pnpm migrate en backend): Comercial todavía no puede actualizar Bitrix24.');
+  }
   if ((error?.number === 208 || /Invalid object name/i.test(message)) && /COM_BITRIX_/i.test(message)) {
     return httpError(503, 'Falta aplicar la migración 035 (pnpm migrate en backend): Comercial todavía no tiene la copia de Bitrix24.');
   }
@@ -90,13 +98,18 @@ const leerMetadatos = async (client) => {
   const embudos = new Map(categorias.map(c => [Number(c.id), c.name]));
   if (!embudos.has(0)) embudos.set(0, 'General');
   const etapas = new Map();
+  const etapasLista = [];
   for (const id of embudos.keys()) {
     const lista = resultado(await client.call('crm.status.list', { filter: { ENTITY_ID: id ? `DEAL_STAGE_${id}` : 'DEAL_STAGE' } })) || [];
-    for (const estado of lista) etapas.set(String(estado.STATUS_ID), { nombre: estado.NAME, semantica: dom.semanticaDe(estado) });
+    for (const estado of lista) {
+      const etapa = { nombre: estado.NAME, semantica: dom.semanticaDe(estado) };
+      etapas.set(String(estado.STATUS_ID), etapa);
+      etapasLista.push({ id: String(estado.STATUS_ID), embudoId: id, ...etapa, fase: dom.faseDe(etapa), orden: Number(estado.SORT) || 0 });
+    }
   }
   const campos = dom.resolverCampos(resultado(await client.call('crm.deal.fields', {})));
   const camposEmpresa = dom.resolverCampos(resultado(await client.call('crm.company.fields', {})), { codigo: dom.CAMPO_CODIGO_EMPRESA });
-  return { embudos, etapas, campos, campoCodigoEmpresa: camposEmpresa.mapa.codigo };
+  return { embudos, etapas, etapasLista, campos, campoCodigoEmpresa: camposEmpresa.mapa.codigo };
 };
 
 const SELECT_NEGOCIACION = ['ID', 'CATEGORY_ID', 'STAGE_ID', 'TITLE', 'OPPORTUNITY', 'CURRENCY_ID', 'ASSIGNED_BY_ID', 'COMPANY_ID',
@@ -150,8 +163,27 @@ const COLUMNAS = [
   ['ciudad', sql.NVarChar(120)], ['num_balanzas', sql.Int], ['num_pesas', sql.Int], ['sub_area', sql.VarChar(10)],
   ['tipos_servicio', sql.NVarChar(400)], ['tecnico', sql.NVarChar(120)], ['apoyo', sql.NVarChar(400)], ['nota_salida', sql.NVarChar(200)],
   ['orden_compra', sql.NVarChar(200)], ['condiciones', sql.NVarChar(400)], ['mes_facturar', sql.NVarChar(60)], ['facturado', sql.Bit],
-  ['creada', sql.DateTime2], ['modificada', sql.DateTime2], ['cierre', sql.Date],
+  ['creada', sql.DateTime2], ['modificada', sql.DateTime2], ['cierre', sql.Date], ['numero_factura', sql.NVarChar(200)],
 ];
+
+const guardarEtapas = async (lista) => {
+  for (const e of lista) {
+    await run(
+      `MERGE dbo.COM_BITRIX_ETAPAS AS t
+       USING (SELECT @id AS etapa_id) AS s ON t.etapa_id = s.etapa_id
+       WHEN MATCHED THEN UPDATE SET embudo_id = @embudo, nombre = @nombre, semantica = @semantica, fase = @fase, orden = @orden, sincronizada_en = SYSUTCDATETIME()
+       WHEN NOT MATCHED THEN INSERT (etapa_id, embudo_id, nombre, semantica, fase, orden) VALUES (@id, @embudo, @nombre, @semantica, @fase, @orden);`,
+      [
+        { name: 'id', type: sql.VarChar(50), value: e.id.slice(0, 50) },
+        { name: 'embudo', type: sql.Int, value: e.embudoId },
+        { name: 'nombre', type: sql.NVarChar(100), value: String(e.nombre || e.id).slice(0, 100) },
+        { name: 'semantica', type: sql.VarChar(10), value: e.semantica },
+        { name: 'fase', type: sql.VarChar(10), value: e.fase },
+        { name: 'orden', type: sql.Int, value: e.orden },
+      ],
+    );
+  }
+};
 
 const guardarNegociacion = ({ fila, cotizaciones }) => withTransaction(async (newRequest) => {
   const params = [{ name: 'deal_id', type: sql.Int, value: fila.deal_id }, ...COLUMNAS.map(([c, type]) => ({ name: c, type, value: fila[c] ?? null }))];
@@ -213,6 +245,11 @@ const reconstruirEnlaces = async () => {
       );
     }
   });
+  try {
+    await recalcularPendientes();
+  } catch (error) {
+    if (error.statusCode !== 503) throw error;
+  }
   return enlaces.length;
 };
 
@@ -317,6 +354,7 @@ const sincronizar = ({ por = 'automática', completa = false } = {}) => {
     );
     try {
       const meta = await leerMetadatos(client);
+      await guardarEtapas(meta.etapasLista);
       const empresas = await leerEmpresas(client, meta, { desde });
       for (const e of empresas) await guardarEmpresa(e);
       const deals = await leerNegociaciones(client, meta, { desde, creadasDesde: c.desde });
@@ -324,9 +362,11 @@ const sincronizar = ({ por = 'automática', completa = false } = {}) => {
       const enlaces = await reconstruirEnlaces();
       await actualizarUsuarios(client);
       await run(
-        `UPDATE dbo.COM_BITRIX_SINCRONIZACIONES SET estado = 'OK', fin = SYSUTCDATETIME(), negociaciones = @n, empresas = @e, enlaces = @l WHERE id = @id`,
+        `UPDATE dbo.COM_BITRIX_SINCRONIZACIONES SET estado = 'OK', fin = SYSUTCDATETIME(), negociaciones = @n, empresas = @e, enlaces = @l, campos = @campos
+         WHERE id = @id`,
         [
           { name: 'id', type: sql.Int, value: id },
+          { name: 'campos', type: sql.NVarChar(2000), value: JSON.stringify(meta.campos.mapa).slice(0, 2000) },
           { name: 'n', type: sql.Int, value: deals.length },
           { name: 'e', type: sql.Int, value: empresas.length },
           { name: 'l', type: sql.Int, value: enlaces },
@@ -359,7 +399,7 @@ const SITUACION_CTE = `
     SELECT n.*, ISNULL(enl.facturas, 0) AS facturas,
       e.titulo AS empresa, e.codigo AS empresa_codigo, e.nit AS empresa_nit,
       CASE
-        WHEN ISNULL(enl.facturas, 0) > 0 AND n.etapa_fase IN ('FACTURAR', 'PERDIDA') THEN 'etapa_desactualizada'
+        WHEN ISNULL(enl.facturas, 0) > 0 AND (n.pendiente IS NOT NULL OR n.etapa_fase = 'PERDIDA') THEN 'etapa_desactualizada'
         WHEN ISNULL(enl.facturas, 0) > 0 THEN 'con_factura'
         WHEN n.etapa_fase = 'FACTURAR' THEN 'por_facturar'
         WHEN n.etapa_fase = 'COBRO' THEN 'sin_registrar'
@@ -506,9 +546,17 @@ const getNegociacion = async (dealId) => {
     buscarPersona: buscadorDePersonas(personal),
     facturas: facturas.get(dealId) || [],
   });
+  let bitrix = null;
+  try {
+    bitrix = planDe(row, await datosEscritura([dealId]));
+  } catch (error) {
+    if (error.statusCode !== 503) throw error;
+  }
   const portal = config().portal;
   return {
     ...mapFila(row),
+    bitrix,
+    numeroFactura: row.numero_factura ?? null,
     creada: row.creada_texto,
     sincronizada: row.sincronizada_texto,
     empresaNit: row.empresa_nit || null,
@@ -541,7 +589,9 @@ const estado = async () => {
     desde: c.desde,
     portal: c.portal,
     enCurso: Boolean(enCurso),
+    modoEscritura: c.escritura,
     tablas: true,
+    escritura: escritura ? { ...escritura, errores: escritura.errores.slice(0, 20) } : null,
   };
   let ultimas;
   let conteo;
@@ -563,11 +613,20 @@ const estado = async () => {
     id: r.id, tipo: r.tipo, estado: r.estado, negociaciones: r.negociaciones, empresas: r.empresas, enlaces: r.enlaces,
     error: r.error, por: r.por, inicio: r.inicio, fin: r.fin,
   } : null);
+  let pendientes = null;
+  let avisoEscritura = null;
+  try {
+    [{ pendientes }] = await run('SELECT COUNT(*) AS pendientes FROM dbo.COM_BITRIX_NEGOCIACIONES WHERE pendiente IS NOT NULL');
+  } catch (error) {
+    if (error.statusCode !== 503) throw error;
+    avisoEscritura = error.message;
+  }
   return {
     ...base,
     ultima: mapa(ultimas[0]),
     ultimaCorrecta: mapa(ultimas.find(u => u.estado === 'OK')),
-    copia: conteo[0],
+    copia: { ...conteo[0], pendientes },
+    avisoEscritura,
   };
 };
 
@@ -641,9 +700,341 @@ const negociacionesDeFactura = async (facturaId) => {
   }
 };
 
+// ─── Actualizar Bitrix24 (fase 3) ──────────────────────────────────────────
+
+const LOTE_ESCRITURA = 25;
+let escritura = null;
+
+/**
+ * Lo que hace falta para planear la escritura: las negociaciones con factura
+ * (o las pedidas), sus facturas vigentes con su estado de cobro, las etapas
+ * de cada embudo y los campos del portal según la última sincronización.
+ */
+const datosEscritura = async (dealIds = null) => {
+  const ids = dealIds ? dealIds.map((id, i) => ({ name: `i${i}`, type: sql.Int, value: id })) : [];
+  const enIds = (columna) => (dealIds ? `AND ${columna} IN (${ids.map(p => `@${p.name}`).join(', ') || 'NULL'})` : '');
+  const [negs, facturas, etapas, [ultima]] = await Promise.all([
+    run(`SELECT n.deal_id, n.embudo_id, n.etapa_id, n.etapa_fase, n.facturado, n.numero_factura FROM dbo.COM_BITRIX_NEGOCIACIONES n
+         WHERE EXISTS (SELECT 1 FROM dbo.COM_BITRIX_ENLACES e WHERE e.deal_id = n.deal_id) ${enIds('n.deal_id')}`, ids),
+    run(`SELECT e.deal_id, f.numero, f.gestion,
+           CASE WHEN ISNULL(pg.pagado, 0) >= f.monto THEN 'pagada' WHEN ISNULL(pg.pagado, 0) > 0 THEN 'parcial' ELSE 'pendiente' END AS estado
+         FROM dbo.COM_BITRIX_ENLACES e
+         JOIN dbo.COM_FACTURAS f ON f.id = e.factura_id AND f.estado = 'VIGENTE'
+         LEFT JOIN (SELECT a.factura_id, SUM(a.monto) AS pagado FROM dbo.COM_PAGO_APLICACIONES a
+                    JOIN dbo.COM_PAGOS p ON p.id = a.pago_id AND p.estado = 'VIGENTE' GROUP BY a.factura_id) pg ON pg.factura_id = f.id
+         WHERE 1 = 1 ${enIds('e.deal_id')}`, ids),
+    run('SELECT etapa_id, embudo_id, nombre, semantica, fase, orden FROM dbo.COM_BITRIX_ETAPAS'),
+    run("SELECT TOP (1) campos FROM dbo.COM_BITRIX_SINCRONIZACIONES WHERE estado = 'OK' AND campos IS NOT NULL ORDER BY id DESC"),
+  ]);
+  const porDeal = new Map();
+  for (const f of facturas) porDeal.set(f.deal_id, [...(porDeal.get(f.deal_id) || []), { numero: f.numero, gestion: f.gestion, estado: f.estado }]);
+  const etapasPorEmbudo = new Map();
+  const etapasPorId = new Map();
+  for (const e of etapas) {
+    const etapa = { id: e.etapa_id, embudoId: e.embudo_id, nombre: e.nombre, semantica: e.semantica, fase: e.fase, orden: e.orden };
+    etapasPorEmbudo.set(e.embudo_id, [...(etapasPorEmbudo.get(e.embudo_id) || []), etapa]);
+    etapasPorId.set(e.etapa_id, etapa);
+  }
+  let mapa = { facturado: dom.CAMPOS.facturado.id };
+  try {
+    if (ultima?.campos) mapa = JSON.parse(ultima.campos);
+  } catch {
+    // Campos ilegibles: se usan los conocidos.
+  }
+  return {
+    negs, porDeal, etapasPorEmbudo, etapasPorId, mapa,
+    campos: { facturado: Boolean(mapa.facturado), numeroFactura: Boolean(mapa.numeroFactura) },
+  };
+};
+
+const planDe = (n, d) => dom.planBitrix({
+  neg: { etapaId: n.etapa_id, fase: n.etapa_fase, facturado: Boolean(n.facturado), numeroFactura: n.numero_factura },
+  facturas: d.porDeal.get(n.deal_id) || [],
+  etapas: d.etapasPorEmbudo.get(n.embudo_id) || [],
+  campos: d.campos,
+});
+
+/** Recalcula qué le falta a Bitrix24 de cada negociación con factura. Devuelve cuántas. */
+const recalcularPendientes = async () => {
+  const d = await datosEscritura();
+  const pendientes = d.negs.map(n => [n.deal_id, planDe(n, d).cambios]).filter(([, cambios]) => cambios.length);
+  await withTransaction(async (newRequest) => {
+    await run('UPDATE dbo.COM_BITRIX_NEGOCIACIONES SET pendiente = NULL WHERE pendiente IS NOT NULL', [], newRequest());
+    for (let i = 0; i < pendientes.length; i += 500) {
+      const lote = pendientes.slice(i, i + 500);
+      const params = lote.flatMap(([id, cambios], j) => [
+        { name: `d${j}`, type: sql.Int, value: id },
+        { name: `p${j}`, type: sql.NVarChar(1000), value: JSON.stringify(cambios.map(c => c.campo)) },
+      ]);
+      await run(
+        `UPDATE n SET pendiente = v.p FROM dbo.COM_BITRIX_NEGOCIACIONES n
+         JOIN (VALUES ${lote.map((_, j) => `(@d${j}, @p${j})`).join(', ')}) AS v(deal_id, p) ON v.deal_id = n.deal_id`,
+        params,
+        newRequest(),
+      );
+    }
+  });
+  return pendientes.length;
+};
+
+/** Cuántas negociaciones esperan actualizarse en Bitrix24 y qué les falta. */
+const resumenPendientes = async () => {
+  const filas = await run(`SELECT pendiente, ISNULL(embudo, CONCAT('Embudo ', embudo_id)) AS embudo, COUNT(*) AS n
+    FROM dbo.COM_BITRIX_NEGOCIACIONES WHERE pendiente IS NOT NULL GROUP BY pendiente, embudo, embudo_id`);
+  const cambios = { facturado: 0, numeroFactura: 0, etapa: 0, cierre: 0 };
+  const embudos = new Map();
+  let negociaciones = 0;
+  for (const f of filas) {
+    negociaciones += f.n;
+    embudos.set(f.embudo, (embudos.get(f.embudo) || 0) + f.n);
+    let campos = [];
+    try {
+      campos = JSON.parse(f.pendiente);
+    } catch {
+      campos = [];
+    }
+    for (const c of campos) if (c in cambios) cambios[c] += f.n;
+  }
+  return {
+    negociaciones,
+    cambios,
+    embudos: [...embudos].map(([nombre, n]) => ({ nombre, negociaciones: n })).sort((a, b) => b.negociaciones - a.negociaciones),
+  };
+};
+
+const verdadero = (v) => ['1', 'Y', 'true', true, 1].includes(v);
+
+/**
+ * Relee en Bitrix24 un lote de negociaciones, vuelve a planear con lo que
+ * dicen hoy y escribe lo que falta (crm.deal.update en un solo batch). Si se
+ * pasa lo que la persona vio (`esperados`, firma por negociación) y Bitrix24
+ * cambió, no escribe esa. Actualiza la copia y deja el historial.
+ */
+const escribirLote = async (client, ctx, dealIds, { usuario, nombre, esperados = new Map() }) => {
+  const resultados = [];
+  const leidas = resultado(await client.call('batch', {
+    halt: 0, cmd: Object.fromEntries(dealIds.map(id => [`g${id}`, `crm.deal.get?${dom.consultaBitrix({ id })}`])),
+  })) || {};
+  const planes = [];
+  for (const id of dealIds) {
+    const live = leidas.result?.[`g${id}`];
+    if (!live) {
+      resultados.push({ dealId: id, estado: 'no_encontrada', error: leidas.result_error?.[`g${id}`]?.error_description || 'No está en Bitrix24.' });
+      continue;
+    }
+    const etapa = ctx.d.etapasPorId.get(String(live.STAGE_ID));
+    const neg = {
+      etapaId: String(live.STAGE_ID),
+      fase: etapa?.fase || 'PROCESO',
+      facturado: ctx.mapa.facturado ? verdadero(live[ctx.mapa.facturado]) : false,
+      numeroFactura: ctx.mapa.numeroFactura ? live[ctx.mapa.numeroFactura] || null : null,
+    };
+    const plan = dom.planBitrix({
+      neg,
+      facturas: ctx.d.porDeal.get(id) || [],
+      etapas: ctx.d.etapasPorEmbudo.get(Number(live.CATEGORY_ID || 0)) || [],
+      campos: { facturado: Boolean(ctx.mapa.facturado), numeroFactura: Boolean(ctx.mapa.numeroFactura) },
+    });
+    const esperada = esperados.get(id);
+    if (esperada !== undefined && esperada !== dom.firmaCambios(plan.cambios)) {
+      resultados.push({ dealId: id, estado: 'cambio', cambios: plan.cambios });
+      planes.push({ id, neg, etapa, plan, escribir: false });
+    } else if (!plan.cambios.length) {
+      resultados.push({ dealId: id, estado: 'al_dia', cambios: [] });
+      planes.push({ id, neg, etapa, plan, escribir: false });
+    } else {
+      planes.push({ id, neg, etapa, plan, escribir: true });
+    }
+  }
+
+  const aEscribir = planes.filter(p => p.escribir);
+  const escritas = aEscribir.length ? resultado(await client.call('batch', {
+    halt: 0,
+    cmd: Object.fromEntries(aEscribir.map(p => [`u${p.id}`, `crm.deal.update?${dom.consultaBitrix({ id: p.id, fields: dom.camposEscritura(p.plan.cambios, ctx.mapa) })}`])),
+  })) || {} : {};
+
+  for (const p of planes) {
+    const error = p.escribir ? escritas.result_error?.[`u${p.id}`] : null;
+    const ok = p.escribir && !error && escritas.result?.[`u${p.id}`];
+    if (p.escribir && !ok) {
+      resultados.push({ dealId: p.id, estado: 'error', cambios: p.plan.cambios, error: error?.error_description || error?.error || 'Bitrix24 no confirmó el cambio.' });
+    }
+    // La copia queda como Bitrix24 después de esto (escrito o no).
+    const etapaCambio = ok ? p.plan.cambios.find(c => c.campo === 'etapa' || c.campo === 'cierre') : null;
+    const etapa = etapaCambio ? ctx.d.etapasPorId.get(etapaCambio.despues.id) : p.etapa;
+    const numero = ok ? p.plan.cambios.find(c => c.campo === 'numeroFactura') : null;
+    const facturado = ok && p.plan.cambios.some(c => c.campo === 'facturado') ? true : p.neg.facturado;
+    await withTransaction(async (newRequest) => {
+      await run(
+        `UPDATE dbo.COM_BITRIX_NEGOCIACIONES SET etapa_id = @etapaId, etapa = ISNULL(@etapa, etapa), etapa_fase = ISNULL(@fase, etapa_fase),
+           facturado = @facturado, numero_factura = @numero, sincronizada_en = SYSUTCDATETIME() WHERE deal_id = @id`,
+        [
+          { name: 'id', type: sql.Int, value: p.id },
+          { name: 'etapaId', type: sql.VarChar(50), value: (etapa?.id || p.neg.etapaId).slice(0, 50) },
+          { name: 'etapa', type: sql.NVarChar(100), value: etapa?.nombre || null },
+          { name: 'fase', type: sql.VarChar(10), value: etapa?.fase || null },
+          { name: 'facturado', type: sql.Bit, value: facturado },
+          { name: 'numero', type: sql.NVarChar(200), value: numero ? numero.despues : p.neg.numeroFactura },
+        ],
+        newRequest(),
+      );
+      if (ok) {
+        await comercial.historial(newRequest, {
+          entidad: 'BITRIX', entidadId: `negociacion:${p.id}`, accion: 'ACTUALIZACION',
+          detalle: client.simulado ? { cambios: p.plan.cambios, simulada: true } : { cambios: p.plan.cambios }, usuario, nombre,
+        });
+      }
+    });
+    if (ok) resultados.push({ dealId: p.id, estado: 'actualizada', cambios: p.plan.cambios });
+  }
+  return resultados;
+};
+
+/**
+ * Bitrix24 simulado para BITRIX_ESCRITURA=prueba: lee las negociaciones de la
+ * copia y «escribe» sin llamar a Bitrix24 (la copia y el historial de DataMET+
+ * sí cambian, marcados como simulación). Una copia completa devuelve la
+ * copia a lo que dice Bitrix24.
+ */
+const clienteSimulado = () => ({
+  simulado: true,
+  call: async (metodo, params) => {
+    const [ultima] = await run("SELECT TOP (1) campos FROM dbo.COM_BITRIX_SINCRONIZACIONES WHERE estado = 'OK' AND campos IS NOT NULL ORDER BY id DESC");
+    let mapa = { facturado: dom.CAMPOS.facturado.id };
+    try {
+      if (ultima?.campos) mapa = JSON.parse(ultima.campos);
+    } catch {
+      // Campos ilegibles: los conocidos.
+    }
+    if (metodo === 'crm.deal.fields') {
+      const campos = { [mapa.facturado]: { type: 'boolean', listLabel: '¿Está facturado?' } };
+      if (mapa.numeroFactura) campos[mapa.numeroFactura] = { type: 'string', listLabel: 'N.º de factura' };
+      return { result: campos };
+    }
+    if (metodo !== 'batch') throw httpError(400, `La simulación de Bitrix24 no atiende ${metodo}.`);
+    const result = {};
+    const resultError = {};
+    for (const [clave, cmd] of Object.entries(params.cmd || {})) {
+      const [m, consulta] = String(cmd).split('?');
+      const p = new URLSearchParams(consulta);
+      const id = Number(p.get('id'));
+      if (m === 'crm.deal.get') {
+        const [n] = await run('SELECT deal_id, embudo_id, etapa_id, facturado, numero_factura FROM dbo.COM_BITRIX_NEGOCIACIONES WHERE deal_id = @id',
+          [{ name: 'id', type: sql.Int, value: id }]);
+        if (!n) resultError[clave] = { error: 'NOT_FOUND', error_description: 'No está en la copia.' };
+        else {
+          result[clave] = { ID: String(n.deal_id), CATEGORY_ID: String(n.embudo_id ?? 0), STAGE_ID: n.etapa_id, [mapa.facturado]: n.facturado ? '1' : '0' };
+          if (mapa.numeroFactura) result[clave][mapa.numeroFactura] = n.numero_factura || '';
+        }
+      } else if (m === 'crm.deal.update') {
+        result[clave] = true;
+      } else {
+        resultError[clave] = { error: 'METHOD_NOT_SIMULATED', error_description: `La simulación no atiende ${m}.` };
+      }
+    }
+    return { result: { result, result_error: resultError } };
+  },
+});
+
+/** Cliente para escribir según BITRIX_ESCRITURA: Bitrix24 real, simulado o ninguno. */
+const clienteEscritura = () => {
+  const c = config();
+  if (c.escritura === 'prueba') return clienteSimulado();
+  if (c.escritura !== 'real') {
+    throw httpError(409, 'La escritura en Bitrix24 está desactivada en este servidor (BITRIX_ESCRITURA): no se cambió nada.');
+  }
+  return cliente();
+};
+
+/** Campos del portal hoy (por si se creó el de N.º de factura) y los datos para planear. */
+const contextoEscritura = async (client, dealIds) => {
+  const { mapa } = dom.resolverCampos(resultado(await client.call('crm.deal.fields', {})));
+  return { mapa, d: await datosEscritura(dealIds) };
+};
+
+const quien = async (user) => {
+  const usuario = String(user?.usuario || '').slice(0, 50) || 'desconocido';
+  return { usuario, nombre: await comercial.nombreDe(usuario) };
+};
+
+/**
+ * Actualiza en Bitrix24 una negociación, con lo que la persona vio y
+ * confirmó (`cambios`). Si Bitrix24 cambió desde entonces, no escribe y
+ * responde 409 con la ficha de nuevo.
+ */
+const actualizarNegociacion = async (dealId, { cambios }, user) => {
+  const client = clienteEscritura();
+  if (escritura?.enCurso) throw httpError(409, 'Hay una actualización de Bitrix24 en curso: espera a que termine.');
+  const ctx = await contextoEscritura(client, [dealId]);
+  if (!ctx.d.negs.length) throw httpError(409, 'La negociación no tiene factura vigente en DataMET+: no hay nada que actualizar.');
+  const [r] = await escribirLote(client, ctx, [dealId], { ...(await quien(user)), esperados: new Map([[dealId, dom.firmaCambios(cambios)]]) });
+  await recalcularPendientes();
+  if (r.estado === 'cambio') throw httpError(409, 'La negociación cambió en Bitrix24 desde que la abriste: revisa de nuevo lo que se va a actualizar.');
+  if (r.estado === 'no_encontrada') throw httpError(404, `Bitrix24 no encuentra la negociación ${dealId}.`);
+  if (r.estado === 'error') throw httpError(502, `Bitrix24 no aceptó el cambio: ${r.error}`);
+  return { resultado: r.estado, simulada: Boolean(client.simulado), negociacion: await getNegociacion(dealId) };
+};
+
+/**
+ * Actualiza en segundo plano todas las negociaciones pendientes, de a 25,
+ * releyendo cada una. `esperadas` es cuántas vio la persona al confirmar.
+ */
+const actualizarPendientesEnSegundoPlano = async ({ esperadas }, user) => {
+  const client = clienteEscritura();
+  if (escritura?.enCurso) return { iniciada: false, escritura };
+  if (enCurso) throw httpError(409, 'Hay una sincronización en curso: actualiza Bitrix24 cuando termine.');
+  const ids = (await run('SELECT deal_id FROM dbo.COM_BITRIX_NEGOCIACIONES WHERE pendiente IS NOT NULL ORDER BY deal_id')).map(r => r.deal_id);
+  if (esperadas !== null && esperadas !== undefined && esperadas !== ids.length) {
+    throw httpError(409, `Cambió la cantidad por actualizar (eran ${esperadas}, ahora ${ids.length}): revisa el resumen de nuevo.`);
+  }
+  const persona = await quien(user);
+  escritura = {
+    enCurso: true, total: ids.length, hechas: 0, actualizadas: 0, alDia: 0, cambiaron: 0, errores: [],
+    por: persona.usuario, inicio: new Date().toISOString().slice(0, 19), fin: null, simulada: Boolean(client.simulado),
+  };
+  const estadoEscritura = escritura;
+  (async () => {
+    try {
+      const ctx = await contextoEscritura(client, ids);
+      for (let i = 0; i < ids.length; i += LOTE_ESCRITURA) {
+        const lote = ids.slice(i, i + LOTE_ESCRITURA);
+        let resultados;
+        try {
+          resultados = await escribirLote(client, ctx, lote, persona);
+        } catch (error) {
+          resultados = lote.map(dealId => ({ dealId, estado: 'error', error: error.message }));
+        }
+        for (const r of resultados) {
+          if (r.estado === 'actualizada') estadoEscritura.actualizadas += 1;
+          else if (r.estado === 'al_dia') estadoEscritura.alDia += 1;
+          else if (r.estado === 'cambio') estadoEscritura.cambiaron += 1;
+          else estadoEscritura.errores.push({ dealId: r.dealId, error: String(r.error || r.estado).slice(0, 200) });
+        }
+        estadoEscritura.hechas += lote.length;
+        if (i + LOTE_ESCRITURA < ids.length) await sleep(PAGINA_MS);
+      }
+    } catch (error) {
+      estadoEscritura.errores.push({ dealId: null, error: String(error.message).slice(0, 200) });
+    } finally {
+      try {
+        await recalcularPendientes();
+      } catch (error) {
+        console.warn(`Pendientes de Bitrix24: ${error.message}`);
+      }
+      estadoEscritura.enCurso = false;
+      estadoEscritura.fin = new Date().toISOString().slice(0, 19);
+    }
+  })();
+  return { iniciada: true, escritura };
+};
+
 module.exports = {
   SITUACIONES,
+  actualizarNegociacion,
+  actualizarPendientesEnSegundoPlano,
   negociacionesDeFactura,
+  recalcularPendientes,
+  resumenPendientes,
   _configurar,
   actualizarUsuarios,
   buildNegociacionesWhere,

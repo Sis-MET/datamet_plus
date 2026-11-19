@@ -13,9 +13,9 @@ const tick = async () => {
   try {
     await bitrix.sincronizar({ por: 'automática' });
   } catch (error) {
-    if (error.statusCode === 503 && /migración 035/.test(error.message)) {
+    if (error.statusCode === 503 && /migración 03[56]/.test(error.message)) {
       if (!avisoTablas) {
-        console.warn('Sincronización con Bitrix24 en espera: aplica la migración 035 (pnpm migrate).');
+        console.warn(`Sincronización con Bitrix24 en espera: ${error.message}`);
         avisoTablas = true;
       }
       return;

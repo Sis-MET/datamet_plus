@@ -21,6 +21,7 @@ consulta.get('/bitrix/estado', controller.bitrixEstado);
 consulta.get('/bitrix/negociaciones', controller.bitrixNegociaciones);
 consulta.get('/bitrix/negociaciones/:id', controller.bitrixNegociacion);
 consulta.get('/bitrix/usuarios', controller.bitrixUsuarios);
+consulta.get('/bitrix/actualizaciones', controller.bitrixPendientes);
 
 const router = express.Router();
 
@@ -35,8 +36,11 @@ router.post('/facturas/:id/anulacion', controller.anularFactura);
 router.post('/pagos', controller.crearPago);
 router.post('/pagos/:id/anulacion', controller.anularPago);
 router.put('/clientes/:codigo', controller.guardarCliente);
-// Bitrix24: solo lectura del CRM; lo que escribe es la copia y las equivalencias.
+// Bitrix24: la copia, las equivalencias y, con confirmación, el estado de
+// facturación y cobro de las negociaciones en el CRM.
 router.post('/bitrix/sincronizar', controller.bitrixSincronizar);
 router.put('/bitrix/usuarios/:id', controller.bitrixConfirmarUsuario);
+router.post('/bitrix/negociaciones/:id/actualizacion', controller.bitrixActualizar);
+router.post('/bitrix/actualizaciones', controller.bitrixActualizarPendientes);
 
 module.exports = router;

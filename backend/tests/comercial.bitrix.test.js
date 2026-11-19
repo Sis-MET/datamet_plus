@@ -53,6 +53,11 @@ test('configuración: sin webhook no se sincroniza y el secreto no sale del port
   assert.match(leerConfigBitrix({ BITRIX_WEBHOOK_URL: 'http://b24.bitrix24.es/rest/7/abc/' }).error, /HTTPS/);
   assert.match(leerConfigBitrix({ BITRIX_WEBHOOK_URL: 'https://b24.bitrix24.es/crm/deal/' }).error, /forma/);
   assert.equal(leerConfigBitrix({ BITRIX_WEBHOOK_URL: 'https://b24.bitrix24.es/rest/7/abc/', BITRIX_SYNC_ENABLED: 'false' }).sincronizar, false);
+  // Escribir en Bitrix24 se habilita solo a propósito: por omisión, desactivada.
+  assert.equal(c.escritura, 'desactivada');
+  assert.equal(leerConfigBitrix({ BITRIX_ESCRITURA: 'prueba' }).escritura, 'prueba');
+  assert.equal(leerConfigBitrix({ BITRIX_ESCRITURA: ' Real ' }).escritura, 'real');
+  assert.equal(leerConfigBitrix({ BITRIX_ESCRITURA: 'si' }).escritura, 'desactivada');
 });
 
 test('campos: por su código conocido o por su nombre si cambió', () => {
@@ -198,4 +203,103 @@ test('filtros de la lista de negociaciones', () => {
   assert.doesNotMatch(buildNegociacionesWhere(filtros, { conSituacion: false }).where, /situacion/);
   assert.throws(() => parse('filtrosBitrix', { situacion: 'otra' }), /Situación inválida/);
   assert.equal(parse('equivalencia', {}).usuarioId, null);
+});
+
+// ─── Fase 3: escribir de vuelta en Bitrix24 ────────────────────────────────
+
+const etapa = (id, nombre, fase, orden, semantica = 'process') => ({ id, nombre, fase, orden, semantica });
+const CAL = [
+  etapa('C21:EXECUTING', 'Aprobados', 'PROCESO', 40), etapa('C21:FINAL_INVOICE', 'Para Facturar', 'FACTURAR', 50),
+  etapa('C21:UC_UAOYL5', 'Pendiente de pago', 'COBRO', 51), etapa('C21:WON', 'Cerrado Ganado', 'GANADA', 60, 'success'),
+  etapa('C21:LOSE', 'Cerrado Perdido', 'PERDIDA', 70, 'failure'),
+];
+const GOA = [
+  etapa('C45:FINAL_INVOICE', 'Factura y cierre', 'FACTURAR', 100), etapa('C45:UC_77X8DO', 'Pendiente de pago', 'COBRO', 110),
+  etapa('C45:UC_E4BTJF', 'Saldo pendiente de pago', 'COBRO', 120), etapa('C45:WON', 'Cerrado Ganado', 'GANADA', 130, 'success'),
+];
+const EJECUCION = [etapa('C9:NEW', 'Aprobado/confirmado/programado', 'PROCESO', 10), etapa('C9:WON', 'Cerrado Ganado', 'GANADA', 120, 'success')];
+const VENTAS = [
+  etapa('FINAL_INVOICE', 'Entrega y/o Facturación', 'FACTURAR', 80), etapa('UC_N3Y89D', 'Con pendiente de cierre', 'FACTURAR', 90),
+  etapa('WON', 'Cerrado Ganado', 'GANADA', 100, 'success'),
+];
+const CAMPOS_PORTAL = { facturado: true, numeroFactura: true };
+const plan = (neg, facturas, etapas, campos = CAMPOS_PORTAL) => dom.planBitrix({
+  neg: { facturado: false, numeroFactura: null, ...neg }, facturas, etapas, campos,
+});
+const resumen = (p) => p.cambios.map(c => `${c.campo}:${typeof c.despues === 'object' ? c.despues.nombre : c.despues}`);
+
+test('escritura: con factura pendiente marca facturado, número y la etapa de cobro', () => {
+  const p = plan({ etapaId: 'C21:FINAL_INVOICE', fase: 'FACTURAR' }, [{ numero: 601, gestion: 2026, estado: 'pendiente' }, { numero: 594, gestion: 2026, estado: 'pendiente' }], CAL);
+  assert.deepEqual(resumen(p), ['facturado:true', 'numeroFactura:594, 601', 'etapa:Pendiente de pago']);
+  assert.deepEqual(p.cambios[2].antes, { id: 'C21:FINAL_INVOICE', nombre: 'Para Facturar' });
+  assert.deepEqual(p.avisos, []);
+});
+
+test('escritura: pagada pasa a Cerrado Ganado; al día no cambia nada; nunca retrocede', () => {
+  const pagada = [{ numero: 594, gestion: 2026, estado: 'pagada' }];
+  assert.deepEqual(resumen(plan({ etapaId: 'C21:UC_UAOYL5', fase: 'COBRO', facturado: true, numeroFactura: '594' }, pagada, CAL)), ['cierre:Cerrado Ganado']);
+  assert.deepEqual(plan({ etapaId: 'C21:WON', fase: 'GANADA', facturado: true, numeroFactura: ' 594 ' }, pagada, CAL).cambios, []);
+  // Ya en cobro y sin pagar: no vuelve a «Para Facturar» ni se mueve.
+  assert.deepEqual(resumen(plan({ etapaId: 'C21:UC_UAOYL5', fase: 'COBRO', facturado: true, numeroFactura: '594' }, [{ numero: 594, gestion: 2026, estado: 'pendiente' }], CAL)), []);
+  // Sin factura vigente, nada.
+  assert.deepEqual(plan({ etapaId: 'C21:FINAL_INVOICE', fase: 'FACTURAR' }, [], CAL), { cambios: [], avisos: [] });
+});
+
+test('escritura: pago parcial va a «Saldo pendiente de pago» si el embudo la tiene', () => {
+  const p = plan({ etapaId: 'C45:FINAL_INVOICE', fase: 'FACTURAR', facturado: true, numeroFactura: '12' }, [{ numero: 12, gestion: 2026, estado: 'parcial' }], GOA);
+  assert.deepEqual(resumen(p), ['etapa:Saldo pendiente de pago']);
+  const sinPagar = plan({ etapaId: 'C45:FINAL_INVOICE', fase: 'FACTURAR', facturado: true, numeroFactura: '12' }, [{ numero: 12, gestion: 2026, estado: 'pendiente' }], GOA);
+  assert.deepEqual(resumen(sinPagar), ['etapa:Pendiente de pago']);
+});
+
+test('escritura: perdida, embudos sin facturación o sin cobro y sin campo de número', () => {
+  const pendiente = [{ numero: 5, gestion: 2026, estado: 'pendiente' }];
+  const perdida = plan({ etapaId: 'C21:LOSE', fase: 'PERDIDA' }, pendiente, CAL);
+  assert.deepEqual([perdida.cambios, perdida.avisos.map(a => a.codigo)], [[], ['perdida']]);
+  const ejecucion = plan({ etapaId: 'C9:NEW', fase: 'PROCESO' }, [{ numero: 5, gestion: 2026, estado: 'pagada' }], EJECUCION);
+  assert.deepEqual(resumen(ejecucion), ['facturado:true', 'numeroFactura:5']);
+  assert.deepEqual(ejecucion.avisos.map(a => a.codigo), ['embudo_sin_facturacion']);
+  const ventas = plan({ etapaId: 'FINAL_INVOICE', fase: 'FACTURAR', facturado: true, numeroFactura: '5' }, pendiente, VENTAS);
+  assert.deepEqual([resumen(ventas), ventas.avisos.map(a => a.codigo)], [[], ['sin_etapa_cobro']]);
+  const sinCampo = plan({ etapaId: 'C21:FINAL_INVOICE', fase: 'FACTURAR' }, pendiente, CAL, { facturado: true, numeroFactura: false });
+  assert.deepEqual([resumen(sinCampo), sinCampo.avisos.map(a => a.codigo)], [['facturado:true', 'etapa:Pendiente de pago'], ['sin_campo_numero']]);
+  assert.equal(dom.numerosFactura([{ numero: 3, gestion: 2026 }, { numero: 590, gestion: 2025 }]), '590/2025, 3/2026');
+});
+
+test('escritura: desde una etapa en proceso no se mueve (anticipo), salvo «Servicio Concluido»', () => {
+  const pagada = [{ numero: 7, gestion: 2026, estado: 'pagada' }];
+  const aprobada = plan({ etapaId: 'C21:EXECUTING', fase: 'PROCESO', facturado: true, numeroFactura: '7' }, pagada, CAL);
+  assert.deepEqual([resumen(aprobada), aprobada.avisos.map(a => a.codigo)], [[], ['en_proceso']]);
+  const ST = [
+    etapa('C1:EXECUTING', 'Para Programar', 'PROCESO', 50), etapa('C1:UC_HPOKTU', 'Servicio Concluido', 'PROCESO', 60),
+    etapa('C1:UC_30LU30', 'Pre-Factura', 'FACTURAR', 70), etapa('C1:UC_EH54TW', 'Facturado', 'COBRO', 80), etapa('C1:WON', 'Cerrado Ganado', 'GANADA', 90, 'success'),
+  ];
+  const concluido = { etapaId: 'C1:UC_HPOKTU', fase: 'PROCESO', facturado: true, numeroFactura: '7' };
+  assert.deepEqual(resumen(plan(concluido, pagada, ST)), ['cierre:Cerrado Ganado']);
+  assert.deepEqual(resumen(plan(concluido, [{ numero: 7, gestion: 2026, estado: 'pendiente' }], ST)), ['etapa:Facturado']);
+  const programar = plan({ ...concluido, etapaId: 'C1:EXECUTING' }, pagada, ST);
+  assert.deepEqual([resumen(programar), programar.avisos.map(a => a.codigo)], [[], ['en_proceso']]);
+});
+
+test('escritura: campos de crm.deal.update, firma y comando de batch', () => {
+  const p = plan({ etapaId: 'C21:FINAL_INVOICE', fase: 'FACTURAR' }, [{ numero: 594, gestion: 2026, estado: 'pagada' }], CAL);
+  const mapa = { facturado: 'UF_CRM_1751485900193', numeroFactura: 'UF_CRM_77' };
+  assert.deepEqual(dom.camposEscritura(p.cambios, mapa), { UF_CRM_1751485900193: 1, UF_CRM_77: '594', STAGE_ID: 'C21:WON' });
+  assert.equal(dom.firmaCambios(p.cambios), 'cierre:C21:WON|facturado:true|numeroFactura:594');
+  assert.equal(dom.firmaCambios([...p.cambios].reverse()), dom.firmaCambios(p.cambios));
+  assert.equal(dom.consultaBitrix({ id: 5120, fields: { STAGE_ID: 'C21:WON', UF_CRM_77: '594, 601' } }),
+    'id=5120&fields%5BSTAGE_ID%5D=C21%3AWON&fields%5BUF_CRM_77%5D=594%2C%20601');
+  // El campo que crea Comercial se encuentra por su nombre, con o sin signos.
+  for (const nombre of ['N.º de factura', 'Nro. Factura', 'Número de factura']) {
+    assert.equal(dom.resolverCampos({ UF_CRM_77: { listLabel: nombre } }).mapa.numeroFactura, 'UF_CRM_77', nombre);
+  }
+  assert.equal(dom.resolverCampos({ UF_CRM_77: { listLabel: 'Mes a facturar' } }).mapa.numeroFactura, null);
+});
+
+test('validación de lo que se confirma para Bitrix24', () => {
+  const ok = parse('actualizacionBitrix', { cambios: [{ campo: 'etapa', despues: { id: 'C21:WON', nombre: 'Cerrado Ganado' } }, { campo: 'facturado', despues: true }] });
+  assert.equal(ok.cambios.length, 2);
+  assert.throws(() => parse('actualizacionBitrix', { cambios: [{ campo: 'TITLE', despues: 'x' }] }), /Cambio inválido/);
+  assert.equal(parse('actualizacionMasiva', {}).esperadas, null);
+  assert.equal(parse('actualizacionMasiva', { esperadas: '612' }).esperadas, 612);
 });

@@ -31,13 +31,23 @@ const enlazarDespues = async (factura) => {
   return factura;
 };
 
+/** Tras registrar o anular un pago cambia lo que le falta a Bitrix24 (Cerrado Ganado). */
+const recalcularDespues = async (pago) => {
+  try {
+    await bitrix.recalcularPendientes();
+  } catch (error) {
+    if (error.statusCode !== 503) console.warn(`Pendientes de Bitrix24: ${error.message}`);
+  }
+  return pago;
+};
+
 /** Responde { success, data }; los errores conocidos salen con su código. */
 const handle = (action, status = 200) => async (req, res, next) => {
   try {
     const data = await action(req);
     res.status(status).json({ success: true, data });
   } catch (error) {
-    if ([400, 403, 404, 409, 503].includes(error.statusCode)) {
+    if ([400, 403, 404, 409, 502, 503, 504].includes(error.statusCode)) {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
     return next(error);
@@ -65,8 +75,8 @@ module.exports = {
 
   listPagos: handle(req => comercial.listPagos(parse('filtrosPagos', req.query))),
   getPago: handle(req => comercial.getPago(readId(req.params.id))),
-  crearPago: handle(req => comercial.crearPago(parse('pago', req.body), req.user), 201),
-  anularPago: handle(req => comercial.anularPago(readId(req.params.id), parse('anulacion', req.body), req.user)),
+  crearPago: handle(async (req) => recalcularDespues(await comercial.crearPago(parse('pago', req.body), req.user)), 201),
+  anularPago: handle(async (req) => recalcularDespues(await comercial.anularPago(readId(req.params.id), parse('anulacion', req.body), req.user))),
 
   cobranza: handle(req => comercial.cobranza(parse('filtrosFacturas', req.query))),
 
@@ -78,4 +88,7 @@ module.exports = {
   }), 202),
   bitrixUsuarios: handle(() => bitrix.listUsuarios()),
   bitrixConfirmarUsuario: handle(req => bitrix.confirmarUsuario(readId(req.params.id), parse('equivalencia', req.body), req.user)),
+  bitrixActualizar: handle(req => bitrix.actualizarNegociacion(readId(req.params.id), parse('actualizacionBitrix', req.body), req.user)),
+  bitrixPendientes: handle(() => bitrix.resumenPendientes()),
+  bitrixActualizarPendientes: handle(req => bitrix.actualizarPendientesEnSegundoPlano(parse('actualizacionMasiva', req.body), req.user), 202),
 };
