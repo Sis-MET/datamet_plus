@@ -16,6 +16,7 @@ Aplicación interna de Métrica Ltda. que reúne el apartado RIM (registros, num
 - **Cronograma del personal:** actividades por persona y vehículo. Escriben los niveles 2 y 3 y los jefes de área. Los jefes de área (cargo «Jefe de Area», sin importar tildes ni mayúsculas) editan libremente todas las actividades: también las de fechas pasadas y las que reservan un vehículo a nombre de otra persona. El resto del nivel 2 edita de hoy en adelante y solo sus propias reservas de vehículo; Sistemas (nivel 3), todo. El servidor aplica las mismas reglas (`vehicleReservation.policy.js`).
 - **Calibración:** plan anual de calibraciones, verificaciones internas y actividades del área, con alertas en el cronograma y por correo.
 - **Soporte técnico:** informes de los 8 servicios del área a partir de lo que sube ServiceMET, con el diseño de las plantillas Excel, fotografías, edición con historial, emisión y PDF; y los próximos servicios que sugieren los técnicos, con línea de tiempo, seguimiento y avisos por correo.
+- **Comercial:** facturas con sus líneas por categoría, pagos aplicados a una o varias facturas y cuentas por cobrar por días de mora, con historial y sin borrar nada; carga inicial desde el Excel de facturación.
 - **Control de cambios y registro de fallas:** historial de los cambios del sistema con su validación y aprobación, y registro de las fallas con sus acciones (NB/ISO/IEC 17025, 7.11).
 - **Gestión de permisos:** Sistemas y el jefe de Sistemas conceden permisos con nombre (por ejemplo, ver los tiempos de servicio) a una persona o a un grupo, sin tocar el código; cada cambio queda en un historial que no se modifica ni se borra (7.11.3 a, 8.4).
 
@@ -608,6 +609,66 @@ Despliegue: aplicar la migración `009` (crea `ST_PROXIMOS_SEGUIMIENTO`,
 `ST_AVISOS_AJUSTES`, `ST_AVISOS_CONTACTOS`, `ST_AVISOS_HISTORIAL` y
 `ST_AVISOS_ENVIOS`, y registra el cambio CC-2026-020) y después backend y
 frontend. Mientras no haya destinatarios no sale ningún correo.
+
+## Comercial
+
+Apartado del área Comercial (fase 1 de `docs/comercial-analisis-facturacion.md`):
+reemplaza el libro «2026 FACTURACION metrica.xlsx». Lo usan el área Comercial
+y Sistemas; **Administración y Gerencia lo consultan** sin registrar ni anular
+(`MODULOS.comercial` en `access.areas.js` y `APP_VIEWS.comercial` en
+`navigation.js`). Pestañas:
+
+- **Facturas:** búsqueda por número, cliente, NIT, cotización o responsable;
+  chips por estado (pendiente, pago parcial, pagada, anulada) con su conteo y
+  cifras del filtro (facturado, cobrado, por cobrar). La ficha muestra los
+  datos, las líneas por categoría con su margen (una venta sin costo queda
+  **por costear**: no se toma el 84 %), referencias, personas, pagos e
+  historial. **Nueva factura** sugiere el número que sigue en la gestión,
+  busca el cliente de DataMET (trae su NIT) y no se guarda si las líneas no
+  suman el monto.
+- **Cuentas por cobrar:** saldo por días de mora desde el **vencimiento**
+  (emisión más el plazo de crédito del cliente; sin plazo, vence al emitir,
+  como el Excel), por factura o por cliente, y lo cobrado sin aplicar. La
+  ficha del cliente guarda su plazo, los correos de recepción de facturas y
+  la ventana de recepción (`COM_CLIENTES`; `DATA_CLIENTES` no se toca).
+- **Pagos:** cada pago se registra una vez y se aplica a una o varias
+  facturas sin pasar su saldo; lo que sobra queda **sin aplicar** (anticipo).
+
+**Nada se borra** (migración `034`): una factura o un pago se anulan con
+motivo; las líneas, referencias, personas y aplicaciones no se modifican
+(una corrección es anular y volver a registrar), y todo queda en
+`COM_HISTORIAL`, que solo crece. Una factura con pagos vigentes no se anula
+hasta anular esos pagos. El número es único por gestión.
+
+Rutas (`/api/comercial`, `comercial.routes.js`): de consulta `GET /acceso`,
+`/categorias`, `/personal`, `/clientes?q=`, `/clientes/:codigo`,
+`/facturas` (filtros `q`, `estado`, `tipo`, `area`, `cliente`, `desde`,
+`hasta`, `page`, `pageSize`), `/facturas/siguiente?gestion=`, `/facturas/:id`,
+`/pagos`, `/pagos/:id`, `/cobranza`; solo del área `POST /facturas`,
+`POST /facturas/:id/anulacion`, `POST /pagos`, `POST /pagos/:id/anulacion`,
+`PUT /clientes/:codigo`. Sin la migración, responden 503 con lo que falta.
+
+**Carga inicial desde el Excel** (`backend/scripts/comercial-importar-excel.js`):
+
+```
+pnpm comercial:importar "D:\Comercial\2026 FACTURACION metrica.xlsx"                       # solo el plan
+pnpm comercial:importar "D:\Comercial\2026 FACTURACION metrica.xlsx" --aplicar --usuario <usuario>
+```
+
+Lee la hoja FACTURAS 2026 por sus encabezados (no por la letra de la columna)
+y la hoja NIT CORREOS. Cada fila es una factura con sus líneas, cotizaciones,
+nota de salida, personas (reconocidas en `DATA_USERS` cuando el nombre es
+único) y pagos; las filas «ANULADO» quedan anuladas; dos filas con el mismo
+número, fecha y razón social se unen (la 433, repartida entre regionales); un
+número repetido cuya columna # dice otro libre se registra con ese (la fila
+152: 144 → 149); un pago negativo es una devolución y se descuenta del pago
+anterior, anotada en él. Lo ya registrado se salta. Con el libro del
+2026-11-18 el plan cuadra con el Excel: 594 facturas por Bs 5.801.268,65 y
+pagos por Bs 4.671.866,55.
+
+Orden de despliegue: `pnpm migrate` (034), backend, importación con
+`--aplicar` y frontend (`pnpm build`). El registro en Control de cambios va
+con la migración de la versión que lo publique.
 
 ## Control de cambios y registro de fallas
 
