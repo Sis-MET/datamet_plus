@@ -157,6 +157,18 @@ const schemas = {
   busqueda: z.object({ q: vacioANull(z.string().trim().max(80)) }),
 
   gestion: z.object({ gestion: entero('Gestión', { min: 2020, max: 2099 }) }),
+
+  filtrosBitrix: z.object({
+    q: vacioANull(z.string().trim().max(80)),
+    situacion: vacioANull(z.enum(['por_facturar', 'sin_registrar', 'etapa_desactualizada', 'con_factura', 'sin_factura'], { error: 'Situación inválida.' })),
+    embudo: vacioANull(entero('Embudo', { min: 0, max: 100000 })),
+    page: pagina(1, 10000),
+    pageSize: pagina(25, 100),
+  }),
+
+  sincronizacion: z.object({ completa: z.boolean().optional().default(false) }),
+
+  equivalencia: z.object({ usuarioId: opcional(entero('Persona', { min: 1 })).optional().default(null) }),
 };
 
 const parse = (name, data) => {

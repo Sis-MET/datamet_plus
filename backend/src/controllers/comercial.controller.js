@@ -1,4 +1,5 @@
 const comercial = require('../services/comercial.service');
+const bitrix = require('../services/comercial.bitrix');
 const { parse } = require('../services/comercial.validation');
 
 const readId = (value) => {
@@ -15,6 +16,19 @@ const readCodigo = (value) => {
     throw Object.assign(new Error('Código de cliente inválido.'), { statusCode: 400 });
   }
   return codigo;
+};
+
+/**
+ * Tras registrar o anular una factura se recalculan sus enlaces con las
+ * negociaciones de Bitrix24. Sin la migración 035 o sin copia, no pasa nada.
+ */
+const enlazarDespues = async (factura) => {
+  try {
+    await bitrix.reconstruirEnlaces();
+  } catch (error) {
+    if (error.statusCode !== 503) console.warn(`Enlaces con Bitrix24: ${error.message}`);
+  }
+  return factura;
 };
 
 /** Responde { success, data }; los errores conocidos salen con su código. */
@@ -41,9 +55,13 @@ module.exports = {
 
   listFacturas: handle(req => comercial.listFacturas(parse('filtrosFacturas', req.query))),
   siguienteNumero: handle(req => comercial.siguienteNumero(parse('gestion', req.query).gestion)),
-  getFactura: handle(req => comercial.getFactura(readId(req.params.id))),
-  crearFactura: handle(req => comercial.crearFactura(parse('factura', req.body), req.user), 201),
-  anularFactura: handle(req => comercial.anularFactura(readId(req.params.id), parse('anulacion', req.body), req.user)),
+  getFactura: handle(async (req) => {
+    const id = readId(req.params.id);
+    const factura = await comercial.getFactura(id);
+    return { ...factura, negociaciones: await bitrix.negociacionesDeFactura(id) };
+  }),
+  crearFactura: handle(async (req) => enlazarDespues(await comercial.crearFactura(parse('factura', req.body), req.user)), 201),
+  anularFactura: handle(async (req) => enlazarDespues(await comercial.anularFactura(readId(req.params.id), parse('anulacion', req.body), req.user))),
 
   listPagos: handle(req => comercial.listPagos(parse('filtrosPagos', req.query))),
   getPago: handle(req => comercial.getPago(readId(req.params.id))),
@@ -51,4 +69,13 @@ module.exports = {
   anularPago: handle(req => comercial.anularPago(readId(req.params.id), parse('anulacion', req.body), req.user)),
 
   cobranza: handle(req => comercial.cobranza(parse('filtrosFacturas', req.query))),
+
+  bitrixEstado: handle(() => bitrix.estado()),
+  bitrixNegociaciones: handle(req => bitrix.listNegociaciones(parse('filtrosBitrix', req.query))),
+  bitrixNegociacion: handle(req => bitrix.getNegociacion(readId(req.params.id))),
+  bitrixSincronizar: handle(req => bitrix.sincronizarEnSegundoPlano({
+    por: String(req.user?.usuario || 'usuario'), completa: parse('sincronizacion', req.body).completa,
+  }), 202),
+  bitrixUsuarios: handle(() => bitrix.listUsuarios()),
+  bitrixConfirmarUsuario: handle(req => bitrix.confirmarUsuario(readId(req.params.id), parse('equivalencia', req.body), req.user)),
 };
