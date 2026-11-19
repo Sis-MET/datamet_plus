@@ -45,7 +45,7 @@ const vacio = (v) => {
   return VACIOS.has(n) || n.startsWith('SIN TEC') || n.startsWith('SIN NS') || n.startsWith('FALTA ');
 };
 
-/** «JORGE ORTUÑO» → «Jorge Ortuño». */
+/** «JOSÉ MUÑOZ» → «José Muñoz». */
 const titulo = (nombre) => texto(nombre).toLowerCase().replace(/(^|[\s(])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
 
 // Encabezados (normalizados) que usa el importador, fuera de las categorías.
@@ -134,7 +134,7 @@ const COTIZACION = /\d{3,4}-(?:[CS]\d+-\d+(?:-\d{2})?(?: \d+)?|\d{3,4}-\d+-\d{2}
 const cotizacionesDe = (v) => [...texto(v).toUpperCase().matchAll(COTIZACION)].map(m => m[0].trim());
 const notasDe = (v) => [...texto(v).toUpperCase().matchAll(/NS-\d{3,5}-\d{4}/g)].map(m => m[0]);
 
-/** «JARED MARAÑON - ANTONIO GALVEZ» → dos personas. */
+/** «MARIO PEÑA - LUISA ROCA» → dos personas. */
 const nombresDe = (v) => (vacio(v) ? [] : texto(v).split(/\s*-\s*/).map(texto).filter(nombre => nombre.length >= 3 && !vacio(nombre)));
 
 /** Encabezados de la fila 3: nombre normalizado → letra de columna. */

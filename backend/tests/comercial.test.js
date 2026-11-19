@@ -202,9 +202,9 @@ test('importación: normaliza encabezados con saltos de línea y lee códigos y 
   assert.equal(imp.normalizar('Nº FACTURA'), 'NO FACTURA');
   assert.deepEqual(imp.cotizacionesDe('0114-C04-25 1 Y 0114-C05-25 1'), ['0114-C04-25 1', '0114-C05-25 1']);
   assert.deepEqual(imp.cotizacionesDe('005-0199-1-26'), ['005-0199-1-26']);
-  assert.deepEqual(imp.nombresDe('JARED MARAÑON - ANTONIO GALVEZ'), ['JARED MARAÑON', 'ANTONIO GALVEZ']);
+  assert.deepEqual(imp.nombresDe('MARIO PEÑA - LUISA ROCA'), ['MARIO PEÑA', 'LUISA ROCA']);
   assert.deepEqual(imp.nombresDe('SIN TECNCO ASIGNADO'), []);
-  assert.equal(imp.titulo('JORGE ORTUÑO'), 'Jorge Ortuño');
+  assert.equal(imp.titulo('JOSÉ MUÑOZ'), 'José Muñoz');
 });
 
 test('importación: plan con devolución, anulada, filas unidas y número corregido', () => {
