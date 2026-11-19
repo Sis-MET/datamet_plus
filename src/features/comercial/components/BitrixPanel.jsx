@@ -11,6 +11,7 @@ import {
   PAGE_SIZE, SITUACIONES_BITRIX, SITUACIONES_BITRIX_ORDEN, bs, bsCorto, fecha, fechaHora, haceCuanto,
 } from '../domain/comercial';
 import { Busqueda, Cargando, Cifras, ErrorCarga, FilaAbrible, Paginacion, SituacionBitrix as Situacion } from './comunes';
+import { ActualizarBitrixModal } from './ActualizarBitrixModal';
 import { FacturaModal } from './FacturaModal';
 import { NegociacionModal } from './NegociacionModal';
 import { NuevaFacturaModal } from './NuevaFacturaModal';
@@ -61,11 +62,15 @@ function GuiaWebhook({ error }) {
 
 /** Cómo está la copia: última sincronización, conteos y el botón para sincronizar. */
 function EstadoCopia({ estado, soloConsulta, onSincronizar, pidiendo }) {
-  const { ultima, ultimaCorrecta, copia } = estado;
+  const { ultima, ultimaCorrecta, copia, escritura } = estado;
   const sincronizando = estado.enCurso || pidiendo;
+  const escribiendo = Boolean(escritura?.enCurso);
   let tono = 'muted';
   let texto = 'Todavía sin sincronizar';
-  if (sincronizando) {
+  if (escribiendo) {
+    tono = 'info';
+    texto = `Actualizando Bitrix24: ${escritura.hechas.toLocaleString('es-BO')} de ${escritura.total.toLocaleString('es-BO')}`;
+  } else if (sincronizando) {
     tono = 'info';
     texto = 'Sincronizando…';
   } else if (ultima?.estado === 'ERROR') {
@@ -80,7 +85,7 @@ function EstadoCopia({ estado, soloConsulta, onSincronizar, pidiendo }) {
     <section aria-label="Copia de Bitrix24" className="card flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3 shadow-card">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <span className={cn('cal-tone-' + tono, 'relative flex h-2.5 w-2.5 flex-none rounded-full bg-[var(--tone)]')} aria-hidden="true">
-          {sincronizando && <span className="absolute inset-0 animate-ping rounded-full bg-[var(--tone)] opacity-60" />}
+          {(sincronizando || escribiendo) && <span className="absolute inset-0 animate-ping rounded-full bg-[var(--tone)] opacity-60" />}
         </span>
         <div className="min-w-0">
           <p className="text-[13.5px] font-semibold text-fg" role="status">{texto}</p>
@@ -110,12 +115,27 @@ function EstadoCopia({ estado, soloConsulta, onSincronizar, pidiendo }) {
               Copia completa
             </button>
           )}
-          <Button size="sm" variant="secondary" className="h-9" disabled={sincronizando} onClick={() => onSincronizar(false)}>
+          <Button size="sm" variant="secondary" className="h-9" disabled={sincronizando || escribiendo} onClick={() => onSincronizar(false)}>
             {sincronizando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
             Sincronizar ahora
           </Button>
         </div>
       )}
+    </section>
+  );
+}
+
+/** Cuántas negociaciones con factura esperan actualizarse en Bitrix24 (solo el área). */
+function PendientesBitrix({ cantidad, modo, onRevisar }) {
+  return (
+    <section aria-label="Pendientes en Bitrix24" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-info/[0.07] px-4 py-3">
+      <RefreshCw className="h-[18px] w-[18px] flex-none text-info" aria-hidden="true" />
+      <p className="min-w-0 flex-1 text-[13px] text-fg">
+        <span className="font-semibold">{cantidad.toLocaleString('es-BO')} {cantidad === 1 ? 'negociación' : 'negociaciones'} con factura</span>{' '}
+        <span className="text-fg-muted">esperan actualizarse en Bitrix24: facturado, etapa de cobro o cierre.</span>
+        {modo === 'prueba' && <span className="text-fg-muted"> Modo de prueba: se simula y Bitrix24 no cambia.</span>}
+      </p>
+      <Button size="sm" variant="secondary" className="h-9" onClick={onRevisar}>Revisar y actualizar</Button>
     </section>
   );
 }
@@ -205,7 +225,7 @@ function Negociaciones({ estado, soloConsulta, clave, onAbrir }) {
         <Cifras items={[
           { label: 'Por facturar', value: bsCorto(situaciones.por_facturar.monto), hint: negociaciones(situaciones.por_facturar.negociaciones), tone: situaciones.por_facturar.negociaciones ? 'warning' : undefined },
           { label: 'Facturadas sin registrar', value: bsCorto(situaciones.sin_registrar.monto), hint: `${situaciones.sin_registrar.negociaciones} sin factura en DataMET+`, tone: situaciones.sin_registrar.negociaciones ? 'danger' : undefined },
-          { label: 'Etapa por actualizar', value: String(situaciones.etapa_desactualizada.negociaciones), hint: 'Ya facturadas en DataMET+' },
+          { label: 'Por actualizar en Bitrix24', value: String(situaciones.etapa_desactualizada.negociaciones), hint: 'Con factura en DataMET+' },
           { label: 'Con factura', value: String(situaciones.con_factura.negociaciones), hint: bsCorto(situaciones.con_factura.monto) },
         ]} />
       )}
@@ -299,22 +319,34 @@ export function BitrixPanel({ soloConsulta }) {
   const [propuesta, setPropuesta] = useState(null);
   const [factura, setFactura] = useState(null);
   const [pidiendo, setPidiendo] = useState(false);
-  // Sube cuando se registra una factura o una equivalencia.
+  const [masiva, setMasiva] = useState(false);
+  // Sube cuando se registra una factura, una equivalencia o se escribe en Bitrix24.
   const [version, setVersion] = useState(0);
   const { data: estado, error: errorEstado, reload: recargarEstado } = useResource(comercialApi.bitrixEstado);
-  // Las listas se recargan al terminar una copia correcta o con un cambio aquí.
-  const clave = `${estado?.ultimaCorrecta?.id ?? 0}:${version}`;
+  // Las listas se recargan al terminar una copia correcta, una actualización
+  // de Bitrix24 o con un cambio aquí.
+  const clave = `${estado?.ultimaCorrecta?.id ?? 0}:${estado?.escritura?.fin ?? ''}:${version}`;
 
-  // Mientras sincroniza, vuelve a preguntar cada 3 s; al terminar, avisa.
+  // Mientras sincroniza o escribe, vuelve a preguntar cada 3 s; al terminar, avisa.
   const enCursoAntes = useRef(false);
+  const escribiendoAntes = useRef(false);
   useEffect(() => {
     if (!estado) return undefined;
     if (enCursoAntes.current && !estado.enCurso) {
       if (estado.ultima?.estado === 'ERROR') toast.error(`La sincronización falló: ${estado.ultima.error}`);
       else if (estado.ultima) toast.success(`Sincronizado: ${estado.ultima.negociaciones} negociaciones y ${estado.ultima.enlaces} enlaces con facturas.`);
     }
+    const e = estado.escritura;
+    if (escribiendoAntes.current && e && !e.enCurso) {
+      const partes = [`${e.actualizadas} actualizadas`, e.alDia && `${e.alDia} ya estaban al día`, e.cambiaron && `${e.cambiaron} cambiaron en Bitrix24 y quedan para revisar`]
+        .filter(Boolean).join(', ');
+      const prefijo = e.simulada ? 'Simulación de Bitrix24' : 'Bitrix24';
+      if (e.errores.length) toast.error(`${prefijo}: ${partes}; ${e.errores.length} con error (${e.errores[0].error}).`);
+      else toast.success(`${prefijo}: ${partes}.`);
+    }
     enCursoAntes.current = estado.enCurso;
-    if (!estado.enCurso) return undefined;
+    escribiendoAntes.current = Boolean(e?.enCurso);
+    if (!estado.enCurso && !e?.enCurso) return undefined;
     const timer = setTimeout(recargarEstado, 3000);
     return () => clearTimeout(timer);
   }, [estado, recargarEstado]);
@@ -336,6 +368,9 @@ export function BitrixPanel({ soloConsulta }) {
   if (!estado) return <Cargando label="Cargando Bitrix24" filas={3} />;
 
   const pendientes = estado.copia?.responsablesSinConfirmar || 0;
+  const porActualizar = estado.copia?.pendientes || 0;
+  const modo = estado.modoEscritura || 'desactivada';
+  const puedeEscribir = estado.configurado && !soloConsulta && modo !== 'desactivada';
   // Sin webhook y sin nada copiado antes, solo la guía: no hay qué filtrar.
   const vacia = !estado.configurado && !estado.copia?.negociaciones;
 
@@ -348,6 +383,9 @@ export function BitrixPanel({ soloConsulta }) {
         <>
           {(estado.configurado || estado.ultima) && (
             <EstadoCopia estado={estado} soloConsulta={soloConsulta || !estado.configurado} onSincronizar={sincronizar} pidiendo={pidiendo} />
+          )}
+          {puedeEscribir && porActualizar > 0 && !estado.escritura?.enCurso && !estado.enCurso && (
+            <PendientesBitrix cantidad={porActualizar} modo={modo} onRevisar={() => setMasiva(true)} />
           )}
           <Segmented
             label="Vista de Bitrix24"
@@ -370,16 +408,27 @@ export function BitrixPanel({ soloConsulta }) {
         <NegociacionModal
           id={abierta}
           soloConsulta={soloConsulta}
+          puedeEscribir={puedeEscribir && !estado.escritura?.enCurso}
+          modo={modo}
           onClose={() => setAbierta(null)}
           onFacturar={(p) => { setAbierta(null); setPropuesta(p); }}
           onAbrirFactura={(id) => { setAbierta(null); setFactura(id); }}
+          onChanged={() => { setVersion(v => v + 1); recargarEstado(); }}
         />
       )}
       {propuesta && (
         <NuevaFacturaModal
           propuesta={propuesta}
           onClose={() => setPropuesta(null)}
-          onCreated={(nueva) => { setVersion(v => v + 1); recargarEstado(); setFactura(nueva.id); }}
+          // Con la factura registrada, vuelve a la negociación: ahí se actualiza Bitrix24.
+          onCreated={() => { setVersion(v => v + 1); recargarEstado(); setAbierta(propuesta.dealId); }}
+        />
+      )}
+      {masiva && (
+        <ActualizarBitrixModal
+          modo={modo}
+          onClose={() => setMasiva(false)}
+          onIniciada={() => { escribiendoAntes.current = true; recargarEstado(); }}
         />
       )}
       {factura && (

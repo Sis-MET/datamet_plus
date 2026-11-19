@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bs, bsCorto, cuadre, enlaceSeguro, facturaDesdeFormulario, fecha, fechaHora, filtrosAParams, formularioDesdePropuesta, haceCuanto,
-  leerMonto, lineaVacia, montoTexto, opcionesCategorias, porcentaje, problemasFactura, repartirPago, sumar,
+  CAMBIOS_BITRIX, bs, bsCorto, cuadre, enlaceSeguro, facturaDesdeFormulario, fecha, fechaHora, filtrosAParams, formularioDesdePropuesta, haceCuanto,
+  leerMonto, lineaVacia, montoTexto, opcionesCategorias, porcentaje, problemasFactura, repartirPago, sumar, valorCambio,
 } from './comercial';
 
 const formulario = (overrides = {}) => ({
@@ -149,6 +149,15 @@ describe('Comercial: factura desde una negociación de Bitrix24', () => {
     expect(form.lineas).toBe(base.lineas);
     expect(form.monto).toBe('');
     expect(form.cliente).toBeNull();
+  });
+
+  it('cambios para Bitrix24: de qué a qué, en palabras', () => {
+    expect(valorCambio(false)).toBe('No');
+    expect(valorCambio(true)).toBe('Sí');
+    expect(valorCambio({ id: 'C21:UC_UAOYL5', nombre: 'Pendiente de pago' })).toBe('Pendiente de pago');
+    expect(valorCambio(null)).toBe('—');
+    expect(valorCambio('594, 601')).toBe('594, 601');
+    expect(Object.keys(CAMBIOS_BITRIX)).toEqual(['facturado', 'numeroFactura', 'etapa', 'cierre']);
   });
 
   it('montos, horas relativas y enlaces seguros', () => {

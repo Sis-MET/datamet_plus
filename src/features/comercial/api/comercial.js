@@ -31,4 +31,8 @@ export const comercialApi = {
   bitrixSincronizar: (completa = false) => unwrap(api.post('/comercial/bitrix/sincronizar', { completa })),
   bitrixUsuarios: () => unwrap(api.get('/comercial/bitrix/usuarios')),
   bitrixConfirmarUsuario: (bitrixId, usuarioId) => unwrap(api.put(`/comercial/bitrix/usuarios/${bitrixId}`, { usuarioId })),
+  // Escribir en Bitrix24, con lo que la persona vio y confirmó.
+  bitrixActualizar: (dealId, cambios) => unwrap(api.post(`/comercial/bitrix/negociaciones/${dealId}/actualizacion`, { cambios })),
+  bitrixPendientes: () => unwrap(api.get('/comercial/bitrix/actualizaciones')),
+  bitrixActualizarPendientes: (esperadas) => unwrap(api.post('/comercial/bitrix/actualizaciones', { esperadas })),
 };

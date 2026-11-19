@@ -280,12 +280,28 @@ export const problemasFactura = (form) => {
 export const SITUACIONES_BITRIX = {
   por_facturar: { label: 'Por facturar', tone: 'warning', ayuda: 'En una etapa para facturar y todavía sin factura en DataMET+.' },
   sin_registrar: { label: 'Facturada sin registrar', tone: 'danger', ayuda: 'Bitrix24 la da por facturada o en cobro, pero DataMET+ no tiene su factura.' },
-  etapa_desactualizada: { label: 'Etapa por actualizar', tone: 'info', ayuda: 'Ya tiene factura en DataMET+, pero en Bitrix24 sigue para facturar o perdida.' },
+  etapa_desactualizada: { label: 'Por actualizar en Bitrix24', tone: 'info', ayuda: 'Tiene factura en DataMET+, pero a Bitrix24 le falta marcarla facturada, su etapa de cobro, su cierre o el número (o está perdida).' },
   con_factura: { label: 'Con factura', tone: 'success', ayuda: 'Enlazada con su factura por la cotización o por la negociación anotada.' },
   sin_factura: { label: 'Sin facturar', tone: 'muted', ayuda: 'En proceso, ganada sin factura o perdida.' },
 };
 
 export const SITUACIONES_BITRIX_ORDEN = ['por_facturar', 'sin_registrar', 'etapa_desactualizada', 'con_factura', 'sin_factura'];
+
+/** Lo que DataMET+ escribe en una negociación de Bitrix24 (fase 3). */
+export const CAMBIOS_BITRIX = {
+  facturado: '¿Está facturado?',
+  numeroFactura: 'N.º de factura',
+  etapa: 'Etapa de cobro',
+  cierre: 'Cierre',
+};
+
+/** «No → Sí», «Para Facturar → Pendiente de pago», «— → 594». */
+export const valorCambio = (valor) => {
+  if (valor === true) return 'Sí';
+  if (valor === false) return 'No';
+  if (valor && typeof valor === 'object') return valor.nombre || valor.id;
+  return valor || '—';
+};
 
 export const ENLACES_POR = { COTIZACION: 'por la cotización', REFERENCIA: 'por la negociación anotada' };
 
