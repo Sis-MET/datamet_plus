@@ -95,7 +95,7 @@ async function readBody(response) {
   try {
     const raw = await response.text();
     return raw ? JSON.parse(raw) : null;
-  } catch (_) {
+  } catch {
     return null;
   }
 }
