@@ -360,7 +360,11 @@ fases 2 y 4.
    responsable, regional, técnicos, balanzas, nota de salida); enlace con
    ServiceMET para Calibración.
 3. **Sistema de facturación:** importar las facturas emitidas y anuladas;
-   escribir de vuelta en Bitrix24 el estado de facturación y cobro.
+   escribir de vuelta en Bitrix24 el estado de facturación y cobro. Las
+   facturas se emiten con **Mastersoft**; el importador espera una
+   exportación real. La escritura en Bitrix24, con confirmación de
+   Comercial, está programada (migración `036`; ver README, *Actualizar
+   Bitrix24*).
 4. **Reportes y comisiones** con cierre mensual; conciliación bancaria; envío
    de la factura al correo de recepción del cliente (`mailer.service.js`).
 

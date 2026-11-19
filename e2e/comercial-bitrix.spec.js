@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-// Comercial, fase 2: la copia de Bitrix24. La API se simula como la responde
-// el backend (con datos ficticios): situación de las negociaciones frente a
-// las facturas, la factura que se propone desde una negociación, la
-// sincronización y las equivalencias de responsables. Quien solo consulta no
-// sincroniza, no factura ni confirma.
+// Comercial, fases 2 y 3: la copia de Bitrix24. La API se simula como la
+// responde el backend (con datos ficticios): situación de las negociaciones
+// frente a las facturas, la factura que se propone desde una negociación, la
+// sincronización, las equivalencias de responsables y la escritura en
+// Bitrix24 con confirmación (una o todas). Quien solo consulta no
+// sincroniza, no factura, no confirma ni escribe.
 
 test.setTimeout(60000);
 
@@ -74,11 +75,26 @@ const VACIO = Object.fromEntries(Object.keys(RESUMEN).map(s => [s, { negociacion
 // Texto visible: la tabla (escritorio) y la lista (teléfono) repiten cada negociación.
 const visible = (page, texto) => page.getByText(texto).filter({ visible: true }).first();
 
+const SIN_NUMERO = { codigo: 'sin_campo_numero', texto: 'Para escribir el N.º de factura, crea en Bitrix24 un campo de texto «N.º de factura» en las negociaciones y sincroniza.' };
+const PLAN_4980 = {
+  cambios: [
+    { campo: 'facturado', antes: false, despues: true },
+    { campo: 'etapa', antes: { id: 'C21:FINAL_INVOICE', nombre: 'Para Facturar' }, despues: { id: 'C21:UC_UAOYL5', nombre: 'Pendiente de pago' } },
+  ],
+  avisos: [SIN_NUMERO],
+};
+const RESUMEN_PENDIENTES = {
+  negociaciones: 2, cambios: { facturado: 2, numeroFactura: 0, etapa: 1, cierre: 1 },
+  embudos: [{ nombre: 'Calibración', negociaciones: 1 }, { nombre: 'Soporte Tecnico', negociaciones: 1 }],
+};
+
 const estadoBase = (overrides = {}) => ({
   configurado: true, errorConfiguracion: null, automatica: true, minutos: 15, desde: '2025-01-01', portal: PORTAL, enCurso: false, tablas: true,
+  modoEscritura: 'real',
   ultima: { id: 12, tipo: 'CAMBIOS', estado: 'OK', negociaciones: 3, empresas: 1, enlaces: 2, error: null, por: 'automática', inicio: '2026-11-19T13:45:00', fin: '2026-11-19T13:45:20' },
   ultimaCorrecta: { id: 12, tipo: 'CAMBIOS', estado: 'OK', negociaciones: 3, empresas: 1, enlaces: 2, error: null, por: 'automática', inicio: '2026-11-19T13:45:00', fin: '2026-11-19T13:45:20' },
-  copia: { negociaciones: 4, facturas: 2, responsablesSinConfirmar: 1 },
+  copia: { negociaciones: 4, facturas: 2, responsablesSinConfirmar: 1, pendientes: 2 },
+  escritura: null,
   ...overrides,
 });
 
@@ -96,6 +112,8 @@ async function preparar(page, { usuario = COMERCIAL, estado = estadoBase() } = {
   const errores = [];
   page.on('pageerror', error => errores.push(error.message));
   let sincronizando = 0;
+  let escribiendo = 0;
+  const hecho = { factura5077: false, bitrix4980: false };
   await page.route(url => url.pathname.startsWith('/api/'), async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -114,7 +132,26 @@ async function preparar(page, { usuario = COMERCIAL, estado = estadoBase() } = {
     }
     if (request.method() === 'POST' && path === '/comercial/facturas') {
       enviados.factura = request.postDataJSON();
+      hecho.factura5077 = true;
       return json({ id: 102, numero: enviados.factura.numero }, 201);
+    }
+    if (request.method() === 'POST' && path === '/comercial/bitrix/negociaciones/4980/actualizacion') {
+      enviados.actualizacion = request.postDataJSON();
+      hecho.bitrix4980 = true;
+      return json({ resultado: 'actualizada', simulada: estado.modoEscritura === 'prueba' });
+    }
+    if (request.method() === 'POST' && path === '/comercial/bitrix/actualizaciones') {
+      enviados.masiva = request.postDataJSON();
+      escribiendo = 2;
+      return json({ iniciada: true }, 202);
+    }
+    if (path === '/comercial/bitrix/actualizaciones') return json(RESUMEN_PENDIENTES);
+    if (path === '/comercial/bitrix/estado' && escribiendo) {
+      escribiendo -= 1;
+      const base = { total: 2, alDia: 0, cambiaron: 0, errores: [], por: 'comercial', inicio: '2026-11-19T14:00:00' };
+      return json(escribiendo
+        ? { ...estado, escritura: { ...base, enCurso: true, hechas: 1, actualizadas: 1, fin: null } }
+        : { ...estado, copia: { ...estado.copia, pendientes: 0 }, escritura: { ...base, enCurso: false, hechas: 2, actualizadas: 2, fin: '2026-11-19T14:00:05' } });
     }
     if (path === '/comercial/bitrix/estado') {
       if (sincronizando > 1) {
@@ -134,10 +171,19 @@ async function preparar(page, { usuario = COMERCIAL, estado = estadoBase() } = {
       return json({ items, total: items.length, page: 1, pageSize: 25, resumen: { situaciones: estado.copia?.negociaciones ? RESUMEN : VACIO },
         embudos: [{ id: 21, nombre: 'Calibración', negociaciones: 2 }, { id: 1, nombre: 'Soporte Tecnico', negociaciones: 2 }] });
     }
-    if (path === '/comercial/bitrix/negociaciones/5077') return json(DETALLE_5077);
+    if (path === '/comercial/bitrix/negociaciones/5077') {
+      // Con su factura registrada, la ficha propone actualizar Bitrix24.
+      return json(hecho.factura5077
+        ? { ...DETALLE_5077, situacion: 'etapa_desactualizada', facturas: [{ id: 102, numero: 595, gestion: 2026, monto: 2750, fecha: '2026-11-19', por: 'REFERENCIA' }],
+          bitrix: { cambios: [{ campo: 'facturado', antes: false, despues: true }], avisos: [SIN_NUMERO] } }
+        : { ...DETALLE_5077, bitrix: { cambios: [], avisos: [] } });
+    }
     if (/^\/comercial\/bitrix\/negociaciones\/\d+$/.test(path)) {
       const neg = NEGOCIACIONES.find(n => String(n.dealId) === path.split('/').pop());
-      return json({ ...DETALLE_5077, ...neg, cotizaciones: neg.cotizacion ? [neg.cotizacion] : [], enlace: `${PORTAL}/crm/deal/details/${neg.dealId}/` });
+      let bitrix = { cambios: [], avisos: [] };
+      if (neg.dealId === 4980) bitrix = hecho.bitrix4980 ? { cambios: [], avisos: [SIN_NUMERO] } : PLAN_4980;
+      return json({ ...DETALLE_5077, ...neg, situacion: neg.dealId === 4980 && hecho.bitrix4980 ? 'con_factura' : neg.situacion,
+        cotizaciones: neg.cotizacion ? [neg.cotizacion] : [], enlace: `${PORTAL}/crm/deal/details/${neg.dealId}/`, bitrix });
     }
     if (path === '/comercial/bitrix/usuarios') return json(USUARIOS);
     if (path === '/sistema/permisos/mios') return json({ permisos: [], gestionar: false });
@@ -212,9 +258,87 @@ test('Comercial factura una negociación de Bitrix24 con sus datos ya puestos', 
   expect(enviados.factura.personas.map(p => [p.rol, p.usuarioId, p.nombre])).toEqual([
     ['RESPONSABLE', 7, 'Ana Comercial'], ['EJECUTO_ST', 30, 'Mario Peña'], ['APOYO_ST', null, 'Luisa Roca'],
   ]);
-  // Se abre la factura registrada, con su negociación enlazada.
+  // Vuelve a la negociación, que ahora propone actualizar Bitrix24; desde ahí se abre la factura.
+  const deNuevo = page.getByRole('dialog', { name: 'Mantenimiento de básculas camioneras' });
+  await expect(deNuevo.getByRole('region', { name: 'Para Bitrix24' }).getByText('¿Está facturado?')).toBeVisible();
+  await deNuevo.getByRole('button', { name: /N\.º 595/ }).click();
   const factura = page.getByRole('dialog', { name: 'Factura N.º 595' });
   await expect(factura.getByRole('link', { name: 'Abrir la negociación 5077 en Bitrix24' })).toBeVisible();
+});
+
+test('Actualiza en Bitrix24 una negociación con factura, con confirmación', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const { enviados, errores } = await preparar(page);
+  await page.goto('/comercial/bitrix');
+  await visible(page, 'Calibración anual de pesas').click({ timeout: 30000 });
+  const ficha = page.getByRole('dialog', { name: 'Calibración anual de pesas' });
+  const bitrix = ficha.getByRole('region', { name: 'Para Bitrix24' });
+  await expect(bitrix.getByText('Pendiente de pago')).toBeVisible();
+  await expect(bitrix.getByText('Para Facturar')).toBeVisible();
+  await expect(bitrix.getByText('crea en Bitrix24 un campo de texto', { exact: false })).toBeVisible();
+  await bitrix.getByRole('button', { name: 'Actualizar en Bitrix24' }).click();
+  // Primero se confirma: nada se envía todavía.
+  await expect(bitrix.getByRole('alertdialog', { name: 'Confirmar la actualización en Bitrix24' })).toBeVisible();
+  expect(enviados.actualizacion).toBeUndefined();
+  await page.screenshot({ path: '.impeccable/review/comercial-bitrix-escritura.png' });
+  await bitrix.getByRole('button', { name: 'Sí, actualizar' }).click();
+  await expect.poll(() => enviados.actualizacion).toBeTruthy();
+  // Se envía exactamente lo que se vio, para que el servidor lo compare con Bitrix24.
+  expect(enviados.actualizacion.cambios).toEqual(PLAN_4980.cambios);
+  await expect(page.getByText('Negociación #4980 actualizada en Bitrix24.')).toBeVisible();
+  await expect(bitrix.getByText('Bitrix24 está al día con sus facturas.')).toBeVisible();
+  await expect(ficha.getByText('Con factura').first()).toBeVisible();
+  expect(errores).toEqual([]);
+});
+
+test('Modo de prueba: se simula y lo dice; desactivada: no se puede escribir', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const { enviados } = await preparar(page, { estado: estadoBase({ modoEscritura: 'prueba' }) });
+  await page.goto('/comercial/bitrix');
+  await expect(page.getByRole('region', { name: 'Pendientes en Bitrix24' }).getByText('Modo de prueba: se simula y Bitrix24 no cambia.')).toBeVisible({ timeout: 30000 });
+  await visible(page, 'Calibración anual de pesas').click();
+  const bitrix = page.getByRole('dialog', { name: 'Calibración anual de pesas' }).getByRole('region', { name: 'Para Bitrix24' });
+  await expect(bitrix.getByText('Modo de prueba', { exact: true })).toBeVisible();
+  await bitrix.getByRole('button', { name: 'Actualizar en Bitrix24' }).click();
+  await expect(bitrix.getByText('se simula la escritura. Bitrix24 no cambia', { exact: false })).toBeVisible();
+  await page.screenshot({ path: '.impeccable/review/comercial-bitrix-prueba.png' });
+  await bitrix.getByRole('button', { name: 'Sí, actualizar' }).click();
+  await expect.poll(() => enviados.actualizacion).toBeTruthy();
+  await expect(page.getByText('Simulación: negociación #4980 actualizada en la copia de DataMET+; Bitrix24 no cambió.')).toBeVisible();
+});
+
+test('Con la escritura desactivada no hay botón ni aviso para actualizar Bitrix24', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const { escrituras } = await preparar(page, { estado: estadoBase({ modoEscritura: 'desactivada' }) });
+  await page.goto('/comercial/bitrix');
+  await expect(visible(page, 'Calibración anual de pesas')).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('region', { name: 'Pendientes en Bitrix24' })).toHaveCount(0);
+  await visible(page, 'Calibración anual de pesas').click();
+  const bitrix = page.getByRole('dialog', { name: 'Calibración anual de pesas' }).getByRole('region', { name: 'Para Bitrix24' });
+  await expect(bitrix.getByText('La escritura en Bitrix24 está desactivada en este servidor', { exact: false })).toBeVisible();
+  await expect(bitrix.getByRole('button', { name: 'Actualizar en Bitrix24' })).toHaveCount(0);
+  expect(escrituras).toEqual([]);
+});
+
+test('Actualización masiva de Bitrix24: resumen, confirmación y avance', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const { enviados, errores } = await preparar(page);
+  await page.goto('/comercial/bitrix');
+  const aviso = page.getByRole('region', { name: 'Pendientes en Bitrix24' });
+  await expect(aviso.getByText('2 negociaciones con factura')).toBeVisible({ timeout: 30000 });
+  await aviso.getByRole('button', { name: 'Revisar y actualizar' }).click();
+  const modal = page.getByRole('dialog', { name: 'Actualizar Bitrix24' });
+  await expect(modal.getByText('Pasan a Cerrado Ganado (facturas pagadas)')).toBeVisible();
+  await expect(modal.getByText('Por embudo: Calibración 1 · Soporte Tecnico 1.')).toBeVisible();
+  await page.screenshot({ path: '.impeccable/review/comercial-bitrix-masiva.png' });
+  await modal.getByRole('button', { name: 'Actualizar 2 negociaciones' }).click();
+  await expect.poll(() => enviados.masiva).toEqual({ esperadas: 2 });
+  await expect(page.getByRole('status').filter({ hasText: 'Actualizando Bitrix24: 1 de 2' })).toBeVisible();
+  await expect(page.getByText('Bitrix24: 2 actualizadas.')).toBeVisible({ timeout: 15000 });
+  await expect(aviso).toHaveCount(0);
+  // Mientras escribía no se podía sincronizar; al terminar, sí.
+  await expect(page.getByRole('button', { name: 'Sincronizar ahora' })).toBeEnabled();
+  expect(errores).toEqual([]);
 });
 
 test('Sincronizar ahora y confirmar el responsable sugerido', async ({ page }) => {
@@ -271,6 +395,13 @@ test('Administración consulta Bitrix24 sin sincronizar ni facturar; sin desbord
   await expect(ficha.getByText('OC-2211')).toBeVisible();
   await expect(ficha.getByRole('button', { name: /Registrar/ })).toHaveCount(0);
   await ficha.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  // Ve lo que le falta a Bitrix24, pero no escribe.
+  await expect(page.getByRole('region', { name: 'Pendientes en Bitrix24' })).toHaveCount(0);
+  await visible(page, 'Calibración anual de pesas').click();
+  const otra = page.getByRole('dialog', { name: 'Calibración anual de pesas' });
+  await expect(otra.getByRole('region', { name: 'Para Bitrix24' }).getByText('Pendiente de pago')).toBeVisible();
+  await expect(otra.getByRole('button', { name: 'Actualizar en Bitrix24' })).toHaveCount(0);
+  await otra.getByRole('button', { name: 'Cerrar', exact: true }).click();
 
   await page.getByRole('group', { name: 'Vista de Bitrix24' }).getByRole('button', { name: /Responsables/ }).click();
   const responsables = page.getByRole('region', { name: 'Responsables de Bitrix24' });

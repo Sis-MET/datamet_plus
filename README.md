@@ -700,6 +700,7 @@ BITRIX_WEBHOOK_URL=https://<portal>.bitrix24.es/rest/<usuario>/<clave>/
 BITRIX_SYNC_MINUTOS=15          # opcional, de 5 a 240
 BITRIX_SYNC_DESDE=2025-01-01    # opcional: negociaciones creadas desde esta fecha
 BITRIX_SYNC_ENABLED=false       # opcional: sin sincronización automática
+BITRIX_ESCRITURA=prueba         # opcional (fase 3): real escribe en Bitrix24; prueba simula; sin valor, desactivada
 ```
 
 Con el webhook, el backend sincroniza un minuto después de arrancar y luego
@@ -717,8 +718,52 @@ Rutas: de consulta `GET /bitrix/estado`, `/bitrix/negociaciones` (filtros
 (`{ usuarioId }`). `GET /facturas/:id` trae también las negociaciones
 enlazadas.
 
-Orden de despliegue: `pnpm migrate` (034 y 035), backend, importación con
-`--aplicar`, el webhook en `backend/.env` y frontend (`pnpm build`). El
+### Actualizar Bitrix24 (fase 3)
+
+Con una factura registrada, DataMET+ sabe qué le falta a su negociación en
+Bitrix24 (migración `036`) y lo escribe **solo cuando Comercial lo confirma**:
+
+- **«¿Está facturado?» = Sí.**
+- **Etapa de cobro** de su embudo: Calibración y GOA «Pendiente de pago»
+  (GOA, «Saldo pendiente de pago» si hay un pago parcial), Soporte técnico
+  «Facturado». Ventas no tiene etapa de cobro y queda donde está.
+- **Cerrado Ganado** cuando todas sus facturas quedan pagadas.
+- **N.º de factura**, en un campo de texto que Comercial crea en Bitrix24
+  (*Configuración del CRM › Campos personalizados › Negociaciones*), llamado
+  «N.º de factura» (también vale «Número de factura» o «Nro. factura»). Sin
+  ese campo, lo demás se escribe igual y la ficha avisa que falta.
+
+Las etapas solo avanzan: nunca se retrocede ni se toca una negociación ganada
+o perdida; los embudos sin etapas de facturación (Ejecución de CAL, de ST,
+Ventas Exwork) no cambian de etapa, y solo se mueve desde una etapa de
+facturación, de cobro o «Concluido» (Servicio Concluido). Una negociación
+con factura que sigue en una etapa de proceso puede ser un anticipo: queda
+con aviso para moverla a mano. La situación **Por actualizar en
+Bitrix24** reúne las negociaciones con factura a las que les falta algo (o
+que están perdidas). Se actualizan desde la ficha de cada una («Actualizar en
+Bitrix24», con lo que cambia de → a) o todas juntas («Revisar y actualizar»,
+con el resumen). En los dos casos el servidor **vuelve a leer** cada
+negociación en Bitrix24 antes de escribir y no escribe la que cambió desde
+que se vio; las masivas van de a 25 en un `batch` y se ve el avance. Mover la
+etapa puede disparar las automatizaciones de Bitrix24 de esa etapa, como si
+se moviera a mano. Cada escritura queda en `COM_HISTORIAL` (entidad
+`BITRIX`) con antes y después y el usuario. El mismo webhook de Comercial
+alcanza: el permiso `crm` permite actualizar negociaciones.
+
+**Interruptor.** `BITRIX_ESCRITURA` en `backend/.env` decide si se escribe:
+sin valor, **desactivada** (la ficha muestra lo que falta, sin botón);
+`prueba`, se **simula**: lee la negociación de la copia y no llama a Bitrix24
+(cambian solo la copia y el historial, marcado `simulada`; una copia completa
+la devuelve a lo que dice Bitrix24); `real`, escribe en Bitrix24. La pantalla
+dice en qué modo está.
+
+Rutas: de consulta `GET /bitrix/actualizaciones` (resumen de lo pendiente);
+solo del área `POST /bitrix/negociaciones/:id/actualizacion` (`{ cambios }`,
+lo que se confirmó) y `POST /bitrix/actualizaciones` (`{ esperadas }`). La
+ficha `GET /bitrix/negociaciones/:id` trae `bitrix: { cambios, avisos }`.
+
+Orden de despliegue: `pnpm migrate` (034, 035 y 036), backend, importación
+con `--aplicar`, el webhook en `backend/.env` y frontend (`pnpm build`). El
 registro en Control de cambios va con la migración de la versión que lo
 publique.
 
