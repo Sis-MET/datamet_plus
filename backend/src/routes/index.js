@@ -12,6 +12,7 @@ const calibrationRoutes = require('./calibration.routes');
 const systemRoutes = require('./system.routes');
 const rimRoutes = require('./rim.routes');
 const soporteRoutes = require('./soporte.routes');
+const comercialRoutes = require('./comercial.routes');
 
 // Define rutas base (prefijos)
 router.use('/health', healthRoutes);
@@ -25,6 +26,7 @@ router.use('/calibracion', calibrationRoutes);
 router.use('/sistema', systemRoutes);
 router.use('/rim', rimRoutes);
 router.use('/soporte', soporteRoutes);
+router.use('/comercial', comercialRoutes);
 
 module.exports = router;
 

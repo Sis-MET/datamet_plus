@@ -14,6 +14,8 @@ const { normalizeArea } = require('./calibration.db');
 const MODULOS = {
   calibracion: { area: 'calibracion', nombre: 'Calibración', consulta: [] },
   soporte: { area: 'soporte tecnico', nombre: 'Soporte Técnico', consulta: ['comercial'] },
+  // Facturas, pagos y cuentas por cobrar: Administración y Gerencia consultan.
+  comercial: { area: 'comercial', nombre: 'Comercial', consulta: ['administracion', 'gerencia'] },
 };
 
 /** Niveles de acceso a un apartado: el de su área (o Sistemas) y el de solo consulta. */
