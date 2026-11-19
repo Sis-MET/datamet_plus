@@ -23,4 +23,12 @@ export const comercialApi = {
   anularPago: (id, motivo) => unwrap(api.post(`/comercial/pagos/${id}/anulacion`, { motivo })),
 
   cobranza: (params) => unwrap(api.get('/comercial/cobranza', params)),
+
+  // Bitrix24 (solo lectura del CRM): copia, enlaces y equivalencias de responsables.
+  bitrixEstado: () => unwrap(api.get('/comercial/bitrix/estado')),
+  bitrixNegociaciones: (params) => unwrap(api.get('/comercial/bitrix/negociaciones', params)),
+  bitrixNegociacion: (id) => unwrap(api.get(`/comercial/bitrix/negociaciones/${id}`)),
+  bitrixSincronizar: (completa = false) => unwrap(api.post('/comercial/bitrix/sincronizar', { completa })),
+  bitrixUsuarios: () => unwrap(api.get('/comercial/bitrix/usuarios')),
+  bitrixConfirmarUsuario: (bitrixId, usuarioId) => unwrap(api.put(`/comercial/bitrix/usuarios/${bitrixId}`, { usuarioId })),
 };

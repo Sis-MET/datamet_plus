@@ -122,6 +122,20 @@ export const fechaHora = (iso) => {
   return `${fecha(local.slice(0, 10))} ${local.slice(11, 16)}`;
 };
 
+/** «hace 5 min», «hace 3 h», «hace 2 días» desde una hora UTC del servidor. */
+export const haceCuanto = (iso, now = new Date()) => {
+  if (!iso) return null;
+  const d = new Date(`${String(iso).slice(0, 19)}Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  const minutos = Math.max(0, Math.round((now.getTime() - d.getTime()) / 60000));
+  if (minutos < 1) return 'hace un momento';
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.round(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.round(horas / 24);
+  return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+};
+
 /** Hoy en Bolivia, «2026-11-19». */
 export const hoyLaPaz = (now = new Date()) => new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
@@ -169,6 +183,45 @@ export const cuadre = (monto, lineas) => {
   return { total, suma, cuadra: total !== null && total > 0 && centavos(total) === centavos(suma), diferencia: (centavos(total) - centavos(suma)) / 100 };
 };
 
+/** Monto para un campo del formulario: 3900.5 → «3900,50». */
+export const montoTexto = (valor) => (valor === null || valor === undefined || valor === '' ? '' : Number(valor).toFixed(2).replace('.', ','));
+
+/**
+ * Formulario de una factura nueva a partir de la propuesta de una negociación
+ * de Bitrix24 (GET /comercial/bitrix/negociaciones/:id). Lo que el formulario
+ * no tiene como campo (la referencia a la negociación, los técnicos) va en
+ * `extras` y se envía igual. `base` es el formulario vacío.
+ */
+export const formularioDesdePropuesta = (propuesta, base) => {
+  const refs = (tipo) => propuesta.referencias.filter(r => r.tipo === tipo).map(r => r.valor).join(', ');
+  const responsables = propuesta.personas.filter(p => p.rol === 'RESPONSABLE' && p.usuarioId);
+  const lineas = propuesta.lineas.map(linea => ({
+    ...lineaVacia(),
+    categoriaId: linea.categoriaId ? String(linea.categoriaId) : '',
+    monto: montoTexto(linea.monto),
+    cantidad: linea.cantidad === null || linea.cantidad === undefined ? '' : String(linea.cantidad),
+    regional: linea.regional || '',
+  }));
+  return {
+    ...base,
+    cliente: propuesta.cliente,
+    razonSocial: propuesta.razonSocial || '',
+    nit: propuesta.nit || '',
+    monto: montoTexto(propuesta.monto),
+    cotizacion: refs('COTIZACION'),
+    cotizacionCal: refs('COTIZACION_CAL'),
+    notaSalida: refs('NOTA_SALIDA'),
+    responsable1: responsables[0] ? String(responsables[0].usuarioId) : '',
+    responsable2: responsables[1] ? String(responsables[1].usuarioId) : '',
+    lineas: lineas.length ? lineas : base.lineas,
+    extras: {
+      dealId: propuesta.dealId,
+      referencias: propuesta.referencias.filter(r => !['COTIZACION', 'COTIZACION_CAL', 'NOTA_SALIDA'].includes(r.tipo)),
+      personas: propuesta.personas.filter(p => p.rol !== 'RESPONSABLE'),
+    },
+  };
+};
+
 /** Lo que se envía para registrar una factura desde el formulario. */
 export const facturaDesdeFormulario = (form, personal = []) => {
   const nombreDe = id => personal.find(persona => String(persona.id) === String(id))?.nombre || '';
@@ -182,6 +235,8 @@ export const facturaDesdeFormulario = (form, personal = []) => {
     ['COTIZACION_CAL', form.cotizacionCal],
     ['NOTA_SALIDA', form.notaSalida],
   ].flatMap(([tipo, valor]) => String(valor || '').split(/[;,]/).map(v => v.trim().toUpperCase()).filter(Boolean).map(v => ({ tipo, valor: v })));
+  referencias.push(...(form.extras?.referencias || []));
+  personas.push(...(form.extras?.personas || []));
   return {
     numero: Number(form.numero),
     fechaEmision: form.fechaEmision,
@@ -217,6 +272,25 @@ export const problemasFactura = (form) => {
   else if (!cuadre(form.monto, lineas).cuadra) problemas.lineas = 'Las líneas deben sumar el monto de la factura.';
   return problemas;
 };
+
+/**
+ * Situación de una negociación de Bitrix24 frente a las facturas de DataMET+
+ * (la calcula el servidor). En orden de lo que más pide atención.
+ */
+export const SITUACIONES_BITRIX = {
+  por_facturar: { label: 'Por facturar', tone: 'warning', ayuda: 'En una etapa para facturar y todavía sin factura en DataMET+.' },
+  sin_registrar: { label: 'Facturada sin registrar', tone: 'danger', ayuda: 'Bitrix24 la da por facturada o en cobro, pero DataMET+ no tiene su factura.' },
+  etapa_desactualizada: { label: 'Etapa por actualizar', tone: 'info', ayuda: 'Ya tiene factura en DataMET+, pero en Bitrix24 sigue para facturar o perdida.' },
+  con_factura: { label: 'Con factura', tone: 'success', ayuda: 'Enlazada con su factura por la cotización o por la negociación anotada.' },
+  sin_factura: { label: 'Sin facturar', tone: 'muted', ayuda: 'En proceso, ganada sin factura o perdida.' },
+};
+
+export const SITUACIONES_BITRIX_ORDEN = ['por_facturar', 'sin_registrar', 'etapa_desactualizada', 'con_factura', 'sin_factura'];
+
+export const ENLACES_POR = { COTIZACION: 'por la cotización', REFERENCIA: 'por la negociación anotada' };
+
+/** Enlace a una negociación en el portal (solo si el portal es HTTPS). */
+export const enlaceSeguro = (url) => (/^https:\/\/[^\s"'<>]+$/.test(String(url || '')) ? url : null);
 
 /** Reparte un pago entre facturas en orden, sin pasar el saldo de cada una. */
 export const repartirPago = (monto, facturas) => {

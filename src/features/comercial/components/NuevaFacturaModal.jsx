@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Handshake, Plus, TriangleAlert, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
 import { Dropdown } from '../../calibration/components/Dropdown';
@@ -7,7 +7,7 @@ import { BlockTitle, CancelButton, FieldLabel, Modal, ModalColumns, ModalSection
 import { useResource } from '../../system/hooks/useResource';
 import { comercialApi } from '../api/comercial';
 import {
-  REGIONALES, bs, cuadre, facturaDesdeFormulario, hoyLaPaz, lineaVacia, opcionesCategorias, problemasFactura,
+  REGIONALES, ROLES, bs, cuadre, facturaDesdeFormulario, formularioDesdePropuesta, hoyLaPaz, lineaVacia, opcionesCategorias, problemasFactura,
 } from '../domain/comercial';
 import { ClienteBuscador } from './comunes';
 
@@ -26,6 +26,7 @@ const formularioInicial = () => ({
   responsable2: '',
   cotizo: '',
   lineas: [lineaVacia()],
+  extras: null,
 });
 
 const cargarCatalogos = () => Promise.all([comercialApi.categorias(), comercialApi.personal()])
@@ -35,15 +36,61 @@ function MensajeError({ children }) {
   return children ? <p className="mt-1 text-[12.5px] font-medium text-danger">{children}</p> : null;
 }
 
+/** Los avisos de la propuesta que el formulario todavía no resolvió. */
+const avisosPendientes = (avisos = [], form, estadoCuadre) => avisos.filter(({ codigo }) => {
+  if (codigo === 'cliente') return !form.cliente;
+  if (codigo === 'responsable') return !form.responsable1;
+  if (codigo === 'repartir') return !estadoCuadre.cuadra;
+  if (codigo === 'categorias') return !form.lineas.some(linea => linea.categoriaId);
+  return true;
+});
+
+/** Lo que trae la negociación de Bitrix24 y no es un campo del formulario. */
+function DesdeBitrix({ extras, avisos, onQuitarPersona }) {
+  return (
+    <div className="mb-5 rounded-xl bg-surface-2/60 px-3 py-2.5">
+      <p className="flex items-center gap-2 text-[13px] font-semibold text-fg">
+        <Handshake className="h-4 w-4 text-fg-muted" aria-hidden="true" />
+        Desde la negociación #{extras.dealId} de Bitrix24
+      </p>
+      {avisos.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1">
+          {avisos.map(aviso => (
+            <li key={aviso.texto} className="flex gap-2 text-[12.5px] text-fg">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 flex-none text-warning" aria-hidden="true" />
+              <span>{aviso.texto}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {extras.personas.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Técnicos de la negociación">
+          {extras.personas.map((persona, index) => (
+            <li key={`${persona.rol}:${persona.nombre}`} className="flex items-center gap-1 rounded-lg bg-surface px-2 py-1 text-[12px] text-fg shadow-xs">
+              <span className="text-fg-muted">{ROLES[persona.rol]}:</span> {persona.nombre}
+              {!persona.usuarioId && <span className="text-fg-subtle" title="No se encontró su usuario en DataMET: se guarda con el nombre de Bitrix24.">(sin usuario)</span>}
+              <button type="button" onClick={() => onQuitarPersona(index)} aria-label={`Quitar a ${persona.nombre}`}
+                className="ml-0.5 rounded p-0.5 text-fg-subtle hover:bg-fg/[0.06] hover:text-fg">
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /**
  * Alta de una factura: número y fecha, cliente de DataMET (con su NIT), monto
  * repartido en líneas por categoría que deben sumar el monto, cotizaciones,
  * nota de salida y responsables. Se registra una vez: una corrección es
- * anular y volver a registrar.
+ * anular y volver a registrar. Con `propuesta` (de una negociación de
+ * Bitrix24) llega con esos datos puestos y anota la negociación.
  */
-export function NuevaFacturaModal({ onClose, onCreated }) {
+export function NuevaFacturaModal({ propuesta, onClose, onCreated }) {
   const baseId = useId();
-  const [form, setForm] = useState(formularioInicial);
+  const [form, setForm] = useState(() => (propuesta ? formularioDesdePropuesta(propuesta, formularioInicial()) : formularioInicial()));
   const [intentado, setIntentado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const { data: catalogos, error: errorCatalogos } = useResource(cargarCatalogos);
@@ -110,7 +157,9 @@ export function NuevaFacturaModal({ onClose, onCreated }) {
       size="xl"
       busy={guardando}
       title="Nueva factura"
-      subtitle="Se registra una vez. Para corregirla, se anula y se vuelve a registrar."
+      subtitle={propuesta
+        ? 'Con los datos de la negociación. Revísalos: se registra una vez y, para corregirla, se anula.'
+        : 'Se registra una vez. Para corregirla, se anula y se vuelve a registrar.'}
       footer={(close) => (
         <div className="ml-auto flex items-center gap-2">
           <CancelButton onClick={close} disabled={guardando} />
@@ -121,6 +170,13 @@ export function NuevaFacturaModal({ onClose, onCreated }) {
       {errorCatalogos && <p className="p-5 text-[13px] text-danger">No se pudieron cargar las categorías: {errorCatalogos.message}</p>}
       <ModalColumns>
         <ModalSection title="Factura" description="Como sale en la factura emitida.">
+          {form.extras && (
+            <DesdeBitrix
+              extras={form.extras}
+              avisos={avisosPendientes(propuesta?.avisos, form, estadoCuadre)}
+              onQuitarPersona={(index) => set({ extras: { ...form.extras, personas: form.extras.personas.filter((_, i) => i !== index) } })}
+            />
+          )}
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <FieldLabel htmlFor={`${baseId}-numero`}>N.º de factura</FieldLabel>

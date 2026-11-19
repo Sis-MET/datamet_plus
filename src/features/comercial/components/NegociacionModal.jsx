@@ -1,0 +1,134 @@
+import { useCallback } from 'react';
+import { ExternalLink, FilePlus2, TriangleAlert } from 'lucide-react';
+import { BlockTitle, CancelButton, Modal, ModalColumns, ModalSection, PrimaryButton } from '../../calibration/components/primitives';
+import { useResource } from '../../system/hooks/useResource';
+import { comercialApi } from '../api/comercial';
+import { ENLACES_POR, REGIONALES, SITUACIONES_BITRIX, bs, enlaceSeguro, fecha, fechaHora } from '../domain/comercial';
+import { Cargando, Dato, ErrorCarga, SituacionBitrix as Situacion } from './comunes';
+
+const sinCero = (n) => (n ? n : null);
+
+/**
+ * Ficha de una negociación de la copia de Bitrix24: sus datos del CRM, sus
+ * cotizaciones, las facturas con que está enlazada y, para el área
+ * Comercial, el botón que abre la factura nueva con lo que ya se sabe.
+ */
+export function NegociacionModal({ id, soloConsulta, onClose, onFacturar, onAbrirFactura }) {
+  const load = useCallback(() => comercialApi.bitrixNegociacion(id), [id]);
+  const { data: neg, error, reload } = useResource(load);
+  const enlace = enlaceSeguro(neg?.enlace);
+  const propuesta = neg?.propuesta;
+  const facturar = neg && !soloConsulta && neg.fase !== 'PERDIDA';
+
+  return (
+    <Modal
+      onClose={onClose}
+      size="xl"
+      title={neg ? neg.titulo || `Negociación ${neg.dealId}` : 'Negociación'}
+      subtitle={neg ? `#${neg.dealId} · ${neg.embudo} › ${neg.etapa}` : 'Cargando…'}
+      actions={neg ? <Situacion situacion={neg.situacion} /> : null}
+      footer={(close) => (
+        <div className="flex w-full flex-wrap items-center gap-2">
+          {enlace && (
+            <a href={enlace} target="_blank" rel="noopener noreferrer"
+              className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold text-fg-muted hover:bg-fg/[0.06] hover:text-fg">
+              <ExternalLink className="h-4 w-4" aria-hidden="true" /> Abrir en Bitrix24
+            </a>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            <CancelButton onClick={close}>Cerrar</CancelButton>
+            {facturar && (
+              <PrimaryButton onClick={() => onFacturar(propuesta)}>
+                <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+                {neg.facturas.length ? 'Registrar otra factura' : 'Registrar su factura'}
+              </PrimaryButton>
+            )}
+          </div>
+        </div>
+      )}
+    >
+      {error && <div className="p-5"><ErrorCarga titulo="No se pudo abrir la negociación." error={error} onRetry={reload} /></div>}
+      {!neg && !error && <div className="p-5"><Cargando label="Cargando negociación" filas={3} /></div>}
+      {neg && (
+        <ModalColumns>
+          <ModalSection title="En Bitrix24" description={`Copiada ${fechaHora(neg.sincronizada)}. Se corrige en Bitrix24, no aquí.`}>
+            <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-3">
+              <Dato label="Empresa" className="sm:col-span-2">
+                {neg.empresa ? `${neg.empresa}${neg.empresaCodigo ? ` (${neg.empresaCodigo})` : ''}` : null}
+              </Dato>
+              <Dato label="NIT">{neg.empresaNit}</Dato>
+              <Dato label="Monto"><span className="font-semibold tabular-nums">{bs(neg.monto)}</span>{neg.moneda && neg.moneda !== 'BOB' ? ` ${neg.moneda}` : ''}</Dato>
+              <Dato label="Responsable">{neg.responsable}</Dato>
+              <Dato label="Regional">{REGIONALES[neg.regional] || neg.ciudad}</Dato>
+              <Dato label="Creada">{fecha(neg.creada)}</Dato>
+              <Dato label="Modificada">{fechaHora(neg.modificada)}</Dato>
+              <Dato label="Mes a facturar">{neg.mesFacturar}</Dato>
+              {(neg.numBalanzas || neg.numPesas) ? (
+                <Dato label="Equipos">
+                  {[sinCero(neg.numBalanzas) && `${neg.numBalanzas} balanzas`, sinCero(neg.numPesas) && `${neg.numPesas} pesas`].filter(Boolean).join(' · ')}
+                </Dato>
+              ) : null}
+              {neg.subArea && <Dato label="Sub área">{neg.subArea}</Dato>}
+              {neg.tiposServicio && <Dato label="Tipo de servicio" className="sm:col-span-2">{neg.tiposServicio}</Dato>}
+              {neg.tecnico && <Dato label="Técnico">{neg.tecnico}</Dato>}
+              {neg.apoyo && <Dato label="Apoyo" className="sm:col-span-2">{neg.apoyo}</Dato>}
+              {neg.notaSalida && <Dato label="Nota de salida"><span className="font-mono text-[13px]">{neg.notaSalida}</span></Dato>}
+              {neg.ordenCompra && <Dato label="Orden de compra">{neg.ordenCompra}</Dato>}
+              {neg.marcadaFacturada !== null && <Dato label="Marcada facturada">{neg.marcadaFacturada ? 'Sí' : 'No'}</Dato>}
+            </dl>
+            {neg.condiciones && (
+              <div className="mt-5">
+                <BlockTitle>Condiciones</BlockTitle>
+                <p className="whitespace-pre-line text-[13px] text-fg">{neg.condiciones}</p>
+              </div>
+            )}
+            <div className="mt-6">
+              <BlockTitle>Cotizaciones</BlockTitle>
+              {neg.cotizaciones.length ? (
+                <ul className="flex flex-wrap gap-1.5">
+                  {neg.cotizaciones.map(c => (
+                    <li key={c} className="rounded-lg bg-surface-2 px-2 py-1 font-mono text-[12.5px] text-fg">{c}</li>
+                  ))}
+                </ul>
+              ) : <p className="text-[13px] text-fg-muted">La negociación no tiene cotización anotada: se enlaza solo si la factura anota esta negociación.</p>}
+            </div>
+          </ModalSection>
+
+          <ModalSection aside title="En DataMET+" description={SITUACIONES_BITRIX[neg.situacion]?.ayuda}>
+            <BlockTitle>Facturas</BlockTitle>
+            {neg.facturas.length ? (
+              <ul className="mb-6 flex flex-col gap-2">
+                {neg.facturas.map(f => (
+                  <li key={f.id}>
+                    <button type="button" onClick={() => onAbrirFactura(f.id)}
+                      className="flex w-full flex-col rounded-xl border border-line bg-surface px-3 py-2 text-left hover:bg-fg/[0.025]">
+                      <span className="flex items-center justify-between gap-2 text-[13px]">
+                        <span className="font-mono font-semibold text-fg">N.º {f.numero} / {f.gestion}</span>
+                        <span className="font-semibold tabular-nums text-fg">{bs(f.monto)}</span>
+                      </span>
+                      <span className="text-[12px] text-fg-muted">{fecha(f.fecha)} · enlazada {ENLACES_POR[f.por] || ''}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mb-6 text-[13px] text-fg-muted">Sin factura enlazada.</p>}
+
+            {facturar && propuesta?.avisos?.length > 0 && (
+              <>
+                <BlockTitle>Antes de facturar</BlockTitle>
+                <ul className="flex flex-col gap-2">
+                  {propuesta.avisos.map(aviso => (
+                    <li key={aviso.texto} className="flex gap-2 text-[13px] text-fg">
+                      <TriangleAlert className="mt-0.5 h-4 w-4 flex-none text-warning" aria-hidden="true" />
+                      <span>{aviso.texto}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </ModalSection>
+        </ModalColumns>
+      )}
+    </Modal>
+  );
+}

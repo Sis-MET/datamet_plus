@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bs, bsCorto, cuadre, facturaDesdeFormulario, fecha, fechaHora, filtrosAParams, leerMonto, lineaVacia, opcionesCategorias,
-  porcentaje, problemasFactura, repartirPago, sumar,
+  bs, bsCorto, cuadre, enlaceSeguro, facturaDesdeFormulario, fecha, fechaHora, filtrosAParams, formularioDesdePropuesta, haceCuanto,
+  leerMonto, lineaVacia, montoTexto, opcionesCategorias, porcentaje, problemasFactura, repartirPago, sumar,
 } from './comercial';
 
 const formulario = (overrides = {}) => ({
@@ -99,5 +99,68 @@ describe('listas y pagos', () => {
   it('reparte un pago en orden sin pasar el saldo de cada factura', () => {
     expect(repartirPago('1.200', [{ id: 1, saldo: 1000 }, { id: 2, saldo: 500 }, { id: 3, saldo: 50 }]))
       .toEqual([{ facturaId: 1, monto: 1000 }, { facturaId: 2, monto: 200 }, { facturaId: 3, monto: 0 }]);
+  });
+});
+
+describe('Comercial: factura desde una negociación de Bitrix24', () => {
+  const propuesta = {
+    dealId: 5120,
+    cliente: { codigo: '0999', razonSocial: 'Cliente de Ejemplo S.R.L.', nit: '7654321' },
+    razonSocial: 'Cliente de Ejemplo S.R.L.',
+    nit: '7654321',
+    monto: 3900.5,
+    lineas: [{ categoriaId: 19, monto: 3900.5, cantidad: 6, regional: 'SCZ' }],
+    referencias: [
+      { tipo: 'COTIZACION', valor: '0999-C02-26 1' }, { tipo: 'COTIZACION', valor: '0999-C03-26 1' },
+      { tipo: 'NOTA_SALIDA', valor: 'NS-4401-2026' }, { tipo: 'BITRIX', valor: '5120' },
+    ],
+    personas: [
+      { rol: 'RESPONSABLE', usuarioId: 7, nombre: 'Ana Comercial', porcentaje: null },
+      { rol: 'EJECUTO_ST', usuarioId: null, nombre: 'Mario Peña', porcentaje: null },
+    ],
+    avisos: [],
+  };
+
+  it('llena el formulario y lo que no es campo va aparte', () => {
+    const form = formularioDesdePropuesta(propuesta, formulario({ numero: '', cotizacion: '', notaSalida: '', responsable1: '', lineas: [lineaVacia()] }));
+    expect(form).toMatchObject({
+      cliente: propuesta.cliente, razonSocial: 'Cliente de Ejemplo S.R.L.', nit: '7654321', monto: '3900,50',
+      cotizacion: '0999-C02-26 1, 0999-C03-26 1', notaSalida: 'NS-4401-2026', responsable1: '7', responsable2: '',
+    });
+    expect(form.lineas.map(({ clave: _clave, ...l }) => l)).toEqual([{ categoriaId: '19', monto: '3900,50', cantidad: '6', regional: 'SCZ' }]);
+    expect(form.extras).toEqual({ dealId: 5120, referencias: [{ tipo: 'BITRIX', valor: '5120' }], personas: [propuesta.personas[1]] });
+    expect(problemasFactura({ ...form, numero: '596' })).toEqual({});
+  });
+
+  it('lo que se envía anota la negociación y los técnicos', () => {
+    const form = formularioDesdePropuesta(propuesta, formulario({ cotizacion: '', notaSalida: '', responsable1: '', lineas: [lineaVacia()] }));
+    const enviada = facturaDesdeFormulario(form, [{ id: 7, nombre: 'Ana Comercial' }]);
+    expect(enviada.monto).toBe(3900.5);
+    expect(enviada.referencias).toEqual([
+      { tipo: 'COTIZACION', valor: '0999-C02-26 1' }, { tipo: 'COTIZACION', valor: '0999-C03-26 1' },
+      { tipo: 'NOTA_SALIDA', valor: 'NS-4401-2026' }, { tipo: 'BITRIX', valor: '5120' },
+    ]);
+    expect(enviada.personas.map(p => [p.rol, p.usuarioId, p.nombre])).toEqual([['RESPONSABLE', 7, 'Ana Comercial'], ['EJECUTO_ST', null, 'Mario Peña']]);
+  });
+
+  it('sin líneas propuestas deja la línea vacía para elegir la categoría', () => {
+    const base = formulario({ lineas: [lineaVacia()] });
+    const form = formularioDesdePropuesta({ ...propuesta, lineas: [], monto: null, cliente: null }, base);
+    expect(form.lineas).toBe(base.lineas);
+    expect(form.monto).toBe('');
+    expect(form.cliente).toBeNull();
+  });
+
+  it('montos, horas relativas y enlaces seguros', () => {
+    expect(montoTexto(2400)).toBe('2400,00');
+    expect(leerMonto(montoTexto(1234.5))).toBe(1234.5);
+    const ahora = new Date('2026-11-19T14:00:00Z');
+    expect(haceCuanto('2026-11-19T13:58:00', ahora)).toBe('hace 2 min');
+    expect(haceCuanto('2026-11-19T11:00:00', ahora)).toBe('hace 3 h');
+    expect(haceCuanto('2026-11-18T14:00:00', ahora)).toBe('hace 1 día');
+    expect(haceCuanto(null, ahora)).toBeNull();
+    expect(enlaceSeguro('https://b24-prueba.bitrix24.es/crm/deal/details/5120/')).toBe('https://b24-prueba.bitrix24.es/crm/deal/details/5120/');
+    expect(enlaceSeguro('javascript:alert(1)')).toBeNull();
+    expect(enlaceSeguro('http://b24.bitrix24.es/')).toBeNull();
   });
 });

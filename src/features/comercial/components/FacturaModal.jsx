@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react';
-import { Ban, HandCoins } from 'lucide-react';
+import { Ban, ExternalLink, HandCoins } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal, ModalColumns, ModalSection, BlockTitle, CancelButton, DangerButton, PrimaryButton, ToneBadge } from '../../calibration/components/primitives';
 import { ReasonModal } from '../../calibration/components/ReasonModal';
 import { useResource } from '../../system/hooks/useResource';
 import { comercialApi } from '../api/comercial';
 import {
-  ACCIONES_HISTORIAL, AREAS, MEDIOS, ORIGENES, REFERENCIAS, REGIONALES, REGLAS, ROLES, TIPOS, bs, fecha, fechaHora,
+  ACCIONES_HISTORIAL, AREAS, ENLACES_POR, MEDIOS, ORIGENES, REFERENCIAS, REGIONALES, REGLAS, ROLES, TIPOS, bs, enlaceSeguro, fecha, fechaHora,
 } from '../domain/comercial';
 import { Cargando, Dato, ErrorCarga, EstadoFactura, Mora } from './comunes';
 import { PagoModal } from './PagoModal';
@@ -44,6 +44,31 @@ function Lineas({ lineas }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** Negociaciones de Bitrix24 enlazadas con la factura (por cotización o por la negociación anotada). */
+function Negociaciones({ negociaciones }) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {negociaciones.map(neg => {
+        const enlace = enlaceSeguro(neg.enlace);
+        return (
+          <li key={neg.dealId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-line px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-medium text-fg">{neg.titulo || `Negociación ${neg.dealId}`}</p>
+              <p className="text-[12px] text-fg-muted">#{neg.dealId} · {neg.embudo} › {neg.etapa} · enlazada {ENLACES_POR[neg.por] || ''}</p>
+            </div>
+            {enlace && (
+              <a href={enlace} target="_blank" rel="noopener noreferrer" aria-label={`Abrir la negociación ${neg.dealId} en Bitrix24`}
+                className="flex items-center gap-1 text-[12.5px] font-semibold text-fg-muted underline decoration-fg/30 underline-offset-4 hover:text-fg">
+                Bitrix24 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -163,6 +188,13 @@ export function FacturaModal({ id, soloConsulta, onClose, onChanged }) {
                   ) : <p className="text-[13px] text-fg-muted">Sin personas registradas.</p>}
                 </div>
               </div>
+
+              {factura.negociaciones?.length > 0 && (
+                <div className="mt-6">
+                  <BlockTitle>Bitrix24</BlockTitle>
+                  <Negociaciones negociaciones={factura.negociaciones} />
+                </div>
+              )}
 
               {factura.observacion && (
                 <div className="mt-6">

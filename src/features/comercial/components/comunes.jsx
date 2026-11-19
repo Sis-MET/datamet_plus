@@ -4,7 +4,7 @@ import { Button } from '../../../shared/components/ui/Button';
 import { cn } from '../../../shared/utils/cn';
 import { ToneBadge } from '../../calibration/components/primitives';
 import { comercialApi } from '../api/comercial';
-import { ESTADOS_FACTURA, TRAMO_TONO } from '../domain/comercial';
+import { ESTADOS_FACTURA, SITUACIONES_BITRIX, TRAMO_TONO } from '../domain/comercial';
 
 /** Búsqueda libre; se aplica al dejar de escribir. */
 export function Busqueda({ value, onChange, placeholder, label }) {
@@ -34,6 +34,12 @@ export function Busqueda({ value, onChange, placeholder, label }) {
 export function EstadoFactura({ estado }) {
   const info = ESTADOS_FACTURA[estado] || ESTADOS_FACTURA.pendiente;
   return <ToneBadge tone={info.tone}>{info.label}</ToneBadge>;
+}
+
+/** Situación de una negociación de Bitrix24 frente a las facturas, con su explicación al pasar. */
+export function SituacionBitrix({ situacion }) {
+  const info = SITUACIONES_BITRIX[situacion] || SITUACIONES_BITRIX.sin_factura;
+  return <span title={info.ayuda}><ToneBadge tone={info.tone}>{info.label}</ToneBadge></span>;
 }
 
 export function Mora({ dias, tramo }) {

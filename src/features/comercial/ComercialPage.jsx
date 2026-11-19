@@ -1,19 +1,21 @@
 import { Eye } from 'lucide-react';
 import { soloConsulta as esSoloConsulta } from '../../shared/components/layout/navigation';
 import { usePestanaRuta } from '../../shared/navigation/ruta';
+import { BitrixPanel } from './components/BitrixPanel';
 import { CobranzaPanel } from './components/CobranzaPanel';
 import { FacturasPanel } from './components/FacturasPanel';
 import { PagosPanel } from './components/PagosPanel';
 import '../calibration/calibration.css';
 import './comercial.css';
 
-const PESTANAS = ['facturas', 'cobranza', 'pagos'];
+const PESTANAS = ['facturas', 'cobranza', 'pagos', 'bitrix'];
 const STORAGE_KEY = 'datamet_comercial_tab';
 
 /**
- * Apartado Comercial (fase 1): facturas, cuentas por cobrar y pagos, en las
- * tablas COM_* de DataMET. Lo usa el área Comercial; Administración y
- * Gerencia lo consultan sin registrar. El servidor vuelve a comprobarlo.
+ * Apartado Comercial: facturas, cuentas por cobrar y pagos en las tablas COM_*
+ * de DataMET (fase 1) y la copia de las negociaciones de Bitrix24 (fase 2).
+ * Lo usa el área Comercial; Administración y Gerencia lo consultan sin
+ * registrar. El servidor vuelve a comprobarlo.
  */
 export function ComercialPage({ currentUser }) {
   const { pestana } = usePestanaRuta('comercial', PESTANAS, { clave: STORAGE_KEY, predeterminada: 'facturas' });
@@ -31,6 +33,7 @@ export function ComercialPage({ currentUser }) {
         {pestana === 'facturas' && <FacturasPanel soloConsulta={consulta} />}
         {pestana === 'cobranza' && <CobranzaPanel soloConsulta={consulta} />}
         {pestana === 'pagos' && <PagosPanel soloConsulta={consulta} />}
+        {pestana === 'bitrix' && <BitrixPanel soloConsulta={consulta} />}
       </main>
     </div>
   );
