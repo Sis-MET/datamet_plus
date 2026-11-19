@@ -1,4 +1,4 @@
-import { CalendarRange, ClipboardCheck, Gauge, History, KeyRound, MapPinned, ServerCrash, ShieldCheck, Wrench } from 'lucide-react';
+import { CalendarRange, ClipboardCheck, Gauge, History, KeyRound, MapPinned, Receipt, ServerCrash, ShieldCheck, Wrench } from 'lucide-react';
 
 const normalizeArea = (value) => String(value || '')
   .normalize('NFD')
@@ -127,6 +127,25 @@ export const APP_VIEWS = {
       etiquetas: { informes: 'Informes emitidos' },
     },
     badgeSection: 'proximos',
+  },
+  comercial: {
+    id: 'comercial',
+    label: 'Comercial',
+    title: 'Comercial',
+    description: 'Facturas, pagos y cuentas por cobrar',
+    icon: Receipt,
+    inNav: true,
+    area: { id: 'comercial', nombre: 'Comercial' },
+    sections: [
+      { id: 'facturas', label: 'Facturas' },
+      { id: 'cobranza', label: 'Cuentas por cobrar' },
+      { id: 'pagos', label: 'Pagos' },
+    ],
+    // Administración y Gerencia consultan, sin registrar ni anular.
+    consulta: {
+      areas: ['administracion', 'gerencia'],
+      secciones: ['facturas', 'cobranza', 'pagos'],
+    },
   },
   ivmet: {
     id: 'ivmet',

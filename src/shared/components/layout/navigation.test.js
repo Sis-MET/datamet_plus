@@ -37,7 +37,21 @@ describe('acceso a los apartados por área', () => {
     expect(ids).not.toContain('changes');
     expect(menu.filter(view => view.locked).map(view => view.id)).toEqual(['calibration', 'ivmet']);
     expect(getNavigation(sistemas).some(view => view.locked)).toBe(false);
-    expect(getNavigation(soporte).filter(view => view.locked).map(view => view.id)).toEqual(['calibration', 'ivmet']);
+    expect(getNavigation(soporte).filter(view => view.locked).map(view => view.id)).toEqual(['calibration', 'comercial', 'ivmet']);
+  });
+
+  it('Comercial lo usa su área; Administración y Gerencia solo lo consultan', () => {
+    const administracion = { area: 'Administración', acceso_cron: '2' };
+    const gerencia = { area: 'Gerencia', acceso_cron: '1' };
+    expect(canUseView('comercial', comercial)).toBe(true);
+    expect(soloConsulta('comercial', comercial)).toBe(false);
+    for (const user of [administracion, gerencia]) {
+      expect(canUseView('comercial', user)).toBe(true);
+      expect(soloConsulta('comercial', user)).toBe(true);
+    }
+    expect(canUseView('comercial', calibracion)).toBe(false);
+    const secciones = getNavigation(administracion).find(view => view.id === 'comercial').sections.map(section => section.id);
+    expect(secciones).toEqual(['facturas', 'cobranza', 'pagos']);
   });
 
   it('los apartados de área se abren siempre; los de Sistemas solo para Sistemas', () => {
@@ -73,7 +87,7 @@ describe('acceso a los apartados por área', () => {
   });
 
   it('un apartado con candado no despliega secciones', () => {
-    expect(getNavigation(comercial).filter(view => view.sections.length).map(view => view.id)).toEqual(['rim', 'soporte']);
+    expect(getNavigation(comercial).filter(view => view.sections.length).map(view => view.id)).toEqual(['rim', 'soporte', 'comercial']);
   });
 
   it('Comercial solo consulta Soporte técnico: informes emitidos y próximos servicios', () => {

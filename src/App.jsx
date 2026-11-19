@@ -28,6 +28,7 @@ const CARGAS = {
   DeparturesPage: () => import('./features/departures/DeparturesPage'),
   CalibrationPage: () => import('./features/calibration/CalibrationPage'),
   SoportePage: () => import('./features/soporte/SoportePage'),
+  ComercialPage: () => import('./features/comercial/ComercialPage'),
   IvmetManagementPage: () => import('./features/ivmet/IvmetManagementPage'),
   ChangeControlPage: () => import('./features/system/ChangeControlPage'),
   FailureLogPage: () => import('./features/system/FailureLogPage'),
@@ -41,6 +42,7 @@ const CalendarPage = perezoso('CalendarPage');
 const DeparturesPage = perezoso('DeparturesPage');
 const CalibrationPage = perezoso('CalibrationPage');
 const SoportePage = perezoso('SoportePage');
+const ComercialPage = perezoso('ComercialPage');
 const IvmetManagementPage = perezoso('IvmetManagementPage');
 const ChangeControlPage = perezoso('ChangeControlPage');
 const FailureLogPage = perezoso('FailureLogPage');
@@ -328,6 +330,8 @@ function App() {
         return <CalibrationPage />;
       case 'soporte':
         return <SoportePage />;
+      case 'comercial':
+        return <ComercialPage currentUser={currentUser} />;
       case 'departures':
         return <DeparturesPage />;
       case 'changes':

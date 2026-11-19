@@ -13,6 +13,7 @@ export const RUTAS_APARTADO = {
   departures: 'salidas',
   calibration: 'calibracion',
   soporte: 'soporte',
+  comercial: 'comercial',
   ivmet: 'ivmet',
   changes: 'sistema/cambios',
   failures: 'sistema/fallas',
