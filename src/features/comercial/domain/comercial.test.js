@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bs, bsCorto, cuadre, facturaDesdeFormulario, fecha, fechaHora, filtrosAParams, leerMonto, lineaVacia, opcionesCategorias,
-  problemasFactura, repartirPago, sumar,
+  porcentaje, problemasFactura, repartirPago, sumar,
 } from './comercial';
 
 const formulario = (overrides = {}) => ({
@@ -87,6 +87,13 @@ describe('listas y pagos', () => {
       { id: 2, nombre: 'Vieja', area: 'CAL', vigente: false },
     ]);
     expect(opciones).toEqual([{ value: '1', label: 'Calibración de balanzas', group: 'Calibración' }]);
+  });
+
+  it('porcentajes del saldo: redondeados y «< 1 %» si hay algo pero no llega', () => {
+    expect(porcentaje(784139.6, 1129402.1)).toBe('69 %');
+    expect(porcentaje(100, 1129402.1)).toBe('< 1 %');
+    expect(porcentaje(0, 1129402.1)).toBe('0 %');
+    expect(porcentaje(5, 0)).toBe('0 %');
   });
 
   it('reparte un pago en orden sin pasar el saldo de cada factura', () => {

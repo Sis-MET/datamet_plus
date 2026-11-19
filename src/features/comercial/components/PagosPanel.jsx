@@ -168,29 +168,31 @@ export function PagosPanel({ soloConsulta }) {
 
       {items.length > 0 && (
         <div className={cn('card overflow-hidden shadow-card transition-opacity', loading && 'opacity-60')}>
-          <table className="hidden w-full text-left md:table">
+          {/* Ancho fijo por columna: no se desborda; el medio se oculta al angostar. */}
+          <table className="hidden w-full table-fixed text-left md:table">
             <caption className="sr-only">Pagos, del más reciente al más antiguo</caption>
             <thead className="border-b border-line bg-surface-2/60 text-xs text-fg-muted">
               <tr>
-                <th scope="col" className="px-4 py-2.5 font-medium">Fecha</th>
+                <th scope="col" className="w-[7rem] px-4 py-2.5 font-medium">Fecha</th>
                 <th scope="col" className="px-3 py-2.5 font-medium">Facturas</th>
-                <th scope="col" className="px-3 py-2.5 font-medium">Medio y verificación</th>
-                <th scope="col" className="px-3 py-2.5 text-right font-medium">Monto</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Estado</th>
+                <th scope="col" className="hidden w-[12rem] px-3 py-2.5 font-medium xl:table-cell">Medio y verificación</th>
+                <th scope="col" className="w-[8.5rem] px-3 py-2.5 text-right font-medium">Monto</th>
+                <th scope="col" className="w-[10.5rem] px-4 py-2.5 text-right font-medium">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {items.map(pago => (
                 <FilaAbrible key={pago.id} onOpen={() => setAbierto(pago.id)}>
                   <td className="whitespace-nowrap px-4 py-3 text-[13px] text-fg">{fecha(pago.fecha)}</td>
-                  <td className="max-w-[340px] px-3 py-3 text-[13px]">
+                  <td className="px-3 py-3 text-[13px]">
                     {pago.aplicaciones.length === 0 && <span className="text-fg-muted">Sin aplicar</span>}
                     {pago.aplicaciones.slice(0, 2).map(a => (
-                      <span key={a.facturaId} className="block truncate text-fg">N.º {a.numero} · {a.razonSocial}</span>
+                      <span key={a.facturaId} className="block truncate text-fg" title={`N.º ${a.numero} · ${a.razonSocial}`}>N.º {a.numero} · {a.razonSocial}</span>
                     ))}
                     {pago.aplicaciones.length > 2 && <span className="block text-fg-muted">y {pago.aplicaciones.length - 2} más</span>}
+                    <span className="block truncate text-[12.5px] text-fg-muted xl:hidden">{MEDIOS[pago.medio]}{pago.verificacion ? ` · ${pago.verificacion}` : ''}</span>
                   </td>
-                  <td className="max-w-[220px] px-3 py-3 text-[13px] text-fg-muted">
+                  <td className="hidden px-3 py-3 text-[13px] text-fg-muted xl:table-cell">
                     <span className="block text-fg">{MEDIOS[pago.medio]}</span>
                     <span className="block truncate">{pago.verificacion || pago.referencia || '—'}</span>
                   </td>

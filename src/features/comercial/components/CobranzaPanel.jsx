@@ -5,40 +5,85 @@ import { cn } from '../../../shared/utils/cn';
 import { EmptyState, Segmented } from '../../calibration/components/primitives';
 import { useResource } from '../../system/hooks/useResource';
 import { comercialApi } from '../api/comercial';
-import { TRAMO_TONO, bs, bsCorto, fecha } from '../domain/comercial';
+import { TRAMO_COLOR, bs, bsCorto, fecha, porcentaje } from '../domain/comercial';
 import { ClienteModal } from './ClienteModal';
 import { Busqueda, Cargando, ErrorCarga, FilaAbrible, Mora } from './comunes';
 import { FacturaModal } from './FacturaModal';
 import { PagoModal } from './PagoModal';
 
-const TONO_BORDE = {
-  success: 'border-l-success', info: 'border-l-info', warning: 'border-l-warning', danger: 'border-l-danger',
-};
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 
-function Tramos({ tramos, total, value, onChange }) {
+/**
+ * Antigüedad del saldo: el total por cobrar, una barra fina que lo reparte
+ * por días de mora (de gris a ámbar y a rojo, según el atraso) y debajo los
+ * tramos, que filtran la lista. Sin tarjetas con bordes de color: el color
+ * va solo en la barra y en la muestra de cada tramo.
+ */
+function Antiguedad({ resumen, anticipos, hoy, value, onChange }) {
+  const { total, tramos } = resumen;
+  const conSaldo = tramos.filter(tramo => tramo.saldo > 0);
+  const descripcion = conSaldo.map(tramo => `${tramo.label}: ${bs(tramo.saldo)} (${porcentaje(tramo.saldo, total)})`).join('; ');
+
   return (
-    <div role="group" aria-label="Filtrar por días de mora" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {tramos.map(tramo => {
-        const activo = value === tramo.id;
-        return (
-          <button
-            key={tramo.id}
-            type="button"
-            aria-pressed={activo}
-            disabled={!tramo.facturas && !activo}
-            onClick={() => onChange(activo ? '' : tramo.id)}
-            className={cn('card flex flex-col gap-0.5 border-l-4 px-4 py-3 text-left shadow-card transition-colors hover:bg-surface-2 disabled:opacity-50',
-              TONO_BORDE[TRAMO_TONO[tramo.id]], activo && 'ring-2 ring-focus/40')}
-          >
-            <span className="text-[12px] font-medium text-fg-muted">{tramo.label}</span>
-            <span className="text-[18px] font-semibold tabular-nums text-fg">{bsCorto(tramo.saldo)}</span>
-            <span className="text-[11.5px] text-fg-subtle">
-              {tramo.facturas} {tramo.facturas === 1 ? 'factura' : 'facturas'}{total ? ` · ${Math.round((tramo.saldo / total) * 100)} %` : ''}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <section aria-label="Antigüedad del saldo por cobrar" className="card p-4 shadow-card sm:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+        <div className="min-w-0">
+          <p className="text-[12.5px] font-medium text-fg-muted">Por cobrar al {fecha(hoy)}</p>
+          <p className="mt-0.5 text-[28px] font-semibold leading-tight tracking-[-0.02em] text-fg">{bs(total)}</p>
+          <p className="mt-0.5 text-[12.5px] text-fg-muted">
+            {plural(resumen.facturas, 'factura', 'facturas')} de {plural(resumen.clientes.length, 'cliente', 'clientes')}
+          </p>
+        </div>
+        {anticipos.saldo > 0 && (
+          <p className="text-[12.5px] text-fg-muted">
+            <span className="font-semibold text-fg">{bs(anticipos.saldo)}</span> cobrados sin aplicar
+          </p>
+        )}
+      </div>
+
+      {total > 0 && (
+        <div className="mt-4 flex h-2 gap-[2px]" role="img" aria-label={`Saldo por días de mora: ${descripcion}`}>
+          {conSaldo.map(tramo => (
+            <span
+              key={tramo.id}
+              title={`${tramo.label}: ${bs(tramo.saldo)} · ${porcentaje(tramo.saldo, total)}`}
+              style={{ flexGrow: tramo.saldo, flexBasis: 0, backgroundColor: TRAMO_COLOR[tramo.id] }}
+              className={cn('min-w-[3px] transition-opacity duration-200 first:rounded-l-full last:rounded-r-full',
+                value && value !== tramo.id && 'opacity-25')}
+            />
+          ))}
+        </div>
+      )}
+
+      <div role="group" aria-label="Filtrar por días de mora" className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
+        {tramos.map(tramo => {
+          const activo = value === tramo.id;
+          return (
+            <button
+              key={tramo.id}
+              type="button"
+              aria-pressed={activo}
+              disabled={!tramo.facturas && !activo}
+              onClick={() => onChange(activo ? '' : tramo.id)}
+              className={cn(
+                'flex min-w-0 flex-col gap-1 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-fg/[0.04]',
+                'disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent',
+                activo && 'bg-surface-2 ring-1 ring-inset ring-line-strong hover:bg-surface-2',
+              )}
+            >
+              <span className="flex items-center gap-2 text-[12px] font-medium text-fg-muted">
+                <span className="h-2 w-2 flex-none rounded-[3px]" style={{ backgroundColor: TRAMO_COLOR[tramo.id] }} aria-hidden="true" />
+                <span className="truncate">{tramo.label}</span>
+              </span>
+              <span className="text-[16px] font-semibold text-fg">{bsCorto(tramo.saldo)}</span>
+              <span className="text-[11.5px] text-fg-subtle">
+                {plural(tramo.facturas, 'factura', 'facturas')}{total ? ` · ${porcentaje(tramo.saldo, total)}` : ''}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -86,18 +131,12 @@ export function CobranzaPanel({ soloConsulta }) {
           onChange={setVista}
           options={[{ value: 'facturas', label: 'Por factura' }, { value: 'clientes', label: 'Por cliente' }]}
         />
-        {data && (
-          <p className="ml-auto text-[13px] text-fg-muted">
-            Por cobrar <strong className="tabular-nums text-fg">{bs(data.resumen.total)}</strong> en {data.resumen.facturas} {data.resumen.facturas === 1 ? 'factura' : 'facturas'}
-            {data.anticipos.saldo > 0 && <> · <span className="text-info">{bs(data.anticipos.saldo)} cobrados sin aplicar</span></>}
-          </p>
-        )}
       </div>
 
       {error && <ErrorCarga titulo="No se pudieron cargar las cuentas por cobrar." error={error} onRetry={reload} />}
       {!data && !error && <Cargando label="Cargando cuentas por cobrar" />}
 
-      {data && <Tramos tramos={data.resumen.tramos} total={data.resumen.total} value={tramo} onChange={setTramo} />}
+      {data && <Antiguedad resumen={data.resumen} anticipos={data.anticipos} hoy={data.hoy} value={tramo} onChange={setTramo} />}
 
       {data && facturas.length === 0 && (
         <EmptyState icon={Wallet} title={q || tramo ? 'Nada por cobrar con estos filtros' : 'No hay facturas por cobrar'}>
@@ -107,17 +146,19 @@ export function CobranzaPanel({ soloConsulta }) {
 
       {data && facturas.length > 0 && vista === 'facturas' && (
         <div className={cn('card overflow-hidden shadow-card transition-opacity', loading && 'opacity-60')}>
-          <table className="hidden w-full text-left md:table">
+          {/* Ancho fijo por columna: la tabla no se desborda; los textos largos
+              se cortan con «…» y las columnas secundarias se ocultan al angostar. */}
+          <table className="hidden w-full table-fixed text-left md:table">
             <caption className="sr-only">Facturas por cobrar, de la más atrasada a la más reciente</caption>
             <thead className="border-b border-line bg-surface-2/60 text-xs text-fg-muted">
               <tr>
-                <th scope="col" className="px-4 py-2.5 font-medium">Factura</th>
+                <th scope="col" className="w-[7.5rem] px-4 py-2.5 font-medium">Factura</th>
                 <th scope="col" className="px-3 py-2.5 font-medium">Cliente</th>
-                <th scope="col" className="px-3 py-2.5 font-medium">Responsable</th>
-                <th scope="col" className="px-3 py-2.5 font-medium">Vence</th>
-                <th scope="col" className="px-3 py-2.5 text-right font-medium">Saldo</th>
-                <th scope="col" className="px-3 py-2.5 text-right font-medium">Mora</th>
-                {!soloConsulta && <th scope="col" className="px-4 py-2.5"><span className="sr-only">Acciones</span></th>}
+                <th scope="col" className="hidden w-[11rem] px-3 py-2.5 font-medium xl:table-cell">Responsable</th>
+                <th scope="col" className="hidden w-[6.75rem] px-3 py-2.5 font-medium xl:table-cell">Vence</th>
+                <th scope="col" className="w-[8.5rem] px-3 py-2.5 text-right font-medium">Saldo</th>
+                <th scope="col" className="w-[6.5rem] px-3 py-2.5 text-right font-medium">Mora</th>
+                {!soloConsulta && <th scope="col" className="w-[5.75rem] px-4 py-2.5"><span className="sr-only">Acciones</span></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -126,13 +167,17 @@ export function CobranzaPanel({ soloConsulta }) {
                   <td className="px-4 py-3">
                     <span className="block font-mono text-[13.5px] font-semibold text-fg">N.º {f.numero}</span>
                     <span className="block text-[11.5px] text-fg-subtle">{fecha(f.fechaEmision)}</span>
+                    <span className="block text-[11.5px] text-fg-subtle xl:hidden">vence {fecha(f.vence)}</span>
                   </td>
-                  <td className="max-w-[300px] px-3 py-3 text-[13px]">
-                    <span className="block truncate font-medium text-fg">{f.razonSocial}</span>
-                    <span className="block text-fg-muted">{f.estado === 'parcial' ? `Pagó ${bs(f.pagado)} de ${bs(f.monto)}` : bs(f.monto)}</span>
+                  <td className="px-3 py-3 text-[13px]">
+                    <span className="block truncate font-medium text-fg" title={f.razonSocial}>{f.razonSocial}</span>
+                    <span className="block truncate text-fg-muted">
+                      {f.estado === 'parcial' ? `Pagó ${bs(f.pagado)} de ${bs(f.monto)}` : bs(f.monto)}
+                      {f.responsables.length > 0 && <span className="xl:hidden"> · {f.responsables.join(' · ')}</span>}
+                    </span>
                   </td>
-                  <td className="max-w-[180px] truncate px-3 py-3 text-[13px] text-fg-muted">{f.responsables.join(' · ') || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-[13px] text-fg-muted">{fecha(f.vence)}</td>
+                  <td className="hidden truncate px-3 py-3 text-[13px] text-fg-muted xl:table-cell">{f.responsables.join(' · ') || '—'}</td>
+                  <td className="hidden whitespace-nowrap px-3 py-3 text-[13px] text-fg-muted xl:table-cell">{fecha(f.vence)}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right text-[13px] font-semibold tabular-nums text-fg">{bs(f.saldo)}</td>
                   <td className="px-3 py-3 text-right"><Mora dias={f.diasMora} tramo={f.tramo} /></td>
                   {!soloConsulta && (

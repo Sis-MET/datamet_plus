@@ -1,0 +1,22 @@
+/*
+ * Comercial: escala de días de mora. «Sin vencer» va en gris (no es deuda
+ * atrasada); los cuatro tramos vencidos son un solo tono, de claro a oscuro
+ * según el atraso. En oscuro la escala se invierte: el atraso mayor es el de
+ * más contraste. Validada con el validador de paletas (modo ordinal: un tono,
+ * luminosidad monótona, saltos visibles y contraste del extremo ≥ 2:1).
+ */
+:root {
+  --com-tramo-al-dia: rgb(var(--c-fg-subtle) / 0.35);
+  --com-tramo-1: #ef9467;
+  --com-tramo-2: #dd6a37;
+  --com-tramo-3: #bd4520;
+  --com-tramo-4: #8f2a12;
+}
+
+.dark {
+  --com-tramo-al-dia: rgb(var(--c-fg-subtle) / 0.4);
+  --com-tramo-1: #8a3a1f;
+  --com-tramo-2: #b8502a;
+  --com-tramo-3: #e2703f;
+  --com-tramo-4: #f99a6c;
+}

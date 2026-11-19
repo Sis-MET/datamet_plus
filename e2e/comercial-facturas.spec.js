@@ -184,6 +184,22 @@ test('Cuentas por cobrar: tramos de mora y pago aplicado a la factura', async ({
   await expect(page.getByText('Código 0999 · 1 factura')).toBeVisible();
 });
 
+test('Las tablas no se desbordan con la barra lateral abierta en una pantalla mediana', async ({ page }) => {
+  await page.setViewportSize({ width: 1180, height: 900 });
+  await preparar(page);
+  const desborde = () => page.evaluate(() => {
+    const tabla = [...document.querySelectorAll('main table')].find(t => getComputedStyle(t).display !== 'none');
+    return { tabla: tabla.scrollWidth - tabla.closest('.card').clientWidth, pagina: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  for (const [ruta, texto] of [['/comercial/cobranza', 'N.º 594'], ['/comercial/facturas', 'N.º 594'], ['/comercial/pagos', 'N.º 593']]) {
+    await page.goto(ruta);
+    await expect(page.getByText(texto, { exact: false }).filter({ visible: true }).first()).toBeVisible({ timeout: 30000 });
+    expect(await desborde(), ruta).toEqual({ tabla: 0, pagina: 0 });
+  }
+  await page.goto('/comercial/cobranza');
+  await expect(page.getByRole('button', { name: 'Pago', exact: true })).toBeInViewport();
+});
+
 test('Administración consulta Comercial sin registrar nada, también en el teléfono', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { pedidas } = await preparar(page, { usuario: ADMINISTRACION });

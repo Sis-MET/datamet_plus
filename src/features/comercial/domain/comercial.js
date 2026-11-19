@@ -65,7 +65,29 @@ export const REGLAS = {
   TERCERO: 'Neto menos costo del tercero',
 };
 
-export const TRAMO_TONO = { al_dia: 'success', d30: 'info', d60: 'warning', d90: 'warning', mas90: 'danger' };
+/**
+ * Días de mora como escala ordenada (comercial.css): sin vencer en gris y los
+ * tramos vencidos en un solo tono que se intensifica con el atraso.
+ * TRAMO_COLOR pinta la barra y las muestras; TRAMO_TONO, las etiquetas de cada
+ * fila (siempre con su texto, nunca solo color).
+ */
+export const TRAMO_TONO = { al_dia: 'success', d30: 'warning', d60: 'warning', d90: 'danger', mas90: 'danger' };
+
+export const TRAMO_COLOR = {
+  al_dia: 'var(--com-tramo-al-dia)',
+  d30: 'var(--com-tramo-1)',
+  d60: 'var(--com-tramo-2)',
+  d90: 'var(--com-tramo-3)',
+  mas90: 'var(--com-tramo-4)',
+};
+
+/** «69 %»; con menos de 1 % y algo de saldo, «< 1 %». */
+export const porcentaje = (parte, total) => {
+  if (!total) return '0 %';
+  const p = (Number(parte) / Number(total)) * 100;
+  if (p > 0 && p < 1) return '< 1 %';
+  return `${Math.round(p)} %`;
+};
 
 export const ACCIONES_HISTORIAL = {
   REGISTRO: 'Registro',

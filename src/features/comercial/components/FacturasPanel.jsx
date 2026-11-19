@@ -17,9 +17,9 @@ const CONTROL = 'flex h-9 items-center rounded-xl border border-line bg-surface 
 
 function Areas({ areas }) {
   return (
-    <span className="flex flex-wrap gap-1">
+    <span className="flex flex-none gap-1">
       {areas.map(area => (
-        <span key={area} title={AREAS[area]} className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-fg-muted">
+        <span key={area} title={AREAS[area]} className="rounded-md bg-surface-2 px-1.5 py-px text-[10.5px] font-semibold text-fg-muted">
           {AREAS_CORTAS[area]}
         </span>
       ))}
@@ -174,29 +174,35 @@ export function FacturasPanel({ soloConsulta }) {
 
       {items.length > 0 && (
         <div className={cn('card overflow-hidden shadow-card transition-opacity', loading && 'opacity-60')}>
-          <table className="hidden w-full text-left md:table">
+          {/* Ancho fijo por columna: no se desborda; las áreas van junto al
+              cliente y la cotización solo en pantallas anchas. */}
+          <table className="hidden w-full table-fixed text-left md:table">
             <caption className="sr-only">Facturas, de la más reciente a la más antigua</caption>
             <thead className="border-b border-line bg-surface-2/60 text-xs text-fg-muted">
               <tr>
-                <th scope="col" className="px-4 py-2.5 font-medium">Factura</th>
+                <th scope="col" className="w-[7rem] px-4 py-2.5 font-medium">Factura</th>
                 <th scope="col" className="px-3 py-2.5 font-medium">Cliente</th>
-                <th scope="col" className="px-3 py-2.5 font-medium">Áreas</th>
-                <th scope="col" className="px-3 py-2.5 font-medium">Cotización y responsable</th>
-                <th scope="col" className="px-3 py-2.5 text-right font-medium">Monto</th>
-                <th scope="col" className="px-3 py-2.5 text-right font-medium">Saldo</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Estado</th>
+                <th scope="col" className="hidden w-[12.5rem] px-3 py-2.5 font-medium xl:table-cell">Cotización y responsable</th>
+                <th scope="col" className="w-[8.5rem] px-3 py-2.5 text-right font-medium">Monto</th>
+                <th scope="col" className="w-[8.5rem] px-3 py-2.5 text-right font-medium">Saldo</th>
+                <th scope="col" className="w-[7.5rem] px-4 py-2.5 text-right font-medium">Estado</th>
               </tr>
             </thead>
             <tbody className="stagger-in divide-y divide-line">
               {items.map(factura => (
                 <FilaAbrible key={factura.id} onOpen={() => setAbierta(factura.id)}>
                   <td className="px-4 py-3"><Numero factura={factura} /></td>
-                  <td className="max-w-[300px] px-3 py-3 text-[13px]">
-                    <span className="block truncate font-medium text-fg">{factura.razonSocial}</span>
-                    <span className="block text-fg-muted">{[factura.clienteCodigo, factura.nit && `NIT ${factura.nit}`].filter(Boolean).join(' · ') || 'Sin cliente de DataMET'}</span>
+                  <td className="px-3 py-3 text-[13px]">
+                    <span className="block truncate font-medium text-fg" title={factura.razonSocial}>{factura.razonSocial}</span>
+                    <span className="flex min-w-0 items-center gap-2 text-fg-muted">
+                      <span className="truncate">
+                        {[factura.clienteCodigo, factura.nit && `NIT ${factura.nit}`].filter(Boolean).join(' · ') || 'Sin cliente de DataMET'}
+                        {factura.cotizaciones[0] && <span className="xl:hidden"> · {factura.cotizaciones[0]}</span>}
+                      </span>
+                      <Areas areas={factura.areas} />
+                    </span>
                   </td>
-                  <td className="px-3 py-3"><Areas areas={factura.areas} /></td>
-                  <td className="max-w-[240px] px-3 py-3 text-[13px] text-fg-muted">
+                  <td className="hidden px-3 py-3 text-[13px] text-fg-muted xl:table-cell">
                     <span className="block truncate font-mono text-[12.5px] text-fg">{factura.cotizaciones[0] || '—'}{factura.cotizaciones.length > 1 ? ` +${factura.cotizaciones.length - 1}` : ''}</span>
                     <span className="block truncate">{factura.responsables.join(' · ') || '—'}</span>
                   </td>

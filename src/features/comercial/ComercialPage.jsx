@@ -5,6 +5,7 @@ import { CobranzaPanel } from './components/CobranzaPanel';
 import { FacturasPanel } from './components/FacturasPanel';
 import { PagosPanel } from './components/PagosPanel';
 import '../calibration/calibration.css';
+import './comercial.css';
 
 const PESTANAS = ['facturas', 'cobranza', 'pagos'];
 const STORAGE_KEY = 'datamet_comercial_tab';
