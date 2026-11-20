@@ -5,6 +5,7 @@ import {
   filasInventario,
   filtrosAParams,
   filtrosVacios,
+  formularioDesdeDetalle,
   hayFiltros,
   nuevoUuid,
   rangos,
@@ -51,6 +52,80 @@ describe('detalle de un RIM', () => {
       { tipo: 'Rayones', lugares: 'Plataforma, Display' },
       { tipo: 'Corrosión', lugares: '' },
     ]);
+  });
+});
+
+describe('PDF de un RIM registrado', () => {
+  const detalle = {
+    codigo: 'RIM-26-0141',
+    cliente: { codigo: '0722', nombre: 'LABORMET', razonSocial: 'METZELAR', nit: '6800651015' },
+    instrumento: {
+      tipo: 'Balanza', marca: 'Ohaus', modelo: 'Ranger 3000', serie: '8334530116',
+      capacidad: '30000', division: '0.02', unidad: 'g', ubicacion: null, observaciones: null,
+    },
+    motivo: 'Presenta fallas',
+    inventario: {
+      items: { feet: 'present', indicator: 'present', nuevoComponente: 'na' },
+      cantidades: { feet: 4 },
+      otros: [{ name: 'Cable RS232', status: 'missing' }, { nombre: 'Base', estado: 'present' }],
+      observaciones: 'Sin tapa',
+    },
+    estadoGeneral: 'fair',
+    danos: { broken: ['structure'] },
+    descripcionDanos: 'No funciona la burbuja de la balanza',
+    nivelSuciedad: 'moderate',
+    pruebas: { realizadas: true, descripcion: 'Se usaron pesas de 10 y 5 Kg' },
+    recepcion: {
+      contactoNombre: 'Juan Pérez', contactoCargo: 'Jefe', contactoTelefono: '70000000', contactoCorreo: null,
+      representanteMetrica: 'Ana Quispe', lugar: 'Laboratorio', tecnicoAsignado: 'Luis Mamani',
+    },
+    firmas: { cliente: 'data:image/png;base64,AAA', representante: null },
+    fotos: [{ orden: 1, nombre: 'Foto 1', url: 'data:image/jpeg;base64,CCC' }],
+    anulacion: null,
+  };
+
+  it('usa las claves del formulario web, como el PDF que se descarga al registrar', () => {
+    const datos = formularioDesdeDetalle(detalle);
+    expect(datos).toMatchObject({
+      companyName: 'LABORMET', companyRazonSocial: 'METZELAR', taxId: '6800651015',
+      clientName: 'Juan Pérez', receptionClientName: 'Juan Pérez', clientCargo: 'Jefe', phone: '70000000',
+      instrument: 'Balanza', brand: 'Ohaus', model: 'Ranger 3000', serialNumber: '8334530116',
+      maxCapacity: '30000', resolution: '0.02', unit: 'g',
+      inventoryNotes: 'Sin tapa',
+      damageLevel: 'fair', damageTypes: { broken: ['structure'] }, damageDescription: 'No funciona la burbuja de la balanza',
+      cleanlinessLevel: 'moderate', receptionReason: 'Presenta fallas',
+      functionalityTestPerformed: 'yes', functionalityTestDescription: 'Se usaron pesas de 10 y 5 Kg',
+      receptionMetricaRepresentative: 'Ana Quispe', receptionLocation: 'Laboratorio', executionAssignedTechnician: 'Luis Mamani',
+      receptionClientSignature: 'data:image/png;base64,AAA', receptionReceiverSignature: null,
+      photos: [{ name: 'Foto 1', content: 'data:image/jpeg;base64,CCC' }],
+      anulacion: null,
+    });
+  });
+
+  it('pasa las cantidades y deja como adicionales lo que no está en el catálogo', () => {
+    expect(formularioDesdeDetalle(detalle).inventory).toEqual({
+      feet: 'present',
+      indicator: 'present',
+      feetQty: '4',
+      otherItems: [
+        { name: 'nuevoComponente', status: 'na' },
+        { name: 'Cable RS232', status: 'missing' },
+        { name: 'Base', status: 'present' },
+      ],
+    });
+    expect(formularioDesdeDetalle({ ...detalle, pruebas: { realizadas: false } }).functionalityTestPerformed).toBe('no');
+  });
+
+  it('marca el RIM anulado, con el motivo y quién lo anuló', () => {
+    const datos = formularioDesdeDetalle({
+      ...detalle,
+      anulacion: {
+        motivo: 'RIM duplicado', anuladoPor: 'qa', anuladoPorNombre: 'Usuario QA',
+        anuladoEn: '2026-10-19T15:00:00.000Z', reemplazadoPor: 'RIM-26-0142',
+      },
+    });
+    expect(datos.anulacion).toMatchObject({ motivo: 'RIM duplicado', por: 'Usuario QA', reemplazadoPor: 'RIM-26-0142' });
+    expect(datos.anulacion.fecha).toMatch(/11:00/);
   });
 });
 

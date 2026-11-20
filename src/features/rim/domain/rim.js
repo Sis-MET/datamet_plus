@@ -253,6 +253,84 @@ export const filasDanos = (danos = {}) => Object.entries(danos).map(([tipo, luga
   lugares: (lugares || []).map(lugar => UBICACIONES_DANO[lugar] || lugar).join(', '),
 }));
 
+/**
+ * Datos del PDF oficial del RIM (RIMDocument, src/utils/pdfGenerator.jsx) a
+ * partir del detalle del servidor. El PDF se arma con las claves del
+ * formulario web, así el RIM impreso desde el historial sale igual que el
+ * que se descargó al registrarlo, venga de ServiceMET o de la web.
+ */
+export function formularioDesdeDetalle(rim) {
+  const cliente = rim.cliente || {};
+  const instrumento = rim.instrumento || {};
+  const recepcion = rim.recepcion || {};
+  const inventario = rim.inventario || {};
+  const items = inventario.items || {};
+  const cantidades = inventario.cantidades || {};
+
+  const inventory = {};
+  const fueraDelCatalogo = [];
+  for (const [key, estado] of Object.entries(items)) {
+    if (!estado) continue;
+    if (COMPONENTES[key]) inventory[key] = estado;
+    else fueraDelCatalogo.push({ name: key, status: estado });
+  }
+  if (cantidades.loadCells) inventory.loadCellsQty = String(cantidades.loadCells);
+  if (cantidades.feet) inventory.feetQty = String(cantidades.feet);
+  inventory.otherItems = [
+    ...fueraDelCatalogo,
+    ...(inventario.otros || []).map(item => ({
+      name: item?.name ?? item?.nombre ?? '',
+      status: item?.status ?? item?.estado ?? 'present',
+    })),
+  ].filter(item => String(item.name).trim());
+
+  const anulacion = rim.anulacion
+    ? {
+      motivo: rim.anulacion.motivo || null,
+      por: rim.anulacion.anuladoPorNombre || rim.anulacion.anuladoPor || null,
+      fecha: fechaHora(rim.anulacion.anuladoEn),
+      reemplazadoPor: rim.anulacion.reemplazadoPor || null,
+    }
+    : null;
+
+  return {
+    companyName: cliente.nombre,
+    companyRazonSocial: cliente.razonSocial,
+    taxId: cliente.nit,
+    clientName: recepcion.contactoNombre,
+    clientCargo: recepcion.contactoCargo,
+    phone: recepcion.contactoTelefono,
+    email: recepcion.contactoCorreo,
+    instrument: instrumento.tipo,
+    brand: instrumento.marca,
+    model: instrumento.modelo,
+    serialNumber: instrumento.serie,
+    maxCapacity: instrumento.capacidad,
+    unit: instrumento.unidad,
+    resolution: instrumento.division,
+    workArea: instrumento.ubicacion,
+    notes: instrumento.observaciones,
+    inventory,
+    inventoryNotes: inventario.observaciones,
+    damageLevel: rim.estadoGeneral,
+    damageTypes: rim.danos || {},
+    damageDescription: rim.descripcionDanos,
+    cleanlinessLevel: rim.nivelSuciedad,
+    dirtTypes: {},
+    receptionReason: rim.motivo,
+    functionalityTestPerformed: rim.pruebas?.realizadas ? 'yes' : 'no',
+    functionalityTestDescription: rim.pruebas?.descripcion,
+    receptionClientName: recepcion.contactoNombre,
+    receptionMetricaRepresentative: recepcion.representanteMetrica,
+    receptionLocation: recepcion.lugar,
+    executionAssignedTechnician: recepcion.tecnicoAsignado,
+    receptionClientSignature: rim.firmas?.cliente || null,
+    receptionReceiverSignature: rim.firmas?.representante || null,
+    photos: (rim.fotos || []).map(foto => ({ name: foto.nombre, content: foto.url })),
+    anulacion,
+  };
+}
+
 /** UUID v4 para identificar un RIM antes de registrarlo. */
 export function nuevoUuid() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();

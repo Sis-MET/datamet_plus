@@ -303,6 +303,27 @@ test('la ficha es de solo lectura, muestra las dos firmas y anula con motivo', a
   });
 });
 
+test('Imprimir manda el PDF oficial del RIM, no la pantalla', async ({ page }) => {
+  await mockRimApi(page);
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('/');
+
+  await page.getByRole('table', { name: /RIM registrados/ }).getByText('RIM-26-0042').click();
+  const ficha = page.getByRole('dialog', { name: 'RIM-26-0042' });
+  await page.evaluate(() => { window.print = () => { window.imprimioLaPantalla = true; }; });
+  await ficha.getByRole('button', { name: 'Imprimir' }).click();
+
+  // El PDF se imprime desde un marco oculto, sin salir de la ficha.
+  await expect(page.locator('iframe#rim-impresion-pdf')).toHaveAttribute('src', /^blob:/, { timeout: 20_000 });
+  const pdf = await page.evaluate(async () => {
+    const blob = await (await fetch(document.getElementById('rim-impresion-pdf').src)).blob();
+    return { tipo: blob.type, inicio: await blob.slice(0, 5).text() };
+  });
+  expect(pdf).toEqual({ tipo: 'application/pdf', inicio: '%PDF-' });
+  expect(await page.evaluate(() => window.imprimioLaPantalla)).toBeUndefined();
+  await expect(ficha).toBeVisible();
+});
+
 test('la numeración explica qué pasó con cada número del talonario', async ({ page }) => {
   await mockRimApi(page);
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -401,7 +422,7 @@ test('la ficha registra la ejecución y la corrige con motivo, sin tocar el RIM'
   await expect(ficha.getByRole('textbox')).toHaveCount(0);
 });
 
-test('la entrega exige las dos firmas en pantalla y se imprime con la ficha', async ({ page }) => {
+test('la entrega exige las dos firmas en pantalla y guarda su historial', async ({ page }) => {
   const requests = await mockRimApi(page);
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/');
@@ -455,13 +476,10 @@ test('la entrega exige las dos firmas en pantalla y se imprime con la ficha', as
   });
   await expect(entrega.getByAltText('Firma de quien recibe de Juan Pérez')).toBeVisible();
 
-  // Al imprimir salen los datos, las firmas y el historial, sin botones.
-  await page.evaluate(() => document.body.classList.add('rim-imprimiendo'));
-  await page.emulateMedia({ media: 'print' });
+  // El historial de la entrega se despliega a pedido.
+  await entrega.getByRole('button', { name: /Historial/ }).click();
   await expect(entrega.getByRole('list', { name: 'Historial de la entrega' })).toBeVisible();
   await expect(entrega.getByText('Motivo: Se entregó en el laboratorio, no en planta')).toBeVisible();
-  await expect(entrega.getByRole('button', { name: 'Corregir' })).toBeHidden();
-  await expect(entrega.getByRole('button', { name: /Historial/ })).toBeHidden();
 });
 
 test('un técnico completa los datos vacíos, pero no corrige ni anula', async ({ page }) => {

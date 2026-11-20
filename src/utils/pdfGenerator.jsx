@@ -80,6 +80,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Helvetica-Bold',
   },
+  anulado: {
+    marginTop: 6,
+    marginHorizontal: 60,
+    padding: 5,
+    borderWidth: 1,
+    borderColor: '#dc2626',
+    color: '#dc2626',
+    fontSize: 7,
+  },
+  anuladoTitulo: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 11,
+    marginBottom: 2,
+  },
   sectionTitle: {
     backgroundColor: '#E0E0E0',
     color: '#000000',
@@ -363,6 +377,17 @@ const RIMDocument = ({ formData, rimCode }) => {
         <View style={styles.titleContainer}>
           <Text style={styles.docTitle}>RECEPCIÓN DE INSTRUMENTOS DE PESAJE</Text>
           <Text style={styles.docCode}>{rimCode}</Text>
+          {/* Un RIM anulado no se imprime como vigente. */}
+          {formData.anulacion && (
+            <View style={styles.anulado}>
+              <Text style={styles.anuladoTitulo}>ANULADO</Text>
+              {formData.anulacion.motivo && <Text>{formData.anulacion.motivo}</Text>}
+              <Text>
+                {[formData.anulacion.por, formData.anulacion.fecha].filter(Boolean).join(' · ')}
+                {formData.anulacion.reemplazadoPor ? ` · Reemplazado por ${formData.anulacion.reemplazadoPor}` : ''}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* SECCIÓN 1: CLIENTE */}
@@ -578,11 +603,15 @@ const RIMDocument = ({ formData, rimCode }) => {
   );
 };
 
+/** PDF oficial del RIM como Blob (para descargarlo o imprimirlo). */
+export const rimPdfBlob = (formData, rimCode) =>
+  pdf(<RIMDocument formData={formData} rimCode={rimCode} />).toBlob();
+
 export const generatePDF = async (formData, rimCode) => {
   try {
     console.log("Generating Native PDF with React PDF Renderer...");
-    
-    const blob = await pdf(<RIMDocument formData={formData} rimCode={rimCode} />).toBlob();
+
+    const blob = await rimPdfBlob(formData, rimCode);
     
     // Create an object URL containing the Blob data
     const url = URL.createObjectURL(blob);

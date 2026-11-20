@@ -24,8 +24,11 @@ import {
   fechaHora,
   filasDanos,
   filasInventario,
+  formularioDesdeDetalle,
 } from '../domain/rim';
 import { ETAPAS_RIM } from '../domain/seguimiento';
+import { fotoParaPdf } from '../utils/fotos';
+import { imprimirPdf } from '../utils/imprimir';
 import { Dato, Firma } from './ficha';
 import { EjecucionModal, EntregaModal, RimSeguimiento } from './RimSeguimiento';
 
@@ -160,15 +163,17 @@ function AnularRimModal({ rim, onClose, onAnulado }) {
   );
 }
 
-/** Imprime solo la ficha (ver rim.css). */
-function imprimir() {
-  document.body.classList.add('rim-imprimiendo');
-  const limpiar = () => {
-    document.body.classList.remove('rim-imprimiendo');
-    window.removeEventListener('afterprint', limpiar);
-  };
-  window.addEventListener('afterprint', limpiar);
-  window.print();
+/**
+ * Imprime el RIM en el formato oficial: el mismo PDF que se descarga al
+ * registrarlo desde el formulario web (src/utils/pdfGenerator.jsx).
+ */
+async function imprimirRim(rim) {
+  // El generador de PDF es pesado: se carga recién al imprimir.
+  const { rimPdfBlob } = await import('../../../utils/pdfGenerator.jsx');
+  const datos = formularioDesdeDetalle(rim);
+  const photos = await Promise.all(datos.photos.map(async foto => ({ ...foto, content: await fotoParaPdf(foto.content) })));
+  const blob = await rimPdfBlob({ ...datos, photos }, rim.codigo);
+  return imprimirPdf(blob);
 }
 
 /** Insignia del encabezado: anulado o, si está vigente, la etapa alcanzada. */
@@ -191,9 +196,23 @@ export function RimDetailModal({ n, onClose, onChanged }) {
   const [anulando, setAnulando] = useState(false);
   // null | { etapa: 'ejecucion' } | { etapa: 'entrega', accion }
   const [registrando, setRegistrando] = useState(null);
+  const [imprimiendo, setImprimiendo] = useState(false);
   const rim = actualizado || cargado;
 
   const estado = rim ? insigniaDe(rim) : null;
+
+  const imprimir = async () => {
+    setImprimiendo(true);
+    try {
+      const resultado = await imprimirRim(rim);
+      if (resultado === 'pestana') toast.info('El PDF se abrió en otra pestaña para imprimirlo.');
+    } catch (failure) {
+      console.error('Error al generar el PDF del RIM:', failure);
+      toast.error('No se pudo generar el PDF del RIM. Intente de nuevo.');
+    } finally {
+      setImprimiendo(false);
+    }
+  };
 
   const guardado = (detalle) => {
     setActualizado(detalle);
@@ -223,9 +242,13 @@ export function RimDetailModal({ n, onClose, onChanged }) {
                 <button
                   type="button"
                   onClick={imprimir}
-                  className="flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
+                  disabled={imprimiendo}
+                  aria-busy={imprimiendo}
+                  className="flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg disabled:opacity-60"
                 >
-                  <Printer className="h-4 w-4" aria-hidden="true" /> Imprimir
+                  {imprimiendo
+                    ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Preparando…</>
+                    : <><Printer className="h-4 w-4" aria-hidden="true" /> Imprimir</>}
                 </button>
               )}
               {rim?.acciones.anular && (
