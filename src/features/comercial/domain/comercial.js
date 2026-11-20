@@ -287,6 +287,42 @@ export const SITUACIONES_BITRIX = {
 
 export const SITUACIONES_BITRIX_ORDEN = ['por_facturar', 'sin_registrar', 'etapa_desactualizada', 'con_factura', 'sin_factura'];
 
+/** Reportes: color fijo de cada área (comercial.css), el mismo con o sin filtro. */
+export const AREA_COLOR = { ST: 'var(--com-area-st)', CAL: 'var(--com-area-cal)', VENT: 'var(--com-area-vent)' };
+
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** «2026-03» → «mar» (o «mar 26» si el período cruza gestiones). */
+export const mesCorto = (mes, conAnio = false) => {
+  const [a, m] = String(mes).split('-').map(Number);
+  return `${MESES_CORTOS[m - 1] || mes}${conAnio ? ` ${String(a).slice(2)}` : ''}`;
+};
+
+/** Períodos rápidos de los reportes, en días de Bolivia. */
+export const PERIODOS = {
+  gestion: 'Esta gestión',
+  mes: 'Este mes',
+  trimestre: 'Últimos 3 meses',
+  anterior: 'Gestión anterior',
+};
+
+export const periodoDe = (clave, hoy = hoyLaPaz()) => {
+  const [a, m] = hoy.split('-').map(Number);
+  const dosDigitos = (n) => String(n).padStart(2, '0');
+  if (clave === 'mes') return { desde: `${a}-${dosDigitos(m)}-01`, hasta: hoy };
+  if (clave === 'trimestre') {
+    const inicio = new Date(Date.UTC(a, m - 3, 1));
+    return { desde: inicio.toISOString().slice(0, 10), hasta: hoy };
+  }
+  if (clave === 'anterior') return { desde: `${a - 1}-01-01`, hasta: `${a - 1}-12-31` };
+  return { desde: `${a}-01-01`, hasta: hoy };
+};
+
+/** Lo que se envía al pedir el reporte (sin los filtros vacíos). */
+export const paramsReporte = ({ desde, hasta, area, tipo }) => Object.fromEntries(
+  Object.entries({ desde, hasta, area, tipo }).filter(([, v]) => v),
+);
+
 /** Lo que DataMET+ escribe en una negociación de Bitrix24 (fase 3). */
 export const CAMBIOS_BITRIX = {
   facturado: '¿Está facturado?',

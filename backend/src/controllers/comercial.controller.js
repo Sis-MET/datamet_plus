@@ -1,5 +1,6 @@
 const comercial = require('../services/comercial.service');
 const bitrix = require('../services/comercial.bitrix');
+const reportes = require('../services/comercial.reportes');
 const { parse } = require('../services/comercial.validation');
 
 const readId = (value) => {
@@ -91,4 +92,19 @@ module.exports = {
   bitrixActualizar: handle(req => bitrix.actualizarNegociacion(readId(req.params.id), parse('actualizacionBitrix', req.body), req.user)),
   bitrixPendientes: handle(() => bitrix.resumenPendientes()),
   bitrixActualizarPendientes: handle(req => bitrix.actualizarPendientesEnSegundoPlano(parse('actualizacionMasiva', req.body), req.user), 202),
+
+  reportes: handle(req => reportes.reporte(parse('filtrosReportes', req.query))),
+  // El libro de Excel para Contabilidad, con los mismos filtros del reporte.
+  reportesExcel: async (req, res, next) => {
+    try {
+      const { buffer, nombre } = await reportes.excel(parse('filtrosReportes', req.query));
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(buffer);
+    } catch (error) {
+      if ([400, 503].includes(error.statusCode)) return res.status(error.statusCode).json({ success: false, message: error.message });
+      return next(error);
+    }
+  },
 };

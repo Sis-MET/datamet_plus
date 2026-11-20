@@ -5,10 +5,11 @@ import { BitrixPanel } from './components/BitrixPanel';
 import { CobranzaPanel } from './components/CobranzaPanel';
 import { FacturasPanel } from './components/FacturasPanel';
 import { PagosPanel } from './components/PagosPanel';
+import { ReportesPanel } from './components/ReportesPanel';
 import '../calibration/calibration.css';
 import './comercial.css';
 
-const PESTANAS = ['facturas', 'cobranza', 'pagos', 'bitrix'];
+const PESTANAS = ['facturas', 'cobranza', 'pagos', 'reportes', 'bitrix'];
 const STORAGE_KEY = 'datamet_comercial_tab';
 
 /**
@@ -33,6 +34,7 @@ export function ComercialPage({ currentUser }) {
         {pestana === 'facturas' && <FacturasPanel soloConsulta={consulta} />}
         {pestana === 'cobranza' && <CobranzaPanel soloConsulta={consulta} />}
         {pestana === 'pagos' && <PagosPanel soloConsulta={consulta} />}
+        {pestana === 'reportes' && <ReportesPanel />}
         {pestana === 'bitrix' && <BitrixPanel soloConsulta={consulta} />}
       </main>
     </div>

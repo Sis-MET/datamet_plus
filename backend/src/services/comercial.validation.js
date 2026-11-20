@@ -3,7 +3,7 @@
  * alta y anulación de facturas y pagos, y ficha de facturación del cliente.
  */
 const { z } = require('zod');
-const { ESTADOS, httpError } = require('./comercial.domain');
+const { ESTADOS, hoyLaPaz, httpError } = require('./comercial.domain');
 
 const TIPOS = ['SERVICIO', 'VENTA'];
 const AREAS = ['ST', 'CAL', 'VENT'];
@@ -179,6 +179,21 @@ const schemas = {
   }),
 
   actualizacionMasiva: z.object({ esperadas: opcional(entero('Negociaciones', { min: 0 })).optional().default(null) }),
+
+  // Reportes: por omisión, la gestión en curso hasta hoy. Hasta tres años.
+  filtrosReportes: z.object({
+    desde: vacioANull(date),
+    hasta: vacioANull(date),
+    area: vacioANull(z.enum(AREAS, { error: 'Área inválida.' })),
+    tipo: vacioANull(z.enum(TIPOS, { error: 'Tipo de factura inválido.' })),
+  })
+    .transform((f) => {
+      const hoy = hoyLaPaz();
+      const hasta = f.hasta || hoy;
+      return { ...f, desde: f.desde || `${hasta.slice(0, 4)}-01-01`, hasta, area: f.area || null, tipo: f.tipo || null };
+    })
+    .refine(rango, MENSAJE_RANGO)
+    .refine(f => (new Date(`${f.hasta}T00:00:00Z`) - new Date(`${f.desde}T00:00:00Z`)) / 86400000 <= 1100, 'El período de un reporte es de hasta tres años.'),
 };
 
 const parse = (name, data) => {

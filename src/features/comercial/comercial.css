@@ -20,3 +20,22 @@
   --com-tramo-3: #e2703f;
   --com-tramo-4: #f99a6c;
 }
+
+/*
+ * Reportes: las tres áreas en colores fijos (siempre el mismo color para la
+ * misma área, también filtrando). Validados con el validador de paletas en
+ * modo categórico sobre las superficies de la app (#ffffff y #101826): pasan
+ * banda, croma, separación para daltonismo (ΔE 9,2 / 9,4) y visión normal. El
+ * turquesa claro queda bajo 3:1, así que el gráfico lleva leyenda y tabla.
+ */
+:root {
+  --com-area-st: #2a78d6;
+  --com-area-cal: #eb6834;
+  --com-area-vent: #1baf7a;
+}
+
+.dark {
+  --com-area-st: #3987e5;
+  --com-area-cal: #d95926;
+  --com-area-vent: #199e70;
+}

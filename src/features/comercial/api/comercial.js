@@ -24,6 +24,10 @@ export const comercialApi = {
 
   cobranza: (params) => unwrap(api.get('/comercial/cobranza', params)),
 
+  // Reportes (fase 4) y su libro de Excel para Contabilidad, con los mismos filtros.
+  reportes: (params) => unwrap(api.get('/comercial/reportes', params)),
+  reportesExcel: (params) => api.blob('/comercial/reportes/excel', { params, timeout: 60000 }),
+
   // Bitrix24 (solo lectura del CRM): copia, enlaces y equivalencias de responsables.
   bitrixEstado: () => unwrap(api.get('/comercial/bitrix/estado')),
   bitrixNegociaciones: (params) => unwrap(api.get('/comercial/bitrix/negociaciones', params)),

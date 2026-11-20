@@ -17,6 +17,8 @@ consulta.get('/facturas/:id', controller.getFactura);
 consulta.get('/pagos', controller.listPagos);
 consulta.get('/pagos/:id', controller.getPago);
 consulta.get('/cobranza', controller.cobranza);
+consulta.get('/reportes', controller.reportes);
+consulta.get('/reportes/excel', controller.reportesExcel);
 consulta.get('/bitrix/estado', controller.bitrixEstado);
 consulta.get('/bitrix/negociaciones', controller.bitrixNegociaciones);
 consulta.get('/bitrix/negociaciones/:id', controller.bitrixNegociacion);

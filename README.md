@@ -633,6 +633,17 @@ y Sistemas; **Administración y Gerencia lo consultan** sin registrar ni anular
   la ventana de recepción (`COM_CLIENTES`; `DATA_CLIENTES` no se toca).
 - **Pagos:** cada pago se registra una vez y se aplica a una o varias
   facturas sin pasar su saldo; lo que sobra queda **sin aplicar** (anticipo).
+- **Reportes** (fase 4): reemplazan las 51 tablas dinámicas del Excel. Con
+  un período (esta gestión, este mes, los últimos 3 meses, la gestión
+  anterior u otro), un área y un tipo que valen para todo: cifras
+  (facturado, cobrado, por cobrar, margen), facturación por mes y área
+  (columnas apiladas con su detalle y su tabla), por área con neto y margen,
+  por responsable (con su porcentaje en cada factura), por categoría, clientes
+  nuevos y regulares, los que más facturaron, regional, rubro y facturas con
+  varias áreas. Solo facturas vigentes; con un área, solo sus líneas y lo
+  cobrado en proporción. **Exportar a Excel** baja, con los mismos filtros,
+  un libro para Contabilidad con las hojas Resumen, Facturas, Líneas y Pagos
+  (`backend/src/utils/xlsx-escribir.js`, sin dependencias).
 
 **Nada se borra** (migración `034`): una factura o un pago se anulan con
 motivo; las líneas, referencias, personas y aplicaciones no se modifican
@@ -647,6 +658,12 @@ Rutas (`/api/comercial`, `comercial.routes.js`): de consulta `GET /acceso`,
 `/pagos`, `/pagos/:id`, `/cobranza`; solo del área `POST /facturas`,
 `POST /facturas/:id/anulacion`, `POST /pagos`, `POST /pagos/:id/anulacion`,
 `PUT /clientes/:codigo`. Sin la migración, responden 503 con lo que falta.
+Reportes: `GET /reportes` y `GET /reportes/excel` (filtros `desde`, `hasta`,
+`area`, `tipo`; por omisión la gestión en curso; hasta tres años), también
+para quien consulta. Un cliente es **nuevo** si se registró en DataMET
+(`DATA_CLIENTES.fechareg`) en la misma gestión de la factura y no tiene
+facturas de gestiones anteriores; en esta base, los registrados en 2023 son
+la carga inicial de DataMET, así que la regla vale desde 2024.
 
 **Carga inicial desde el Excel** (`backend/scripts/comercial-importar-excel.js`):
 

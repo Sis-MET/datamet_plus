@@ -51,7 +51,7 @@ describe('acceso a los apartados por área', () => {
     }
     expect(canUseView('comercial', calibracion)).toBe(false);
     const secciones = getNavigation(administracion).find(view => view.id === 'comercial').sections.map(section => section.id);
-    expect(secciones).toEqual(['facturas', 'cobranza', 'pagos', 'bitrix']);
+    expect(secciones).toEqual(['facturas', 'cobranza', 'pagos', 'reportes', 'bitrix']);
   });
 
   it('los apartados de área se abren siempre; los de Sistemas solo para Sistemas', () => {

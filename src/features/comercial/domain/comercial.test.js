@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CAMBIOS_BITRIX, bs, bsCorto, cuadre, enlaceSeguro, facturaDesdeFormulario, fecha, fechaHora, filtrosAParams, formularioDesdePropuesta, haceCuanto,
+  CAMBIOS_BITRIX, bs, bsCorto, cuadre, enlaceSeguro, mesCorto, paramsReporte, periodoDe, facturaDesdeFormulario, fecha, fechaHora, filtrosAParams, formularioDesdePropuesta, haceCuanto,
   leerMonto, lineaVacia, montoTexto, opcionesCategorias, porcentaje, problemasFactura, repartirPago, sumar, valorCambio,
 } from './comercial';
 
@@ -99,6 +99,22 @@ describe('listas y pagos', () => {
   it('reparte un pago en orden sin pasar el saldo de cada factura', () => {
     expect(repartirPago('1.200', [{ id: 1, saldo: 1000 }, { id: 2, saldo: 500 }, { id: 3, saldo: 50 }]))
       .toEqual([{ facturaId: 1, monto: 1000 }, { facturaId: 2, monto: 200 }, { facturaId: 3, monto: 0 }]);
+  });
+});
+
+describe('Comercial: reportes', () => {
+  it('períodos rápidos en días de Bolivia', () => {
+    expect(periodoDe('gestion', '2026-11-20')).toEqual({ desde: '2026-01-01', hasta: '2026-11-20' });
+    expect(periodoDe('mes', '2026-11-20')).toEqual({ desde: '2026-11-01', hasta: '2026-11-20' });
+    expect(periodoDe('trimestre', '2026-11-20')).toEqual({ desde: '2026-09-01', hasta: '2026-11-20' });
+    expect(periodoDe('trimestre', '2026-02-10')).toEqual({ desde: '2025-12-01', hasta: '2026-02-10' });
+    expect(periodoDe('anterior', '2026-11-20')).toEqual({ desde: '2025-01-01', hasta: '2025-12-31' });
+  });
+
+  it('meses cortos y filtros sin vacíos', () => {
+    expect(mesCorto('2026-03')).toBe('mar');
+    expect(mesCorto('2025-12', true)).toBe('dic 25');
+    expect(paramsReporte({ desde: '2026-01-01', hasta: '2026-11-20', area: '', tipo: 'VENTA' })).toEqual({ desde: '2026-01-01', hasta: '2026-11-20', tipo: 'VENTA' });
   });
 });
 
