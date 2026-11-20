@@ -38,7 +38,7 @@ const fila = (overrides = {}) => ({
 });
 
 const CAMPOS_EJECUCION = ['recepcionSt', 'fechaIngreso', 'tecnicoAsignado', 'fechaInicio', 'fechaInforme', 'fechaConclusion', 'nroCotizacion', 'nroInforme', 'nroFactura'];
-const CAMPOS_ENTREGA = ['recibeNombre', 'entregaPor', 'fechaEntrega', 'lugarEntrega', 'observaciones'];
+const CAMPOS_ENTREGA = ['recibeNombre', 'entregaPor', 'fechaEntrega', 'lugarEntrega', 'estadoSalida', 'observaciones'];
 const TIPOS = { registro: 'Registro', avance: 'Avance', correccion: 'Corrección', anulacion: 'Anulación' };
 
 /**
@@ -422,7 +422,7 @@ test('la ficha registra la ejecución y la corrige con motivo, sin tocar el RIM'
   await expect(ficha.getByRole('textbox')).toHaveCount(0);
 });
 
-test('la entrega exige las dos firmas en pantalla y guarda su historial', async ({ page }) => {
+test('la entrega pide el estado al salir, exige las dos firmas y guarda su historial', async ({ page }) => {
   const requests = await mockRimApi(page);
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/');
@@ -431,6 +431,7 @@ test('la entrega exige las dos firmas en pantalla y guarda su historial', async 
   const ficha = page.getByRole('dialog', { name: 'RIM-26-0042' });
   const entrega = ficha.getByRole('region', { name: 'Entrega' });
   await expect(entrega.getByText('El instrumento todavía no se entregó.')).toBeVisible();
+  await expect(entrega.getByRole('button', { name: 'Comprobante de salida (PDF)' })).toHaveCount(0);
 
   await entrega.getByRole('button', { name: 'Registrar entrega' }).click();
   const registrar = page.getByRole('dialog', { name: 'Registrar entrega de RIM-26-0042' });
@@ -439,11 +440,40 @@ test('la entrega exige las dos firmas en pantalla y guarda su historial', async 
   await expect(registrar.getByLabel('Lugar de entrega')).toHaveValue('Planta Río Seco');
   await registrar.getByLabel('Entregó (Métrica)').fill('Ing. Ana Quispe');
   await registrar.getByLabel('Fecha de entrega').fill('2026-10-15');
+  await expect(registrar.getByLabel('CI de quien recibe')).toHaveCount(0);
+  await registrar.getByRole('button', { name: 'Registrar entrega' }).click();
+  await expect(registrar.getByRole('alert')).toContainText('estado del equipo al salir');
+  await registrar.getByRole('combobox', { name: 'Estado del equipo al salir' }).click();
+  await page.getByRole('option', { name: 'Reparado y operativo' }).click();
   await registrar.getByRole('button', { name: 'Registrar entrega' }).click();
   await expect(registrar.getByRole('alert')).toContainText('Faltan las firmas');
   await expect(registrar.getByText('Falta la firma de quien recibe.')).toBeVisible();
 
-  await firmar(page, registrar, 'Firma de quien recibe (cliente)');
+  // El cliente firma a pantalla completa; Escape cierra la firma, no el formulario.
+  const ampliar = registrar.getByRole('button', { name: 'Ampliar: Firma de quien recibe (cliente) a pantalla completa' });
+  await ampliar.click();
+  const ampliada = page.getByRole('dialog', { name: 'Firma de quien recibe (cliente)' });
+  await expect(ampliada.getByRole('button', { name: 'Listo' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(ampliada).toBeHidden();
+  await expect(registrar).toBeVisible();
+  await expect(ampliar).toBeFocused();
+
+  await ampliar.click();
+  const lienzo = ampliada.locator('canvas');
+  const area = await lienzo.boundingBox();
+  // Ocupa casi toda la pantalla.
+  expect(area.width).toBeGreaterThan(1200);
+  expect(area.height).toBeGreaterThan(600);
+  await page.mouse.move(area.x + 200, area.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(area.x + 500, area.y + 420, { steps: 10 });
+  await page.mouse.move(area.x + 800, area.y + 280, { steps: 10 });
+  await page.mouse.up();
+  await ampliada.getByRole('button', { name: 'Listo' }).click();
+  await expect(ampliada).toBeHidden();
+  await expect(registrar.getByAltText('Firma de quien recibe (cliente), firmada a pantalla completa')).toBeVisible();
+
   await firmar(page, registrar, 'Firma de quien entrega (Métrica)');
   await registrar.getByRole('button', { name: 'Registrar entrega' }).click();
   await expect(registrar).toBeHidden();
@@ -451,14 +481,20 @@ test('la entrega exige las dos firmas en pantalla y guarda su historial', async 
   const post = requests.find(request => request.path.endsWith('/rim/registros/15/entrega'));
   expect(post.body).toMatchObject({
     accion: 'registro', anteriorId: null, recibeNombre: 'Juan Pérez', entregaPor: 'Ing. Ana Quispe',
-    fechaEntrega: '2026-10-15', lugarEntrega: 'Planta Río Seco', observaciones: null,
+    fechaEntrega: '2026-10-15', lugarEntrega: 'Planta Río Seco', estadoSalida: 'reparado', observaciones: null,
   });
   expect(post.body.firmaCliente).toMatch(/^data:image\/png;base64,/);
   expect(post.body.firmaRepresentante).toMatch(/^data:image\/png;base64,/);
 
   await expect(ficha.getByText('Entregado', { exact: true })).toBeVisible();
+  await expect(entrega.getByText('Reparado y operativo')).toBeVisible();
   await expect(entrega.getByAltText('Firma de quien recibe de Juan Pérez')).toBeVisible();
   await expect(entrega.getByAltText('Firma de quien entrega por Métrica de Ing. Ana Quispe')).toBeVisible();
+
+  // Comprobante de salida en PDF, con la entrega vigente.
+  const descarga = page.waitForEvent('download');
+  await entrega.getByRole('button', { name: 'Comprobante de salida (PDF)' }).click();
+  expect((await descarga).suggestedFilename()).toBe('Salida_RIM-26-0042.pdf');
 
   // Corregir la entrega conserva las firmas y pide el motivo.
   await entrega.getByRole('button', { name: 'Corregir' }).click();
@@ -471,7 +507,7 @@ test('la entrega exige las dos firmas en pantalla y guarda su historial', async 
   const correccion = requests.filter(request => request.path.endsWith('/rim/registros/15/entrega'))[1];
   expect(correccion.body).toEqual({
     accion: 'correccion', anteriorId: 1, recibeNombre: 'Juan Pérez', entregaPor: 'Ing. Ana Quispe',
-    fechaEntrega: '2026-10-15', lugarEntrega: 'Laboratorio Métrica', observaciones: null,
+    fechaEntrega: '2026-10-15', lugarEntrega: 'Laboratorio Métrica', estadoSalida: 'reparado', observaciones: null,
     motivo: 'Se entregó en el laboratorio, no en planta',
   });
   await expect(entrega.getByAltText('Firma de quien recibe de Juan Pérez')).toBeVisible();

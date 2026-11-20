@@ -5,6 +5,8 @@ import {
   cambiosEntrega,
   cuerpoEjecucion,
   cuerpoEntrega,
+  ESTADOS_SALIDA,
+  faltanteEntrega,
   fechaCorta,
   fechaLaPaz,
   nombresPersonal,
@@ -73,7 +75,8 @@ describe('ejecución del RIM', () => {
 describe('entrega del RIM', () => {
   it('para registrarla propone quien entregó en la recepción, el lugar y la fecha de hoy', () => {
     expect(valoresEntrega(rim(), 'registro', '2026-10-19')).toEqual({
-      recibeNombre: 'Juan Pérez', entregaPor: '', fechaEntrega: '2026-10-19', lugarEntrega: 'Planta Río Seco', observaciones: '',
+      recibeNombre: 'Juan Pérez', entregaPor: '', fechaEntrega: '2026-10-19', lugarEntrega: 'Planta Río Seco',
+      estadoSalida: '', observaciones: '',
     });
     const vigente = { recibeNombre: 'Juan Pérez', entregaPor: 'Ana Quispe', fechaEntrega: '2026-10-15', lugarEntrega: 'Laboratorio', observaciones: null };
     const corregir = valoresEntrega(rim({ entrega: { vigente: { id: 3, datos: vigente }, ultimaId: 3, historial: [] } }), 'correccion');
@@ -84,11 +87,34 @@ describe('entrega del RIM', () => {
     ]);
   });
 
+  it('una entrega nueva pide el estado al salir; al corregir una anterior puede quedar vacío', () => {
+    const completa = {
+      recibeNombre: 'Juan Pérez', entregaPor: 'Ana Quispe', fechaEntrega: '2026-10-15',
+      lugarEntrega: 'Laboratorio', estadoSalida: 'reparado', observaciones: '',
+    };
+    expect(faltanteEntrega(completa, 'registro')).toBeNull();
+    expect(faltanteEntrega({ ...completa, estadoSalida: '' }, 'registro')).toMatch(/estado del equipo al salir/);
+    expect(faltanteEntrega({ ...completa, recibeNombre: 'J' }, 'registro')).toMatch(/nombre de quien recibe/);
+    // Corregir una entrega anterior al estado al salir.
+    expect(faltanteEntrega({ ...completa, estadoSalida: '' }, 'correccion')).toBeNull();
+  });
+
+  it('muestra el estado al salir con su nombre', () => {
+    expect(valorLegible('estadoSalida', 'con_observaciones')).toBe('Operativo con observaciones');
+    expect(valorLegible('estadoSalida', 'otro_estado')).toBe('otro_estado');
+    expect(valorLegible('estadoSalida', null)).toBeNull();
+    expect(Object.keys(ESTADOS_SALIDA)).toEqual(['operativo', 'reparado', 'con_observaciones', 'no_operativo']);
+  });
+
   it('registra con las dos firmas; la corrección no las envía; la anulación solo el motivo', () => {
-    const valores = { recibeNombre: ' Juan Pérez ', entregaPor: 'Ana Quispe', fechaEntrega: '2026-10-15', lugarEntrega: 'Laboratorio', observaciones: '' };
+    const valores = {
+      recibeNombre: ' Juan Pérez ', entregaPor: 'Ana Quispe', fechaEntrega: '2026-10-15',
+      lugarEntrega: 'Laboratorio', estadoSalida: 'operativo', observaciones: '',
+    };
     expect(cuerpoEntrega('registro', valores, { anteriorId: null, firmas: { cliente: FIRMA, representante: FIRMA } })).toEqual({
-      accion: 'registro', anteriorId: null, recibeNombre: 'Juan Pérez', entregaPor: 'Ana Quispe', fechaEntrega: '2026-10-15',
-      lugarEntrega: 'Laboratorio', observaciones: null, firmaCliente: FIRMA, firmaRepresentante: FIRMA,
+      accion: 'registro', anteriorId: null, recibeNombre: 'Juan Pérez', entregaPor: 'Ana Quispe',
+      fechaEntrega: '2026-10-15', lugarEntrega: 'Laboratorio', estadoSalida: 'operativo', observaciones: null,
+      firmaCliente: FIRMA, firmaRepresentante: FIRMA,
     });
     const correccion = cuerpoEntrega('correccion', valores, { anteriorId: 3, firmas: { cliente: FIRMA }, motivo: 'Lugar mal escrito' });
     expect(correccion.motivo).toBe('Lugar mal escrito');

@@ -1,8 +1,8 @@
 import { useEffect, useId, useState } from 'react';
-import { AlertCircle, Ban, ChevronDown, History, PencilLine, Plus } from 'lucide-react';
+import { AlertCircle, Ban, ChevronDown, FileDown, History, Loader2, PencilLine, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../../../shared/utils/cn';
-import { SuggestInput } from '../../calibration/components/Dropdown';
+import { Dropdown, SuggestInput } from '../../calibration/components/Dropdown';
 import { CancelButton, FieldLabel, Modal, ModalSection, PrimaryButton, ToneBadge } from '../../calibration/components/primitives';
 import { rimApi } from '../api/rim';
 import { fechaHora } from '../domain/rim';
@@ -14,6 +14,7 @@ import {
   cuerpoEjecucion,
   cuerpoEntrega,
   etiquetaCampo,
+  faltanteEntrega,
   fechaLaPaz,
   nombresPersonal,
   quien,
@@ -27,22 +28,42 @@ import { SignatureField } from './SignatureField';
 const TONO_TIPO = { registro: 'neutral', avance: 'info', correccion: 'warning', anulacion: 'danger' };
 
 /** Botón de una sección de la ficha; no se imprime. */
-function AccionSeccion({ onClick, icon, danger = false, children }) {
-  const Icon = icon;
+function AccionSeccion({ onClick, icon, danger = false, busy = false, children }) {
+  const Icon = busy ? Loader2 : icon;
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={busy}
+      aria-busy={busy || undefined}
       className={cn(
-        'rim-no-print flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-[12.5px] font-semibold transition-colors',
+        'rim-no-print flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-[12.5px] font-semibold transition-colors disabled:opacity-60',
         danger
           ? 'border-danger/30 text-danger hover:bg-danger/10'
           : 'border-line text-fg hover:bg-fg/[0.05]',
       )}
     >
-      <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {children}
+      <Icon className={cn('h-3.5 w-3.5', busy && 'animate-spin')} aria-hidden="true" /> {children}
     </button>
   );
+}
+
+/** Descarga el comprobante de salida (PDF) de la entrega vigente. */
+function useComprobanteSalida(rim) {
+  const [generando, setGenerando] = useState(false);
+  const descargar = async () => {
+    setGenerando(true);
+    try {
+      const { descargarComprobanteSalida } = await import('../pdf/ComprobanteSalida.jsx');
+      await descargarComprobanteSalida(rim);
+    } catch (error) {
+      console.error('Error al generar el comprobante de salida:', error);
+      toast.error('No se pudo generar el comprobante de salida.');
+    } finally {
+      setGenerando(false);
+    }
+  };
+  return { generando, descargar };
 }
 
 /** «Registrado por … · fecha» de la versión vigente. */
@@ -153,11 +174,19 @@ function SeccionEjecucion({ rim, onEditar }) {
   );
 }
 
+/** Valor de un dato de la entrega; el estado al salir, con su color. */
+function ValorEntrega({ def, valor }) {
+  const legible = valorLegible(def.campo, valor);
+  if (legible === null || !def.opciones) return legible;
+  return <ToneBadge tone={def.opciones[valor]?.tone || 'neutral'}>{legible}</ToneBadge>;
+}
+
 /** Entrega vigente (6.3) con sus dos firmas, y su historial. */
 function SeccionEntrega({ rim, onAccion }) {
   const { entrega, acciones } = rim.seguimiento;
   const vigente = entrega.vigente;
   const anulada = !vigente && entrega.historial[0]?.tipo === 'anulacion';
+  const comprobante = useComprobanteSalida(rim);
   const botones = [
     acciones.registrarEntrega && <AccionSeccion key="registro" onClick={() => onAccion('registro')} icon={Plus}>Registrar entrega</AccionSeccion>,
     acciones.corregirEntrega && <AccionSeccion key="correccion" onClick={() => onAccion('correccion')} icon={PencilLine}>Corregir</AccionSeccion>,
@@ -167,19 +196,29 @@ function SeccionEntrega({ rim, onAccion }) {
   return (
     <ModalSection
       title="Entrega"
-      description="Devolución del instrumento al cliente, con las dos firmas."
+      description="Salida del instrumento al cliente, con las dos firmas."
       action={botones.length > 0 && <div className="flex shrink-0 gap-1.5">{botones}</div>}
     >
       {vigente ? (
         <>
           <dl>
-            {CAMPOS_ENTREGA.map(def => (
-              <Dato key={def.campo} label={def.label}>{valorLegible(def.campo, vigente.datos[def.campo])}</Dato>
-            ))}
+            {CAMPOS_ENTREGA.map(def => {
+              const valor = vigente.datos[def.campo];
+              return (
+                <Dato key={def.campo} label={def.label}>
+                  {valorLegible(def.campo, valor) === null ? null : <ValorEntrega def={def} valor={valor} />}
+                </Dato>
+              );
+            })}
           </dl>
           <div className="mt-4 grid gap-4">
             <Firma titulo="Firma de quien recibe" nombre={vigente.datos.recibeNombre} src={vigente.firmas.cliente} />
             <Firma titulo="Firma de quien entrega por Métrica" nombre={vigente.datos.entregaPor} src={vigente.firmas.representante} />
+          </div>
+          <div className="mt-4">
+            <AccionSeccion onClick={comprobante.descargar} icon={FileDown} busy={comprobante.generando}>
+              {comprobante.generando ? 'Generando comprobante…' : 'Comprobante de salida (PDF)'}
+            </AccionSeccion>
           </div>
           <Registrado version={vigente} />
         </>
@@ -200,6 +239,7 @@ function SeccionEntrega({ rim, onAccion }) {
                   version.datos.entregaPor && `entregó ${version.datos.entregaPor}`,
                   valorLegible('fechaEntrega', version.datos.fechaEntrega),
                   version.datos.lugarEntrega,
+                  valorLegible('estadoSalida', version.datos.estadoSalida),
                 ].filter(Boolean).join(' · ')}
               </p>
             )}
@@ -261,7 +301,19 @@ function usePersonal() {
 function Campo({ def, value, onChange, personal, min, max, disabled, hint }) {
   const id = useId();
   let control;
-  if (def.largo) {
+  if (def.opciones) {
+    control = (
+      <Dropdown
+        id={id}
+        ariaLabel={def.label}
+        value={value ?? ''}
+        onChange={onChange}
+        placeholder="Elegir…"
+        options={Object.entries(def.opciones).map(([opcion, { label }]) => ({ value: opcion, label }))}
+        disabled={disabled}
+      />
+    );
+  } else if (def.largo) {
     control = (
       <textarea
         id={id}
@@ -437,20 +489,14 @@ export function EjecucionModal({ rim, onClose, onGuardado, onConflicto }) {
 }
 
 const TITULO_ENTREGA = { registro: 'Registrar entrega', correccion: 'Corregir entrega', anulacion: 'Anular entrega' };
+/** Datos que las entregas anteriores no tienen: al corregirlas pueden quedar vacíos. */
+const OPCIONALES_AL_CORREGIR = ['estadoSalida'];
 const EXITO_ENTREGA = { registro: 'registró la entrega', correccion: 'corrigió la entrega', anulacion: 'anuló la entrega' };
 
-/** Primer dato que falta para registrar o corregir la entrega. */
-function faltanteEntrega(valores) {
-  if (String(valores.recibeNombre).trim().length < 3) return 'Escribe el nombre de quien recibe por el cliente.';
-  if (String(valores.entregaPor).trim().length < 3) return 'Escribe el nombre de quien entrega por Métrica.';
-  if (!valores.fechaEntrega) return 'Indica la fecha de entrega.';
-  if (!String(valores.lugarEntrega).trim()) return 'Indica el lugar de entrega.';
-  return null;
-}
-
 /**
- * Registra la entrega con las dos firmas en pantalla, la corrige (conserva
- * las firmas; pide motivo) o la anula con motivo.
+ * Registra la entrega (salida del instrumento) con el estado del equipo al
+ * salir y las dos firmas en pantalla (ampliables a pantalla completa); la
+ * corrige (conserva las firmas; pide motivo) o la anula con motivo.
  */
 export function EntregaModal({ rim, accion, onClose, onGuardado, onConflicto }) {
   const { entrega } = rim.seguimiento;
@@ -467,7 +513,7 @@ export function EntregaModal({ rim, accion, onClose, onGuardado, onConflicto }) 
   const guardar = (close) => {
     setIntentado(true);
     let problema = null;
-    if (accion !== 'anulacion') problema = faltanteEntrega(valores);
+    if (accion !== 'anulacion') problema = faltanteEntrega(valores, accion);
     if (!problema && accion === 'registro' && (!firmas.cliente || !firmas.representante)) {
       problema = 'Faltan las firmas: deben firmar quien recibe y quien entrega.';
     }
@@ -498,7 +544,7 @@ export function EntregaModal({ rim, accion, onClose, onGuardado, onConflicto }) 
       min={def.fecha ? desde : undefined}
       max={def.fecha ? hoy : undefined}
       disabled={busy}
-      hint={def.largo ? '(opcional)' : undefined}
+      hint={def.largo || (accion === 'correccion' && OPCIONALES_AL_CORREGIR.includes(def.campo)) ? '(opcional)' : undefined}
     />
   );
 
@@ -533,7 +579,7 @@ export function EntregaModal({ rim, accion, onClose, onGuardado, onConflicto }) 
     >
       <div className="space-y-4 px-5 py-5 sm:px-6">
         <p className="text-[13px] leading-relaxed text-fg-muted">
-          {accion === 'registro' && 'Quien recibe el instrumento por el cliente y quien lo entrega por Métrica firman en pantalla.'}
+          {accion === 'registro' && 'Indica quién recoge el instrumento y cómo sale el equipo. Quien recoge y quien entrega por Métrica firman en pantalla; «Ampliar» abre la firma a pantalla completa.'}
           {accion === 'correccion' && 'La corrección queda como una versión nueva, con su motivo; la anterior se conserva en el historial. Las firmas registradas se conservan.'}
           {accion === 'anulacion' && 'La entrega no se borra: queda anulada con su motivo y visible en el historial. Después puede registrarse la entrega correcta.'}
         </p>

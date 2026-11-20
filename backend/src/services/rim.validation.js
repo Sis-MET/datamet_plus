@@ -24,6 +24,8 @@ const NIVELES_SUCIEDAD = ['clean', 'light', 'moderate', 'heavy'];
 const MOTIVOS_CIERRE = ['telefono_perdido', 'reinstalacion', 'otro'];
 /** Etapa del RIM después de la recepción (ejecución 6.2 y entrega 6.3). */
 const ETAPAS = ['recibido', 'en_ejecucion', 'concluido', 'entregado'];
+/** Cómo sale el instrumento al entregarlo (las mismas claves en DataMET+). */
+const ESTADOS_SALIDA = ['operativo', 'reparado', 'con_observaciones', 'no_operativo'];
 
 const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
 
@@ -106,6 +108,22 @@ const datosEntrega = {
   fechaEntrega: date,
   lugarEntrega: requiredText(255, 'Falta el lugar de entrega.'),
   observaciones: optionalText(1000),
+};
+
+const MENSAJE_ESTADO_SALIDA = 'Elige el estado del equipo al salir.';
+
+/**
+ * Una entrega nueva pide el estado del equipo al salir. La corrección de una
+ * entrega anterior a este dato puede dejarlo vacío.
+ */
+const salidaRegistro = {
+  estadoSalida: z.enum(ESTADOS_SALIDA, { error: MENSAJE_ESTADO_SALIDA }),
+};
+const salidaCorreccion = {
+  estadoSalida: z.preprocess(
+    value => (value === '' || value === undefined ? null : value),
+    z.enum(ESTADOS_SALIDA, { error: MENSAJE_ESTADO_SALIDA }).nullable(),
+  ),
 };
 
 const schemas = {
@@ -236,6 +254,7 @@ const schemas = {
       accion: z.literal('registro'),
       anteriorId,
       ...datosEntrega,
+      ...salidaRegistro,
       firmaCliente: firma('La firma de quien recibe'),
       firmaRepresentante: firma('La firma de quien entrega por Métrica'),
     }),
@@ -243,6 +262,7 @@ const schemas = {
       accion: z.literal('correccion'),
       anteriorId,
       ...datosEntrega,
+      ...salidaCorreccion,
       motivo: motivoCorreccion('Escribe el motivo de la corrección (al menos 10 caracteres).'),
     }),
     z.object({
@@ -263,6 +283,7 @@ const parse = (name, data) => {
 
 module.exports = {
   AREAS,
+  ESTADOS_SALIDA,
   ETAPAS,
   MOTIVOS_CIERRE,
   ORIGENES,

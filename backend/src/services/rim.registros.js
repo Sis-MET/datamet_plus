@@ -374,13 +374,23 @@ const mapTalonario = (row, registrados, user) => {
 };
 
 const TABLAS_SEGUIMIENTO = /form_rim_(ejecucion|entregas)/i;
+/** Columna de la entrega que agrega el script 019 de ServiceMET. */
+const COLUMNAS_SALIDA = /\bestado_salida\b/i;
 
 /**
  * Traduce los errores de SQL Server que indican que falta preparar la base.
  * Los de la ejecución y la entrega (script 016) quedan marcados con
  * `faltaSeguimiento`: la ficha y el historial se muestran igual sin ellas.
+ * Sin las columnas del script 019 (`faltaSalida`) la entrega se lee igual,
+ * pero no se registra.
  */
 const notReady = (error) => {
+  if (error?.number === 207 && COLUMNAS_SALIDA.test(error?.message || '')) {
+    return Object.assign(
+      httpError(503, 'Falta ejecutar el script 019 de ServiceMET en DataMET: la entrega todavía no puede guardar el estado del equipo al salir.'),
+      { faltaSalida: true },
+    );
+  }
   if (TABLAS_SEGUIMIENTO.test(error?.message || '')) {
     if ([208].includes(error?.number) || /Invalid object name/i.test(error?.message || '')) {
       return Object.assign(
@@ -521,19 +531,31 @@ const filasEjecucion = (uuid, tables = tablesFor()) => run(`
 [{ name: 'uuid', type: sql.UniqueIdentifier, value: uuid }]);
 
 /**
- * Filas de la entrega de un RIM. Las firmas solo de la última fila (la
- * vigente): las correcciones las copian de la anterior.
+ * SELECT de las filas de la entrega. Las firmas solo de la última fila (la
+ * vigente): las correcciones las copian de la anterior. Sin el script 019,
+ * el estado al salir viene vacío.
  */
-const filasEntrega = (uuid, tables = tablesFor()) => run(`
+const buildEntregaSelect = (tables = tablesFor(), { salida = true } = {}) => `
   SELECT e.id, e.anterior_id, e.tipo, e.motivo, e.recibe_nombre, e.entrega_por,
     ${fechaTexto('e.fecha_entrega', 'fecha_entrega')}, e.lugar_entrega, e.observaciones,
+    ${salida ? 'e.estado_salida' : 'NULL AS estado_salida'},
     CASE WHEN s.id IS NULL THEN e.firma_cliente END AS firma_cliente,
     CASE WHEN s.id IS NULL THEN e.firma_representante END AS firma_representante,
     e.usuario, e.usuario_nombre, CONVERT(varchar(19), e.fecha_reg, 126) AS fecha_reg_texto
   FROM ${tables.entregas} e
   LEFT JOIN ${tables.entregas} s ON s.anterior_id = e.id
-  WHERE e.rim_uuid = @uuid ORDER BY e.id;`,
-[{ name: 'uuid', type: sql.UniqueIdentifier, value: uuid }]);
+  WHERE e.rim_uuid = @uuid ORDER BY e.id;`;
+
+/** Filas de la entrega de un RIM, de la primera a la última. */
+const filasEntrega = async (uuid, tables = tablesFor()) => {
+  const params = [{ name: 'uuid', type: sql.UniqueIdentifier, value: uuid }];
+  try {
+    return await run(buildEntregaSelect(tables), params);
+  } catch (error) {
+    if (!error?.faltaSalida) throw error;
+    return run(buildEntregaSelect(tables, { salida: false }), params);
+  }
+};
 
 /** Ejecución y entrega para la ficha; sin el script 016, el aviso. */
 const cargarSeguimiento = async (row, user) => {
@@ -619,17 +641,19 @@ const buildEjecucionInsert = ({ uuid, plan, usuario, nombre }, tables = tablesFo
  */
 const buildEntregaInsert = ({ uuid, plan, usuario, nombre }, tables = tablesFor()) => {
   const datos = plan.datos || {};
+  const campos = seguimiento.CAMPOS_ENTREGA;
   const params = [
     ...paramsRegistro({ uuid, plan, usuario, nombre }),
-    ...seguimiento.CAMPOS_ENTREGA.map(({ campo, columna, fecha, max }) => ({
+    ...campos.map(({ campo, columna, fecha, max }) => ({
       name: columna,
       type: fecha ? sql.VarChar(10) : sql.NVarChar(max),
       value: datos[campo] ?? null,
     })),
   ];
-  const columnas = `(rim_uuid, anterior_id, tipo, motivo, recibe_nombre, entrega_por, fecha_entrega,
-        lugar_entrega, observaciones, firma_cliente, firma_representante, origen, usuario, usuario_nombre)`;
-  const datosSql = '@recibe_nombre, @entrega_por, CONVERT(date, @fecha_entrega, 23), @lugar_entrega, @observaciones';
+  const columnas = `(rim_uuid, anterior_id, tipo, motivo, ${campos.map(c => c.columna).join(', ')},
+        firma_cliente, firma_representante, origen, usuario, usuario_nombre)`;
+  const datosSql = campos.map(({ columna, fecha }) => (fecha ? `CONVERT(date, @${columna}, 23)` : `@${columna}`)).join(', ');
+  const sinDatos = campos.map(() => 'NULL').join(', ');
   let insert;
   if (plan.tipo === 'registro') {
     params.push(
@@ -647,7 +671,7 @@ const buildEntregaInsert = ({ uuid, plan, usuario, nombre }, tables = tablesFor(
       IF @@ROWCOUNT = 0 THROW 51051, N'La entrega que se corrige no existe.', 1;`;
   } else {
     insert = `INSERT INTO ${tables.entregas} ${columnas}
-      VALUES (@uuid, @anterior_id, @tipo, @motivo, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+      VALUES (@uuid, @anterior_id, @tipo, @motivo, ${sinDatos}, NULL, NULL,
         N'datametplus', @usuario, @nombre);`;
   }
   return { text: `${SIN_ANULAR(tables)}
@@ -960,6 +984,7 @@ module.exports = {
   anularRim,
   buildEjecucionInsert,
   buildEntregaInsert,
+  buildEntregaSelect,
   buildListQuery,
   buildWhere,
   cerrarTalonario,

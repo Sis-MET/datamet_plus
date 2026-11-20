@@ -24,12 +24,21 @@ export const CAMPOS_EJECUCION = [
   { campo: 'nroFactura', label: 'N.º de factura', max: 60 },
 ];
 
+/** Cómo sale el instrumento al entregarlo (las mismas claves que el servidor). */
+export const ESTADOS_SALIDA = {
+  operativo: { label: 'Operativo', tone: 'success' },
+  reparado: { label: 'Reparado y operativo', tone: 'success' },
+  con_observaciones: { label: 'Operativo con observaciones', tone: 'warning' },
+  no_operativo: { label: 'No operativo (sin reparar)', tone: 'danger' },
+};
+
 /** Datos de la entrega 6.3 (las firmas van aparte y no se corrigen). */
 export const CAMPOS_ENTREGA = [
   { campo: 'recibeNombre', label: 'Recibió (cliente)', max: 150 },
   { campo: 'entregaPor', label: 'Entregó (Métrica)', max: 150, personal: true },
   { campo: 'fechaEntrega', label: 'Fecha de entrega', fecha: true },
   { campo: 'lugarEntrega', label: 'Lugar de entrega', max: 255 },
+  { campo: 'estadoSalida', label: 'Estado del equipo al salir', opciones: ESTADOS_SALIDA },
   { campo: 'observaciones', label: 'Observaciones', max: 1000, largo: true },
 ];
 
@@ -43,7 +52,10 @@ export const fechaCorta = (fecha) => (fecha ? fecha.split('-').reverse().join('/
 /** Valor de un campo para mostrar; null si está vacío. */
 export const valorLegible = (campo, valor) => {
   if (valor === null || valor === undefined || valor === '') return null;
-  return CAMPOS[campo]?.fecha ? fechaCorta(valor) : String(valor);
+  const def = CAMPOS[campo];
+  if (def?.fecha) return fechaCorta(valor);
+  if (def?.opciones) return def.opciones[valor]?.label || String(valor);
+  return String(valor);
 };
 
 /** Fecha «yyyy-mm-dd» de un instante en La Paz. */
@@ -108,8 +120,24 @@ export function valoresEntrega(rim, modo, hoy = fechaLaPaz()) {
     entregaPor: '',
     fechaEntrega: hoy,
     lugarEntrega: rim.recepcion?.lugar || '',
+    estadoSalida: '',
     observaciones: '',
   };
+}
+
+/**
+ * Primer dato que falta para registrar o corregir la entrega, con las mismas
+ * reglas que el servidor: una entrega nueva pide el estado del equipo al
+ * salir; al corregir una anterior puede quedar vacío.
+ */
+export function faltanteEntrega(valores, accion) {
+  const texto = (campo) => String(valores[campo] ?? '').trim();
+  if (texto('recibeNombre').length < 3) return 'Escribe el nombre de quien recibe por el cliente.';
+  if (texto('entregaPor').length < 3) return 'Escribe el nombre de quien entrega por Métrica.';
+  if (!valores.fechaEntrega) return 'Indica la fecha de entrega.';
+  if (!texto('lugarEntrega')) return 'Indica el lugar de entrega.';
+  if (accion === 'registro' && !valores.estadoSalida) return 'Elige el estado del equipo al salir.';
+  return null;
 }
 
 export function cambiosEntrega(vigente, valores) {

@@ -14,6 +14,7 @@ const {
 const {
   buildEjecucionInsert,
   buildEntregaInsert,
+  buildEntregaSelect,
   buildListQuery,
   mapDetalle,
   mapFila,
@@ -61,7 +62,7 @@ const ejecucion = (overrides = {}) => parse('ejecucion', {
 const entrega = (overrides = {}) => parse('entrega', {
   accion: 'registro', anteriorId: null,
   recibeNombre: 'Juan Pérez', entregaPor: 'Ing. Ana Quispe', fechaEntrega: '2026-10-15',
-  lugarEntrega: 'Laboratorio Métrica', firmaCliente: firma, firmaRepresentante: firma,
+  lugarEntrega: 'Laboratorio Métrica', estadoSalida: 'reparado', firmaCliente: firma, firmaRepresentante: firma,
   ...overrides,
 });
 
@@ -165,6 +166,10 @@ test('la entrega exige las dos firmas PNG; corregir y anular, el motivo', () => 
   falla(() => entrega({ firmaRepresentante: `data:image/png;base64,${Buffer.from('no').toString('base64')}` }), 400, /PNG/);
   falla(() => entrega({ recibeNombre: 'J' }), 400, /quien recibe/);
   falla(() => entrega({ fechaEntrega: '' }), 400, /Fecha/);
+  // Una entrega nueva pide el estado del equipo al salir.
+  assert.equal(registro.estadoSalida, 'reparado');
+  falla(() => entrega({ estadoSalida: undefined }), 400, /estado del equipo al salir/);
+  falla(() => entrega({ estadoSalida: 'roto' }), 400, /estado del equipo al salir/);
   falla(() => parse('entrega', { accion: 'correccion', anteriorId: 1, recibeNombre: 'Juan Pérez', entregaPor: 'Ana Quispe', fechaEntrega: '2026-10-15', lugarEntrega: 'Lab' }), 400, /motivo de la corrección/);
   falla(() => parse('entrega', { accion: 'anulacion', anteriorId: 1, motivo: 'error' }), 400, /al menos 10/);
   falla(() => parse('entrega', { accion: 'borrar' }), 400, /registra, corrige o anula/);
@@ -174,6 +179,12 @@ test('la entrega exige las dos firmas PNG; corregir y anular, el motivo', () => 
     fechaEntrega: '2026-10-15', lugarEntrega: 'Lab', motivo: 'El lugar estaba mal escrito', firmaCliente: firma,
   });
   assert.equal('firmaCliente' in correccion, false);
+  // La corrección de una entrega anterior al estado al salir puede dejarlo vacío.
+  assert.equal(correccion.estadoSalida, null);
+  falla(() => parse('entrega', {
+    accion: 'correccion', anteriorId: 1, recibeNombre: 'Juan Pérez', entregaPor: 'Ana Quispe',
+    fechaEntrega: '2026-10-15', lugarEntrega: 'Lab', motivo: 'El lugar estaba mal escrito', estadoSalida: 'perdido',
+  }), 400, /estado del equipo al salir/);
 });
 
 test('la entrega se registra una vez; la corrigen o anulan los jefes', () => {
@@ -330,6 +341,25 @@ test('los errores de las tablas nuevas se reconocen como falta del script 016', 
   assert.match(falta014.message, /scripts 012 y 014 de ServiceMET en DataMET/);
 });
 
+test('sin el script 019 la entrega se lee sin estado al salir, y no se registra', () => {
+  const faltaColumna = notReady({ number: 207, message: "Invalid column name 'estado_salida'." });
+  assert.equal(faltaColumna.statusCode, 503);
+  assert.equal(faltaColumna.faltaSalida, true);
+  assert.match(faltaColumna.message, /script 019/);
+  // Otra columna que falte sigue con el aviso general.
+  assert.equal(notReady({ number: 207, message: "Invalid column name 'cod_metrica'." }).faltaSalida, undefined);
+
+  assert.match(buildEntregaSelect(tables), /e\.observaciones,\s+e\.estado_salida,/);
+  const sinScript = buildEntregaSelect(tables, { salida: false });
+  assert.match(sinScript, /NULL AS estado_salida/);
+  assert.doesNotMatch(sinScript, /e\.estado_salida/);
+
+  // Las entregas anteriores, sin ese dato, se muestran igual.
+  assert.equal(mapEntrega([filaEntrega()]).vigente.datos.estadoSalida, null);
+  assert.equal(mapEntrega([filaEntrega({ estado_salida: 'operativo' })]).vigente.datos.estadoSalida, 'operativo');
+  assert.equal('recibeCi' in mapEntrega([filaEntrega()]).vigente.datos, false);
+});
+
 test('el historial calcula la etapa y filtra por ella', () => {
   const query = buildListQuery(parse('filtros', { etapa: 'concluido' }), tables);
   assert.match(query.rows.text, /OUTER APPLY \(\s+SELECT TOP \(1\) e\.fecha_conclusion/);
@@ -387,7 +417,11 @@ test('la entrega solo se agrega; la corrección copia las firmas de la fila ante
     uuid: UUID, plan: planEntrega({ filas: [], entrada: entrega(), ...contexto, puedeCorregir: false }), usuario: 'aquispe', nombre: null,
   }, tables);
   assert.match(registro.text, /VALUES \(@uuid, @anterior_id, @tipo, NULL, .*@firma_cliente, @firma_representante/s);
+  assert.match(registro.text, /recibe_nombre, entrega_por, fecha_entrega, lugar_entrega, estado_salida, observaciones,\s+firma_cliente/);
+  assert.match(registro.text, /@recibe_nombre, @entrega_por, CONVERT\(date, @fecha_entrega, 23\), @lugar_entrega, @estado_salida, @observaciones, @firma_cliente/);
+  assert.doesNotMatch(registro.text, /recibe_ci/);
   assert.deepEqual(params(registro).firma_cliente, PNG);
+  assert.equal(params(registro).estado_salida, 'reparado');
 
   const correccion = buildEntregaInsert({
     uuid: UUID,
@@ -419,8 +453,10 @@ test('la entrega solo se agrega; la corrección copia las firmas de la fila ante
     usuario: 'jefe',
     nombre: null,
   }, tables);
-  assert.match(anulacion.text, /VALUES \(@uuid, @anterior_id, @tipo, @motivo, NULL, NULL, NULL, NULL, NULL, NULL, NULL,/);
+  // Seis datos y dos firmas vacíos.
+  assert.match(anulacion.text, /VALUES \(@uuid, @anterior_id, @tipo, @motivo, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,\s+N'datametplus'/);
   assert.equal(params(anulacion).recibe_nombre, null);
+  assert.equal(params(anulacion).estado_salida, null);
 
   for (const query of [registro, correccion, anulacion]) {
     assert.doesNotMatch(query.text, /UPDATE|DELETE/i);

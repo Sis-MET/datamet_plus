@@ -26,12 +26,17 @@ const CAMPOS_EJECUCION = [
   { campo: 'nroFactura', columna: 'nro_factura', etiqueta: 'N.º de factura', max: 60 },
 ];
 
-/** Datos de la entrega que pueden corregirse (las firmas no). */
+/**
+ * Datos de la entrega que pueden corregirse (las firmas no). El estado del
+ * equipo al salir es del script 019 de ServiceMET: las entregas anteriores no
+ * lo tienen.
+ */
 const CAMPOS_ENTREGA = [
   { campo: 'recibeNombre', columna: 'recibe_nombre', etiqueta: 'Recibió (cliente)', max: 150 },
   { campo: 'entregaPor', columna: 'entrega_por', etiqueta: 'Entregó (Métrica)', max: 150 },
   { campo: 'fechaEntrega', columna: 'fecha_entrega', etiqueta: 'La fecha de entrega', fecha: true },
   { campo: 'lugarEntrega', columna: 'lugar_entrega', etiqueta: 'Lugar de entrega', max: 255 },
+  { campo: 'estadoSalida', columna: 'estado_salida', etiqueta: 'Estado del equipo al salir', max: 30 },
   { campo: 'observaciones', columna: 'observaciones', etiqueta: 'Observaciones', max: 1000 },
 ];
 

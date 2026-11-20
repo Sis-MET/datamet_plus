@@ -70,10 +70,17 @@ queda en el historial de la ficha.
   hacen los jefes de área y los niveles 2 y 3. El servidor decide cuál es
   comparando con la versión vigente.
 - **Entrega** (6.3, `form_rim_entregas`): quién recibe por el cliente, quién
-  entrega por Métrica, fecha, lugar, observaciones y **las dos firmas en
-  pantalla** (obligatorias). La registra cualquier usuario con sesión; la
-  corrigen (las firmas se conservan) o la anulan con motivo los jefes de área
-  y los niveles 2 y 3. Anulada, puede registrarse la entrega correcta.
+  entrega por Métrica, fecha, lugar, **estado del equipo al salir**
+  (operativo, reparado y operativo, operativo con observaciones o no
+  operativo), observaciones y **las dos firmas en pantalla** (obligatorias).
+  Cada firma puede **ampliarse a pantalla completa** (en un teléfono pide
+  pantalla completa y horizontal), igual que las de la recepción. La registra
+  cualquier usuario con sesión; la corrigen (las firmas se conservan) o la
+  anulan con motivo los jefes de área y los niveles 2 y 3. Anulada, puede
+  registrarse la entrega correcta. Con la entrega vigente, la ficha descarga
+  el **comprobante de salida** en PDF, con los datos y las dos firmas.
+  Las entregas anteriores al estado al salir lo muestran vacío; al
+  corregirlas puede completarse.
 - Las fechas no pueden ser futuras ni anteriores a la emisión del RIM; el
   inicio no va antes del ingreso, ni el informe o la conclusión antes del
   inicio. La entrega no exige la ejecución concluida, y la ejecución puede
@@ -96,7 +103,8 @@ no existe y, si quedó en el `.env`, se ignora con un aviso. Rutas:
 - `POST /api/rim/registros/:n/anulacion`, `POST /api/rim/registros`
 - `POST /api/rim/registros/:n/ejecucion` (`anteriorId`, los nueve campos y,
   si corrige, `motivo`) y `POST /api/rim/registros/:n/entrega` (`accion`:
-  `registro` con `firmaCliente` y `firmaRepresentante`, `correccion` o
+  `registro` con `estadoSalida`, `firmaCliente` y `firmaRepresentante`,
+  `correccion` o
   `anulacion` con `motivo`); ambas responden la ficha actualizada.
 - `GET /api/rim/talonarios?gestion=`, `POST /api/rim/talonarios/:id/cierre`
 
@@ -104,9 +112,10 @@ Orden de despliegue (junto con ServiceMET):
 
 1. En DataMET, los scripts de ServiceMET
    `backend/sql/012_create_form_rim_y_form_bitrix.sql`,
-   `014_rim_numeracion_y_gestion.sql` y `016_rim_ejecucion_y_entrega.sql`, en
-   ese orden, con `@loginDataMetPlus` igual al `DB_USER` de DataMET+ en el 014
-   y el 016. Dan `SELECT`/`INSERT` (y `EXECUTE` en `rim_reservar_talonario`) y
+   `014_rim_numeracion_y_gestion.sql`, `016_rim_ejecucion_y_entrega.sql` y
+   `019_rim_entrega_estado_salida.sql`, en ese orden, con
+   `@loginDataMetPlus` igual al `DB_USER` de DataMET+ en el 014 y el 016.
+   Dan `SELECT`/`INSERT` (y `EXECUTE` en `rim_reservar_talonario`) y
    deniegan `UPDATE` y `DELETE` en todas las tablas del RIM; al final muestran
    los permisos efectivos y avisan si algún usuario todavía puede modificar
    (por ejemplo, por ser `db_owner`).
@@ -118,6 +127,8 @@ Sin los scripts 012 y 014, el apartado responde que las tablas de los RIM no
 están listas.
 Sin el 016, el historial y la ficha se ven igual, pero sin etapa, y la ficha
 avisa que falta el script en lugar de mostrar la ejecución y la entrega.
+Sin el 019, la entrega se ve igual (sin estado al salir), pero
+registrarla, corregirla o anularla responde que falta ese script.
 
 ## Calibración
 
