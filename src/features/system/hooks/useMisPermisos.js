@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { PERMISOS_CHANGED_EVENT, systemApi } from '../api/system';
 
-const SIN_PERMISOS = Object.freeze({ permisos: [], gestionar: false });
+const SIN_PERMISOS = Object.freeze({ permisos: [], gestionar: false, enPruebas: [] });
 
 /**
  * Los permisos con nombre del usuario de la sesión (Sistema › Gestión de
- * permisos): { permisos: ['tiempos.soporte.ver', …], gestionar }. null
+ * permisos): { permisos: ['tiempos.soporte.ver', …], gestionar, enPruebas },
+ * con los apartados en pruebas (['comercial'], solo para Sistemas). null
  * mientras llegan. Se vuelven a pedir al volver a la pestaña y cuando Gestión
  * de permisos guarda un cambio. Si la consulta falla, vale «sin permisos»: el
  * menú solo oculta y el backend decide igual en cada petición.
@@ -25,6 +26,7 @@ export function useMisPermisos(sesion) {
       .then(data => guardar({
         permisos: Array.isArray(data?.permisos) ? data.permisos : [],
         gestionar: data?.gestionar === true,
+        enPruebas: Array.isArray(data?.enPruebas) ? data.enPruebas : [],
       }))
       .catch(() => {
         if (vigente) setEstado(actual => (actual.sesion === sesion && actual.datos ? actual : { sesion, datos: SIN_PERMISOS }));

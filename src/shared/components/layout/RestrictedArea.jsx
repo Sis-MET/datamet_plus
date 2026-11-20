@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { ArrowLeft, Lock } from 'lucide-react';
+import { ArrowLeft, FlaskConical, Lock } from 'lucide-react';
 
 /**
  * Fondo de muestra del apartado: barras y filas genéricas, sin datos. El
@@ -33,12 +33,14 @@ function Ghost() {
 
 /**
  * Apartado de otra área: todo el contenido queda difuminado y un aviso dice
- * que no pertenece al área o no está autorizado. La barra lateral sigue
+ * que no pertenece al área o no está autorizado. Uno en pruebas (`enPruebas`)
+ * lo usa solo Sistemas, también para su propia área. La barra lateral sigue
  * disponible para ir a otro apartado.
  */
-export function RestrictedArea({ view, onExit }) {
+export function RestrictedArea({ view, enPruebas = false, onExit }) {
   const titleId = useId();
   const onlySystems = view.area.id === null;
+  const Icono = enPruebas ? FlaskConical : Lock;
 
   return (
     <div className="relative min-h-[calc(100dvh-var(--topbar-height))] overflow-hidden">
@@ -53,18 +55,22 @@ export function RestrictedArea({ view, onExit }) {
           className="glass w-full max-w-md rounded-3xl border p-6 text-center sm:p-8"
         >
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-fg/[0.06] text-fg">
-            <Lock className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+            <Icono className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
           </span>
           <h2 id={titleId} className="mt-4 text-lg font-semibold tracking-[-0.01em] text-fg">
-            Acceso restringido
+            {enPruebas ? 'Apartado en pruebas' : 'Acceso restringido'}
           </h2>
           <p className="mt-2 text-[13.5px] leading-relaxed text-fg-muted">
-            {onlySystems
-              ? <>Por ahora, <span className="font-medium text-fg">{view.label}</span> es solo del área de Sistemas. No estás autorizado para acceder a este apartado.</>
-              : <><span className="font-medium text-fg">{view.label}</span> es del área de {view.area.nombre}. No perteneces a esa área o no estás autorizado para acceder a este apartado.</>}
+            {enPruebas
+              ? <><span className="font-medium text-fg">{view.label}</span> está en pruebas. Mientras tanto solo lo usa el área de Sistemas.</>
+              : onlySystems
+                ? <>Por ahora, <span className="font-medium text-fg">{view.label}</span> es solo del área de Sistemas. No estás autorizado para acceder a este apartado.</>
+                : <><span className="font-medium text-fg">{view.label}</span> es del área de {view.area.nombre}. No perteneces a esa área o no estás autorizado para acceder a este apartado.</>}
           </p>
           <p className="mt-2 text-[13px] leading-relaxed text-fg-subtle">
-            Si necesitas usarlo, pide acceso al área de Sistemas.
+            {enPruebas
+              ? 'Se abrirá a su área cuando terminen las pruebas.'
+              : 'Si necesitas usarlo, pide acceso al área de Sistemas.'}
           </p>
           {onExit && (
             <button

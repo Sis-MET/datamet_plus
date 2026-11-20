@@ -1,6 +1,7 @@
 const changes = require('../services/system.changes');
 const failures = require('../services/system.failures');
 const permisos = require('../services/permisos');
+const { modulosEnPruebas } = require('../services/access.areas');
 const { parse } = require('../services/system.validation');
 
 const readId = (value) => {
@@ -49,7 +50,8 @@ module.exports = {
   atenderFalla: handle(req => failures.atenderFalla(readId(req.params.id), parse('atencionFalla', req.body), req.user)),
 
   // Gestión de permisos (migración 029).
-  misPermisos: handle(req => permisos.misPermisos(req.user)),
+  // Con los apartados en pruebas, que el menú muestra bloqueados a quien no es de Sistemas.
+  misPermisos: handle(async req => ({ ...await permisos.misPermisos(req.user), enPruebas: modulosEnPruebas() })),
   getPermisos: handle(req => permisos.obtenerGestion(req.user)),
   getHistorialPermisos: handle(req => permisos.obtenerHistorial(req.user)),
   concederPermiso: handle(req => permisos.conceder(parse('concesionPermiso', req.body), req.user)),

@@ -616,7 +616,16 @@ Apartado del área Comercial (fase 1 de `docs/comercial-analisis-facturacion.md`
 reemplaza el libro «2026 FACTURACION metrica.xlsx». Lo usan el área Comercial
 y Sistemas; **Administración y Gerencia lo consultan** sin registrar ni anular
 (`MODULOS.comercial` en `access.areas.js` y `APP_VIEWS.comercial` en
-`navigation.js`). Pestañas:
+`navigation.js`).
+
+**En pruebas:** mientras se prueba, solo lo usa Sistemas (nivel 3). El área
+Comercial, Administración y Gerencia lo ven con candado y el aviso «Apartado
+en pruebas», y el backend les responde 403 en todo `/api/comercial`. Lo decide
+`enPruebas: true` en `MODULOS.comercial`; el menú lo lee de
+`/api/sistema/permisos/mios` (`enPruebas`). Para abrirlo se quita esa marca y
+rigen otra vez las reglas de área.
+
+Pestañas:
 
 - **Facturas:** búsqueda por número, cliente, NIT, cotización o responsable;
   chips por estado (pendiente, pago parcial, pagada, anulada) con su conteo y

@@ -69,6 +69,8 @@ export const APP_VIEWS = {
     icon: Gauge,
     inNav: true,
     area: { id: 'calibracion', nombre: 'Calibración' },
+    // Clave del apartado en el backend (MODULOS de access.areas.js), si no es la de la vista.
+    modulo: 'calibracion',
     sections: [
       { id: 'cronograma', label: 'Cronograma' },
       // Desplegable: el gestor de equipos y, aparte, el estado de los patrones
@@ -212,6 +214,19 @@ export const isSystemAdmin = (user) => String(user?.acceso_cron) === '3';
 
 export const canManageIvmet = isSystemAdmin;
 
+/**
+ * ¿El apartado está en pruebas? Lo dice el backend (`enPruebas` de
+ * /api/sistema/permisos/mios, con las claves de sus apartados): mientras
+ * tanto solo lo usa Sistemas (nivel 3); su área y las que lo consultan lo ven
+ * bloqueado. El backend lo vuelve a comprobar en cada petición.
+ */
+export const enPruebas = (view, user) => {
+  const config = APP_VIEWS[view];
+  return Boolean(config?.area) && Array.isArray(user?.enPruebas) && user.enPruebas.includes(config.modulo ?? view);
+};
+
+const bloqueadoPorPruebas = (view, user) => !isSystemAdmin(user) && enPruebas(view, user);
+
 /** ¿Abre el apartado? Los de Sistemas, solo el nivel 3 o quien diga su `access`. */
 const puedeAbrir = (config, user) => !config.requiresAdmin || isSystemAdmin(user) || Boolean(config.access?.(user));
 
@@ -221,7 +236,7 @@ const puedeAbrir = (config, user) => !config.requiresAdmin || isSystemAdmin(user
  */
 export const soloConsulta = (view, user) => {
   const config = APP_VIEWS[view];
-  if (!config?.consulta || isSystemAdmin(user)) return false;
+  if (!config?.consulta || isSystemAdmin(user) || enPruebas(view, user)) return false;
   const area = normalizeArea(user?.area);
   return area !== config.area?.id && config.consulta.areas.includes(area);
 };
@@ -229,12 +244,13 @@ export const soloConsulta = (view, user) => {
 /**
  * Los apartados de un área (`area`) los ve todo el personal, pero solo los
  * usan esa área y Sistemas (y, para consultar, las áreas de `consulta`); los
- * demás ven el aviso de acceso restringido. El backend vuelve a comprobarlo en
- * cada petición.
+ * demás ven el aviso de acceso restringido. Uno en pruebas, solo Sistemas. El
+ * backend vuelve a comprobarlo en cada petición.
  */
 export const canUseView = (view, user) => {
   const area = APP_VIEWS[view]?.area;
   if (!area) return true;
+  if (bloqueadoPorPruebas(view, user)) return false;
   return isSystemAdmin(user) || (area.id !== null && normalizeArea(user?.area) === area.id) || soloConsulta(view, user);
 };
 
@@ -254,13 +270,15 @@ export const accesoPorPermiso = (view, user) => !canUseView(view, user) && secci
 
 /**
  * ¿Falta saber sus permisos para decidir? Mientras `user.permisos` no llega,
- * un apartado bloqueado con secciones con permiso, o uno que depende de los
- * permisos (Gestión de permisos), todavía no se puede resolver.
+ * un apartado bloqueado con secciones con permiso, uno que depende de los
+ * permisos (Gestión de permisos) o uno de área que el usuario usaría (puede
+ * estar en pruebas) todavía no se puede resolver.
  */
 export const esperaPermisos = (view, user) => {
   const config = APP_VIEWS[view];
   if (!config || !user || isSystemAdmin(user) || Array.isArray(user.permisos)) return false;
   if (config.dependeDePermisos) return true;
+  if (config.area && canUseView(view, user)) return true;
   return !canUseView(view, user) && (config.sections || []).some(section => section.permiso);
 };
 

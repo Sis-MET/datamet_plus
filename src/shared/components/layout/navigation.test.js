@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  accesoPorPermiso, allowedView, canUseView, esperaPermisos, findSection, getNavigation, managesCalibration, soloConsulta, tienePermiso,
+  accesoPorPermiso, allowedView, canUseView, enPruebas, esperaPermisos, findSection, getNavigation, managesCalibration, soloConsulta, tienePermiso,
   veControlCambios,
 } from './navigation';
 
@@ -151,9 +151,38 @@ describe('acceso a los apartados por área', () => {
     expect(esperaPermisos('calibration', administracion)).toBe(true);
     expect(esperaPermisos('permisos', administracion)).toBe(true);
     expect(esperaPermisos('rim', administracion)).toBe(false);
-    expect(esperaPermisos('calibration', { ...calibracion, permisos: null })).toBe(false);
+    // Su propio apartado también espera: puede estar en pruebas.
+    expect(esperaPermisos('calibration', { ...calibracion, permisos: null })).toBe(true);
+    expect(esperaPermisos('comercial', { ...comercial, permisos: null })).toBe(true);
+    expect(esperaPermisos('calibration', { ...calibracion, permisos: [] })).toBe(false);
     expect(esperaPermisos('calibration', { ...administracion, permisos: [] })).toBe(false);
     expect(esperaPermisos('permisos', sistemas)).toBe(false);
+    expect(esperaPermisos('comercial', { ...sistemas, permisos: null })).toBe(false);
+  });
+
+  it('un apartado en pruebas lo usa solo Sistemas: su área y quien lo consulta lo ven con candado', () => {
+    const conPruebas = user => ({ ...user, permisos: [], enPruebas: ['comercial'] });
+    const administracion = conPruebas({ area: 'Administración', acceso_cron: '2' });
+    const gerencia = conPruebas({ area: 'Gerencia', acceso_cron: '1' });
+    for (const user of [conPruebas(comercial), conPruebas(jefe(comercial)), administracion, gerencia]) {
+      expect(enPruebas('comercial', user)).toBe(true);
+      expect(canUseView('comercial', user)).toBe(false);
+      expect(soloConsulta('comercial', user)).toBe(false);
+      const item = getNavigation(user).find(view => view.id === 'comercial');
+      expect([item.locked, item.consulta, item.sections]).toEqual([true, false, []]);
+    }
+    // Sistemas lo usa completo y sabe que está en pruebas.
+    expect(enPruebas('comercial', conPruebas(sistemas))).toBe(true);
+    expect(canUseView('comercial', conPruebas(sistemas))).toBe(true);
+    expect(getNavigation(conPruebas(sistemas)).find(view => view.id === 'comercial').sections).toHaveLength(6);
+    // Los demás apartados siguen igual.
+    expect(canUseView('soporte', conPruebas(comercial))).toBe(true);
+    expect(canUseView('calibration', conPruebas(calibracion))).toBe(true);
+    // La clave del backend de Calibración no es la de la vista.
+    expect(enPruebas('calibration', { ...calibracion, enPruebas: ['calibracion'] })).toBe(true);
+    // Sin la lista (mientras llega o si falla), rige la regla del área; el backend decide igual.
+    expect(canUseView('comercial', { ...comercial, enPruebas: null })).toBe(true);
+    expect(enPruebas('rim', conPruebas(comercial))).toBe(false);
   });
 
   it('Gestión de permisos la abren Sistemas y quien el backend diga que gestiona', () => {

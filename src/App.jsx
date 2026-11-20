@@ -5,7 +5,7 @@ import { Sidebar } from './shared/components/layout/Sidebar';
 import { Topbar } from './shared/components/layout/Topbar';
 import { Footer } from './shared/components/layout/Footer';
 import {
-  APP_VIEWS, accesoPorPermiso, allowedView, canUseView, esperaPermisos, findSection, isSystemAdmin, managesCalibration, veControlCambios,
+  APP_VIEWS, accesoPorPermiso, allowedView, canUseView, enPruebas, esperaPermisos, findSection, isSystemAdmin, managesCalibration, veControlCambios,
 } from './shared/components/layout/navigation';
 import { RestrictedArea } from './shared/components/layout/RestrictedArea';
 import { useSidebar } from './shared/hooks/useSidebar';
@@ -208,7 +208,12 @@ function App() {
   // todas las áreas. `permisos` es null mientras llegan.
   const misPermisos = useMisPermisos(isAuthenticated && usuarioGuardado ? usuarioGuardado.usuario || 'sesion' : null);
   const currentUser = useMemo(() => (usuarioGuardado
-    ? { ...usuarioGuardado, permisos: misPermisos?.permisos ?? null, gestionaPermisos: misPermisos?.gestionar === true }
+    ? {
+      ...usuarioGuardado,
+      permisos: misPermisos?.permisos ?? null,
+      gestionaPermisos: misPermisos?.gestionar === true,
+      enPruebas: misPermisos?.enPruebas ?? null,
+    }
     : null), [misPermisos, usuarioGuardado]);
 
   // El apartado sale de la dirección (/cronograma, /soporte/…). En la raíz o
@@ -314,6 +319,7 @@ function App() {
       return (
         <RestrictedArea
           view={APP_VIEWS[activeView]}
+          enPruebas={enPruebas(activeView, currentUser)}
           onExit={() => {
             safeStorage.setItem('datamet_last_view', 'rim');
             navegar(rutaDe('rim'), { transicion: 'pagina' });

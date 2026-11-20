@@ -1,5 +1,5 @@
-import { Eye } from 'lucide-react';
-import { soloConsulta as esSoloConsulta } from '../../shared/components/layout/navigation';
+import { Eye, FlaskConical } from 'lucide-react';
+import { enPruebas as estaEnPruebas, soloConsulta as esSoloConsulta } from '../../shared/components/layout/navigation';
 import { usePestanaRuta } from '../../shared/navigation/ruta';
 import { BitrixPanel } from './components/BitrixPanel';
 import { ComisionesPanel } from './components/ComisionesPanel';
@@ -22,10 +22,18 @@ const STORAGE_KEY = 'datamet_comercial_tab';
 export function ComercialPage({ currentUser }) {
   const { pestana } = usePestanaRuta('comercial', PESTANAS, { clave: STORAGE_KEY, predeterminada: 'facturas' });
   const consulta = esSoloConsulta('comercial', currentUser);
+  // En pruebas solo entra Sistemas: se lo recuerda.
+  const enPruebas = estaEnPruebas('comercial', currentUser);
 
   return (
     <div className="vt-panel">
       <main className="mx-auto flex w-full max-w-[1320px] flex-col gap-4 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+        {enPruebas && (
+          <p className="flex items-center gap-2 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[13px] text-fg-muted">
+            <FlaskConical className="h-4 w-4 flex-none" aria-hidden="true" />
+            En pruebas: por ahora solo Sistemas usa Comercial. El área Comercial, Administración y Gerencia lo ven bloqueado.
+          </p>
+        )}
         {consulta && (
           <p className="flex items-center gap-2 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[13px] text-fg-muted">
             <Eye className="h-4 w-4 flex-none" aria-hidden="true" />

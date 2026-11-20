@@ -59,6 +59,7 @@ db.getPool = () => ({ request: () => new Request() });
 transacciones.withTransaction = async trabajo => trabajo(() => new Request());
 
 const app = require('../src/app');
+const { MODULOS, modulosEnPruebas } = require('../src/services/access.areas');
 const { generateToken } = require('../src/utils/jwt.utils');
 
 const servir = async () => {
@@ -91,9 +92,38 @@ test('«mis permisos» responde a todo usuario con sesión y sin sesión pide in
   assert.equal(res.status, 200);
   assert.deepEqual(res.body.data.permisos, ['tiempos.soporte.ver', 'tiempos.calibracion.ver']);
   res = await pedir(base, 9, '/api/sistema/permisos/mios');
-  assert.deepEqual(res.body.data, { permisos: [], gestionar: false });
+  assert.deepEqual(res.body.data, { permisos: [], gestionar: false, enPruebas: modulosEnPruebas() });
   res = await pedir(base, 22, '/api/sistema/permisos/mios');
   assert.equal(res.body.data.gestionar, true);
+});
+
+test('Comercial en pruebas: solo Sistemas entra; su área y quien lo consulta reciben 403', async (t) => {
+  reiniciar();
+  const original = MODULOS.comercial.enPruebas;
+  MODULOS.comercial.enPruebas = true;
+  const { base, cerrar } = await servir();
+  t.after(async () => { MODULOS.comercial.enPruebas = original; await cerrar(); });
+
+  // El menú sabe que está en pruebas.
+  assert.deepEqual((await pedir(base, 3, '/api/sistema/permisos/mios')).body.data.enPruebas, ['comercial']);
+  // El jefe y el personal de Comercial, y Administración, que lo consulta.
+  for (const id of [2, 3, 11]) {
+    for (const ruta of ['/api/comercial/acceso', '/api/comercial/comisiones']) {
+      const res = await pedir(base, id, ruta);
+      assert.equal(res.status, 403, `${ruta} (persona ${id})`);
+      assert.equal(res.body.code, 'AREA_ACCESS_DENIED');
+      assert.match(res.body.message, /Comercial está en pruebas/);
+    }
+  }
+  const res = await pedir(base, 22, '/api/comercial/acceso');
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.data, { nivel: 'area' });
+
+  // Al abrirlo, rige otra vez la regla del área.
+  MODULOS.comercial.enPruebas = false;
+  assert.deepEqual((await pedir(base, 3, '/api/comercial/acceso')).body.data, { nivel: 'area' });
+  assert.deepEqual((await pedir(base, 11, '/api/comercial/acceso')).body.data, { nivel: 'consulta' });
+  assert.deepEqual((await pedir(base, 3, '/api/sistema/permisos/mios')).body.data.enPruebas, []);
 });
 
 test('la gestión de permisos solo la abren y modifican Sistemas y el jefe de Sistemas', async (t) => {

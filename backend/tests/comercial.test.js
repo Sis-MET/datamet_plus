@@ -166,12 +166,27 @@ test('ficha del cliente: correos válidos y plazo entre 0 y 365', () => {
   assert.throws(() => parse('cliente', { plazoDias: 400 }));
 });
 
-test('acceso: Comercial registra; Administración y Gerencia consultan', () => {
+test('acceso: en pruebas solo entra Sistemas; abierto, Comercial registra y Administración y Gerencia consultan', (t) => {
+  const { MODULOS, mensajeSinAcceso, modulosEnPruebas } = require('../src/services/access.areas');
+  const original = MODULOS.comercial.enPruebas;
+  t.after(() => { MODULOS.comercial.enPruebas = original; });
+
+  MODULOS.comercial.enPruebas = true;
+  for (const area of ['Comercial', 'Administración', 'Gerencia', 'Soporte Técnico']) {
+    assert.equal(nivelDeArea('comercial', { area, acceso_cron: '2' }), null, area);
+  }
+  assert.equal(nivelDeArea('comercial', { area: 'Administración', acceso_cron: '3' }), 'area');
+  assert.deepEqual(modulosEnPruebas(), ['comercial']);
+  assert.match(mensajeSinAcceso('comercial'), /en pruebas: por ahora solo lo usa Sistemas/);
+
+  MODULOS.comercial.enPruebas = false;
   assert.equal(nivelDeArea('comercial', { area: 'Comercial' }), 'area');
   assert.equal(nivelDeArea('comercial', { area: 'Administración' }), 'consulta');
   assert.equal(nivelDeArea('comercial', { area: 'Gerencia' }), 'consulta');
   assert.equal(nivelDeArea('comercial', { area: 'Soporte Técnico' }), null);
   assert.equal(nivelDeArea('comercial', { area: 'Calibración', acceso_cron: '3' }), 'area');
+  assert.deepEqual(modulosEnPruebas(), []);
+  assert.match(mensajeSinAcceso('comercial'), /área de Comercial/);
 });
 
 // ─── Importación del Excel ────────────────────────────────────────────────

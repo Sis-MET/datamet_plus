@@ -7,6 +7,9 @@
  *
  * El área se lee de DATA_USERS en cada petición, así un cambio de área o una
  * baja rige de inmediato aunque la sesión siga abierta.
+ *
+ * Un apartado `enPruebas` lo usa solo Sistemas mientras se prueba: su área y
+ * las que lo consultan lo ven bloqueado. Para abrirlo se quita `enPruebas`.
  */
 const { getPool, sql } = require('../config/db');
 const { normalizeArea } = require('./calibration.db');
@@ -15,7 +18,8 @@ const MODULOS = {
   calibracion: { area: 'calibracion', nombre: 'Calibración', consulta: [] },
   soporte: { area: 'soporte tecnico', nombre: 'Soporte Técnico', consulta: ['comercial'] },
   // Facturas, pagos y cuentas por cobrar: Administración y Gerencia consultan.
-  comercial: { area: 'comercial', nombre: 'Comercial', consulta: ['administracion', 'gerencia'] },
+  // En pruebas: por ahora solo Sistemas.
+  comercial: { area: 'comercial', nombre: 'Comercial', consulta: ['administracion', 'gerencia'], enPruebas: true },
 };
 
 /** Niveles de acceso a un apartado: el de su área (o Sistemas) y el de solo consulta. */
@@ -33,18 +37,21 @@ const esSistemas = (user) => String(user?.acceso_cron) === '3';
 /** Jefe de área por su cargo («Jefe de Area», sin importar tildes, mayúsculas ni espacios). */
 const esJefeDeArea = (user) => normalizeArea(user?.cargo).replace(/\s+/g, ' ') === 'jefe de area';
 
-/** ¿Puede usar el apartado quien tiene esta área y este nivel? */
+/** ¿Puede usar el apartado quien tiene esta área y este nivel? En pruebas, solo Sistemas. */
 const permiteArea = (modulo, { area, acceso_cron: accesoCron } = {}) => {
   const definicion = definicionDe(modulo);
-  return String(accesoCron) === '3' || normalizeArea(area) === definicion.area;
+  return String(accesoCron) === '3' || (!definicion.enPruebas && normalizeArea(area) === definicion.area);
 };
 
-/** ¿El área solo consulta el apartado? (Comercial en Soporte técnico.) */
+/** ¿El área solo consulta el apartado? (Comercial en Soporte técnico.) En pruebas, nadie. */
 const permiteConsulta = (modulo, { area } = {}) => {
   const definicion = definicionDe(modulo);
   const clave = normalizeArea(area);
-  return Boolean(clave) && definicion.consulta.includes(clave);
+  return Boolean(clave) && !definicion.enPruebas && definicion.consulta.includes(clave);
 };
+
+/** Apartados en pruebas (claves de MODULOS): el menú los muestra bloqueados a quien no es de Sistemas. */
+const modulosEnPruebas = () => Object.keys(MODULOS).filter(modulo => MODULOS[modulo].enPruebas);
 
 /** Nivel con que entra al apartado quien tiene esta área y este nivel, o null. */
 const nivelDeArea = (modulo, datos = {}) => {
@@ -71,8 +78,9 @@ const nivelAcceso = async (user, modulo) => {
 
 const tieneAcceso = async (user, modulo) => (await nivelAcceso(user, modulo)) === NIVEL.AREA;
 
-const mensajeSinAcceso = (modulo) => `Este apartado es del área de ${MODULOS[modulo].nombre}. `
-  + 'No perteneces al área o no estás autorizado para acceder.';
+const mensajeSinAcceso = (modulo) => (MODULOS[modulo].enPruebas
+  ? `${MODULOS[modulo].nombre} está en pruebas: por ahora solo lo usa Sistemas.`
+  : `Este apartado es del área de ${MODULOS[modulo].nombre}. No perteneces al área o no estás autorizado para acceder.`);
 
 const mensajeSoloConsulta = (modulo) => `Tu área solo consulta este apartado. Lo modifica el área de ${MODULOS[modulo].nombre}.`;
 
@@ -83,6 +91,7 @@ module.exports = {
   esSistemas,
   permiteArea,
   permiteConsulta,
+  modulosEnPruebas,
   nivelDeArea,
   areaActiva,
   nivelAcceso,

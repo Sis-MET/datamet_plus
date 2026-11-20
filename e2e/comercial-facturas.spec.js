@@ -7,9 +7,10 @@ import { expect, test } from '@playwright/test';
 
 test.setTimeout(60000);
 
-const token = (id) => `header.${Buffer.from(JSON.stringify({ exp: 4102444800, id, acceso_cron: 2 })).toString('base64url')}.signature`;
+const token = (id, accesoCron = 2) => `header.${Buffer.from(JSON.stringify({ exp: 4102444800, id, acceso_cron: accesoCron })).toString('base64url')}.signature`;
 const COMERCIAL = { id: 4, usuario: 'comercial', nombre: 'Ana', apellido: 'Comercial', cargo: 'Auxiliar Comercial', area: 'Comercial', acceso_cron: 2 };
 const ADMINISTRACION = { id: 5, usuario: 'contable', nombre: 'Rosa', apellido: 'Contable', cargo: 'Contadora', area: 'Administración', acceso_cron: 2 };
+const SISTEMAS = { id: 6, usuario: 'sistemas', nombre: 'Leo', apellido: 'Sistemas', cargo: 'Auxiliar de Sistemas', area: 'Administración', acceso_cron: 3 };
 
 const CATEGORIAS = [
   { id: 3, codigo: 'ST-STIL-MPR', nombre: 'Mantenimiento preventivo (STIL)', area: 'ST', subarea: 'STIL', regla: 'NETO', comisiona: true, vigente: true, orden: 3 },
@@ -52,7 +53,8 @@ const TRAMOS = [
   { id: 'mas90', label: 'Más de 90 días', facturas: 1, saldo: 207120 },
 ];
 
-async function preparar(page, { usuario = COMERCIAL } = {}) {
+// `enPruebas`: lo que dice el backend de los apartados en pruebas (vacío: Comercial abierto).
+async function preparar(page, { usuario = COMERCIAL, enPruebas = [] } = {}) {
   await page.addInitScript(({ token, usuario }) => {
     if (sessionStorage.getItem('comercial-facturas-qa')) return;
     sessionStorage.setItem('comercial-facturas-qa', '1');
@@ -60,7 +62,7 @@ async function preparar(page, { usuario = COMERCIAL } = {}) {
     localStorage.setItem('datamet_token', token);
     localStorage.setItem('datamet_user', JSON.stringify(usuario));
     localStorage.setItem('datamet_last_view', 'comercial');
-  }, { token: token(usuario.id), usuario });
+  }, { token: token(usuario.id, usuario.acceso_cron), usuario });
   const pedidas = [];
   const enviados = {};
   await page.route(url => url.pathname.startsWith('/api/'), async (route) => {
@@ -78,7 +80,7 @@ async function preparar(page, { usuario = COMERCIAL } = {}) {
       enviados.pago = request.postDataJSON();
       return json({ id: 50, fecha: enviados.pago.fecha, monto: enviados.pago.monto, medio: enviados.pago.medio, estado: 'vigente', aplicado: enviados.pago.monto, sinAplicar: 0, aplicaciones: [], historial: [] }, 201);
     }
-    if (path === '/sistema/permisos/mios') return json({ permisos: [], gestionar: false });
+    if (path === '/sistema/permisos/mios') return json({ permisos: [], gestionar: false, enPruebas });
     if (path === '/comercial/categorias') return json(CATEGORIAS);
     if (path === '/comercial/personal') return json([{ id: 7, nombre: 'Ana Comercial', area: 'Comercial' }, { id: 8, nombre: 'Luis Rojas', area: 'Comercial' }]);
     if (path === '/comercial/facturas/siguiente') return json({ gestion: 2026, numero: 595 });
@@ -198,6 +200,26 @@ test('Las tablas no se desbordan con la barra lateral abierta en una pantalla me
   }
   await page.goto('/comercial/cobranza');
   await expect(page.getByRole('button', { name: 'Pago', exact: true })).toBeInViewport();
+});
+
+test('En pruebas, el área Comercial ve el apartado con candado y no pide nada de Comercial', async ({ page }) => {
+  const { pedidas } = await preparar(page, { enPruebas: ['comercial'] });
+  await page.goto('/comercial/facturas');
+  await expect(page.getByRole('heading', { name: 'Apartado en pruebas' })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('Mientras tanto solo lo usa el área de Sistemas', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Comercial (sin acceso)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Nueva factura' })).toHaveCount(0);
+  expect(pedidas.filter(p => p.includes('/comercial/'))).toEqual([]);
+  await page.screenshot({ path: '.impeccable/review/comercial-en-pruebas.png' });
+});
+
+test('En pruebas, Sistemas usa Comercial completo y ve el aviso', async ({ page }) => {
+  await preparar(page, { usuario: SISTEMAS, enPruebas: ['comercial'] });
+  await page.goto('/comercial/facturas');
+  await expect(page.getByText('En pruebas: por ahora solo Sistemas usa Comercial', { exact: false })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('button', { name: 'Nueva factura' })).toBeVisible();
+  await expect(page.getByText('Tu área consulta Comercial', { exact: false })).toHaveCount(0);
+  await page.screenshot({ path: '.impeccable/review/comercial-en-pruebas-sistemas.png' });
 });
 
 test('Administración consulta Comercial sin registrar nada, también en el teléfono', async ({ page }) => {
