@@ -1,6 +1,25 @@
 const comercial = require('../services/comercial.service');
 const bitrix = require('../services/comercial.bitrix');
 const reportes = require('../services/comercial.reportes');
+const comisiones = require('../services/comercial.comisiones');
+const permisos = require('../services/permisos');
+const { hoyLaPaz } = require('../services/comercial.domain');
+
+/** Quién ve qué en Comisiones: las de todos con el permiso; si no, solo las suyas. */
+const contextoComisiones = async (req) => {
+  const [ver, gestionar] = await Promise.all([
+    permisos.tienePermiso(req.user, 'comisiones.comercial.ver'),
+    permisos.tienePermiso(req.user, 'comisiones.comercial.gestionar'),
+  ]);
+  return { todos: ver || gestionar, gestionar, usuarioId: Number(req.user?.id) || null };
+};
+
+const enviarExcel = (res, { buffer, nombre }) => {
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.send(buffer);
+};
 const { parse } = require('../services/comercial.validation');
 
 const readId = (value) => {
@@ -97,14 +116,38 @@ module.exports = {
   // El libro de Excel para Contabilidad, con los mismos filtros del reporte.
   reportesExcel: async (req, res, next) => {
     try {
-      const { buffer, nombre } = await reportes.excel(parse('filtrosReportes', req.query));
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
-      res.setHeader('Cache-Control', 'no-store');
-      return res.send(buffer);
+      return enviarExcel(res, await reportes.excel(parse('filtrosReportes', req.query)));
     } catch (error) {
       if ([400, 503].includes(error.statusCode)) return res.status(error.statusCode).json({ success: false, message: error.message });
       return next(error);
     }
   },
+
+  comisiones: handle(async (req) => {
+    const ctx = await contextoComisiones(req);
+    const { gestion } = parse('gestionComision', req.query);
+    return { ...(await comisiones.resumenGestion(gestion || Number(hoyLaPaz().slice(0, 4)), ctx)), puede: { todos: ctx.todos, gestionar: ctx.gestionar } };
+  }),
+  comisionesMes: handle(async (req) => {
+    const ctx = await contextoComisiones(req);
+    const { gestion, mes } = parse('mesComision', req.params);
+    return { ...(await comisiones.detalleMes(gestion, mes, ctx)), puede: { todos: ctx.todos, gestionar: ctx.gestionar } };
+  }),
+  comisionesExcel: async (req, res, next) => {
+    try {
+      const ctx = await contextoComisiones(req);
+      const { gestion, mes } = parse('mesComision', req.params);
+      return enviarExcel(res, await comisiones.excelMes(gestion, mes, ctx));
+    } catch (error) {
+      if ([400, 503].includes(error.statusCode)) return res.status(error.statusCode).json({ success: false, message: error.message });
+      return next(error);
+    }
+  },
+  comisionesReglas: handle(async (req) => ({ ...(await comisiones.listReglas()), puede: { gestionar: (await contextoComisiones(req)).gestionar } })),
+  comisionesCrearRegla: handle(req => comisiones.crearRegla(parse('reglaComision', req.body), req.user), 201),
+  comisionesCerrar: handle(req => {
+    const { gestion, mes } = parse('mesComision', req.params);
+    return comisiones.cerrarMes(gestion, mes, req.user);
+  }, 201),
+  comisionesAnularCierre: handle(req => comisiones.anularCierre(readId(req.params.id), parse('anulacion', req.body), req.user)),
 };

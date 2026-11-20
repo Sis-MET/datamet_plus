@@ -28,6 +28,15 @@ export const comercialApi = {
   reportes: (params) => unwrap(api.get('/comercial/reportes', params)),
   reportesExcel: (params) => api.blob('/comercial/reportes/excel', { params, timeout: 60000 }),
 
+  // Comisiones (fase 4): cada responsable ve las suyas; con permiso, las de todos.
+  comisiones: (gestion) => unwrap(api.get('/comercial/comisiones', { gestion })),
+  comisionesMes: (gestion, mes) => unwrap(api.get(`/comercial/comisiones/${gestion}/${mes}`)),
+  comisionesExcel: (gestion, mes) => api.blob(`/comercial/comisiones/${gestion}/${mes}/excel`, { timeout: 60000 }),
+  comisionesReglas: () => unwrap(api.get('/comercial/comisiones/reglas')),
+  crearReglaComision: (body) => unwrap(api.post('/comercial/comisiones/reglas', body)),
+  cerrarComisiones: (gestion, mes) => unwrap(api.post(`/comercial/comisiones/${gestion}/${mes}/cierre`, {})),
+  anularCierreComisiones: (id, motivo) => unwrap(api.post(`/comercial/comisiones/cierres/${id}/anulacion`, { motivo })),
+
   // Bitrix24 (solo lectura del CRM): copia, enlaces y equivalencias de responsables.
   bitrixEstado: () => unwrap(api.get('/comercial/bitrix/estado')),
   bitrixNegociaciones: (params) => unwrap(api.get('/comercial/bitrix/negociaciones', params)),

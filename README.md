@@ -644,6 +644,23 @@ y Sistemas; **Administración y Gerencia lo consultan** sin registrar ni anular
   cobrado en proporción. **Exportar a Excel** baja, con los mismos filtros,
   un libro para Contabilidad con las hojas Resumen, Facturas, Líneas y Pagos
   (`backend/src/utils/xlsx-escribir.js`, sin dependencias).
+- **Comisiones** (fase 4, migración `037`): por mes y responsable. Se ganan
+  **al facturar** (mes de emisión), por línea: la tasa del tramo que
+  corresponde al margen de la línea (el de su ficha), sobre su monto o su
+  neto, solo en las categorías que comisionan; una venta sin costo no
+  comisiona hasta que tenga costo. Cada responsable comercial cobra según su
+  porcentaje en la factura (partes iguales si no tiene). Las **reglas** son
+  versiones con fecha de vigencia (`COM_COMISION_REGLAS`; la primera, las del
+  Excel: menos de 20 % no comisiona, de 20 % a 30 % el 0,6 %, más de 30 % el
+  1 %); cada factura usa la que regía en su fecha, y una versión nueva no
+  puede regir en un mes ya cerrado. **Cerrar un mes** congela lo calculado
+  con su detalle (`COM_COMISION_CIERRES` y `…_CIERRE_LINEAS`): una corrección
+  posterior ya no lo cambia, la ficha avisa la diferencia y, para corregirlo,
+  se anula el cierre con motivo y se vuelve a cerrar. Cada mes se exporta a
+  Excel. Cada responsable ve las suyas; las de todos, con el permiso
+  `comisiones.comercial.ver`; cambiar las reglas y cerrar o anular, con
+  `comisiones.comercial.gestionar` (Gestión de permisos; la migración los
+  concede al jefe de área de Comercial y al área Administración).
 
 **Nada se borra** (migración `034`): una factura o un pago se anulan con
 motivo; las líneas, referencias, personas y aplicaciones no se modifican
@@ -658,6 +675,13 @@ Rutas (`/api/comercial`, `comercial.routes.js`): de consulta `GET /acceso`,
 `/pagos`, `/pagos/:id`, `/cobranza`; solo del área `POST /facturas`,
 `POST /facturas/:id/anulacion`, `POST /pagos`, `POST /pagos/:id/anulacion`,
 `PUT /clientes/:codigo`. Sin la migración, responden 503 con lo que falta.
+Comisiones: `GET /comisiones?gestion=`, `/comisiones/reglas`,
+`/comisiones/:gestion/:mes` y `/comisiones/:gestion/:mes/excel`; con el
+permiso de gestionar, `POST /comisiones/reglas`,
+`POST /comisiones/:gestion/:mes/cierre` y
+`POST /comisiones/cierres/:id/anulacion` (`{ motivo }`). Van por permiso y
+no por área, porque Administración solo consulta Comercial pero también los
+maneja.
 Reportes: `GET /reportes` y `GET /reportes/excel` (filtros `desde`, `hasta`,
 `area`, `tipo`; por omisión la gestión en curso; hasta tres años), también
 para quien consulta. Un cliente es **nuevo** si se registró en DataMET
@@ -779,7 +803,7 @@ solo del área `POST /bitrix/negociaciones/:id/actualizacion` (`{ cambios }`,
 lo que se confirmó) y `POST /bitrix/actualizaciones` (`{ esperadas }`). La
 ficha `GET /bitrix/negociaciones/:id` trae `bitrix: { cambios, avisos }`.
 
-Orden de despliegue: `pnpm migrate` (034, 035 y 036), backend, importación
+Orden de despliegue: `pnpm migrate` (034, 035, 036 y 037), backend, importación
 con `--aplicar`, el webhook en `backend/.env` y frontend (`pnpm build`). El
 registro en Control de cambios va con la migración de la versión que lo
 publique.

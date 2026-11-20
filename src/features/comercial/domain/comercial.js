@@ -323,6 +323,36 @@ export const paramsReporte = ({ desde, hasta, area, tipo }) => Object.fromEntrie
   Object.entries({ desde, hasta, area, tipo }).filter(([, v]) => v),
 );
 
+/** Comisiones: estado de cada mes. */
+export const ESTADOS_MES_COMISION = {
+  cerrado: { label: 'Cerrado', tone: 'success' },
+  abierto: { label: 'Por cerrar', tone: 'warning' },
+  en_curso: { label: 'En curso', tone: 'info' },
+  sin_facturas: { label: 'Sin facturas', tone: 'muted' },
+  futuro: { label: 'Todavía no', tone: 'muted' },
+};
+
+/** Por qué una línea no comisiona (o sí). */
+export const ESTADOS_LINEA_COMISION = {
+  comisiona: 'Comisiona',
+  bajo_tramo: 'Margen bajo el primer tramo',
+  categoria: 'La categoría no comisiona',
+  por_costear: 'Venta sin costo: por costear',
+  sin_responsable: 'Sin responsable',
+  sin_regla: 'Sin reglas vigentes',
+};
+
+export const NOMBRES_MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** «0,6 %» con coma decimal; «12,5 %». */
+export const pct = (valor) => (valor === null || valor === undefined ? '—' : `${Number(valor).toLocaleString('es-BO', { maximumFractionDigits: 2 })} %`);
+
+/** Lee «0,6» o «0.6» como 0.6; null si no es número. */
+export const leerPorcentaje = (texto) => {
+  const n = Number(String(texto ?? '').trim().replace(',', '.'));
+  return String(texto ?? '').trim() !== '' && Number.isFinite(n) ? n : null;
+};
+
 /** Lo que DataMET+ escribe en una negociación de Bitrix24 (fase 3). */
 export const CAMBIOS_BITRIX = {
   facturado: '¿Está facturado?',

@@ -367,6 +367,18 @@ fases 2 y 4.
    Bitrix24*).
 4. **Reportes y comisiones** con cierre mensual; conciliación bancaria; envío
    de la factura al correo de recepción del cliente (`mailer.service.js`).
+   Los reportes, la exportación a Excel para Contabilidad y las comisiones
+   con cierre mensual y reglas configurables están programados (migración
+   `037`; README, *Comercial*). Decisiones de Comercial para las comisiones
+   (2026-11-20): se ganan **al facturar** (por mes de emisión); los
+   porcentajes y tramos son **configurables** en una pantalla por Comercial o
+   Administración, con los del Excel por omisión (menos de 20 % no comisiona,
+   20 % a 30 % el 0,6 %, más de 30 % el 1 %; servicios al 1 %; Calibración,
+   logística y «Otros (ST)» no comisionan; una venta sin costo no comisiona
+   hasta tener costo), y cada responsable comisiona según el porcentaje
+   registrado en la factura (solo los responsables comerciales). La
+   conciliación espera un extracto bancario de ejemplo y el envío de facturas,
+   el PDF de MiPOS.
 
 ## 8. Preguntas abiertas
 

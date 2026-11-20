@@ -141,12 +141,13 @@ export const APP_VIEWS = {
       { id: 'cobranza', label: 'Cuentas por cobrar' },
       { id: 'pagos', label: 'Pagos' },
       { id: 'reportes', label: 'Reportes' },
+      { id: 'comisiones', label: 'Comisiones' },
       { id: 'bitrix', label: 'Bitrix24' },
     ],
     // Administración y Gerencia consultan, sin registrar ni anular.
     consulta: {
       areas: ['administracion', 'gerencia'],
-      secciones: ['facturas', 'cobranza', 'pagos', 'reportes', 'bitrix'],
+      secciones: ['facturas', 'cobranza', 'pagos', 'reportes', 'comisiones', 'bitrix'],
     },
   },
   ivmet: {

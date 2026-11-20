@@ -2,6 +2,7 @@ import { Eye } from 'lucide-react';
 import { soloConsulta as esSoloConsulta } from '../../shared/components/layout/navigation';
 import { usePestanaRuta } from '../../shared/navigation/ruta';
 import { BitrixPanel } from './components/BitrixPanel';
+import { ComisionesPanel } from './components/ComisionesPanel';
 import { CobranzaPanel } from './components/CobranzaPanel';
 import { FacturasPanel } from './components/FacturasPanel';
 import { PagosPanel } from './components/PagosPanel';
@@ -9,7 +10,7 @@ import { ReportesPanel } from './components/ReportesPanel';
 import '../calibration/calibration.css';
 import './comercial.css';
 
-const PESTANAS = ['facturas', 'cobranza', 'pagos', 'reportes', 'bitrix'];
+const PESTANAS = ['facturas', 'cobranza', 'pagos', 'reportes', 'comisiones', 'bitrix'];
 const STORAGE_KEY = 'datamet_comercial_tab';
 
 /**
@@ -35,6 +36,7 @@ export function ComercialPage({ currentUser }) {
         {pestana === 'cobranza' && <CobranzaPanel soloConsulta={consulta} />}
         {pestana === 'pagos' && <PagosPanel soloConsulta={consulta} />}
         {pestana === 'reportes' && <ReportesPanel />}
+        {pestana === 'comisiones' && <ComisionesPanel />}
         {pestana === 'bitrix' && <BitrixPanel soloConsulta={consulta} />}
       </main>
     </div>

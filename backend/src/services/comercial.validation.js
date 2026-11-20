@@ -180,6 +180,26 @@ const schemas = {
 
   actualizacionMasiva: z.object({ esperadas: opcional(entero('Negociaciones', { min: 0 })).optional().default(null) }),
 
+  // Comisiones: una versión nueva de las reglas (no se modifican las anteriores).
+  reglaComision: z.object({
+    vigenteDesde: date,
+    base: z.enum(['MONTO', 'NETO'], { error: 'Elige sobre qué se calcula: el monto o el neto.' }),
+    tramos: z.array(z.object({
+      desde: z.preprocess(v => Number(v), z.number({ error: 'Margen inválido.' }).min(0, 'El margen va de 0 % a 100 %.').max(100, 'El margen va de 0 % a 100 %.')),
+      tasa: z.preprocess(v => Number(v), z.number({ error: 'Tasa inválida.' }).min(0, 'La tasa va de 0 % a 10 %.').max(10, 'La tasa va de 0 % a 10 %.')),
+    })).min(1, 'Agrega al menos un tramo.').max(10, 'Hasta 10 tramos.'),
+    categorias: z.array(entero('Categoría', { min: 1 })).max(200),
+    ventaSinCosto: z.boolean().optional().default(false),
+    nota: requiredText(300, 'Escribe por qué cambian las reglas (al menos 10 caracteres).', 10),
+  }),
+
+  mesComision: z.object({
+    gestion: entero('Gestión', { min: 2015, max: 2100 }),
+    mes: entero('Mes', { min: 1, max: 12 }),
+  }),
+
+  gestionComision: z.object({ gestion: vacioANull(entero('Gestión', { min: 2015, max: 2100 })) }),
+
   // Reportes: por omisión, la gestión en curso hasta hoy. Hasta tres años.
   filtrosReportes: z.object({
     desde: vacioANull(date),

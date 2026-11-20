@@ -2,6 +2,10 @@ const express = require('express');
 const controller = require('../controllers/comercial.controller');
 const { protect } = require('../middleware/auth.middleware');
 const { requireArea, soloArea } = require('../middleware/area.middleware');
+const { requirePermiso } = require('../middleware/permiso.middleware');
+
+const GESTIONAR_COMISIONES = requirePermiso('comisiones.comercial.gestionar',
+  'Cambiar las reglas y cerrar meses de comisiones pide el permiso «Configurar las reglas de comisión y cerrar los meses» (lo concede Sistemas en Gestión de permisos).');
 
 // Lo que también ven las áreas que solo consultan Comercial (Administración y
 // Gerencia): facturas, pagos, cuentas por cobrar y fichas de clientes.
@@ -19,6 +23,16 @@ consulta.get('/pagos/:id', controller.getPago);
 consulta.get('/cobranza', controller.cobranza);
 consulta.get('/reportes', controller.reportes);
 consulta.get('/reportes/excel', controller.reportesExcel);
+// Comisiones: cada responsable ve las suyas y, con el permiso, las de todos.
+// Las reglas y los cierres van por permiso y no por área: Administración
+// solo consulta Comercial, pero también los maneja.
+consulta.get('/comisiones', controller.comisiones);
+consulta.get('/comisiones/reglas', controller.comisionesReglas);
+consulta.get('/comisiones/:gestion/:mes', controller.comisionesMes);
+consulta.get('/comisiones/:gestion/:mes/excel', controller.comisionesExcel);
+consulta.post('/comisiones/reglas', GESTIONAR_COMISIONES, controller.comisionesCrearRegla);
+consulta.post('/comisiones/:gestion/:mes/cierre', GESTIONAR_COMISIONES, controller.comisionesCerrar);
+consulta.post('/comisiones/cierres/:id/anulacion', GESTIONAR_COMISIONES, controller.comisionesAnularCierre);
 consulta.get('/bitrix/estado', controller.bitrixEstado);
 consulta.get('/bitrix/negociaciones', controller.bitrixNegociaciones);
 consulta.get('/bitrix/negociaciones/:id', controller.bitrixNegociacion);

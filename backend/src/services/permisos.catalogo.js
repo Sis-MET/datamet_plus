@@ -32,6 +32,23 @@ const PERMISOS = Object.freeze([
     modulo: 'Calibración',
     inicial: [JEFES_DE_AREA],
   },
+  // Comisiones de Comercial (migración 037): cada responsable ve las suyas sin permiso.
+  {
+    clave: 'comisiones.comercial.ver',
+    nombre: 'Ver las comisiones de todos en Comercial',
+    corto: 'Comisiones · ver',
+    descripcion: 'Comercial › Comisiones: la comisión de cada responsable por mes, con su detalle por factura y los cierres.',
+    modulo: 'Comercial',
+    inicial: [{ area: 'comercial', cargo: 'jefe de area' }, { area: 'administracion', cargo: null }],
+  },
+  {
+    clave: 'comisiones.comercial.gestionar',
+    nombre: 'Configurar las reglas de comisión y cerrar los meses',
+    corto: 'Comisiones · gestionar',
+    descripcion: 'Comercial › Comisiones: crear versiones de las reglas (tramos, tasas, categorías) y cerrar o anular el cierre de un mes.',
+    modulo: 'Comercial',
+    inicial: [{ area: 'comercial', cargo: 'jefe de area' }, { area: 'administracion', cargo: null }],
+  },
 ]);
 
 const CLAVES = Object.freeze(PERMISOS.map(permiso => permiso.clave));

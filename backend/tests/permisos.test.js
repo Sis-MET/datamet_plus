@@ -217,7 +217,8 @@ test('la gestión muestra el personal con su área, cargo y permisos, y de dónd
     { clave: 'tiempos.soporte.ver', sistemas: false, concesiones: [1] },
     { clave: 'tiempos.calibracion.ver', sistemas: false, concesiones: [2] },
   ]);
-  assert.deepEqual(gestion.personal.find(p => p.id === 22).permisos.map(p => p.sistemas), [true, true]);
+  // Sistemas tiene todos los del catálogo.
+  assert.deepEqual(gestion.personal.find(p => p.id === 22).permisos.map(p => p.sistemas), CLAVES.map(() => true));
   assert.deepEqual(gestion.personal.find(p => p.id === 9).permisos, []);
   assert.deepEqual(gestion.concesiones.map(c => [c.id, c.tipo, c.sujeto, c.alcance]), [
     [1, 'GRUPO', 'Jefes de área de todas las áreas', 5],
