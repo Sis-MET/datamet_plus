@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Info, Loader2, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -483,7 +484,8 @@ export function CellPopoverForm({
 
   if (!isOpen) return null;
 
-  return (
+  // En el body, como los demás diálogos: dentro del contenido quedaría bajo la barra lateral.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -727,6 +729,7 @@ export function CellPopoverForm({
           </footer>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
