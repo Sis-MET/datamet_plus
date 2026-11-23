@@ -1,0 +1,56 @@
+import { describe, expect, it } from 'vitest';
+import { filterResourcesByAreas, getAreaLabel, toggleAreaSelection } from './areaFilter';
+
+const AREAS = ['Calibración', 'Comercial', 'Soporte Técnico', 'VEHÍCULOS'];
+
+describe('toggleAreaSelection', () => {
+  it('al empezar a filtrar por personal suma los vehículos', () => {
+    expect(toggleAreaSelection([], 'Calibración', AREAS)).toEqual(['VEHÍCULOS', 'Calibración']);
+  });
+
+  it('permite ver solo los vehículos', () => {
+    expect(toggleAreaSelection([], 'VEHÍCULOS', AREAS)).toEqual(['VEHÍCULOS']);
+  });
+
+  it('acumula varias áreas', () => {
+    const una = toggleAreaSelection([], 'Calibración', AREAS);
+    expect(toggleAreaSelection(una, 'Comercial', AREAS)).toEqual(['VEHÍCULOS', 'Calibración', 'Comercial']);
+  });
+
+  it('respeta que se hayan quitado los vehículos', () => {
+    const sinVehiculos = toggleAreaSelection(['VEHÍCULOS', 'Calibración'], 'VEHÍCULOS', AREAS);
+    expect(sinVehiculos).toEqual(['Calibración']);
+    expect(toggleAreaSelection(sinVehiculos, 'Comercial', AREAS)).toEqual(['Calibración', 'Comercial']);
+  });
+
+  it('vuelve a Todas al quitar la última área de personal', () => {
+    expect(toggleAreaSelection(['VEHÍCULOS', 'Calibración'], 'Calibración', AREAS)).toEqual([]);
+    expect(toggleAreaSelection(['Calibración'], 'Calibración', AREAS)).toEqual([]);
+  });
+
+  it('vuelve a Todas al marcar todas las áreas', () => {
+    expect(toggleAreaSelection(['VEHÍCULOS', 'Calibración', 'Comercial'], 'Soporte Técnico', AREAS)).toEqual([]);
+  });
+});
+
+describe('filterResourcesByAreas', () => {
+  const recursos = [
+    { id: 'a', area: 'Calibración' },
+    { id: 'b', area: ' Comercial ' },
+    { id: 'c', area: '' },
+    { id: 'd', area: 'VEHÍCULOS' },
+  ];
+
+  it('sin selección muestra todos', () => {
+    expect(filterResourcesByAreas(recursos, [])).toBe(recursos);
+  });
+
+  it('muestra solo las áreas elegidas', () => {
+    expect(filterResourcesByAreas(recursos, ['Calibración', 'Comercial']).map(r => r.id)).toEqual(['a', 'b']);
+  });
+
+  it('reconoce a quien no tiene área', () => {
+    expect(getAreaLabel('  ')).toBe('Sin Área');
+    expect(filterResourcesByAreas(recursos, ['Sin Área']).map(r => r.id)).toEqual(['c']);
+  });
+});

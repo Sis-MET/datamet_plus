@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
-import { Truck, ChevronLeft, ChevronRight, RefreshCw, Users, WifiOff, CalendarDays, Search, Filter } from 'lucide-react';
+import { Check, Truck, ChevronLeft, ChevronRight, RefreshCw, Users, WifiOff, CalendarDays, Search, Filter } from 'lucide-react';
 import { format, subWeeks, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
@@ -11,8 +11,7 @@ import { getGanttRowLayout } from './utils/ganttRowLayout';
 import { cn } from '../../shared/utils/cn';
 import { IS_APPLE_PLATFORM } from '../../shared/components/layout/shortcuts';
 import { isVehicleResource } from './domain/vehicleAvailability';
-
-const getAreaLabel = (area) => (typeof area === 'string' && area.trim() !== '' ? area.trim() : 'Sin Área');
+import { getAreaLabel, toggleAreaSelection } from './domain/areaFilter';
 
 const sortAreasWithPriority = (preferredArea) => ([areaA], [areaB]) => {
   if (preferredArea) {
@@ -77,8 +76,8 @@ export function GanttPage({
   tecnicos,
   allTecnicos = [],
   currentUserArea = '',
-  selectedArea,
-  onSelectArea,
+  selectedAreas = [],
+  onSelectAreas,
   tasksForCell,
   isToday,
   selectedDay,
@@ -202,8 +201,9 @@ export function GanttPage({
     }
   }, [selectedDay, weekDays]);
 
-  const selectArea = (area) => {
-    if (onSelectArea) onSelectArea(area);
+  const toggleArea = (area) => {
+    const allAreas = areaStats.areasArray.map(item => item.name);
+    onSelectAreas?.(toggleAreaSelection(selectedAreas, area, allAreas));
   };
 
   return (
@@ -289,39 +289,45 @@ export function GanttPage({
         <div className="gantt-scroll-tools">
           {/* ── Filtro por área: siempre a la vista, justo sobre la grilla ── */}
           {currentWeekStart && (
-            <div className="gantt-area-filter" role="radiogroup" aria-label="Filtrar el cronograma por área">
+            <div className="gantt-area-filter" role="group" aria-label="Filtrar el cronograma por una o varias áreas">
               <span className="gantt-area-filter-label">
                 <Filter className="h-3.5 w-3.5" aria-hidden="true" />
-                Área
+                Áreas
               </span>
               <div className="gantt-area-chips">
                 <button
                   type="button"
-                  role="radio"
-                  aria-checked={selectedArea === 'Todas'}
-                  onClick={() => selectArea('Todas')}
-                  className={cn('gantt-area-chip', selectedArea === 'Todas' && 'is-active')}
+                  aria-pressed={selectedAreas.length === 0}
+                  onClick={() => onSelectAreas?.([])}
+                  className={cn('gantt-area-chip', selectedAreas.length === 0 && 'is-active')}
+                  title="Ver todas las áreas"
                 >
                   <Users className="h-3.5 w-3.5" aria-hidden="true" />
                   Todas
                   <span className="gantt-area-chip-count">{areaStats.totalActivos}</span>
                 </button>
-                {areaStats.areasArray.map(area => (
-                  <button
-                    key={area.name}
-                    type="button"
-                    role="radio"
-                    aria-checked={selectedArea === area.name}
-                    onClick={() => selectArea(selectedArea === area.name ? 'Todas' : area.name)}
-                    className={cn('gantt-area-chip', selectedArea === area.name && 'is-active')}
-                    title={selectedArea === area.name ? 'Ver todas las áreas' : `Ver solo ${areaDisplayName(area.name)}`}
-                  >
-                    {isVehicleResource({ area: area.name }) && <Truck className="h-3.5 w-3.5" aria-hidden="true" />}
-                    <span className="truncate">{areaDisplayName(area.name)}</span>
-                    {area.name === preferredArea && <span className="gantt-area-chip-mine">Mi área</span>}
-                    <span className="gantt-area-chip-count">{area.count}</span>
-                  </button>
-                ))}
+                {areaStats.areasArray.map(area => {
+                  const isSelected = selectedAreas.includes(area.name);
+                  const label = areaDisplayName(area.name);
+                  return (
+                    <button
+                      key={area.name}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleArea(area.name)}
+                      className={cn('gantt-area-chip', isSelected && 'is-active')}
+                      title={isSelected ? `Quitar ${label} del filtro` : `Agregar ${label} al filtro`}
+                    >
+                      <span className="gantt-area-chip-check" aria-hidden="true">
+                        {isSelected && <Check className="h-3 w-3" strokeWidth={3} />}
+                      </span>
+                      {isVehicleResource({ area: area.name }) && <Truck className="h-3.5 w-3.5" aria-hidden="true" />}
+                      <span className="truncate">{label}</span>
+                      {area.name === preferredArea && <span className="gantt-area-chip-mine">Mi área</span>}
+                      <span className="gantt-area-chip-count">{area.count}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -363,7 +369,7 @@ export function GanttPage({
                 <div className="gantt-empty-state" role="status">
                   <Users size={20} />
                   <strong>No hay recursos para este filtro</strong>
-                  <span>Selecciona otra área o recarga el cronograma.</span>
+                  <span>Marca otras áreas o recarga el cronograma.</span>
                 </div>
               )}
 

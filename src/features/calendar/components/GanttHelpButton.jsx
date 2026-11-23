@@ -100,8 +100,8 @@ const HELP_SECTIONS = [
     items: [
       {
         Icon: Filter,
-        action: 'Botón "Áreas"',
-        description: 'Filtra el cronograma para mostrar únicamente el área seleccionada.',
+        action: 'Filtro "Áreas"',
+        description: 'Marca una o varias áreas para ver solo a su personal. "Todas" quita el filtro.',
       },
     ],
   },

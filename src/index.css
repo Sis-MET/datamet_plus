@@ -628,7 +628,7 @@
   gap: 0.35rem;
 }
 
-/* ── Filtro por área: fichas siempre visibles sobre la grilla ── */
+/* ── Filtro por áreas: fichas siempre visibles sobre la grilla ── */
 .gantt-area-filter {
   display: flex;
   min-width: 0;
@@ -664,10 +664,40 @@
 
 .gantt-area-chips::-webkit-scrollbar { display: none; }
 
+/* Con varias áreas marcadas, ninguna debe quedar oculta fuera de la fila. */
+@media (min-width: 640px) {
+  .gantt-area-filter { align-items: flex-start; }
+  .gantt-area-filter-label { min-height: 38px; }
+  .gantt-area-chips {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+.gantt-area-chip-check {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgb(var(--c-fg) / 0.35);
+  border-radius: 5px;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+
+.gantt-area-chip.is-active .gantt-area-chip-check {
+  border-color: rgb(var(--c-accent-fg));
+  background: rgb(var(--c-accent-fg));
+  color: rgb(var(--c-accent));
+}
+
 .gantt-area-chip {
   display: inline-flex;
   flex: none;
-  max-width: 220px;
+  max-width: 300px;
   height: 34px;
   align-items: center;
   gap: 0.4rem;
@@ -720,6 +750,8 @@
 }
 
 .gantt-area-chip-mine {
+  flex: none;
+  white-space: nowrap;
   border-radius: 9999px;
   background: rgb(var(--c-brand) / 0.28);
   padding: 1px 6px;

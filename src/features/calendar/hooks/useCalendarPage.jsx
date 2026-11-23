@@ -7,6 +7,7 @@ import { decodeJwtPayload } from '../../../shared/utils/jwt';
 import { useGantt } from './useGantt';
 import { useCalendar } from './useCalendar';
 import { canManageVehicleReservation, isAreaChief, isVehicleResource } from '../domain/vehicleAvailability';
+import { filterResourcesByAreas } from '../domain/areaFilter';
 import {
   clearPayload,
   createGroupId,
@@ -21,7 +22,8 @@ const normalizeScheduleText = (value) => String(value || '').trim().toLowerCase(
 export function useCalendarPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [selectedArea, setSelectedArea] = useState('Todas');
+  // Áreas marcadas en el filtro; vacío significa «Todas».
+  const [selectedAreas, setSelectedAreas] = useState([]);
   const [selectedDeparture, setSelectedDeparture] = useState(null);
   const [prefilledDate, setPrefilledDate] = useState(new Date());
   const [prefilledResource, setPrefilledResource] = useState('');
@@ -110,14 +112,10 @@ export function useCalendarPage() {
   }, [tecnicos, user?.apellido, user?.area, user?.id, user?.nombre, user?.usuario]);
 
   // Filtered tecnicos by area
-  const filteredTecnicos = useMemo(() => {
-    if (!tecnicos) return [];
-    if (selectedArea === 'Todas') return tecnicos;
-    return tecnicos.filter(t => {
-      const pArea = typeof t.area === 'string' && t.area.trim() !== '' ? t.area.trim() : 'Sin Área';
-      return pArea === selectedArea || isVehicleResource(t);
-    });
-  }, [tecnicos, selectedArea]);
+  const filteredTecnicos = useMemo(
+    () => filterResourcesByAreas(tecnicos || [], selectedAreas),
+    [tecnicos, selectedAreas]
+  );
 
   // Calendar hook
   const calendar = useCalendar(tasks);
@@ -624,7 +622,7 @@ export function useCalendarPage() {
     // Calendar state (pass-through)
     ...calendar,
     // Filtered
-    filteredTecnicos, selectedArea, setSelectedArea,
+    filteredTecnicos, selectedAreas, setSelectedAreas,
     // Form/dialog state
     isFormOpen, editingEvent, editingLinkedTasks, prefilledDate, prefilledResource,
     selectedDeparture,
