@@ -107,7 +107,7 @@ const HELP_SECTIONS = [
       {
         Icon: Filter,
         action: 'Filtro "Áreas"',
-        description: 'Marca una o varias áreas para ver solo a su personal. "Todas" quita el filtro.',
+        description: 'Marca las áreas que quieres ver; tu selección se recuerda. "Todas" marca todas las casillas para que quites las que no apliquen.',
       },
     ],
   },

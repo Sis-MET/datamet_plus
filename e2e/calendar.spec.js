@@ -26,6 +26,7 @@ test.beforeEach(async ({ page }) => {
     localStorage.setItem('datamet_token', token);
     localStorage.setItem('datamet_user', JSON.stringify({ id: 1, nombre: 'Usuario QA', acceso_cron: 3, area: 'SERVICIO' }));
     localStorage.setItem('datamet_last_view', 'calendar');
+    localStorage.setItem('datamet_cronograma_areas_1', JSON.stringify({ all: true }));
   }, { token: `header.${tokenPayload}.signature` });
 
   // Sin backend real: lo no simulado responde como servidor no disponible. Va

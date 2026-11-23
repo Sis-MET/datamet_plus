@@ -687,6 +687,13 @@
   color: rgb(var(--c-accent));
 }
 
+/* «Todas» con solo algunas áreas marcadas. */
+.gantt-area-chip-check.is-mixed {
+  border-color: rgb(var(--c-accent));
+  background: rgb(var(--c-accent));
+  color: rgb(var(--c-accent-fg));
+}
+
 .gantt-area-chip {
   display: inline-flex;
   flex: none;

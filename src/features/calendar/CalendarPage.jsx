@@ -57,7 +57,7 @@ export function CalendarPage() {
     currentUserArea,
     currentDate, selectedDay, calendarDays, selectedDayEvents,
     eventsForDay, selectDay, showDay, nextMonth, prevMonth, isToday, isSameDay, isSameMonth,
-    filteredTecnicos, selectedAreas, setSelectedAreas,
+    filteredTecnicos, selectedAreas, toggleArea, toggleAllAreas, revealResource,
     isFormOpen, editingEvent, editingLinkedTasks, prefilledDate, prefilledResource,
     selectedDeparture,
     isDragging, dragPos, isCtrlPressed,
@@ -108,13 +108,6 @@ export function CalendarPage() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isFormOpen, selectedDeparture]);
-
-  /** Muestra la fila del recurso si el filtro de área la oculta. */
-  const revealResource = useCallback((resourceId) => {
-    if (selectedAreas.length === 0) return;
-    const visible = filteredTecnicos.some(t => t.id === resourceId);
-    if (!visible) setSelectedAreas([]);
-  }, [filteredTecnicos, selectedAreas, setSelectedAreas]);
 
   const handleSearchTask = useCallback((task, { abrir }) => {
     setIsSearchOpen(false);
@@ -252,7 +245,8 @@ export function CalendarPage() {
             allTecnicos={tecnicos}
             currentUserArea={currentUserArea}
             selectedAreas={selectedAreas}
-            onSelectAreas={setSelectedAreas}
+            onToggleArea={toggleArea}
+            onToggleAllAreas={toggleAllAreas}
             tasksForCell={tasksForCell}
             isToday={isTodayGantt}
             selectedDay={selectedDay}

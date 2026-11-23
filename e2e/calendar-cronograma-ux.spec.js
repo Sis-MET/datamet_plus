@@ -54,26 +54,73 @@ test.beforeEach(async ({ page, isMobile }) => {
   await expect(page.locator('[data-task-id="task_71"]')).toBeVisible({ timeout: 30000 });
 });
 
-test('el filtro admite varias áreas a la vez', async ({ page }) => {
-  const chip = name => page.locator('.gantt-area-chip').filter({ hasText: name });
+const chipDe = (page, name) => page.locator('.gantt-area-chip').filter({ hasText: name });
+
+test('por defecto marca solo el área de la persona y recuerda lo que elige', async ({ page }) => {
   const rows = page.locator('[data-resource-row]');
-  await expect(rows).toHaveCount(4);
+  await expect(rows).toHaveCount(1);
+  await expect(chipDe(page, 'Soporte')).toHaveAttribute('aria-pressed', 'true');
+  await expect(chipDe(page, 'Vehículos')).toHaveAttribute('aria-pressed', 'false');
+  await expect(chipDe(page, 'Todas')).toHaveAttribute('aria-pressed', 'mixed');
 
-  await chip('Calibración').click();
-  await expect(chip('Calibración')).toHaveAttribute('aria-pressed', 'true');
-  await expect(chip('Vehículos')).toHaveAttribute('aria-pressed', 'true');
+  await chipDe(page, 'Calibración').click();
   await expect(rows).toHaveCount(2);
+  await page.reload();
+  await expect(rows).toHaveCount(2, { timeout: 30000 });
+  await expect(chipDe(page, 'Calibración')).toHaveAttribute('aria-pressed', 'true');
+});
 
-  await chip('Comercial').click();
+test('«Todas» marca todas las casillas para ir quitando las que no aplican', async ({ page }) => {
+  const rows = page.locator('[data-resource-row]');
+  await chipDe(page, 'Todas').click();
+  await expect(rows).toHaveCount(4);
+  for (const name of ['Todas', 'Soporte', 'Calibración', 'Comercial', 'Vehículos']) {
+    await expect(chipDe(page, name)).toHaveAttribute('aria-pressed', 'true');
+  }
+
+  await chipDe(page, 'Comercial').click();
   await expect(rows).toHaveCount(3);
+  await expect(chipDe(page, 'Comercial')).toHaveAttribute('aria-pressed', 'false');
+  await expect(chipDe(page, 'Todas')).toHaveAttribute('aria-pressed', 'mixed');
+  await page.reload();
+  await expect(rows).toHaveCount(3, { timeout: 30000 });
 
-  await chip('Vehículos').click();
-  await expect(rows).toHaveCount(2);
-  await expect(page.locator('[data-resource-row="CAMIONETA_LPZ"]')).toHaveCount(0);
-
-  await chip('Todas').click();
-  await expect(chip('Todas')).toHaveAttribute('aria-pressed', 'true');
+  await chipDe(page, 'Todas').click();
   await expect(rows).toHaveCount(4);
+  await chipDe(page, 'Todas').click();
+  await expect(rows).toHaveCount(0);
+  await expect(page.getByText('Ninguna área marcada')).toBeVisible();
+
+  // Sin ninguna marcada no se guarda: al volver abre con su área.
+  await page.reload();
+  await expect(rows).toHaveCount(1, { timeout: 30000 });
+});
+
+test('cada usuario tiene su propia selección de áreas', async ({ page }) => {
+  await chipDe(page, 'Todas').click();
+  await expect(page.locator('[data-resource-row]')).toHaveCount(4);
+
+  const otroToken = Buffer.from(JSON.stringify({ exp: 4102444800, id: 2, nombre: 'Ana Rojas', acceso_cron: 3 })).toString('base64url');
+  await page.addInitScript(({ token }) => {
+    localStorage.setItem('datamet_token', token);
+    localStorage.setItem('datamet_user', JSON.stringify({ id: 2, nombre: 'Ana Rojas', acceso_cron: 3, area: 'Calibración' }));
+  }, { token: `header.${otroToken}.signature` });
+  await page.reload();
+  await expect(page.locator('[data-resource-row="Ana_Rojas"]')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('[data-resource-row]')).toHaveCount(1);
+});
+
+test('el buscador muestra una fila oculta sin cambiar la selección guardada', async ({ page }) => {
+  const rows = page.locator('[data-resource-row]');
+  await expect(rows).toHaveCount(1);
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder(/Buscar cliente, planta/).fill('Ana Rojas');
+  await page.getByRole('option', { name: /Ana Rojas/ }).first().click();
+  await expect(page.locator('[data-resource-row="Ana_Rojas"]')).toBeVisible();
+
+  await page.reload();
+  await expect(rows).toHaveCount(1, { timeout: 30000 });
+  await expect(page.locator('[data-resource-row="Ana_Rojas"]')).toHaveCount(0);
 });
 
 test('la ficha muestra el departamento abreviado de la planta', async ({ page }) => {

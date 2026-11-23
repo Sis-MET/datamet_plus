@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
-import { Check, Truck, ChevronLeft, ChevronRight, RefreshCw, Users, WifiOff, CalendarDays, Search, Filter } from 'lucide-react';
+import { Check, Minus, Truck, ChevronLeft, ChevronRight, RefreshCw, Users, WifiOff, CalendarDays, Search, Filter } from 'lucide-react';
 import { format, subWeeks, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { GanttHeader } from './components/GanttHeader';
@@ -11,7 +11,7 @@ import { getGanttRowLayout } from './utils/ganttRowLayout';
 import { cn } from '../../shared/utils/cn';
 import { IS_APPLE_PLATFORM } from '../../shared/components/layout/shortcuts';
 import { isVehicleResource } from './domain/vehicleAvailability';
-import { getAreaLabel, toggleAreaSelection } from './domain/areaFilter';
+import { getAreaLabel } from './domain/areaFilter';
 import { useEdgeAutoScroll } from './hooks/useEdgeAutoScroll';
 
 const EDGE_CLICK_SCROLL = 440;
@@ -80,7 +80,8 @@ export function GanttPage({
   allTecnicos = [],
   currentUserArea = '',
   selectedAreas = [],
-  onSelectAreas,
+  onToggleArea,
+  onToggleAllAreas,
   tasksForCell,
   isToday,
   selectedDay,
@@ -209,10 +210,10 @@ export function GanttPage({
     }
   }, [selectedDay, weekDays]);
 
-  const toggleArea = (area) => {
-    const allAreas = areaStats.areasArray.map(item => item.name);
-    onSelectAreas?.(toggleAreaSelection(selectedAreas, area, allAreas));
-  };
+  const allAreasSelected = areaStats.areasArray.length > 0
+    && areaStats.areasArray.every(area => selectedAreas.includes(area.name));
+  const someAreasSelected = selectedAreas.length > 0 && !allAreasSelected;
+  const noAreaSelected = areaStats.areasArray.length > 0 && selectedAreas.length === 0;
 
   return (
     <TaskTooltipProvider>
@@ -305,12 +306,15 @@ export function GanttPage({
               <div className="gantt-area-chips">
                 <button
                   type="button"
-                  aria-pressed={selectedAreas.length === 0}
-                  onClick={() => onSelectAreas?.([])}
-                  className={cn('gantt-area-chip', selectedAreas.length === 0 && 'is-active')}
-                  title="Ver todas las áreas"
+                  aria-pressed={allAreasSelected ? true : someAreasSelected ? 'mixed' : false}
+                  onClick={() => onToggleAllAreas?.()}
+                  className={cn('gantt-area-chip', allAreasSelected && 'is-active')}
+                  title={allAreasSelected ? 'Desmarcar todas las áreas' : 'Marcar todas las áreas'}
                 >
-                  <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className={cn('gantt-area-chip-check', someAreasSelected && 'is-mixed')} aria-hidden="true">
+                    {allAreasSelected && <Check className="h-3 w-3" strokeWidth={3} />}
+                    {someAreasSelected && <Minus className="h-3 w-3" strokeWidth={3} />}
+                  </span>
                   Todas
                   <span className="gantt-area-chip-count">{areaStats.totalActivos}</span>
                 </button>
@@ -322,7 +326,7 @@ export function GanttPage({
                       key={area.name}
                       type="button"
                       aria-pressed={isSelected}
-                      onClick={() => toggleArea(area.name)}
+                      onClick={() => onToggleArea?.(area.name)}
                       className={cn('gantt-area-chip', isSelected && 'is-active')}
                       title={isSelected ? `Quitar ${label} del filtro` : `Agregar ${label} al filtro`}
                     >
@@ -397,8 +401,8 @@ export function GanttPage({
               {!loading && grupos.length === 0 && (
                 <div className="gantt-empty-state" role="status">
                   <Users size={20} />
-                  <strong>No hay recursos para este filtro</strong>
-                  <span>Marca otras áreas o recarga el cronograma.</span>
+                  <strong>{noAreaSelected ? 'Ninguna área marcada' : 'No hay recursos para este filtro'}</strong>
+                  <span>{noAreaSelected ? 'Marca una o varias áreas para ver a su personal.' : 'Marca otras áreas o recarga el cronograma.'}</span>
                 </div>
               )}
 
