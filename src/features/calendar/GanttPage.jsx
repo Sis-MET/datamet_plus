@@ -12,6 +12,9 @@ import { cn } from '../../shared/utils/cn';
 import { IS_APPLE_PLATFORM } from '../../shared/components/layout/shortcuts';
 import { isVehicleResource } from './domain/vehicleAvailability';
 import { getAreaLabel, toggleAreaSelection } from './domain/areaFilter';
+import { useEdgeAutoScroll } from './hooks/useEdgeAutoScroll';
+
+const EDGE_CLICK_SCROLL = 440;
 
 const sortAreasWithPriority = (preferredArea) => ([areaA], [areaB]) => {
   if (preferredArea) {
@@ -139,6 +142,11 @@ export function GanttPage({
   const nextEnd   = currentWeekEnd   ? endOfWeek(addWeeks(currentWeekEnd, 1), { weekStartsOn: 1 }) : null;
 
   const scrollRef = useRef(null);
+  const viewportRef = useRef(null);
+  const leftCueRef = useRef(null);
+  const rightCueRef = useRef(null);
+
+  useEdgeAutoScroll({ viewportRef, scrollRef, leftCueRef, rightCueRef });
 
   const updateScrollState = useCallback(() => {
     if (scrollFrameRef.current !== null) return;
@@ -331,10 +339,6 @@ export function GanttPage({
               </div>
             </div>
           )}
-          <div className="gantt-scroll-arrows" aria-label="Desplazamiento horizontal del calendario">
-            <button type="button" onClick={() => scrollRef.current?.scrollBy({ left: -440, behavior: 'smooth' })} disabled={!scrollState.left} aria-label="Ver días anteriores"><ChevronLeft size={16} /></button>
-            <button type="button" onClick={() => scrollRef.current?.scrollBy({ left: 440, behavior: 'smooth' })} disabled={!scrollState.right} aria-label="Ver días siguientes"><ChevronRight size={16} /></button>
-          </div>
         </div>
 
         {/* Fechas reducidas que quedan fijas al bajar por el cronograma. */}
@@ -349,9 +353,34 @@ export function GanttPage({
           shellRef={shellRef}
         />
 
-        <div className="gantt-scroll-viewport">
+        <div className="gantt-scroll-viewport" ref={viewportRef}>
           <div className={`gantt-scroll-edge gantt-scroll-edge-left ${scrollState.left ? 'is-visible' : ''}`} aria-hidden="true" />
           <div className={`gantt-scroll-edge gantt-scroll-edge-right ${scrollState.right ? 'is-visible' : ''}`} aria-hidden="true" />
+          {/* Flechas dentro del calendario: acercar el cursor al borde recorre los días. */}
+          <div ref={leftCueRef} className="gantt-edge-cue gantt-edge-cue-left">
+            <button
+              type="button"
+              className="gantt-edge-handle"
+              onClick={() => scrollRef.current?.scrollBy({ left: -EDGE_CLICK_SCROLL, behavior: 'smooth' })}
+              disabled={!scrollState.left}
+              aria-label="Ver días anteriores"
+              title="Días anteriores"
+            >
+              <ChevronLeft size={18} aria-hidden="true" />
+            </button>
+          </div>
+          <div ref={rightCueRef} className="gantt-edge-cue gantt-edge-cue-right">
+            <button
+              type="button"
+              className="gantt-edge-handle"
+              onClick={() => scrollRef.current?.scrollBy({ left: EDGE_CLICK_SCROLL, behavior: 'smooth' })}
+              disabled={!scrollState.right}
+              aria-label="Ver días siguientes"
+              title="Días siguientes"
+            >
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+          </div>
           <div className="gantt-scroll-container" ref={scrollRef} tabIndex={0} aria-label="Cronograma desplazable horizontalmente">
             <div className="gantt-grid">
               <GanttHeader

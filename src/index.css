@@ -621,13 +621,6 @@
   padding: 0 0.125rem 0.625rem;
 }
 
-.gantt-scroll-arrows {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 0.35rem;
-}
-
 /* ── Filtro por áreas: fichas siempre visibles sobre la grilla ── */
 .gantt-area-filter {
   display: flex;
@@ -914,28 +907,85 @@
   .gantt-search-flash { animation: none; outline: 2px solid rgb(var(--c-accent)); outline-offset: 1px; }
 }
 
-.gantt-scroll-arrows button {
-  display: inline-flex;
-  width: 30px;
-  height: 30px;
+/* ── Flechas dentro del calendario ──
+   Siguen la altura del cursor y se encienden en la zona que recorre los días.
+   La franja no captura el mouse: las celdas del borde siguen siendo clicables. */
+.gantt-edge-cue {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 36;
+  width: 72px;
+  pointer-events: none;
+}
+
+.gantt-edge-cue-left { left: 172px; }
+.gantt-edge-cue-right { right: 0; }
+
+.gantt-edge-cue::before {
+  position: absolute;
+  inset: 0;
+  content: '';
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+
+.gantt-edge-cue-left::before { background: linear-gradient(90deg, rgb(var(--c-accent) / 0.3), transparent); }
+.gantt-edge-cue-right::before { background: linear-gradient(270deg, rgb(var(--c-accent) / 0.3), transparent); }
+.gantt-edge-cue.is-active::before { opacity: 1; }
+
+.gantt-edge-handle {
+  position: absolute;
+  top: 0;
+  display: flex;
+  width: 22px;
+  height: 52px;
+  margin-top: -26px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgb(var(--c-line));
-  border-radius: 10px;
+  border: 1px solid rgb(var(--c-line-strong));
   background: rgb(var(--c-surface));
-  color: rgb(var(--c-fg));
-  box-shadow: var(--shadow-xs);
-  transition: background-color 120ms ease-out, opacity 120ms ease-out;
+  color: rgb(var(--c-fg-muted));
+  box-shadow: var(--shadow-card);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, var(--edge-y, 200px), 0);
+  transition: width 140ms ease-out, opacity 140ms ease-out, background-color 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out;
 }
 
-.gantt-scroll-arrows button:hover:not(:disabled) {
-  background: rgb(var(--c-surface-2));
+.gantt-edge-cue-left .gantt-edge-handle { left: 0; border-left: 0; border-radius: 0 12px 12px 0; }
+.gantt-edge-cue-right .gantt-edge-handle { right: 0; border-right: 0; border-radius: 12px 0 0 12px; }
+
+.gantt-edge-cue.is-available .gantt-edge-handle {
+  opacity: 0.92;
+  pointer-events: auto;
 }
 
-.gantt-scroll-arrows button:disabled {
-  cursor: default;
-  opacity: 0.35;
-  box-shadow: none;
+.gantt-edge-cue.is-available.is-active .gantt-edge-handle {
+  width: 34px;
+  border-color: rgb(var(--c-accent));
+  background: rgb(var(--c-accent));
+  color: rgb(var(--c-accent-fg));
+  opacity: 1;
+}
+
+.gantt-edge-handle:focus-visible:not(:disabled) {
+  opacity: 1;
+  pointer-events: auto;
+  outline: 2px solid rgb(var(--c-focus));
+  outline-offset: -2px;
+}
+
+/* Mientras se recorre, las fichas no abren su resumen al pasar bajo el cursor. */
+.gantt-scroll-viewport.is-edge-scrolling .gantt-grid { pointer-events: none; }
+
+@media (hover: none) {
+  .gantt-edge-cue { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gantt-edge-cue::before,
+  .gantt-edge-handle { transition: none; }
 }
 
 .gantt-scroll-edge {
@@ -1021,7 +1071,7 @@
   .gantt-day-label     { font-size: 9px; }
   .gantt-day-month     { font-size: 9px; }
   .gantt-name-col      { min-width: 136px; max-width: 136px; }
-  .gantt-scroll-edge-left { left: 136px; }
+  .gantt-scroll-edge-left, .gantt-edge-cue-left { left: 136px; }
   .gantt-day-header-cell, .gantt-cell { min-width: 96px; width: 96px; }
   .gantt-compact-name, .gantt-compact-spacer { width: 136px; }
   .gantt-compact-day { width: 96px; }
@@ -1029,7 +1079,7 @@
 
 @media (max-width: 479px) {
   .gantt-name-col      { min-width: 108px; max-width: 108px; padding-left: 10px; padding-right: 10px; }
-  .gantt-scroll-edge-left { left: 108px; }
+  .gantt-scroll-edge-left, .gantt-edge-cue-left { left: 108px; }
   .gantt-day-header-cell, .gantt-cell { min-width: 84px; width: 84px; }
   .gantt-day-number    { font-size: 13px; }
   .gantt-compact-name, .gantt-compact-spacer { width: 108px; }

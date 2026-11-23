@@ -82,6 +82,12 @@ const HELP_SECTIONS = [
         description: 'Navega a la siguiente semana.',
       },
       {
+        Icon: MousePointer2,
+        action: 'Cursor en el borde del calendario',
+        description: 'Acerca el mouse al lado izquierdo o derecho para recorrer los días. Cuanto más cerca del borde, más rápido; también funciona al arrastrar una tarea.',
+        highlight: true,
+      },
+      {
         Icon: CalendarDays,
         action: 'Botón "Hoy"',
         description: 'Regresa a la semana actual y centra la vista en el día de hoy.',
