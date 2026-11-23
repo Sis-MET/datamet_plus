@@ -57,6 +57,8 @@ export const mapScheduleRow = (row, tecnicos = []) => {
     cliente: row.cliente || '',
     cod_cliente: row.cod_cliente || '',
     planta: row.planta || '',
+    plantaDir: row.planta_dir || '',
+    plantaLocalidad: row.planta_localidad || '',
     colorAM: row.color || '#37A65F',
     estadoAM: mappedEstado,
     horaInicio: row.hora_inicio ? row.hora_inicio.substring(0, 5) : '',

@@ -42,6 +42,8 @@ const toApiPayload = (payload) => {
     cliente: payload.cliente || '',
     cod_cliente: payload.cod_cliente || '',
     planta: payload.planta || '',
+    plantaDir: payload.plantaDir || '',
+    plantaLocalidad: payload.plantaLocalidad || '',
     morning: payload.tipo_tarea || payload.tipoTarea || payload.morning || '',
     colorAM: payload.colorAM || '',
     estadoAM: payload.estadoAM || 'Pendiente',
@@ -53,6 +55,15 @@ const toApiPayload = (payload) => {
     autor: tokenData?.nombre || tokenData?.usuario || 'Sistema',
     creado_en: 'CronoMET',
   };
+};
+
+/** La dirección solo se muestra mientras llega la respuesta: el servidor la lee de DATA_PLANTAS. */
+const toServerPayload = (payload) => {
+  if (!payload) return payload;
+  const serverPayload = { ...payload };
+  delete serverPayload.plantaDir;
+  delete serverPayload.plantaLocalidad;
+  return serverPayload;
 };
 
 export function useGantt() {
@@ -207,7 +218,7 @@ export function useGantt() {
       const response = await api.post('/calendar/cronograma', {
         date: dateStr,
         resource,
-        payload: payloadObj
+        payload: toServerPayload(payloadObj)
       });
       const serverResults = response?.data ? [response.data] : [];
       commitTasks(reconcileOptimisticAssignments(
@@ -253,7 +264,10 @@ export function useGantt() {
     try {
       const response = await api.post('/calendar/cronograma/asignaciones', {
         date: dateStr,
-        assignments: normalizedAssignments,
+        assignments: normalizedAssignments.map(assignment => ({
+          ...assignment,
+          payload: toServerPayload(assignment.payload),
+        })),
       });
       const serverResults = Array.isArray(response?.data) ? response.data : [];
       commitTasks(reconcileOptimisticAssignments(

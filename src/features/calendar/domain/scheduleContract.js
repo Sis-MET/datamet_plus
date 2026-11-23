@@ -13,6 +13,8 @@ export const scheduleRowSchema = z.object({
   cliente: nullableText,
   cod_cliente: nullableText,
   planta: nullableText,
+  planta_dir: nullableText,
+  planta_localidad: nullableText,
   color: nullableText,
   estado: nullableText,
   hora_inicio: nullableText,

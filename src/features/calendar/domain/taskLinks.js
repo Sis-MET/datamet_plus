@@ -73,6 +73,8 @@ export const taskToPayload = (task, overrides = {}) => ({
   cliente: task.cliente,
   cod_cliente: task.cod_cliente,
   planta: task.planta,
+  plantaDir: task.plantaDir,
+  plantaLocalidad: task.plantaLocalidad,
   colorAM: task.colorAM,
   estadoAM: task.estadoAM,
   horaInicio: task.horaInicio,

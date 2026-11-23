@@ -10,6 +10,7 @@ import { CotizacionAutocomplete } from './CotizacionAutocomplete';
 import { ActivitySelect } from './taskForm/ActivitySelect';
 import { ClienteAutocomplete } from './taskForm/ClienteAutocomplete';
 import { FieldLabel } from './taskForm/FieldLabel';
+import { PlantAddress } from './taskForm/PlantAddress';
 import { PlantaSelect } from './taskForm/PlantaSelect';
 import { ServiceReferenceField } from './taskForm/ServiceReferenceField';
 import { TaskAssignments } from './taskForm/TaskAssignments';
@@ -26,6 +27,7 @@ import {
   QUOTE_ACTIVITY_TYPES,
   buildTaskPayload,
   getClientCodeFromPlantCode,
+  getPlantAddress,
   getPlantParts,
   isPlantCode,
   normalizeArea,
@@ -100,6 +102,11 @@ export function CellPopoverForm({
   const [horaFin, setHoraFin] = useState(userJFin);
   const requiresQuote = QUOTES_ENABLED && QUOTE_ACTIVITY_TYPES.has(activityType);
   const requiresPlantAssistance = (activityType === 'Visita' || (activityType === 'Servicio' && !cotizacionCode.trim())) && !NO_CLIENT_ACTIVITY_TYPES.has(activityType);
+  // Mientras carga la lista de plantas se usa la dirección que ya trae la tarea.
+  const selectedPlanta = plantas.find(planta => planta.codigo_planta === selectedPlantaCode)
+    || (selectedPlantaCode && String(event?.planta || '').trim() === selectedPlantaCode
+      ? { dir: event.plantaDir, localidad: event.plantaLocalidad }
+      : null);
   const grupos = useMemo(() => {
     const map = {};
 
@@ -436,6 +443,8 @@ export function CellPopoverForm({
         cliente,
         codCliente,
         planta: selectedPlantaCode,
+        plantaDir: selectedPlanta?.dir || '',
+        plantaLocalidad: selectedPlanta?.localidad || '',
         additionalResources,
         selectedVehicle,
       }));
@@ -615,6 +624,9 @@ export function CellPopoverForm({
                       />
                     </div>
                   </div>
+                  {selectedPlantaCode && (
+                    <PlantAddress address={getPlantAddress(selectedPlanta)} isLoading={isLoadingPlantas} />
+                  )}
                   </div>
                 </div>
 

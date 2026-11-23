@@ -24,6 +24,8 @@ const buildOptimisticTask = ({ date, resource, payload, technicians, optimisticI
     cliente: payload.cliente || '',
     cod_cliente: payload.cod_cliente || '',
     planta: payload.planta || '',
+    plantaDir: payload.plantaDir || '',
+    plantaLocalidad: payload.plantaLocalidad || '',
     colorAM: payload.colorAM || payload.color || '#10B981',
     estadoAM: payload.estadoAM || payload.estado || 'Pendiente',
     horaInicio: payload.horaInicio || '',

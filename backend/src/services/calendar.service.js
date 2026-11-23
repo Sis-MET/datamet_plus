@@ -12,6 +12,8 @@ const COLUMNAS_TAREA = `
         cliente,
         cod_cliente,
         planta,
+        planta_dir,
+        planta_localidad,
         color,
         estado,
         CONVERT(varchar(8), hora_inicio, 8) as hora_inicio,
@@ -28,6 +30,17 @@ const COLUMNAS_TAREA = `
         CONVERT(varchar, hora_modificacion, 8) as hora_modificacion
 `;
 
+/**
+ * Dirección y localidad de la planta de cada tarea. Se agrupa por código porque
+ * DATA_PLANTAS no lo garantiza único: un duplicado no debe repetir la tarea.
+ */
+const JOIN_PLANTA = `
+      LEFT JOIN (
+        SELECT codigo_planta AS planta_codigo, MAX(dir) AS planta_dir, MAX(localidad) AS planta_localidad
+        FROM DATA_PLANTAS
+        GROUP BY codigo_planta
+      ) AS datos_planta ON datos_planta.planta_codigo = DATA_CRONOGRAMA.planta`;
+
 const getSchedule = async (start, end) => {
   const pool = getPool();
 
@@ -38,6 +51,7 @@ const getSchedule = async (start, end) => {
       SELECT
 ${COLUMNAS_TAREA}
       FROM DATA_CRONOGRAMA
+${JOIN_PLANTA}
       WHERE fecha >= @start AND fecha <= @end
         AND ISNULL(estado, '') <> 'Anulado'
     `);
@@ -141,6 +155,7 @@ const consultaBusqueda = (cantidad) => `
       SELECT TOP (${MAX_RESULTADOS})
 ${COLUMNAS_TAREA}
       FROM DATA_CRONOGRAMA
+${JOIN_PLANTA}
       WHERE ISNULL(estado, '') <> 'Anulado'
         ${Array.from({ length: cantidad }, (_, i) => `AND ${TEXTO_BUSCABLE} LIKE @p${i} ESCAPE '\\'`).join('\n        ')}
       ORDER BY ABS(DATEDIFF(day, fecha, CAST(GETDATE() AS date))), fecha DESC, id DESC`;

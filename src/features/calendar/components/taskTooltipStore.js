@@ -2,6 +2,8 @@ import { createContext, useContext, useSyncExternalStore } from 'react';
 
 export const TaskTooltipContext = createContext(null);
 
+const TOOLTIP_ESTIMATED_HEIGHT = 460;
+
 export function createTaskTooltipStore() {
   let tooltip = null;
   let closeTimer = null;
@@ -23,7 +25,9 @@ export function createTaskTooltipStore() {
       if (animationFrame) cancelAnimationFrame(animationFrame);
 
       const rect = anchor.getBoundingClientRect();
-      const isTop = rect.top < 250;
+      // Va arriba de la ficha si cabe; si no, del lado con más espacio.
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const isTop = rect.top < TOOLTIP_ESTIMATED_HEIGHT && spaceBelow > rect.top;
       tooltip = {
         key,
         visible: false,

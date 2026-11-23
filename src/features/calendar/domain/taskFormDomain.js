@@ -118,12 +118,11 @@ export const getPlantParts = (planta) => {
   let address = rawDir;
   let department = String(planta?.dep || planta?.localidad || '').trim();
 
-  if (rawDir.includes('-')) {
-    const parts = rawDir.split('-').map(part => part.trim()).filter(Boolean);
-    if (parts.length > 1) {
-      if (!department) department = parts.at(-1);
-      address = parts.slice(0, -1).join(' - ').trim();
-    }
+  // Solo un guion junto a un espacio separa partes: «MANZANA 20-B» es una sola.
+  const parts = rawDir.split(/\s+-\s*|\s*-\s+/).map(part => part.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    if (!department) department = parts.at(-1);
+    address = parts.slice(0, -1).join(' - ').trim();
   }
 
   return { address, department };
@@ -133,6 +132,19 @@ export const getPlantOptionLabel = (planta, clienteLabel = '') => {
   const clientName = String(clienteLabel || '').trim();
   const department = getPlantParts(planta).department;
   return [clientName, department].filter(Boolean).join(' - ') || planta?.codigo_planta || '';
+};
+
+/**
+ * Dirección tal como está registrada. Es texto libre y el último tramo no
+ * siempre es la ciudad, así que se muestra completa para no perder datos.
+ */
+export const getPlantAddress = (planta) => String(planta?.dir || '').replace(/\s+/g, ' ').trim();
+
+/** «EMBOL - COCHABAMBA»: el cliente con el lugar de su planta, igual que en el selector. */
+export const getTaskClientLabel = (task) => {
+  const cliente = String(task?.cliente || '').trim();
+  if (!cliente) return '';
+  return getPlantOptionLabel({ dir: task.plantaDir, localidad: task.plantaLocalidad }, cliente);
 };
 
 export const isPlantCode = (value) => /^\d+\s*-\s*\d+/i.test(String(value || '').trim());
@@ -190,6 +202,8 @@ export const buildTaskPayload = ({
   cliente,
   codCliente,
   planta,
+  plantaDir = '',
+  plantaLocalidad = '',
   additionalResources,
   selectedVehicle,
 }) => ({
@@ -215,6 +229,8 @@ export const buildTaskPayload = ({
   cliente: cliente.trim(),
   cod_cliente: codCliente.trim(),
   planta,
+  plantaDir,
+  plantaLocalidad,
   lastModified: event?.timestampUpdated || null,
   additionalResources,
   vehicleResource: selectedVehicle || null,

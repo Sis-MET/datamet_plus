@@ -29,3 +29,11 @@ test('buscador del cronograma: cada palabra es un parámetro y se ignoran tildes
   assert.match(sql, /<> 'Anulado'/);
   assert.match(sql, /ORDER BY ABS\(DATEDIFF\(day, fecha, CAST\(GETDATE\(\) AS date\)\)\)/);
 });
+
+test('buscador del cronograma: trae la dirección de la planta sin repetir tareas', () => {
+  const sql = consultaBusqueda(1);
+  assert.match(sql, /planta_dir/);
+  assert.match(sql, /planta_localidad/);
+  assert.match(sql, /GROUP BY codigo_planta/);
+  assert.match(sql, /LEFT JOIN/);
+});

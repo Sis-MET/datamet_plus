@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -7,9 +7,10 @@ import { cn } from '../../../shared/utils/cn';
 import { isNonWorkingDay } from '../utils/holidays';
 import { useTaskTooltip } from './taskTooltipStore';
 import { TASK_CARD_HEIGHT, TASK_CARD_PADDING_Y } from '../utils/ganttRowLayout';
-import { serviceReferenceLabel } from '../domain/taskFormDomain';
+import { getPlantAddress, getTaskClientLabel, isPlantCode, serviceReferenceLabel } from '../domain/taskFormDomain';
 
 const MAX_TASKS_PER_CELL = 4;
+const TOOLTIP_SCREEN_MARGIN = 8;
 
 const normalizeTaskText = (value) => String(value || '').trim();
 const normalizeForComparison = (value) => normalizeTaskText(value).toLocaleLowerCase();
@@ -118,8 +119,26 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
   const renderTooltip = Boolean(tooltip);
   const showTooltip = Boolean(tooltip?.visible);
   const tooltipPos = tooltip?.position || null;
+  const tooltipRef = useRef(null);
+
+  // El resumen creció con la dirección: se corre lo justo para no salir de la pantalla.
+  useLayoutEffect(() => {
+    const element = tooltipRef.current;
+    if (!element || !tooltipPos) return;
+    const { offsetWidth: width, offsetHeight: height } = element;
+    const top = tooltipPos.isTop ? tooltipPos.y : tooltipPos.y - height;
+    const left = tooltipPos.x - width / 2;
+    const maxTop = window.innerHeight - height - TOOLTIP_SCREEN_MARGIN;
+    const maxLeft = window.innerWidth - width - TOOLTIP_SCREEN_MARGIN;
+    const shiftY = Math.max(TOOLTIP_SCREEN_MARGIN, Math.min(top, maxTop)) - top;
+    const shiftX = Math.max(TOOLTIP_SCREEN_MARGIN, Math.min(left, maxLeft)) - left;
+    element.style.marginTop = shiftY ? `${shiftY}px` : '';
+    element.style.marginLeft = shiftX ? `${shiftX}px` : '';
+  }, [tooltipPos]);
 
   // --- Datos normalizados para la tarjeta ---
+  const clienteLabel = getTaskClientLabel(task);
+  const plantAddress = getPlantAddress({ dir: task.plantaDir });
   const clienteText = normalizeTaskText(task.cliente);
   const descriptionText = normalizeTaskText(task.descripcion);
   const activityText = normalizeTaskText(task.tipoTarea || task.morning);
@@ -205,6 +224,8 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
             cliente: task.cliente,
             cod_cliente: task.cod_cliente,
             planta: task.planta,
+            plantaDir: task.plantaDir,
+            plantaLocalidad: task.plantaLocalidad,
             colorAM: task.colorAM,
             estadoAM: task.estadoAM,
             horaInicio: task.horaInicio,
@@ -277,8 +298,9 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
       {/* Tooltip por tarjeta - portalled */}
       {renderTooltip && tooltipPos && typeof document !== 'undefined' && createPortal(
         <div
+          ref={tooltipRef}
           className={cn(
-            'glass pointer-events-none fixed z-[9999] w-[min(280px,calc(100vw-20px))] rounded-2xl border p-4 transition-[opacity,transform] duration-150 ease-out',
+            'glass pointer-events-none fixed z-[9999] max-h-[calc(100dvh-16px)] w-[min(300px,calc(100vw-20px))] overflow-hidden rounded-2xl border p-4 transition-[opacity,transform] duration-150 ease-out',
             tooltipPos.isTop ? '-translate-x-1/2 origin-top' : '-translate-x-1/2 -translate-y-full origin-bottom',
             showTooltip ? 'scale-100 opacity-100' : 'scale-[0.97] opacity-0',
             !showTooltip && tooltipPos.isTop ? '-mt-1.5' : '',
@@ -299,7 +321,15 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
             <div className="min-w-0 flex-1 space-y-2.5">
               {clienteText && (
                 <TooltipField label="Cliente">
-                  <span className="font-semibold">{clienteText}</span>
+                  <span className="font-semibold">{clienteLabel}</span>
+                </TooltipField>
+              )}
+              {plantAddress && (
+                <TooltipField label="Dirección">
+                  <span className="flex items-start gap-1.5">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fg-muted" aria-hidden="true" />
+                    <span className="min-w-0">{plantAddress}</span>
+                  </span>
                 </TooltipField>
               )}
               {descriptionText && (
@@ -309,7 +339,7 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
                 <TooltipField label="Tipo de tarea">{activityText}</TooltipField>
               )}
               {plantaText && (
-                <TooltipField label="Planta">{plantaText}</TooltipField>
+                <TooltipField label={isPlantCode(plantaText) ? 'Código de planta' : 'Planta'}>{plantaText}</TooltipField>
               )}
               {quoteText && (
                 <TooltipField label={serviceReferenceLabel(quoteText)}>
