@@ -8,6 +8,7 @@ import { isNonWorkingDay } from '../utils/holidays';
 import { useTaskTooltip } from './taskTooltipStore';
 import { TASK_CARD_HEIGHT, TASK_CARD_PADDING_Y } from '../utils/ganttRowLayout';
 import { getPlantAddress, getTaskClientLabel, isPlantCode, serviceReferenceLabel } from '../domain/taskFormDomain';
+import { getPlantDepartment } from '../domain/plantDepartment';
 
 const MAX_TASKS_PER_CELL = 4;
 const TOOLTIP_SCREEN_MARGIN = 8;
@@ -215,6 +216,10 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
   const showActivity = Boolean(activityText)
     && normalizeForComparison(activityText) !== normalizeForComparison(titleText);
 
+  // Departamento abreviado antes del cliente: «LPZ - EMPACAR».
+  const department = getPlantDepartment(plantaText);
+  const cardTitle = department ? `${department.code} - ${titleText}` : titleText;
+
   return (
     <>
       <div
@@ -312,7 +317,7 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
               {/* Título: Cliente > Planta > Descripción > Tipo de tarea */}
               <span className="block truncate text-xs font-semibold leading-4" style={{ color: primaryColor }}>
                 {task.creadoEn === 'Salida Personal' && <MapPin className="-mt-0.5 mr-1 inline-block h-3 w-3 align-middle opacity-80" />}
-                {titleText}
+                {cardTitle}
               </span>
               {detailText && (
                 <span className="block truncate text-[11px] leading-[14px]" style={{ color: secondaryColor }}>

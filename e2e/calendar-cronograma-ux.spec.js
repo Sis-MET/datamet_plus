@@ -76,6 +76,12 @@ test('el filtro admite varias áreas a la vez', async ({ page }) => {
   await expect(rows).toHaveCount(4);
 });
 
+test('la ficha muestra el departamento abreviado de la planta', async ({ page }) => {
+  const card = page.locator('[data-task-id="task_71"]');
+  await expect(card.getByText('CBB - EMBOL', { exact: true })).toBeVisible();
+  await expect(card.getByText('0032-21', { exact: true })).toBeVisible();
+});
+
 test('el calendario se recorre al llevar el cursor a un borde', async ({ page }) => {
   const scroller = page.locator('.gantt-scroll-container');
   const viewport = await page.locator('.gantt-scroll-viewport').boundingBox();
