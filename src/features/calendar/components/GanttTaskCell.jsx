@@ -207,8 +207,8 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
   const primaryColor = hasColor ? contrast.text : undefined;
   const secondaryColor = hasColor ? contrast.textSecondary : undefined;
 
-  // La ficha muestra hasta cuatro líneas: las dos primeras dinámicas, el horario
-  // y el tipo de tarea. El resto del detalle queda en el tooltip.
+  // La ficha muestra hasta cinco líneas: título, ubicación, detalle, horario y
+  // tipo de tarea. El resto del detalle queda en el tooltip.
   const [titleLine, detailLine] = dynamicLines;
   const titleText = titleLine?.text || '';
   const detailText = detailLine?.text || '';
@@ -216,9 +216,9 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
   const showActivity = Boolean(activityText)
     && normalizeForComparison(activityText) !== normalizeForComparison(titleText);
 
-  // Departamento abreviado antes del cliente: «LPZ - EMPACAR».
+  // Línea de ubicación: el departamento va primero y en negrita para que se lea
+  // aunque la dirección no quepa.
   const department = getPlantDepartment(plantaText);
-  const cardTitle = department ? `${department.code} - ${titleText}` : titleText;
 
   return (
     <>
@@ -311,14 +311,25 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
               title={task.estadoAM || 'Pendiente'}
             />
             {/* Cada línea tiene una altura fija algo mayor que su cuerpo de letra:
-                acentos y descendentes no se recortan y las cuatro líneas posibles
-                (16 + 14 + 14 + 12 px) caben en la ficha sin desbordarla. */}
+                acentos y descendentes no se recortan y las cinco líneas posibles
+                (16 + 14 + 14 + 14 + 12 px) caben en la ficha sin desbordarla. */}
             <div className="min-w-0 flex-1">
               {/* Título: Cliente > Planta > Descripción > Tipo de tarea */}
               <span className="block truncate text-xs font-semibold leading-4" style={{ color: primaryColor }}>
                 {task.creadoEn === 'Salida Personal' && <MapPin className="-mt-0.5 mr-1 inline-block h-3 w-3 align-middle opacity-80" />}
-                {cardTitle}
+                {titleText}
               </span>
+              {(department || plantAddress) && (
+                <span className="block truncate text-[11px] leading-[14px]" style={{ color: secondaryColor }}>
+                  {department && (
+                    <strong className="font-extrabold" style={{ color: primaryColor }} title={department.name}>
+                      {department.code}
+                    </strong>
+                  )}
+                  {department && plantAddress && ' - '}
+                  {plantAddress}
+                </span>
+              )}
               {detailText && (
                 <span className="block truncate text-[11px] leading-[14px]" style={{ color: secondaryColor }}>
                   {detailText}

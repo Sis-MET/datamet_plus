@@ -123,10 +123,26 @@ test('el buscador muestra una fila oculta sin cambiar la selección guardada', a
   await expect(page.locator('[data-resource-row="Ana_Rojas"]')).toHaveCount(0);
 });
 
-test('la ficha muestra el departamento abreviado de la planta', async ({ page }) => {
+test('la ficha muestra el departamento en negrita antes de la dirección', async ({ page }) => {
   const card = page.locator('[data-task-id="task_71"]');
-  await expect(card.getByText('CBB - EMBOL', { exact: true })).toBeVisible();
+  await expect(card.getByText('EMBOL', { exact: true })).toBeVisible();
   await expect(card.getByText('0032-21', { exact: true })).toBeVisible();
+
+  const departamento = card.locator('strong');
+  await expect(departamento).toHaveText('CBB');
+  await expect(departamento.locator('..')).toHaveText(`CBB - ${DIRECCION}`);
+
+  const medidas = await departamento.evaluate((element) => {
+    const ficha = element.closest('[data-task-id]');
+    return {
+      peso: Number(getComputedStyle(element).fontWeight),
+      visible: element.getBoundingClientRect().right <= ficha.getBoundingClientRect().right,
+      desborde: ficha.scrollHeight - ficha.clientHeight,
+    };
+  });
+  expect(medidas.peso).toBeGreaterThanOrEqual(700);
+  expect(medidas.visible).toBe(true);
+  expect(medidas.desborde).toBeLessThanOrEqual(0);
 });
 
 test('el calendario se recorre al llevar el cursor a un borde', async ({ page }) => {

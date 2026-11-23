@@ -1,7 +1,7 @@
 // Medidas compartidas por la ficha de tarea (GanttTaskCell) y el cálculo de la
 // altura de cada fila. Si cambia una, la otra debe seguirla: las filas se
 // virtualizan con esta altura fija.
-export const TASK_CARD_LINES_HEIGHT = 56; // título 16 + detalle 14 + horario 14 + tipo 12
+export const TASK_CARD_LINES_HEIGHT = 70; // título 16 + ubicación 14 + detalle 14 + horario 14 + tipo 12
 export const TASK_CARD_PADDING_Y = 3;
 export const TASK_CARD_HEIGHT = TASK_CARD_LINES_HEIGHT + (TASK_CARD_PADDING_Y * 2);
 export const TASK_CARD_GAP = 4;

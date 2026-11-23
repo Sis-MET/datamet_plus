@@ -213,12 +213,14 @@ test('un jefe de área edita la reserva de vehículo de otra persona; otro nivel
   await page.setViewportSize({ width: 1366, height: 768 });
   await comoUsuario('Técnico');
   await page.goto('/');
+  await page.locator('[data-resource-row="CAMIONETA_LPZ"]').scrollIntoViewIfNeeded();
   await page.locator('[data-task-id="task_81"]').click();
   await expect(page.getByText(/reservado por mlopez/)).toBeVisible();
   await expect(page.getByRole('dialog', { name: /Editar tarea/i })).toHaveCount(0);
 
   await comoUsuario('Jefe de Área');
   await page.reload();
+  await page.locator('[data-resource-row="CAMIONETA_LPZ"]').scrollIntoViewIfNeeded();
   await page.locator('[data-task-id="task_81"]').click();
   await expect(page.getByRole('dialog', { name: /Editar tarea/i })).toBeVisible();
 });
