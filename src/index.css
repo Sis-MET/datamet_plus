@@ -694,6 +694,17 @@
   color: rgb(var(--c-accent-fg));
 }
 
+/* En táctil el + se ve pequeño para no tapar el horario, pero se toca en 28 px. */
+@media (hover: none) {
+  .gantt-cell-add::after {
+    position: absolute;
+    inset: -10px -4px -4px -10px;
+    content: '';
+  }
+
+  .gantt-cell-filled:has(> .gantt-cell-add) .gantt-card-activity { padding-right: 12px; }
+}
+
 .gantt-area-chip {
   display: inline-flex;
   flex: none;

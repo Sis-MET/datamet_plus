@@ -221,6 +221,42 @@ for (const [equipo, viewport] of [['celular', { width: 390, height: 844 }], ['ta
       await page.screenshot({ path: `test-results/cronograma-toque-${equipo}.png` });
     });
 
+    test('el botón + no tapa el horario y se puede tocar con holgura', async ({ page }) => {
+      const card = page.locator('[data-task-id="task_71"]');
+      const cell = page.locator('.gantt-cell-filled').filter({ has: card });
+      await cell.locator('.gantt-cell-add').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(500);
+
+      const medidas = await cell.evaluate((element) => {
+        const boton = element.querySelector('.gantt-cell-add').getBoundingClientRect();
+        const horario = element.querySelector('[data-task-id] .tabular-nums').getBoundingClientRect();
+        const tipo = element.querySelector('.gantt-card-activity');
+        const finTipo = tipo.getBoundingClientRect().right - parseFloat(getComputedStyle(tipo).paddingRight);
+        return {
+          ancho: boton.width,
+          alto: boton.height,
+          bajoHorario: boton.top - horario.bottom,
+          trasTipo: boton.left - finTipo,
+          x: boton.left,
+          y: boton.top,
+        };
+      });
+      expect(medidas.ancho).toBe(14);
+      expect(medidas.alto).toBe(14);
+      expect(medidas.bajoHorario).toBeGreaterThanOrEqual(-0.5);
+      expect(medidas.trasTipo).toBeGreaterThanOrEqual(0);
+
+      // Un toque justo fuera del dibujo del botón sigue contando como +.
+      await page.touchscreen.tap(medidas.x - 6, medidas.y - 6);
+      const nueva = page.getByRole('dialog', { name: /Nueva tarea/i });
+      await expect(nueva).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(nueva).toHaveCount(0);
+
+      await card.tap({ position: { x: 16, y: 10 } });
+      await expect(page.getByRole('dialog', { name: /Editar tarea/i })).toBeVisible();
+    });
+
     test('sin permiso de edición, tocar muestra solo el resumen y otro toque lo cierra', async ({ page }) => {
       await page.addInitScript(() => {
         localStorage.setItem('datamet_user', JSON.stringify({ id: 1, nombre: 'Usuario QA', acceso_cron: 1, area: 'Soporte Técnico' }));

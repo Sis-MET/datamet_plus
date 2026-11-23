@@ -330,7 +330,7 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
                 </span>
               )}
               {showActivity && (
-                <span className="block truncate text-[9px] font-semibold uppercase leading-3 tracking-wide opacity-80" style={{ color: secondaryColor }}>
+                <span className="gantt-card-activity block truncate text-[9px] font-semibold uppercase leading-3 tracking-wide opacity-80" style={{ color: secondaryColor }}>
                   {activityText}
                 </span>
               )}
@@ -554,17 +554,17 @@ export function GanttTaskCell({
         <div
           onClick={(e) => { e.stopPropagation(); onTaskClick(null, date, resourceId); }}
           className={cn(
-            'absolute bottom-1 right-1 z-10 flex cursor-pointer select-none items-center justify-center rounded-md',
+            'gantt-cell-add absolute bottom-1 right-1 z-10 flex cursor-pointer select-none items-center justify-center rounded-md',
             'transition-[opacity,transform,background-color] duration-150 ease-out',
             // Desktop: oculto hasta hover, aparece con escala
             'h-5 w-5 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100',
-            // Touch (sin hover): siempre visible
-            '[@media(hover:none)]:h-7 [@media(hover:none)]:w-7 [@media(hover:none)]:scale-100 [@media(hover:none)]:opacity-100',
+            // Touch (sin hover): siempre visible y en la última línea, sin tapar el horario.
+            '[@media(hover:none)]:bottom-[3px] [@media(hover:none)]:h-3.5 [@media(hover:none)]:w-3.5 [@media(hover:none)]:scale-100 [@media(hover:none)]:rounded [@media(hover:none)]:opacity-100',
             'bg-brand text-brand-fg shadow-card ring-1 ring-inset ring-black/10 hover:bg-brand-hover'
           )}
           title={`Agregar tarea (${allValidTasks.length}/${MAX_TASKS_PER_CELL})`}
         >
-          <Plus className="h-3.5 w-3.5" strokeWidth={2.6} aria-hidden="true" />
+          <Plus className="h-3.5 w-3.5 [@media(hover:none)]:h-2.5 [@media(hover:none)]:w-2.5" strokeWidth={2.6} aria-hidden="true" />
         </div>
       )}
 
