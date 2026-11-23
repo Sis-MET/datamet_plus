@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useLayoutEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -120,6 +120,25 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
   const showTooltip = Boolean(tooltip?.visible);
   const tooltipPos = tooltip?.position || null;
   const tooltipRef = useRef(null);
+  const cardRef = useRef(null);
+  const lastPointerType = useRef('mouse');
+  const openedByTap = useRef(false);
+
+  // Abierto con un toque, se cierra al tocar fuera o al desplazar la pantalla.
+  useEffect(() => {
+    if (!showTooltip || !openedByTap.current) return undefined;
+    const close = (event) => {
+      if (event.type === 'pointerdown' && cardRef.current?.contains(event.target)) return;
+      openedByTap.current = false;
+      hideTaskTooltip();
+    };
+    document.addEventListener('pointerdown', close, true);
+    window.addEventListener('scroll', close, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', close, true);
+      window.removeEventListener('scroll', close, { capture: true });
+    };
+  }, [hideTaskTooltip, showTooltip]);
 
   // El resumen creció con la dirección: se corre lo justo para no salir de la pantalla.
   useLayoutEffect(() => {
@@ -160,14 +179,16 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
     dynamicLines.push({ text: activityText, role: 'primary' });
   }
 
-  const handleMouseEnter = (e) => {
+  // Solo un mouse real abre el resumen al pasar: un toque también simula ese
+  // paso y abriría el resumen junto con la ficha.
+  const handlePointerEnter = (e) => {
     e.stopPropagation();
-    showTaskTooltip(e.currentTarget);
+    if (e.pointerType === 'mouse') showTaskTooltip(e.currentTarget);
   };
 
-  const handleMouseLeave = (e) => {
+  const handlePointerLeave = (e) => {
     e.stopPropagation();
-    hideTaskTooltip();
+    if (e.pointerType === 'mouse') hideTaskTooltip();
   };
 
   // Long-press => menu contextual en touch/tablet
@@ -197,16 +218,33 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
   return (
     <>
       <div
+        ref={cardRef}
         data-task-id={task.id}
         draggable={!!onTaskDrop}
         {...otherLongPressHandlers}
+        onPointerDown={(e) => {
+          lastPointerType.current = e.pointerType;
+          otherLongPressHandlers.onPointerDown(e);
+        }}
         onClick={(e) => {
           longPressClick(e);
           if (e.isPropagationStopped()) return;
 
           if (onTaskClick) {
             e.stopPropagation();
+            hideTaskTooltip();
             onTaskClick(task, date, resourceId);
+            return;
+          }
+
+          // Sin permiso de edición no hay ficha: en táctil, el toque abre o cierra el resumen.
+          if (lastPointerType.current === 'mouse') return;
+          if (showTooltip) {
+            openedByTap.current = false;
+            hideTaskTooltip();
+          } else {
+            openedByTap.current = true;
+            showTaskTooltip(e.currentTarget);
           }
         }}
         onDragStart={(e) => {
@@ -243,11 +281,12 @@ function TaskCard({ task, formattedDateTooltip, resourceName, resourceId, onTask
           if (onTaskContextMenu) {
             e.preventDefault();
             e.stopPropagation();
+            hideTaskTooltip();
             onTaskContextMenu(e, task, date, resourceId);
           }
         }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        onPointerEnter={handlePointerEnter}
+        onPointerLeave={handlePointerLeave}
         className={cn(
           'relative flex w-full shrink-0 cursor-grab select-none flex-col justify-center overflow-hidden rounded-lg px-2 shadow-xs ring-1 ring-inset ring-black/10 transition-[box-shadow,transform] duration-150 ease-out active:cursor-grabbing',
           'hover:-translate-y-px hover:shadow-card hover:ring-black/25',

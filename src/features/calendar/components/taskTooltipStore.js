@@ -1,4 +1,4 @@
-import { createContext, useContext, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useContext, useSyncExternalStore } from 'react';
 
 export const TaskTooltipContext = createContext(null);
 
@@ -74,9 +74,8 @@ export function useTaskTooltip(key) {
     () => null
   );
 
-  return {
-    tooltip,
-    showTaskTooltip: anchor => store.show(anchor, key),
-    hideTaskTooltip: () => store.hide(key),
-  };
+  const showTaskTooltip = useCallback(anchor => store.show(anchor, key), [key, store]);
+  const hideTaskTooltip = useCallback(() => store.hide(key), [key, store]);
+
+  return { tooltip, showTaskTooltip, hideTaskTooltip };
 }
